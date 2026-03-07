@@ -26,9 +26,7 @@ import { defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
 import { ErrorField } from "../forms/error-field";
-import { RatingDisplay } from "../ratings/rating-display";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardHeader } from "../ui/card";
 import {
   InputGroup,
   InputGroupAddon,
@@ -38,9 +36,10 @@ import { Item, ItemContent, ItemMedia } from "../ui/item";
 import { ScrollArea } from "../ui/scroll-area";
 import { Spinner } from "../ui/spinner";
 import { UserLabel } from "../users/user-label";
-import type { PostProps } from "./post-components";
+import { usePost } from "./post-context";
 
-export function CommentSection({ post }: { post: PostProps }) {
+export function CommentSection() {
+  const post = usePost();
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const queryClient = useQueryClient();
@@ -124,7 +123,7 @@ export function CommentSection({ post }: { post: PostProps }) {
   if (!commentsQuery.data) {
     return (
       <div
-        className="flex min-h-100 items-center justify-center border bg-card p-6"
+        className="flex min-h-100 items-center justify-center border border-border bg-card p-6"
         ref={ref}
       >
         <Spinner />
@@ -135,42 +134,11 @@ export function CommentSection({ post }: { post: PostProps }) {
   const commentCount = commentsQuery.data.length;
 
   return (
-    <Card ref={ref}>
-      {/* Header with icon and title */}
-      <CardHeader className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
-            <HugeiconsIcon
-              className="size-5 text-primary"
-              icon={Comment01Icon}
-              strokeWidth={2}
-            />
-          </div>
-          <div className="flex flex-col">
-            <h2 className="font-bold text-2xl">Comentarios</h2>
-            {commentCount > 0 && (
-              <span className="text-muted-foreground text-sm">
-                {commentCount}{" "}
-                {commentCount === 1 ? "comentario" : "comentarios"}
-              </span>
-            )}
-          </div>
-        </div>
-        <Button
-          nativeButton={false}
-          render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
-          size="sm"
-          variant="outline"
-        >
-          <RatingDisplay
-            averageRating={post.averageRating ?? 0}
-            ratingCount={post.ratingCount}
-            variant="compact"
-          />
-        </Button>
-      </CardHeader>
-
-      <CardContent className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3" ref={ref}>
+      <div className="section-title">
+        Comentarios{commentCount > 0 && ` (${commentCount})`}
+      </div>
+      <div className="flex flex-col gap-4 border border-border bg-card p-4">
         {/* Comment Form */}
         <SignedIn>
           <form
@@ -240,7 +208,7 @@ export function CommentSection({ post }: { post: PostProps }) {
         </SignedIn>
         {/* Sign in prompt for logged out users */}
         <SignedOut>
-          <div className="flex flex-col items-center gap-3 rounded-2xl bg-muted/30 p-6 text-center">
+          <div className="flex flex-col items-center gap-3 bg-muted/30 p-6 text-center">
             <p className="text-muted-foreground">
               ¿Quieres dejar un comentario?
             </p>
@@ -252,93 +220,78 @@ export function CommentSection({ post }: { post: PostProps }) {
           </div>
         </SignedOut>
         {/* Comments List */}
-        {!commentsQuery.data && (
-          <div
-            className="flex min-h-96 items-center justify-center border bg-card p-6"
-            ref={ref}
-          >
-            <Spinner />
-          </div>
-        )}
-        {commentsQuery.data && (
-          <ScrollArea className="max-h-150">
-            <div className="flex flex-col gap-4">
-              {commentCount === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
-                  <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                    <HugeiconsIcon
-                      className="size-6 text-muted-foreground"
-                      icon={Comment01Icon}
-                    />
-                  </div>
-                  <p className="text-muted-foreground">
-                    Aún no hay comentarios. ¡Sé el primero!
-                  </p>
+        <ScrollArea className="max-h-150">
+          <div className="flex flex-col">
+            {commentCount === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+                  <HugeiconsIcon
+                    className="size-6 text-muted-foreground"
+                    icon={Comment01Icon}
+                  />
                 </div>
-              ) : (
-                commentsQuery.data
-                  .filter(
-                    (
-                      comment
-                      // little workaround to convince TS that author is not null
-                    ): comment is typeof comment & {
-                      author: NonNullable<typeof comment.author>;
-                    } => comment.author !== null
-                  )
-                  .map((comment) => (
-                    <div
-                      className="group flex gap-4 rounded-2xl p-4 hover:bg-muted/30"
-                      key={comment.id}
-                    >
-                      <Link params={{ id: comment.author.id }} to="/user/$id">
-                        <Avatar className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105">
-                          <AvatarImage
-                            src={
-                              comment.author.image
-                                ? getBucketUrl(comment.author.image)
-                                : undefined
-                            }
-                          />
-                          <AvatarFallback
-                            className="rounded-full"
-                            facehashProps={defaultFacehashProps}
-                            name={comment.author.name}
-                          />
-                        </Avatar>
-                      </Link>
-                      <div className="flex min-w-0 flex-1 flex-col gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            params={{ id: comment.author.id }}
-                            to="/user/$id"
-                          >
-                            <UserLabel
-                              className="font-semibold transition-colors hover:text-primary"
-                              user={comment.author}
-                            />
-                          </Link>
-                          <span className="text-muted-foreground text-xs">
-                            •
-                          </span>
-                          <time className="text-muted-foreground text-xs">
-                            {format(comment.createdAt, "d MMM yyyy", {
-                              locale: es,
-                            })}
-                          </time>
-                        </div>
-                        <CommentContent
-                          content={comment.content}
-                          emojiMap={emojiMap}
-                          stickerMap={stickerMap}
+                <p className="text-muted-foreground">
+                  Aún no hay comentarios. ¡Sé el primero!
+                </p>
+              </div>
+            ) : (
+              commentsQuery.data
+                .filter(
+                  (
+                    comment
+                    // little workaround to convince TS that author is not null
+                  ): comment is typeof comment & {
+                    author: NonNullable<typeof comment.author>;
+                  } => comment.author !== null
+                )
+                .map((comment) => (
+                  <div
+                    className="group flex gap-4 border-border border-t p-4 first:border-t-0"
+                    key={comment.id}
+                  >
+                    <Link params={{ id: comment.author.id }} to="/user/$id">
+                      <Avatar className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105">
+                        <AvatarImage
+                          src={
+                            comment.author.image
+                              ? getBucketUrl(comment.author.image)
+                              : undefined
+                          }
                         />
+                        <AvatarFallback
+                          className="rounded-full"
+                          facehashProps={defaultFacehashProps}
+                          name={comment.author.name}
+                        />
+                      </Avatar>
+                    </Link>
+                    <div className="flex min-w-0 flex-1 flex-col gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link params={{ id: comment.author.id }} to="/user/$id">
+                          <UserLabel
+                            className="font-semibold transition-colors hover:text-primary"
+                            user={comment.author}
+                          />
+                        </Link>
+                        <span className="text-muted-foreground text-xs">•</span>
+                        <time className="text-muted-foreground text-xs">
+                          {format(comment.createdAt, "d MMM yyyy", {
+                            locale: es,
+                          })}
+                        </time>
                       </div>
+                      <CommentContent
+                        content={comment.content}
+                        emojiMap={emojiMap}
+                        stickerMap={stickerMap}
+                      />
                     </div>
-                  ))
-              )}
-            </div>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
+                  </div>
+                ))
+            )}
+          </div>
+        </ScrollArea>
+      </div>
+    </div>
   );
 }

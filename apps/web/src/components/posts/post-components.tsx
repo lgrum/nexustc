@@ -4,11 +4,10 @@ import {
   Calendar03Icon,
   Download04Icon,
   FavouriteCircleIcon,
-  InformationCircleIcon,
   Share08Icon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -22,7 +21,6 @@ import { TermBadge } from "@/components/term-badge";
 import { orpc, orpcClient } from "@/lib/orpc";
 import type { PostType } from "@/lib/types";
 import { getBucketUrl } from "@/lib/utils";
-import { Card_5 } from "../card-5";
 import { DiscordLogo } from "../icons/discord";
 import {
   PostCard,
@@ -33,21 +31,12 @@ import { RatingDisplay } from "../ratings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../ui/card";
-import {
   Carousel,
   type CarouselApi,
   CarouselContent,
   CarouselItem,
 } from "../ui/carousel";
 import { ImageViewer } from "../ui/image-viewer";
-import { Separator } from "../ui/separator";
 import { ShinyButton } from "../ui/shiny-button";
 import { Skeleton } from "../ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
@@ -55,6 +44,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { BookmarkButton } from "./bookmark-button";
 import { CommentSection } from "./comment-section";
 import { LikeButton } from "./like-button";
+import { PostProvider, usePost } from "./post-context";
 
 export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
   averageRating?: number;
@@ -63,79 +53,73 @@ export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
 
 export function PostPage({ post }: { post: PostProps }) {
   return (
-    <div className="relative grid grid-cols-1 gap-4 p-4 md:grid-cols-4">
-      <div className="flex flex-col gap-4 md:col-span-3">
-        <PostHero post={post} />
-        <PostCarousel post={post} />
-        <PostStats post={post} />
-        <PostInfo post={post} />
-        <PostContent post={post} />
-        <PostTagsSection post={post} />
-        <PostChangelog post={post} />
-        <CommentSection post={post} />
-        <TutorialsSection />
-        <DiscordSection />
+    <PostProvider post={post}>
+      <div className="relative flex gap-6 pb-6">
+        {/* Main column */}
+        <div className="flex min-w-0 flex-1 flex-col">
+          <PostHero />
+          <PostStatsBar />
+          <div className="flex flex-col gap-4 px-4 pt-4">
+            <PostCarousel />
+            <PostContent />
+            <PostInfo />
+            <PostTagsSection />
+            <PostChangelog />
+            <div className="md:hidden">
+              <CreatorSupportCard />
+            </div>
+            <CommentSection />
+            <TutorialsSection />
+            <DiscordSection />
+            <div className="md:hidden">
+              <RelatedGamesSection />
+            </div>
+          </div>
+        </div>
+        {/* Sidebar — desktop only */}
+        <aside className="hidden w-72 shrink-0 pt-4 pr-4 md:block">
+          <div className="sticky top-22 flex flex-col gap-4">
+            <PostSidebarContent />
+          </div>
+        </aside>
       </div>
-      <div>
-        <PostSidebarContent post={post} />
-      </div>
-    </div>
+    </PostProvider>
   );
 }
 
-export function PostHero({ post }: { post: PostProps }) {
+export function PostHero() {
+  const post = usePost();
   const mainImage = post.imageObjectKeys?.[0];
 
   return (
-    <div className="flex flex-col md:px-0">
-      <div className="relative overflow-hidden border border-b-0">
-        {/* Main Image with Gradient Overlay */}
-        {mainImage && (
-          <div className="relative">
-            <div className="aspect-video w-full overflow-hidden md:aspect-21/9">
-              <img
-                alt={`Portada de ${post.title}`}
-                className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                src={getBucketUrl(mainImage)}
-              />
-            </div>
-            {/* Gradient overlay for text readability */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
-            {/* Content overlay */}
-            <div className="absolute inset-x-0 bottom-0 p-4 md:p-10">
-              {/* Title and Version */}
-              <div className="flex flex-wrap items-end gap-3">
-                <h1 className="font-bold text-white text-xl drop-shadow-lg md:text-5xl">
-                  {post.title}
-                </h1>
-                {post.version && (
-                  <Badge
-                    className="mb-1 h-6 border-white/30 bg-white/20 text-sm text-white backdrop-blur-sm md:mb-2"
-                    variant="outline"
-                  >
-                    {post.version}
-                  </Badge>
-                )}
-              </div>
-            </div>
+    <div className="relative">
+      {mainImage ? (
+        <div className="relative">
+          <div className="aspect-video w-full overflow-hidden md:aspect-21/9">
+            <img
+              alt={`Portada de ${post.title}`}
+              className="h-full w-full object-cover"
+              src={getBucketUrl(mainImage)}
+            />
           </div>
-        )}
-        {/* Fallback when no image */}
-        {!mainImage && (
-          <div className="flex flex-col gap-4 bg-linear-to-br from-primary/20 via-primary/10 to-transparent p-8 md:p-12">
-            <div className="flex flex-wrap items-end gap-3">
-              <h1 className="font-bold text-3xl md:text-5xl">{post.title}</h1>
+          <div className="absolute inset-0 bg-linear-to-t from-background via-background/20 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 p-4 md:p-10">
+            <h1 className="mb-2 font-[Lexend] font-bold text-white text-xl drop-shadow-lg md:text-4xl">
+              {post.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
               {post.version && (
-                <Badge className="mb-1 md:mb-2" variant="secondary">
+                <Badge
+                  className="border-white/30 bg-white/20 text-white backdrop-blur-sm"
+                  variant="outline"
+                >
                   {post.version}
                 </Badge>
               )}
-            </div>
-            <div className="flex flex-wrap items-center gap-4">
-              <Badge className="gap-1.5" variant="secondary">
+              <span className="inline-flex items-center gap-1">
                 <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
                 {format(post.createdAt, "d 'de' MMMM, yyyy", { locale: es })}
-              </Badge>
+              </span>
               {post.ratingCount !== undefined && post.ratingCount > 0 && (
                 <RatingDisplay
                   averageRating={post.averageRating ?? 0}
@@ -145,48 +129,81 @@ export function PostHero({ post }: { post: PostProps }) {
               )}
             </div>
           </div>
-        )}
-      </div>
-      <PostActionBar post={post} />
-    </div>
-  );
-}
-
-function PostStats({ post }: { post: PostProps }) {
-  return (
-    <div className="flex flex-row bg-card">
-      <PostStat label="Visitas" value={post.views} />
-      <PostStat label="Likes" value={post.likes} />
-      <PostStat
-        label="Creado"
-        value={format(post.createdAt, "PP", { locale: es })}
-      />
-      {post.ratingCount !== undefined && (
-        <PostStat
-          label="Valoración"
-          value={
-            <RatingDisplay
-              averageRating={post.averageRating ?? 0}
-              ratingCount={post.ratingCount}
-              variant="compact"
-            />
-          }
-        />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4 bg-linear-to-br from-primary/20 via-primary/10 to-transparent p-8 md:p-12">
+          <h1 className="font-[Lexend] font-bold text-3xl md:text-5xl">
+            {post.title}
+          </h1>
+          <div className="flex flex-wrap items-center gap-4">
+            {post.version && <Badge variant="secondary">{post.version}</Badge>}
+            <Badge className="gap-1.5" variant="secondary">
+              <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
+              {format(post.createdAt, "d 'de' MMMM, yyyy", { locale: es })}
+            </Badge>
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function PostStat({ label, value }: { label: string; value: React.ReactNode }) {
+export function PostStatsBar() {
+  const post = usePost();
   return (
-    <div className="flex flex-1 flex-col gap-2 border p-6">
-      <span className="font-[Lexend] text-xl uppercase">{label}</span>
-      <span className="text-lg">{value}</span>
+    <div className="border-border border-b bg-card">
+      <div className="flex gap-1 px-2 py-2">
+        <PostStat
+          color="text-foreground"
+          label="Vistas"
+          value={String(post.views)}
+        />
+        <PostStat
+          color="text-accent"
+          label="Me gusta"
+          value={String(post.likes)}
+        />
+        {post.ratingCount !== undefined && post.ratingCount > 0 && (
+          <PostStat
+            color="text-primary"
+            label="Rating"
+            value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
+          />
+        )}
+        <PostStat
+          color="text-secondary"
+          label="Publicado"
+          value={format(post.createdAt, "PP", { locale: es })}
+        />
+      </div>
+      <PostActionBar />
     </div>
   );
 }
 
-export function PostActionBar({ post }: { post: PostProps }) {
+function PostStat({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: string;
+  color: string;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center gap-0.5 py-2">
+      <span className={`whitespace-nowrap font-bold text-sm ${color}`}>
+        {value}
+      </span>
+      <span className="whitespace-nowrap font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+export function PostActionBar() {
+  const post = usePost();
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -197,86 +214,75 @@ export function PostActionBar({ post }: { post: PostProps }) {
   };
 
   return (
-    <Card>
-      <CardContent className="flex w-full flex-wrap items-center justify-around gap-4 md:justify-between">
-        <div className="grid grid-flow-col grid-rows-2 gap-3 md:grid-rows-1">
-          <LikeButton postId={post.id} />
-          <BookmarkButton postId={post.id} />
-          <Button
-            nativeButton={false}
-            render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
-            size="sm"
-            variant="outline"
-          >
-            <RatingDisplay
-              averageRating={post.averageRating ?? 0}
-              ratingCount={post.ratingCount}
-              variant="compact"
-            />
-          </Button>
-          <Tooltip>
-            <TooltipTrigger
-              onClick={handleShare}
-              render={
-                <Button size="sm" variant="outline">
-                  <HugeiconsIcon className="size-4" icon={Share08Icon} />
-                  Compartir
-                </Button>
-              }
-            />
-            <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
-          </Tooltip>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex items-center justify-around gap-2 border-border border-t px-4 py-2">
+      <BookmarkButton postId={post.id} />
+      <LikeButton postId={post.id} />
+      <Button
+        nativeButton={false}
+        render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
+        size="sm"
+        variant="outline"
+      >
+        <RatingDisplay
+          averageRating={post.averageRating ?? 0}
+          ratingCount={post.ratingCount}
+          variant="compact"
+        />
+      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          onClick={handleShare}
+          render={
+            <Button size="sm" variant="outline">
+              <HugeiconsIcon className="size-4" icon={Share08Icon} />
+              <span className="hidden md:block">Compartir</span>
+            </Button>
+          }
+        />
+        <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
-export function PostTagsSection({ post }: { post: PostProps }) {
+export function PostTagsSection() {
+  const post = usePost();
   const groupedTerms = Object.groupBy(post.terms, (term) => term.taxonomy);
   const hasTags = post.terms.length > 0;
 
   return (
     hasTags && (
-      <Card>
-        <CardHeader>
-          <CardTitle className="inline-flex items-center gap-2 font-semibold text-lg">
-            <HugeiconsIcon className="size-5" icon={InformationCircleIcon} />
-            Información
-          </CardTitle>
-        </CardHeader>
+      <div className="flex flex-col gap-3">
+        <div className="section-title">Tags</div>
 
-        <CardContent className="flex flex-col gap-4">
-          {/* Categorized Tags */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            <TagCategory label="Plataformas" terms={groupedTerms.platform} />
-            <TagCategory label="Idiomas" terms={groupedTerms.language} />
-            <TagCategory label="Motor" terms={groupedTerms.engine} />
-            <TagCategory label="Gráficos" terms={groupedTerms.graphics} />
-            <TagCategory label="Censura" terms={groupedTerms.censorship} />
-            <TagCategory label="Estado" terms={groupedTerms.status} />
-          </div>
+        {/* Categorized Tags */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <TagCategory label="Plataformas" terms={groupedTerms.platform} />
+          <TagCategory label="Idiomas" terms={groupedTerms.language} />
+          <TagCategory label="Motor" terms={groupedTerms.engine} />
+          <TagCategory label="Gráficos" terms={groupedTerms.graphics} />
+          <TagCategory label="Censura" terms={groupedTerms.censorship} />
+          <TagCategory label="Estado" terms={groupedTerms.status} />
+        </div>
 
-          <Separator />
-
-          {/* Main Tags */}
-          {groupedTerms.tag && groupedTerms.tag.length > 0 && (
+        {/* Main Tags */}
+        {groupedTerms.tag && groupedTerms.tag.length > 0 && (
+          <>
+            <div className="glow-line" />
             <div className="flex flex-wrap gap-2">
               {groupedTerms.tag.map((term) => (
                 <TermBadge key={term.id} tag={term} />
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </div>
     )
   );
 }
 
-export function PostSidebarContent({ post }: { post: PostProps }) {
-  const hasCreator = !!post.creatorName || !!post.creatorLink;
-  const Comp = post.creatorLink ? "a" : "div";
-
+export function PostSidebarContent() {
+  const post = usePost();
   const { data: related, isLoading } = useQuery({
     queryKey: ["related", post.id],
     queryFn: () =>
@@ -284,38 +290,16 @@ export function PostSidebarContent({ post }: { post: PostProps }) {
   });
 
   return (
-    <div className="sticky top-0 flex flex-col gap-4">
-      {hasCreator && (
-        <Comp
-          className="ring-accent"
-          href={post.creatorLink}
-          rel="noopener"
-          target="_blank"
-        >
-          <Card_5
-            content={post.creatorName}
-            title={
-              <>
-                <HugeiconsIcon
-                  className="size-8 text-primary"
-                  icon={FavouriteCircleIcon}
-                />
-                Apoya al Creador
-              </>
-            }
-          />
-        </Comp>
-      )}
+    <div className="flex flex-col gap-4">
+      <CreatorSupportCard />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recomendados</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
+        <div className="section-title">Recomendados</div>
+        <div className="flex flex-col gap-3">
           {isLoading &&
             Array.from({ length: 5 }, (_, i) => (
               // biome-ignore lint/suspicious/noArrayIndexKey: loading placeholder
-              <Skeleton className="h-28 w-full rounded-xl" key={i} />
+              <Skeleton className="h-28 w-full" key={i} />
             ))}
           {!isLoading && related?.length === 0 && (
             <p className="text-center text-muted-foreground text-sm">
@@ -325,13 +309,49 @@ export function PostSidebarContent({ post }: { post: PostProps }) {
           {related?.map((item: PostCardProps) => (
             <PostCard key={item.id} post={item} />
           ))}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
-export function PostCarousel({ post }: { post: PostProps }) {
+export function RelatedGamesSection() {
+  const post = usePost();
+  const { data: related, isLoading } = useQuery({
+    queryKey: ["related", post.id],
+    queryFn: () =>
+      orpcClient.post.getRelated({ postId: post.id, type: post.type }),
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="section-title">Recomendados</div>
+      {isLoading && (
+        <div className="grid grid-cols-2 gap-2.5">
+          {Array.from({ length: 4 }, (_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: loading placeholder
+            <Skeleton className="aspect-video w-full" key={i} />
+          ))}
+        </div>
+      )}
+      {!isLoading && related && related.length > 0 && (
+        <div className="grid grid-cols-2 gap-2.5">
+          {related.map((item: PostCardProps) => (
+            <PostCard key={item.id} post={item} />
+          ))}
+        </div>
+      )}
+      {!isLoading && (!related || related.length === 0) && (
+        <p className="text-center text-muted-foreground text-sm">
+          Sin recomendaciones disponibles
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function PostCarousel() {
+  const post = usePost();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
@@ -344,79 +364,77 @@ export function PostCarousel({ post }: { post: PostProps }) {
 
   return (
     hasImages && (
-      <Card>
-        <CardHeader>
-          <CardTitle>Galería</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {allImages.length > 0 && (
-            <Carousel
-              opts={{
-                align: "start",
-                loop: true,
-                dragFree: true,
-              }}
-              plugins={[
-                AutoScroll({
-                  playOnInit: true,
-                  startDelay: 0,
-                  stopOnInteraction: false,
-                  speed: 1,
-                }),
-              ]}
-            >
-              <CarouselContent>
-                {allImages.map((image, index) => (
-                  <CarouselItem className="md:basis-1/3" key={image}>
-                    <button
-                      className="group aspect-video w-full cursor-pointer overflow-hidden rounded-2xl transition-all"
-                      onClick={() => {
-                        setSelectedImageIndex(index);
-                        setGalleryOpen(true);
-                      }}
-                      type="button"
-                    >
-                      <img
-                        alt={`Miniatura ${index + 1}`}
-                        className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                        src={getBucketUrl(image)}
-                      />
-                    </button>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-            </Carousel>
-          )}
+      <div className="flex flex-col gap-3">
+        <div className="section-title">Galería</div>
+        {allImages.length > 0 && (
+          <Carousel
+            opts={{
+              align: "start",
+              loop: true,
+              dragFree: true,
+            }}
+            plugins={[
+              AutoScroll({
+                playOnInit: true,
+                startDelay: 0,
+                stopOnInteraction: false,
+                speed: 1,
+              }),
+            ]}
+          >
+            <CarouselContent>
+              {allImages.map((image, index) => (
+                <CarouselItem className="basis-2/3 md:basis-1/3" key={image}>
+                  <button
+                    className="group aspect-video w-full cursor-pointer overflow-hidden border border-border bg-card transition-all"
+                    onClick={() => {
+                      setSelectedImageIndex(index);
+                      setGalleryOpen(true);
+                    }}
+                    type="button"
+                  >
+                    <img
+                      alt={`Miniatura ${index + 1}`}
+                      className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                      src={getBucketUrl(image)}
+                    />
+                  </button>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+          </Carousel>
+        )}
 
-          {/* Image Viewer Modal */}
-          <ImageViewer
-            images={galleryImages}
-            initialIndex={selectedImageIndex}
-            onOpenChange={setGalleryOpen}
-            open={galleryOpen}
-            title={post.title}
-          />
-        </CardContent>
-      </Card>
-    )
-  );
-}
-
-export function PostInfo({ post }: { post: PostProps }) {
-  const hasContent = post.content !== "";
-
-  return (
-    hasContent && (
-      <div className="flex flex-col gap-6">
-        <ContentCard icon={InformationCircleIcon} title="Sinopsis">
-          <Markdown>{post.content}</Markdown>
-        </ContentCard>
+        <ImageViewer
+          images={galleryImages}
+          initialIndex={selectedImageIndex}
+          onOpenChange={setGalleryOpen}
+          open={galleryOpen}
+          title={post.title}
+        />
       </div>
     )
   );
 }
 
-export function PostContent({ post }: { post: PostProps }) {
+export function PostInfo() {
+  const post = usePost();
+  const hasContent = post.content !== "";
+
+  return (
+    hasContent && (
+      <div className="flex flex-col gap-3">
+        <div className="section-title">Sinopsis</div>
+        <div className="border border-border bg-card p-4">
+          <Markdown>{post.content}</Markdown>
+        </div>
+      </div>
+    )
+  );
+}
+
+export function PostContent() {
+  const post = usePost();
   const hasDownloadLinks = !!post.adsLinks;
   const hasChangelog = !!post.changelog;
   const hasPremium = post.premiumLinksAccess.status !== "no_premium_links";
@@ -435,11 +453,9 @@ export function PostContent({ post }: { post: PostProps }) {
           : "downloads";
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Descargas</CardTitle>
-      </CardHeader>
-      <CardContent>
+    <div className="flex flex-col gap-3">
+      <div className="section-title">Descargas</div>
+      <div className="border border-border bg-card p-4">
         <Tabs className="w-full" defaultValue={defaultTab}>
           <TabsList className="w-full justify-start">
             {hasDownloadLinks && (
@@ -468,20 +484,24 @@ export function PostContent({ post }: { post: PostProps }) {
             </TabsContent>
           )}
         </Tabs>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
-export function PostChangelog({ post }: { post: PostProps }) {
+export function PostChangelog() {
+  const post = usePost();
   if (!post.changelog) {
     return null;
   }
 
   return (
-    <ContentCard icon={Calendar03Icon} title="Changelog">
-      <Markdown>{post.changelog}</Markdown>
-    </ContentCard>
+    <div className="flex flex-col gap-3">
+      <div className="section-title">Changelog</div>
+      <div className="border border-border bg-card p-4">
+        <Markdown>{post.changelog}</Markdown>
+      </div>
+    </div>
   );
 }
 
@@ -499,7 +519,7 @@ function PremiumLinksContent({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed bg-muted/30 py-16">
+    <div className="flex flex-col items-center justify-center gap-4 rounded border border-primary/30 border-dashed bg-linear-to-br from-primary/5 to-secondary/5 py-16">
       <div className="rounded-full bg-muted p-4">
         <HugeiconsIcon
           className="size-8 text-muted-foreground"
@@ -515,70 +535,70 @@ function PremiumLinksContent({
   );
 }
 
-function TutorialsSection() {
+export function TutorialsSection() {
   const tutorials = useQuery(orpc.extras.getTutorials.queryOptions());
   const [api, setApi] = useState<CarouselApi>();
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tutoriales</CardTitle>
-        <CardAction className="flex gap-2">
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="section-title">Tutoriales</div>
+        <div className="flex gap-2">
           <Button
             onClick={() => api?.scrollPrev()}
             size="icon"
-            variant="accent"
+            variant="outline"
           >
             <HugeiconsIcon icon={ArrowLeft01Icon} strokeWidth={2} />
           </Button>
           <Button
             onClick={() => api?.scrollNext()}
             size="icon"
-            variant="accent"
+            variant="outline"
           >
             <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} />
           </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="px-0">
-        <Carousel
-          opts={{
-            loop: true,
-            dragFree: true,
-          }}
-          plugins={[
-            Autoplay({
-              playOnInit: true,
-              stopOnInteraction: true,
-              delay: 10_000,
-            }),
-          ]}
-          setApi={setApi}
-        >
-          <CarouselContent>
-            {tutorials.data?.map((tutorial) => (
-              <CarouselItem className="p-1 pl-5 md:basis-1/3" key={tutorial.id}>
-                <iframe
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  className="aspect-video w-full"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  src={tutorial.embedUrl}
-                  title="YouTube video player"
-                />
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-        </Carousel>
-      </CardContent>
-      <CardFooter />
-    </Card>
+        </div>
+      </div>
+      <Carousel
+        opts={{
+          loop: true,
+          dragFree: true,
+        }}
+        plugins={[
+          Autoplay({
+            playOnInit: true,
+            stopOnInteraction: true,
+            delay: 10_000,
+          }),
+        ]}
+        setApi={setApi}
+      >
+        <CarouselContent>
+          {tutorials.data?.map((tutorial) => (
+            <CarouselItem
+              className="basis-4/5 p-1 pl-3 md:basis-1/3"
+              key={tutorial.id}
+            >
+              <iframe
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="aspect-video w-full border border-border"
+                referrerPolicy="strict-origin-when-cross-origin"
+                src={tutorial.embedUrl}
+                title="YouTube video player"
+              />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+      </Carousel>
+    </div>
   );
 }
 
-function DiscordSection() {
+export function DiscordSection() {
   return (
-    <div className="p-4">
+    <div className="py-2">
       <ShinyButton
         className="inline-flex w-full items-center justify-center gap-4 hover:bg-[#5865F2]/90"
         render={
@@ -602,25 +622,44 @@ function DiscordSection() {
    Helper Components
    ============================================================================ */
 
-function ContentCard({
-  icon,
-  title,
-  children,
-}: {
-  icon: IconSvgElement;
-  title: string;
-  children: React.ReactNode;
-}) {
+export function CreatorSupportCard() {
+  const post = usePost();
+  const hasCreator = !!post.creatorName || !!post.creatorLink;
+  if (!hasCreator) {
+    return null;
+  }
+
+  const Comp = post.creatorLink ? "a" : "div";
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <HugeiconsIcon className="size-5" icon={icon} />
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <Comp
+      className="group relative block overflow-hidden border border-border bg-card p-0.5 transition-shadow hover:shadow-lg hover:shadow-primary/10"
+      href={post.creatorLink}
+      rel="noopener"
+      target="_blank"
+    >
+      {/* Animated gradient border */}
+      <div className="absolute inset-0 animate-pulse bg-linear-to-r from-primary via-secondary to-accent" />
+
+      {/* Inner content */}
+      <div className="relative flex items-center gap-4 bg-card p-4">
+        <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
+          <HugeiconsIcon
+            className="size-6 text-primary"
+            icon={FavouriteCircleIcon}
+          />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-[Lexend] font-bold text-base">
+            Apoya al Creador
+          </span>
+          {post.creatorName && (
+            <span className="text-muted-foreground text-sm">
+              {post.creatorName}
+            </span>
+          )}
+        </div>
+      </div>
+    </Comp>
   );
 }
 
@@ -638,7 +677,7 @@ function TagCategory({
   }
 
   return (
-    <div className="flex flex-row gap-2 rounded-md bg-muted/30 p-2">
+    <div className="flex flex-row gap-2 bg-muted/30 p-2">
       <div className="h-full w-1 bg-accent" />
       <div className="flex flex-col gap-1.5">
         <span className="font-medium text-accent text-xs uppercase tracking-wider">

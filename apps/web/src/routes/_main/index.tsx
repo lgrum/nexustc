@@ -1,12 +1,10 @@
-import { Tag01Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
+import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { motion } from "motion/react";
 import { GamesCarousel } from "@/components/landing/games-carousel";
 import { PostCard } from "@/components/landing/post-card";
 import { TermBadge } from "@/components/term-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
 import { useTerms } from "@/hooks/use-terms";
@@ -63,71 +61,38 @@ function HomeComponent() {
   const { weeklyGames } = Route.useLoaderData();
 
   return (
-    <main className="flex w-full flex-col items-center gap-4 p-4 md:col-span-3">
-      <HeroSection />
-      <Card>
-        <CardHeader>
-          <CardTitle>Juegos de la Semana</CardTitle>
-        </CardHeader>
-        <CardContent>
+    <main className="flex w-full gap-6 pb-4">
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <HeroSection />
+
+        <section className="px-4 py-5">
+          <div className="section-title mb-3.5">Juegos de la Semana</div>
           <GamesCarousel games={weeklyGames.data ?? []} />
-        </CardContent>
-      </Card>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 flex flex-col">
-          <RecentPosts />
+        </section>
+
+        <div className="glow-line mx-4" />
+
+        <RecentPostsSection />
+
+        {/* Active Users + Tags — mobile only */}
+        <div className="flex flex-col px-4 md:hidden">
+          <div className="glow-line" />
+          <ActiveUsersSection />
+          <div className="glow-line" />
+          <TagsSection />
         </div>
-        <Sidebar />
       </div>
+
+      {/* Sidebar — desktop only */}
+      <aside className="hidden w-72 shrink-0 pt-2 pr-4 md:block">
+        <div className="sticky top-16 flex flex-col gap-1">
+          <ActiveUsersSection />
+          <div className="glow-line" />
+          <TagsSection />
+        </div>
+      </aside>
     </main>
-  );
-}
-
-function Sidebar() {
-  const { recentUsers } = Route.useLoaderData();
-  const { data: terms } = useTerms();
-
-  const tags = terms?.filter((term) => term.taxonomy === "tag") ?? [];
-
-  return (
-    <section className="flex w-full flex-col items-center gap-4">
-      <Card className="w-full">
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="inline-flex items-center gap-2">
-            <HugeiconsIcon className="size-6" icon={UserGroupIcon} /> Usuarios
-            Recientes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {!!recentUsers.error && (
-            <p className="text-red-500">Error: {recentUsers.error.code}</p>
-          )}
-          {recentUsers.data?.map((user, idx) => (
-            <div className="flex items-center" key={user.id}>
-              <Link params={{ id: user.id }} to="/user/$id">
-                <UserLabel user={user} />
-              </Link>
-              {idx < (recentUsers.data?.length ?? 0) - 1 && (
-                <span className="mr-1">,</span>
-              )}
-            </div>
-          ))}
-        </CardContent>
-      </Card>
-      <Card className="w-full">
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="inline-flex items-center gap-2">
-            <HugeiconsIcon className="size-6" icon={Tag01Icon} />
-            Tags
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <TagCard key={tag.id} tag={tag} />
-          ))}
-        </CardContent>
-      </Card>
-    </section>
   );
 }
 
@@ -149,109 +114,140 @@ function HeroSection() {
     .sort((a, b) => a.order - b.order);
 
   return (
-    <div className="grid h-128 w-full grid-cols-1 gap-4 md:grid-cols-3">
+    <div>
+      {/* Main hero card */}
       {main && (
-        <div className="md:col-span-2">
-          <FeaturedCard post={main} />
-        </div>
+        <Link
+          className="group relative block h-105 overflow-hidden"
+          params={{ id: main.id }}
+          preload={false}
+          to="/post/$id"
+        >
+          {/* Image */}
+          {main.imageObjectKeys?.[0] && (
+            <img
+              alt={main.title}
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              src={getBucketUrl(main.imageObjectKeys[0])}
+            />
+          )}
+          {!main.imageObjectKeys?.[0] && (
+            <div className="h-full w-full bg-linear-to-br from-[oklch(0.25_0.05_280)] via-[oklch(0.2_0.08_320)] to-[oklch(0.15_0.04_200)]" />
+          )}
+
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-linear-to-t from-background via-background/30 to-transparent" />
+
+          {/* Content */}
+          <div className="absolute inset-x-0 bottom-0 z-10 p-4">
+            <h2 className="mb-2 font-[Lexend] font-extrabold text-[32px] text-white leading-[1.1] drop-shadow-lg">
+              {main.title}
+            </h2>
+            <div className="flex gap-4 text-muted-foreground text-xs">
+              <span className="inline-flex items-center gap-1">
+                <HugeiconsIcon
+                  className="size-3.5 fill-red-500 text-red-500"
+                  icon={FavouriteIcon}
+                />
+                <span className="font-semibold text-foreground">128</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <HugeiconsIcon
+                  className="size-3.5 fill-amber-400 text-amber-400"
+                  icon={StarIcon}
+                />
+                <span className="font-semibold text-foreground">4.8</span>
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <HugeiconsIcon className="size-3.5" icon={ViewIcon} />
+                <span className="font-semibold text-foreground">2.4K</span>
+              </span>
+            </div>
+          </div>
+        </Link>
       )}
+
+      {/* Secondary hero cards */}
       {secondary.length > 0 && (
-        <div className="hidden h-128 grid-rows-2 gap-4 md:grid">
+        <div className="grid grid-cols-2 gap-0 md:gap-2.5 md:px-4 md:py-3">
           {secondary.map((post) => (
-            <FeaturedCard key={post.id} post={post} />
+            <PostCard key={post.id} post={post} />
           ))}
         </div>
       )}
+
       {!main && <PlaceholderHero />}
     </div>
   );
 }
 
-function FeaturedCard({
-  post,
-}: {
-  post: { id: string; title: string; imageObjectKeys: string[] | null };
-}) {
-  return (
-    <Link
-      className="group box-border overflow-hidden hover:ring-primary"
-      params={{ id: post.id }}
-      preload={false}
-      to="/post/$id"
-    >
-      <div className="relative h-full max-h-128">
-        <motion.img
-          alt={post.title}
-          className="h-full w-full object-cover ring ring-background transition-transform group-hover:scale-[1.05]"
-          src={getBucketUrl(post.imageObjectKeys?.[0] ?? "")}
-        />
-        <div className="group absolute inset-0 flex items-end justify-start overflow-clip bg-linear-to-t from-black/50 to-transparent p-4 opacity-100 transition-opacity">
-          <div className="flex flex-col items-center">
-            <span className="line-clamp-2 px-2 font-bold text-white text-xl transition-transform">
-              {post.title}
-            </span>
-          </div>
-        </div>
-      </div>
-    </Link>
-  );
-}
-
 function PlaceholderHero() {
   return (
-    <div className="container grid h-96 w-full grid-cols-1 gap-4 md:grid-cols-3">
-      <div className="md:col-span-2">
-        <div className="relative">
-          <img
-            alt=""
-            className="h-96 w-full rounded-xl object-cover outline-2 outline-primary outline-offset-2"
-            src={"https://picsum.photos/id/11/1200/800"}
-          />
-          <div className="absolute inset-0 flex h-full w-full items-center justify-center">
-            <span className="font-extrabold text-3xl text-black sm:text-6xl xl:text-9xl">
-              The Cronos
-            </span>
-          </div>
-        </div>
-      </div>
-      <div className="hidden h-96 grid-rows-2 gap-4 md:grid">
-        <div className="h-full">
-          <img
-            alt=""
-            className="h-full w-full rounded-xl object-cover object-center outline-2 outline-primary outline-offset-2"
-            src={"https://picsum.photos/id/12/1000/600"}
-          />
-        </div>
-        <div className="h-full">
-          <img
-            alt=""
-            className="h-full w-full rounded-xl object-cover object-center outline-2 outline-primary outline-offset-2"
-            src={"https://picsum.photos/id/13/1000/600"}
-          />
-        </div>
+    <div className="relative h-105 overflow-hidden">
+      <div className="h-full w-full bg-linear-to-br from-[oklch(0.25_0.05_280)] via-[oklch(0.2_0.08_320)] to-[oklch(0.15_0.04_200)]" />
+      <div className="absolute inset-0 bg-linear-to-t from-background via-background/30 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 p-4">
+        <h2 className="font-[Lexend] font-extrabold text-3xl text-white">
+          NeXusTC
+        </h2>
+        <p className="mt-2 text-muted-foreground text-sm">
+          Descubre los mejores juegos y cómics
+        </p>
       </div>
     </div>
   );
 }
 
-function TagCard({
-  tag,
-}: {
-  tag: { id: string; name: string; color: string | null };
-}) {
+function ActiveUsersSection() {
+  const { recentUsers } = Route.useLoaderData();
+
   return (
-    <Link
-      className="grow"
-      preload={false}
-      search={{ tag: [tag.id] }}
-      to="/search"
-    >
-      <TermBadge className="w-full justify-center" tag={tag} />
-    </Link>
+    <section className="py-5">
+      <div className="section-title mb-3.5">Usuarios Activos</div>
+      {!!recentUsers.error && (
+        <p className="text-red-500 text-sm">Error: {recentUsers.error.code}</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {recentUsers.data?.map((user) => (
+          <Link
+            className="flex items-center gap-1.5 border border-border bg-card px-2.5 py-1.5"
+            key={user.id}
+            params={{ id: user.id }}
+            to="/user/$id"
+          >
+            <UserLabel user={user} />
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 
-function RecentPosts() {
+function TagsSection() {
+  const { data: terms } = useTerms();
+  const tags = terms?.filter((term) => term.taxonomy === "tag") ?? [];
+
+  return (
+    <section className="py-5">
+      <div className="section-title mb-3.5">Tags Populares</div>
+      <div className="flex flex-wrap gap-1.5">
+        {tags.map((tag) => (
+          <Link
+            className="flex grow"
+            key={tag.id}
+            preload={false}
+            search={{ tag: [tag.id] }}
+            to="/search"
+          >
+            <TermBadge className="w-full" tag={tag} />
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RecentPostsSection() {
   const {
     data: recentPosts,
     isLoading,
@@ -261,35 +257,32 @@ function RecentPosts() {
     queryFn: () => orpcClient.post.getRecent({ limit: RECENT_POSTS_LIMIT }),
   });
 
-  if (isLoading) {
-    return (
-      <div className="grid w-full grid-cols-2 gap-2 sm:gap-4 md:grid-cols-4 md:gap-8">
-        {Array.from({ length: RECENT_POSTS_LIMIT }).map((_, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
-          <Skeleton className="aspect-video w-full rounded-lg" key={i} />
-        ))}
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <div className="w-full text-center text-muted-foreground">
-        Error al cargar los posts recientes
-      </div>
-    );
-  }
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Juegos Recientes</CardTitle>
-      </CardHeader>
-      <CardContent className="grid w-full grid-cols-2 gap-2 px-4 sm:gap-4 md:grid-cols-3">
-        {recentPosts?.map((post) => (
-          <PostCard key={post.id} post={post} />
-        ))}
-      </CardContent>
-    </Card>
+    <section className="px-4 py-5">
+      <div className="section-title mb-3.5">Publicaciones Recientes</div>
+
+      {isLoading && (
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+          {Array.from({ length: RECENT_POSTS_LIMIT }).map((_, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
+            <Skeleton className="aspect-video w-full" key={i} />
+          ))}
+        </div>
+      )}
+
+      {isError && (
+        <p className="text-center text-muted-foreground text-sm">
+          Error al cargar los posts recientes
+        </p>
+      )}
+
+      {!(isLoading || isError) && (
+        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+          {recentPosts?.map((post) => (
+            <PostCard key={post.id} post={post} />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

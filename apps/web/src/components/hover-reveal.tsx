@@ -27,10 +27,7 @@ export function HoverReveal({
 
   return (
     <div
-      className={cn(
-        "group relative overflow-hidden transition-all duration-300",
-        className
-      )}
+      className={cn("group relative transition-all duration-300", className)}
     >
       <div
         className={cn(

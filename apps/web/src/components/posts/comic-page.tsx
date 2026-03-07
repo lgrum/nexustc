@@ -12,10 +12,9 @@ import {
   Home01Icon,
   MinimizeScreenIcon,
   StarIcon,
-  Tag01Icon,
   ViewIcon,
 } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { getRouteApi, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -29,14 +28,25 @@ import {
 } from "react";
 import type { PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
-import { RatingDisplay } from "../ratings/rating-display";
-import { TermBadge } from "../term-badge";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
 import { Separator } from "../ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { PostActionBar } from "./post-components";
+import { CommentSection } from "./comment-section";
+import {
+  CreatorSupportCard,
+  DiscordSection,
+  PostChangelog,
+  PostContent,
+  PostInfo,
+  PostSidebarContent,
+  PostStatsBar,
+  PostTagsSection,
+  RelatedGamesSection,
+  TutorialsSection,
+} from "./post-components";
+import { PostProvider, usePost } from "./post-context";
 
 const postPageApi = getRouteApi("/_main/post/$id");
 
@@ -63,218 +73,153 @@ export function ComicPage({ comic }: { comic: PostType }) {
   // When page >= 0, show the reader
   if (page !== undefined && page >= 0) {
     return (
-      <ComicReader
-        comic={comic}
-        images={comic.imageObjectKeys}
-        page={page}
-        setPage={setPage}
-      />
+      <PostProvider post={comic}>
+        <ComicReader
+          comic={comic}
+          images={comic.imageObjectKeys}
+          page={page}
+          setPage={setPage}
+        />
+      </PostProvider>
     );
   }
 
   // Otherwise show the info page
-  return <ComicInfoPage comic={comic} setPage={setPage} />;
+  return (
+    <PostProvider post={comic}>
+      <ComicInfoPage setPage={setPage} />
+    </PostProvider>
+  );
 }
 
 /* ============================================================================
-   Comic Info Page - Beautiful Landing Page
+   Comic Info Page
    ============================================================================ */
 
-function ComicInfoPage({
-  comic,
-  setPage,
-}: {
-  comic: PostType;
-  setPage: (page: number) => void;
-}) {
-  const groupedTerms = Object.groupBy(comic.terms, (term) => term.taxonomy);
+function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
+  const comic = usePost();
   const mainImage = comic.imageObjectKeys?.[0];
   const allImages = comic.imageObjectKeys ?? [];
-  const hasTags = comic.terms.length > 0;
   const totalPages = allImages.length;
 
   return (
-    <div className="flex flex-col gap-8">
-      {/* Hero Section */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="relative overflow-hidden rounded-3xl">
+    <div className="relative flex gap-6 pb-4">
+      {/* Main column */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Hero */}
+        <div className="relative overflow-hidden">
           {mainImage && (
             <div className="relative">
-              <div className="aspect-3/4 w-full overflow-hidden">
+              <div className="aspect-3/4 max-h-120 w-full overflow-hidden">
                 <img
                   alt={`Portada de ${comic.title}`}
-                  className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                  className="h-full w-full object-cover"
                   src={getBucketUrl(mainImage)}
                 />
               </div>
-              {/* Gradient overlay for text readability */}
-              <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
-              {/* Content overlay */}
-              <div className="absolute inset-x-0 bottom-0 p-6 md:p-10">
-                <div className="flex flex-col gap-4">
-                  {/* Title */}
-                  <div className="flex flex-wrap items-end gap-3">
-                    <h1 className="font-bold text-3xl text-white drop-shadow-lg md:text-5xl">
-                      {comic.title}
-                    </h1>
-                    <Badge
-                      className="mb-1 border-white/30 bg-white/20 text-white backdrop-blur-sm md:mb-2"
-                      variant="outline"
-                    >
-                      <HugeiconsIcon className="size-3.5" icon={Book02Icon} />
-                      {totalPages} páginas
-                    </Badge>
-                  </div>
-                  {/* Meta Row */}
-                  <div className="flex flex-wrap items-center gap-4">
-                    <MetaBadge icon={Calendar03Icon}>
-                      {format(comic.createdAt, "d 'de' MMMM, yyyy", {
-                        locale: es,
-                      })}
-                    </MetaBadge>
-                    {comic.ratingCount !== undefined &&
-                      comic.ratingCount > 0 && (
-                        <div className="flex items-center gap-1.5 text-white">
-                          <HugeiconsIcon
-                            className="size-4 fill-amber-400 text-amber-400"
-                            icon={StarIcon}
-                          />
-                          <span className="font-semibold">
-                            {comic.averageRating?.toFixed(1)}
-                          </span>
-                          <span className="text-white/70">
-                            ({comic.ratingCount} votos)
-                          </span>
-                        </div>
-                      )}
-                  </div>
+              <div className="absolute inset-0 bg-linear-to-t from-background via-background/30 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-4">
+                <h1 className="mb-2 font-[Lexend] font-bold text-3xl text-white drop-shadow-lg">
+                  {comic.title}
+                </h1>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <Badge
+                    className="border-white/30 bg-white/20 text-white backdrop-blur-sm"
+                    variant="outline"
+                  >
+                    <HugeiconsIcon className="size-3.5" icon={Book02Icon} />
+                    {totalPages} páginas
+                  </Badge>
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
+                    {format(comic.createdAt, "d MMM yyyy", { locale: es })}
+                  </span>
+                  {comic.ratingCount !== undefined && comic.ratingCount > 0 && (
+                    <span className="flex items-center gap-1 text-white">
+                      <HugeiconsIcon
+                        className="size-3.5 fill-amber-400 text-amber-400"
+                        icon={StarIcon}
+                      />
+                      {comic.averageRating?.toFixed(1)}
+                      <span className="text-white/60">
+                        ({comic.ratingCount})
+                      </span>
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
           )}
-          <PostActionBar post={comic} />
         </div>
 
-        {/* Right Column - Sidebar */}
-        <div className="flex flex-col gap-6">
-          {/* Tags Section */}
-          {hasTags && (
-            <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5">
-              <h3 className="flex items-center gap-2 font-semibold text-lg">
-                <HugeiconsIcon className="size-5" icon={Tag01Icon} />
-                Etiquetas
-              </h3>
+        <PostStatsBar />
 
-              <div className="flex flex-col gap-4">
-                {/* Main Tags */}
-                {groupedTerms.tag && groupedTerms.tag.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {groupedTerms.tag.map((term) => (
-                      <TermBadge key={term.id} tag={term} />
-                    ))}
-                  </div>
-                )}
-
-                <Separator />
-
-                {/* Categorized Tags */}
-                <div className="flex flex-col gap-3">
-                  <TagCategory label="Idiomas" terms={groupedTerms.language} />
-                  <TagCategory
-                    label="Censura"
-                    terms={groupedTerms.censorship}
-                  />
-                  <TagCategory label="Estado" terms={groupedTerms.status} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Quick Info Card */}
-          <div className="flex flex-col gap-4 rounded-2xl border bg-card p-5">
-            <h3 className="flex items-center gap-2 font-semibold text-lg">
-              <HugeiconsIcon className="size-5" icon={Book02Icon} />
-              Información
-            </h3>
-
-            <div className="flex flex-col gap-3">
-              <InfoRow label="Publicado">
-                {format(comic.createdAt, "d MMM yyyy", { locale: es })}
-              </InfoRow>
-
-              <InfoRow label="Páginas">{totalPages}</InfoRow>
-
-              {comic.ratingCount !== undefined && comic.ratingCount > 0 && (
-                <InfoRow label="Valoración">
-                  <RatingDisplay
-                    averageRating={comic.averageRating ?? 0}
-                    ratingCount={comic.ratingCount}
-                    variant="compact"
-                  />
-                </InfoRow>
-              )}
-            </div>
-          </div>
-
-          {/* Start Reading CTA */}
+        <div className="flex flex-col gap-4 px-4 pt-4">
+          {/* CTA */}
           <Button
             className="w-full gap-2 py-6 text-lg"
             onClick={() => setPage(0)}
             size="lg"
           >
             <HugeiconsIcon className="size-5" icon={Book02Icon} />
-            Comenzar a Leer
+            Empezar a Leer
           </Button>
+
+          <PostContent />
+          <PostInfo />
+          <PostTagsSection />
+          <PostChangelog />
+
+          {/* Chapters / Thumbnails */}
+          <div className="flex flex-col gap-3">
+            <div className="section-title">Capítulos</div>
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4">
+              {allImages.map((image, index) => (
+                <button
+                  className="group relative aspect-3/4 overflow-hidden border border-border transition-all hover:border-primary"
+                  key={image}
+                  onClick={() => setPage(index)}
+                  type="button"
+                >
+                  <img
+                    alt={`Página ${index + 1}`}
+                    className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                    loading="lazy"
+                    src={getBucketUrl(image)}
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent p-2">
+                    <span className="font-medium text-sm text-white">
+                      {index + 1}
+                    </span>
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center bg-primary/0 transition-colors group-hover:bg-primary/10">
+                    <span className="rounded-full bg-black/60 px-3 py-1 font-medium text-sm text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+                      Leer
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="md:hidden">
+            <CreatorSupportCard />
+          </div>
+          <CommentSection />
+          <TutorialsSection />
+          <DiscordSection />
+          <div className="md:hidden">
+            <RelatedGamesSection />
+          </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="grid gap-8 lg:grid-cols-3">
-        {/* Left Column - Page Thumbnails */}
-        <div className="flex flex-col gap-6 lg:col-span-2">
-          {/* Section Header */}
-          <div className="flex items-center justify-between">
-            <h2 className="flex items-center gap-2 font-bold text-xl">
-              <HugeiconsIcon
-                className="size-5 text-primary"
-                icon={GridViewIcon}
-              />
-              Páginas
-            </h2>
-          </div>
-
-          {/* Thumbnails Grid */}
-          <div className="grid grid-cols-3 gap-3 md:grid-cols-4 lg:grid-cols-5">
-            {allImages.map((image, index) => (
-              <button
-                className="group relative aspect-3/4 overflow-hidden rounded-xl border-2 border-transparent transition-all hover:border-primary hover:shadow-lg"
-                key={image}
-                onClick={() => setPage(index)}
-                type="button"
-              >
-                <img
-                  alt={`Página ${index + 1}`}
-                  className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                  loading="lazy"
-                  src={getBucketUrl(image)}
-                />
-                {/* Page number overlay */}
-                <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/70 to-transparent p-2">
-                  <span className="font-medium text-sm text-white">
-                    {index + 1}
-                  </span>
-                </div>
-                {/* Hover overlay */}
-                <div className="absolute inset-0 flex items-center justify-center bg-primary/0 transition-colors group-hover:bg-primary/10">
-                  <span className="rounded-full bg-black/60 px-3 py-1 font-medium text-sm text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
-                    Leer
-                  </span>
-                </div>
-              </button>
-            ))}
-          </div>
+      {/* Sidebar — desktop only */}
+      <aside className="hidden w-72 shrink-0 pt-4 pr-4 md:block">
+        <div className="sticky top-22 flex flex-col gap-4">
+          <PostSidebarContent />
         </div>
-      </div>
+      </aside>
     </div>
   );
 }
@@ -994,66 +939,5 @@ function ThumbnailPanel({
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
-  );
-}
-
-/* ============================================================================
-   Helper Components
-   ============================================================================ */
-
-function MetaBadge({
-  icon,
-  children,
-}: {
-  icon: IconSvgElement;
-  children: React.ReactNode;
-}) {
-  return (
-    <span className="flex items-center gap-1.5 text-sm text-white/90">
-      <HugeiconsIcon className="size-4" icon={icon} />
-      {children}
-    </span>
-  );
-}
-
-function TagCategory({
-  label,
-  terms,
-}: {
-  label: string;
-  terms:
-    | { id: string; name: string; color: string | null | undefined }[]
-    | undefined;
-}) {
-  if (!terms || terms.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="font-medium text-muted-foreground text-xs uppercase tracking-wider">
-        {label}
-      </span>
-      <div className="flex flex-wrap gap-1.5">
-        {terms.map((term) => (
-          <TermBadge className="text-xs" key={term.id} tag={term} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function InfoRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{children}</span>
-    </div>
   );
 }

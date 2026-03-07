@@ -1,6 +1,4 @@
-import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
@@ -11,47 +9,25 @@ import {
   AuthDialogTrigger,
 } from "../auth/auth-dialog";
 import { Logo } from "../logo";
-import { Button } from "../ui/button";
 import { SidebarTrigger } from "../ui/sidebar";
 
 export function Header() {
   return (
-    <header className="w-full">
-      <div className="flex w-full flex-col items-center gap-4 bg-linear-to-b from-primary to-primary/50 p-3">
-        <div className="flex w-full items-center justify-between">
+    <header className="sticky top-0 z-50 w-full border-border border-b bg-[oklch(0.1684_0_0/0.85)] backdrop-blur-[20px]">
+      <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center px-4 py-3">
+        <div className="flex items-center gap-2">
           <div className="hidden md:block">
-            <SidebarTrigger className="text-primary-foreground" />
+            <SidebarTrigger className="text-foreground" />
           </div>
-          <BackButton />
-          <Link to="/">
-            <Logo />
-          </Link>
+        </div>
+        <Link to="/">
+          <Logo />
+        </Link>
+        <div className="flex items-center justify-end gap-2 md:hidden">
           <ProfileNavItem />
         </div>
       </div>
     </header>
-  );
-}
-
-function BackButton() {
-  const router = useRouter();
-  const canGoBack = useCanGoBack();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  return (
-    <Button
-      className="md:hidden"
-      disabled={!(canGoBack && mounted)}
-      onClick={() => router.history.back()}
-      size="icon"
-      variant="ghost"
-    >
-      <HugeiconsIcon className="size-6" icon={ArrowLeft02Icon} />
-    </Button>
   );
 }
 
@@ -81,7 +57,7 @@ function ProfileNavItem() {
             <Facehash
               name=""
               {...defaultFacehashProps}
-              className="rounded-full"
+              className="size-8 rounded-full"
             />
           }
         />

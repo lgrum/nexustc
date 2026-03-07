@@ -52,7 +52,7 @@ function TabsList({
       {...props}
     >
       {children}
-      <TabsPrimitive.Indicator className="absolute top-1/2 left-0 z-1 h-[calc(100%-6px)] w-(--active-tab-width) translate-x-(--active-tab-left) -translate-y-1/2 rounded-xl border border-input bg-input/30 transition-all duration-200 ease-in-out group-data-[variant=primary]/tabs-list:bg-primary/80" />
+      <TabsPrimitive.Indicator className="absolute top-1/2 left-0 z-1 h-[calc(100%-6px)] w-(--active-tab-width) translate-x-(--active-tab-left) -translate-y-1/2 rounded-4xl border border-input bg-input/30 transition-all duration-200 ease-in-out group-data-[variant=primary]/tabs-list:bg-primary/80" />
     </TabsPrimitive.List>
   );
 }

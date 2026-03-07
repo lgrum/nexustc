@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import z from "zod";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
@@ -219,18 +218,30 @@ function RouteComponent() {
   );
 
   return (
-    <main className="flex h-dvh w-full items-center justify-center p-4 md:p-0">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
+    <main className="relative flex min-h-dvh w-full items-center justify-center p-4">
+      {/* Decorative glow orbs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-32 -right-20 size-72 rounded-full bg-[radial-gradient(circle,oklch(0.8278_0.1659_79.4259/0.12),transparent_70%)]" />
+        <div className="absolute -bottom-20 -left-24 size-64 rounded-full bg-[radial-gradient(circle,oklch(0.571_0.297_304.654/0.10),transparent_70%)]" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Logo */}
+        <div className="mb-6 text-center">
           <Link to="/">
-            <h1 className="text-center font-bold text-3xl text-primary">
-              NeXusTC
-              <span className="align-super font-normal text-xs">+18</span>
-              <span className="font-normal text-xs"> BETA</span>
+            <h1 className="font-[Lexend] font-extrabold text-3xl">
+              <span className="bg-gradient-to-br from-primary to-accent bg-clip-text text-transparent">
+                NeXusTC
+              </span>
+              <span className="align-super font-normal text-muted-foreground text-xs">
+                +18
+              </span>
             </h1>
           </Link>
-        </CardHeader>
-        <CardContent>
+        </div>
+
+        {/* Auth card */}
+        <div className="border border-border bg-card p-5">
           <Tabs
             defaultValue="login"
             onValueChange={(newTab) => {
@@ -239,14 +250,15 @@ function RouteComponent() {
               registerForm.resetField("turnstileToken");
               loginTurnstileRef.current?.reset();
               registerTurnstileRef.current?.reset();
-              setError(undefined); // Clear errors when switching tabs
+              setError(undefined);
             }}
             value={tab}
           >
-            <TabsList className="w-full">
+            <TabsList className="mb-4 w-full" variant="primary">
               <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
               <TabsTrigger value="register">Registrarse</TabsTrigger>
             </TabsList>
+
             <TabsContent value="login">
               <form
                 className="flex flex-col gap-4"
@@ -302,6 +314,7 @@ function RouteComponent() {
                 )}
               </form>
             </TabsContent>
+
             <TabsContent value="register">
               <form
                 className="flex flex-col gap-4"
@@ -315,8 +328,8 @@ function RouteComponent() {
                   <Facehash
                     name={registerName}
                     {...defaultFacehashProps}
-                    className="w-full place-items-center rounded-full border"
-                    size={128}
+                    className="w-16 place-items-center rounded-full border"
+                    size={64}
                   />
                 </div>
                 <registerForm.AppField name="name">
@@ -365,8 +378,8 @@ function RouteComponent() {
               </form>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </main>
   );
 }

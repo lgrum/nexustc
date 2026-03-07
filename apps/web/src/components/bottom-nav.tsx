@@ -6,46 +6,20 @@ import {
   Search01Icon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { cva } from "class-variance-authority";
-import { motion } from "motion/react";
 import { useState } from "react";
-import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/utils";
-import { AuthDialog, AuthDialogContent } from "./auth/auth-dialog";
-import { useTheme } from "./theme-provider";
-import { Button } from "./ui/button";
+import { AuthDialog, AuthDialogContent } from "@/components/auth/auth-dialog";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuPortal,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
-
-const navItems = [
-  { href: "/", label: "Inicio", icon: Home07Icon },
-  { href: "/search", label: "Juegos", icon: GameController03Icon },
-  { href: "/search", label: "Comics", icon: Book03Icon },
-  { href: "/search", label: "Buscar", icon: Search01Icon },
-  { href: "/extras", label: "Extras", icon: MoreHorizontalCircle01Icon },
-] as const;
-
-const navItemVariants = cva(
-  "relative flex min-h-[44px] min-w-[56px] flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1 transition-all duration-200",
-  {
-    variants: {
-      active: {
-        true: "text-primary",
-        false: "text-muted-foreground hover:text-foreground",
-      },
-    },
-  }
-);
+} from "@/components/ui/dropdown-menu";
+import { authClient } from "@/lib/auth-client";
+import { cn } from "@/lib/utils";
 
 export function BottomNav() {
   const location = useLocation();
@@ -64,7 +38,7 @@ export function BottomNav() {
       aria-label="Navegación principal"
       className={cn(
         "fixed inset-x-0 bottom-0 z-50",
-        "bg-background/95 backdrop-blur",
+        "bg-background/80 backdrop-blur-md",
         "border-border border-t",
         "pb-[env(safe-area-inset-bottom)]",
         "md:hidden",
@@ -86,70 +60,66 @@ function NavItem({
   label,
   icon,
   active,
-  search,
 }: {
   href: string;
   label: string;
-  icon: (typeof navItems)[number]["icon"];
+  icon: IconSvgElement;
   active?: boolean;
-  search?: Record<string, string>;
 }) {
   const location = useLocation();
 
-  const isActive = (href: string) => {
-    if (href === "/") {
-      return location.pathname === "/";
-    }
-    return location.pathname.startsWith(href);
-  };
-
-  const isItemActive = active ?? isActive(href);
+  const isItemActive =
+    active ??
+    (href === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(href));
 
   return (
     <Link
       aria-current={isItemActive ? "page" : undefined}
-      className={navItemVariants({ active: isItemActive })}
-      search={search}
+      className={cn(
+        "relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 transition-colors duration-200",
+        isItemActive
+          ? "text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      )}
       to={href}
     >
       {isItemActive && (
-        <motion.span
-          className="absolute -top-2 h-px w-full rounded-full bg-primary"
-          layoutId="navbar-indicator"
-        />
+        <span className="absolute top-0 left-1/2 h-0.75 w-6 -translate-x-1/2 rounded-full bg-primary" />
       )}
-      <HugeiconsIcon className="size-6" icon={icon} />
-      <span className="text-xs">{label}</span>
+      <HugeiconsIcon className="size-5.5" icon={icon} />
+      <span className="font-medium text-[10px]">{label}</span>
     </Link>
   );
 }
 
-function NavButtonItem({
-  href,
-  icon,
-}: {
-  href: string;
-  icon: (typeof navItems)[number]["icon"];
-}) {
+function NavButtonItem({ href, icon }: { href: string; icon: IconSvgElement }) {
   const location = useLocation();
 
-  const isActive = (href: string) => {
-    if (href === "/") {
-      return location.pathname === "/";
-    }
-    return location.pathname.startsWith(href);
-  };
-
-  const active = isActive(href);
+  const isActive =
+    href === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(href);
 
   return (
     <Button
-      className="size-14 -translate-y-4 rounded-full"
+      className={cn(
+        "size-14 -translate-y-4 rounded-full border border-primary/35 bg-linear-to-br from-20% from-primary to-80% to-accent text-primary-foreground shadow-[0_14px_34px_-18px_hsl(var(--primary))] transition-all duration-300 hover:scale-[1.03] hover:border-primary/55 hover:shadow-[0_18px_42px_-16px_hsl(var(--primary))] active:scale-[0.98]",
+        isActive &&
+          "border-white bg-linear-to-br from-primary to-secondary text-white shadow-[0_0_0_1px_hsl(var(--primary)/0.55),0_0_28px_hsl(var(--primary)/0.55),0_20px_48px_-14px_hsl(var(--primary))]"
+      )}
       nativeButton={false}
-      render={<Link aria-current={active ? "page" : undefined} to={href} />}
+      render={<Link aria-current={isActive ? "page" : undefined} to={href} />}
       size="icon"
     >
-      <HugeiconsIcon className="size-6" icon={icon} />
+      <HugeiconsIcon
+        className={cn(
+          "size-6 transition-transform duration-300",
+          isActive && "scale-110 text-white"
+        )}
+        icon={icon}
+      />
     </Button>
   );
 }
@@ -158,7 +128,6 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
   const { data: auth } = authClient.useSession();
   const navigate = useNavigate();
   const [openAuth, setOpenAuth] = useState(false);
-  const { setTheme } = useTheme();
 
   return (
     <>
@@ -167,19 +136,24 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
           render={
             <button
               aria-current={isActive ? "page" : undefined}
-              className={navItemVariants({ active: isActive })}
+              className={cn(
+                "relative flex min-h-11 min-w-11 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 transition-colors duration-200",
+                isActive
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
               type="button"
             />
           }
         >
           {isActive && (
-            <motion.span
-              className="absolute -top-2 h-px w-14 rounded-full bg-primary"
-              layoutId="navbar-indicator"
-            />
+            <span className="absolute top-0 left-1/2 h-0.75 w-6 -translate-x-1/2 rounded-full bg-primary" />
           )}
-          <HugeiconsIcon className="size-6" icon={MoreHorizontalCircle01Icon} />
-          <span className="text-xs">Extras</span>
+          <HugeiconsIcon
+            className="size-5.5"
+            icon={MoreHorizontalCircle01Icon}
+          />
+          <span className="font-medium text-[10px]">Extras</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" side="top" sideOffset={8}>
           {auth?.session ? (
@@ -193,22 +167,6 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
               Login
             </DropdownMenuItem>
           )}
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Tema</DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-              <DropdownMenuSubContent>
-                <DropdownMenuItem onClick={() => setTheme("light")}>
-                  Claro
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark")}>
-                  Oscuro
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("system")}>
-                  Sistema
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-          </DropdownMenuSub>
         </DropdownMenuContent>
       </DropdownMenu>
 

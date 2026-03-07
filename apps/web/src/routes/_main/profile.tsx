@@ -27,7 +27,6 @@ import { Suspense } from "react";
 import { HoverReveal } from "@/components/hover-reveal";
 import { PostCard } from "@/components/landing/post-card";
 import { AvatarSection } from "@/components/profile/avatar-section";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { UserLabel } from "@/components/users/user-label";
 import { orpc } from "@/lib/orpc";
@@ -50,6 +49,7 @@ export const Route = createFileRoute("/_main/profile")({
 
 function RouteComponent() {
   const auth = authClient.useSession();
+  const queryClient = useQueryClient();
 
   if (auth.isPending) {
     return <Spinner />;
@@ -62,14 +62,16 @@ function RouteComponent() {
   const session = auth.data;
 
   return (
-    <div className="flex w-full max-w-4xl flex-col gap-4">
-      <Card className="col-span-1 col-start-1 w-full md:col-span-3 md:col-start-2">
-        <CardHeader>
-          <CardTitle className="font-bold text-2xl">Perfil</CardTitle>
-        </CardHeader>
-        <CardContent className="flex w-full flex-col justify-around gap-6 md:flex-row">
-          <section className="flex flex-col items-center gap-2">
-            <Avatar className="size-32 rounded-full">
+    <div className="flex w-full flex-col gap-4 pt-4 pb-6 lg:flex-row lg:items-start">
+      <div className="lg:w-[min(33%,22rem)] lg:min-w-[16rem] lg:max-w-88 lg:pl-4">
+        {/* Profile Card */}
+        <div className="relative border border-border bg-card">
+          {/* Gradient banner */}
+          <div className="h-20 bg-linear-to-r from-secondary/60 via-primary/30 to-accent/40" />
+
+          {/* Avatar + info */}
+          <div className="-mt-10 flex flex-col items-center gap-2 px-4 pb-4">
+            <Avatar className="size-20 rounded-full border-4 border-card">
               <AvatarImage
                 src={
                   session.user.image
@@ -83,36 +85,57 @@ function RouteComponent() {
                 name={session.user.name}
               />
             </Avatar>
-            <UserLabel className="text-2xl" user={session.user} />
-            <HoverReveal blur="blur-sm" className="p-4">
-              <p className="text-muted-foreground">{session.user.email}</p>
+            <UserLabel className="font-bold text-xl" user={session.user} />
+            <HoverReveal blur="blur-sm" className="p-1">
+              <p className="text-muted-foreground text-sm">
+                {session.user.email}
+              </p>
             </HoverReveal>
-          </section>
-          {/* <Separator className="hidden md:block" orientation="vertical" /> */}
-          <section className="w-full max-w-md">
-            <Tabs className="flex-1" defaultValue="account">
-              <TabsList className="w-full">
-                <TabsTrigger value="account">Cuentas</TabsTrigger>
-                <TabsTrigger value="avatar">Avatar</TabsTrigger>
-                <TabsTrigger value="password">Contraseña</TabsTrigger>
-              </TabsList>
-              <TabsContent value="account">
-                <AccountsSection />
-              </TabsContent>
-              <TabsContent value="avatar">
-                <AvatarSection />
-              </TabsContent>
-              <TabsContent value="password">
-                <h2 className="font-bold text-2xl">Cambiar Contraseña</h2>
-                <ChangePasswordForm />
-              </TabsContent>
-            </Tabs>
-          </section>
-        </CardContent>
-      </Card>
-      <Suspense fallback={<Spinner />}>
-        <UserBookmarks />
-      </Suspense>
+            <Button
+              className="mt-2 w-full"
+              onClick={async () => {
+                authClient.signOut();
+                await queryClient.invalidateQueries({ queryKey: ["session"] });
+              }}
+              variant="destructive"
+            >
+              Cerrar Sesión
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-1 flex-col gap-4 lg:pr-4">
+        {/* Tabs section */}
+        <div className="px-4 lg:px-0">
+          <Tabs className="w-full" defaultValue="account">
+            <TabsList className="w-full">
+              <TabsTrigger value="account">Cuenta</TabsTrigger>
+              <TabsTrigger value="avatar">Avatar</TabsTrigger>
+              <TabsTrigger value="password">Contraseña</TabsTrigger>
+            </TabsList>
+            <TabsContent value="account">
+              <AccountsSection />
+            </TabsContent>
+            <TabsContent value="avatar">
+              <AvatarSection />
+            </TabsContent>
+            <TabsContent value="password">
+              <div className="flex flex-col gap-3">
+                <div className="section-title">Cambiar Contraseña</div>
+                <ChangePasswordForm email={session.user.email} />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        {/* Bookmarks */}
+        <div className="px-4 lg:px-0">
+          <Suspense fallback={<Spinner />}>
+            <UserBookmarks />
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 }
@@ -136,9 +159,15 @@ function AccountsSection() {
   }
 
   return (
-    <div className="flex max-w-md flex-col gap-4">
-      <h2 className="font-bold text-2xl">Cuentas Vinculadas</h2>
-      {accounts?.length === 1 && <p>No tienes cuentas vinculadas.</p>}
+    <div className="flex flex-col gap-4">
+      <div className="section-title">Cuentas Vinculadas</div>
+
+      {accounts?.length === 1 && (
+        <p className="text-muted-foreground text-sm">
+          No tienes cuentas vinculadas.
+        </p>
+      )}
+
       {Object.entries(providers).map(([provider, accountId]) => {
         const providerData = matchProvider(provider);
 
@@ -158,12 +187,12 @@ function AccountsSection() {
 
         return (
           <div
-            className="flex w-full items-center justify-between rounded-2xl border px-4 py-2"
+            className="flex w-full items-center justify-between border border-border bg-card px-4 py-3"
             key={provider}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {providerData.Icon}
-              <span className="font-medium">{providerData.label}</span>
+              <span className="font-medium text-sm">{providerData.label}</span>
             </div>
             <Button
               onClick={async () => {
@@ -181,26 +210,19 @@ function AccountsSection() {
           </div>
         );
       })}
+
       <Suspense fallback={<Spinner />}>
         <PatreonStatusSection />
       </Suspense>
-      <Button
-        onClick={async () => {
-          authClient.signOut();
-          await queryClient.invalidateQueries({ queryKey: ["session"] });
-        }}
-        variant="destructive"
-      >
-        Cerrar Sesión
-      </Button>
     </div>
   );
 }
 
-function ChangePasswordForm() {
+function ChangePasswordForm({ email }: { email: string }) {
   const form = useAppForm({
     validators: {
       onSubmit: z.object({
+        email: z.string(),
         currentPassword: z.string().min(1, "Requerido"),
         newPassword: z
           .string()
@@ -213,6 +235,7 @@ function ChangePasswordForm() {
       }),
     },
     defaultValues: {
+      email,
       currentPassword: "",
       newPassword: "",
       confirmNewPassword: "",
@@ -244,26 +267,49 @@ function ChangePasswordForm() {
 
   return (
     <form
-      className="mt-4 flex flex-col gap-4"
+      className="flex flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         e.stopPropagation();
         form.handleSubmit();
       }}
     >
+      {/* This email field only exists for browser autocomplete accesibility */}
+      <form.AppField name="email">
+        {(field) => (
+          <field.TextField
+            autoComplete="email"
+            className="hidden"
+            label="Correo Electrónico"
+            type="email"
+          />
+        )}
+      </form.AppField>
       <form.AppField name="currentPassword">
         {(field) => (
-          <field.TextField label="Contraseña Actual" type="password" />
+          <field.TextField
+            autoComplete="current-password"
+            label="Contraseña Actual"
+            type="password"
+          />
         )}
       </form.AppField>
       <form.AppField name="newPassword">
         {(field) => (
-          <field.TextField label="Nueva Contraseña" type="password" />
+          <field.TextField
+            autoComplete="new-password"
+            label="Nueva Contraseña"
+            type="password"
+          />
         )}
       </form.AppField>
       <form.AppField name="confirmNewPassword">
         {(field) => (
-          <field.TextField label="Confirmar Nueva Contraseña" type="password" />
+          <field.TextField
+            autoComplete="new-password"
+            label="Confirmar Nueva Contraseña"
+            type="password"
+          />
         )}
       </form.AppField>
       <form.AppForm>
@@ -298,35 +344,45 @@ function UserBookmarks() {
   const comics = data.filter((b) => b.type === "comic");
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Tus Favoritos</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs>
-          <TabsList className="w-full">
-            <TabsTrigger value="posts">Juegos</TabsTrigger>
-            <TabsTrigger value="comics">Comics</TabsTrigger>
-          </TabsList>
-          <TabsContent
-            className="grid grid-cols-2 gap-4 md:grid-cols-3"
-            value="posts"
-          >
-            {posts.map((bookmark) => (
-              <PostCard key={bookmark.id} post={bookmark} />
-            ))}
-          </TabsContent>
-          <TabsContent
-            className="grid grid-cols-2 gap-4 md:grid-cols-3"
-            value="comics"
-          >
-            {comics.map((bookmark) => (
-              <PostCard key={bookmark.id} post={bookmark} />
-            ))}
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-3">
+      <div className="section-title">Tus Favoritos</div>
+      <Tabs defaultValue="posts">
+        <TabsList className="w-full">
+          <TabsTrigger value="posts">
+            Juegos {posts.length > 0 && `(${posts.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="comics">
+            Cómics {comics.length > 0 && `(${comics.length})`}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent
+          className="grid grid-cols-2 gap-2.5 md:grid-cols-3"
+          value="posts"
+        >
+          {posts.map((bookmark) => (
+            <PostCard key={bookmark.id} post={bookmark} />
+          ))}
+          {posts.length === 0 && (
+            <p className="col-span-2 py-4 text-center text-muted-foreground text-sm">
+              No tienes juegos guardados
+            </p>
+          )}
+        </TabsContent>
+        <TabsContent
+          className="grid grid-cols-2 gap-2.5 md:grid-cols-3"
+          value="comics"
+        >
+          {comics.map((bookmark) => (
+            <PostCard key={bookmark.id} post={bookmark} />
+          ))}
+          {comics.length === 0 && (
+            <p className="col-span-2 py-4 text-center text-muted-foreground text-sm">
+              No tienes cómics guardados
+            </p>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
@@ -361,75 +417,68 @@ function PatreonStatusSection() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <PatreonLogo className="size-5" />
-          Estado de Patreon
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {status.isPatron ? (
-          <>
-            <div className="flex items-center gap-2">
-              <Badge className={TIER_STYLES[status.tier] ?? ""}>
-                {status.benefits.badge}
-              </Badge>
-              {status.patronSince && (
-                <span className="text-muted-foreground text-sm">
-                  Miembro desde el{" "}
-                  {format(status.patronSince, "PPP", { locale: es })}
-                </span>
+    <div className="flex flex-col gap-3 border border-border bg-card p-4">
+      <div className="flex items-center gap-2 font-semibold text-sm">
+        <PatreonLogo className="size-5" />
+        Estado de Patreon
+      </div>
+
+      {status.isPatron ? (
+        <>
+          <div className="flex items-center gap-2">
+            <Badge className={TIER_STYLES[status.tier] ?? ""}>
+              {status.benefits.badge}
+            </Badge>
+            {status.patronSince && (
+              <span className="text-muted-foreground text-xs">
+                Desde {format(status.patronSince, "PPP", { locale: es })}
+              </span>
+            )}
+          </div>
+          <div className="text-sm">
+            <p className="mb-2 font-medium">Beneficios:</p>
+            <ul className="list-inside list-disc space-y-1 text-muted-foreground">
+              {status.benefits.badge && <li>Badge: {status.benefits.badge}</li>}
+              {status.benefits.adFree && <li>Sin anuncios</li>}
+              {status.benefits.premiumLinks.type !== "none" && (
+                <li>Enlaces premium</li>
               )}
-            </div>
-            <div className="text-sm">
-              <p className="mb-2 font-medium">Beneficios activos:</p>
-              <ul className="list-inside list-disc space-y-1 text-muted-foreground">
-                {status.benefits.badge && (
-                  <li>Badge: {status.benefits.badge}</li>
-                )}
-                {status.benefits.adFree && <li>Experiencia sin anuncios</li>}
-                {status.benefits.premiumLinks.type !== "none" && (
-                  <li>Acceso a enlaces premium</li>
-                )}
-              </ul>
-            </div>
-          </>
-        ) : (
-          <p className="text-muted-foreground">
-            No eres un Patron activo. Vincula tu cuenta de Patreon en la sección
-            "Cuentas" y sincroniza para ver tus beneficios.
+            </ul>
+          </div>
+        </>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          No eres Patron activo. Vincula tu cuenta de Patreon y sincroniza para
+          ver tus beneficios.
+        </p>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          disabled={syncMutation.isPending}
+          onClick={handleSync}
+          size="sm"
+          variant="outline"
+        >
+          {syncMutation.isPending ? (
+            <Spinner className="size-4" />
+          ) : (
+            <HugeiconsIcon className="size-4" icon={RefreshIcon} />
+          )}
+          Sincronizar
+        </Button>
+        {status.lastSyncAt && (
+          <p className="text-muted-foreground text-xs">
+            {new Date(status.lastSyncAt).toLocaleString("es", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </p>
         )}
-
-        <div className="flex flex-wrap items-center gap-4">
-          <Button
-            disabled={syncMutation.isPending}
-            onClick={handleSync}
-            size="sm"
-            variant="outline"
-          >
-            {syncMutation.isPending ? (
-              <Spinner className="size-4" />
-            ) : (
-              <HugeiconsIcon className="size-4" icon={RefreshIcon} />
-            )}
-            Sincronizar Patreon
-          </Button>
-          {status.lastSyncAt && (
-            <p className="text-muted-foreground text-xs">
-              Última sincronización:{" "}
-              {new Date(status.lastSyncAt).toLocaleString("es", {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

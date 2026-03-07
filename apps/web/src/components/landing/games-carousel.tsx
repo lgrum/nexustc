@@ -16,7 +16,6 @@ export function GamesCarousel({ games }: { games: PostProps[] }) {
     if (!api) {
       return;
     }
-    // set initial selected
     setCurrent(api.selectedScrollSnap());
 
     const onSelect = () => setCurrent(api.selectedScrollSnap());
@@ -27,32 +26,26 @@ export function GamesCarousel({ games }: { games: PostProps[] }) {
   }, [api]);
 
   return (
-    <div className="relative w-full">
-      <div className="absolute left-0 h-full w-[20%] bg-linear-to-r from-card to-transparent" />
-      {/* Main Carousel */}
-      <Carousel
-        opts={{
-          loop: true,
-        }}
-        plugins={[
-          Autoplay({
-            delay: 4000,
-            stopOnInteraction: false,
-          }),
-        ]}
-        setApi={setApi}
-      >
-        <CarouselContent className="-ml-2">
-          {games.map((game) => (
-            <CarouselItem
-              className="basis-1/2 py-1 pl-3 md:basis-1/3 lg:basis-1/4"
-              key={game.id}
-            >
-              <PostCard post={game} />
-            </CarouselItem>
-          ))}
-        </CarouselContent>
-      </Carousel>
-    </div>
+    <Carousel
+      opts={{
+        loop: true,
+        dragFree: true,
+      }}
+      plugins={[
+        Autoplay({
+          delay: 4000,
+          stopOnInteraction: false,
+        }),
+      ]}
+      setApi={setApi}
+    >
+      <CarouselContent className="-ml-3">
+        {games.map((game) => (
+          <CarouselItem className="basis-1/2 pl-3 md:basis-1/3" key={game.id}>
+            <PostCard post={game} />
+          </CarouselItem>
+        ))}
+      </CarouselContent>
+    </Carousel>
   );
 }

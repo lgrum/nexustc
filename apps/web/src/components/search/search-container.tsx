@@ -6,17 +6,11 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
 export function SearchContainer({ children }: React.PropsWithChildren) {
-  return (
-    <main className="container w-full space-y-6 py-0">
-      <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-3">
-        {children}
-      </div>
-    </main>
-  );
+  return <div className="flex w-full flex-col gap-4">{children}</div>;
 }
 
 export function SearchResults({ children }: React.PropsWithChildren) {
-  return <div className="md:col-span-2">{children}</div>;
+  return <div>{children}</div>;
 }
 
 const formContext = createContext<{
@@ -26,13 +20,12 @@ const formContext = createContext<{
 export function SearchForm({
   ref,
   children,
-  className,
   ...props
 }: React.PropsWithChildren<React.ComponentProps<"form">>) {
   const [openFilters, setOpenFilters] = useState(false);
 
   return (
-    <form className={cn("row-start-1 md:row-start-auto", className)} {...props}>
+    <form {...props}>
       <formContext.Provider value={{ filter: [openFilters, setOpenFilters] }}>
         {children}
       </formContext.Provider>

@@ -1,11 +1,12 @@
 export function Logo() {
   return (
-    <div className="flex flex-col items-center font-[Lexend] font-bold text-primary-foreground text-xl leading-8 tracking-wide md:text-3xl">
-      <h1>
+    <h1 className="font-[Lexend] font-extrabold text-[22px] leading-8 tracking-tight">
+      <span className="bg-gradient-to-br from-primary to-accent bg-clip-text text-transparent">
         NeXusTC
-        <span className="align-super font-normal text-xs md:text-sm">+18</span>
-      </h1>
-      <span className="font-normal text-xs md:text-sm"> BETA</span>
-    </div>
+      </span>
+      <span className="align-super font-normal text-muted-foreground text-xs">
+        +18
+      </span>
+    </h1>
   );
 }

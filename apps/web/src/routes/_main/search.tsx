@@ -5,14 +5,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import z from "zod";
 import { PostCard } from "@/components/landing/post-card";
 import {
-  SearchContainer,
   SearchFilters,
   SearchFiltersButton,
   SearchForm,
-  SearchResults,
 } from "@/components/search/search-container";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
@@ -104,6 +101,7 @@ export const Route = createFileRoute("/_main/search")({
 function RouteComponent() {
   const params = Route.useSearch();
   const navigate = useNavigate();
+  const { filteredPosts } = Route.useLoaderData();
 
   const handleTabChange = (value: string | null) => {
     if (value === "juegos" || value === "comics") {
@@ -114,28 +112,62 @@ function RouteComponent() {
     }
   };
 
+  const postCount = params.type === "juegos" ? (filteredPosts?.length ?? 0) : 0;
+  const comicCount =
+    params.type === "comics" ? (filteredPosts?.length ?? 0) : 0;
+
   return (
-    <main className="container w-full space-y-6 p-6 py-0">
-      <h1 className="font-bold text-2xl">Buscar</h1>
-      <Tabs onValueChange={handleTabChange} value={params.type ?? "juegos"}>
-        <TabsList className="w-full" variant="primary">
-          <TabsTrigger value="juegos">Juegos</TabsTrigger>
-          <TabsTrigger value="comics">Cómics</TabsTrigger>
-        </TabsList>
-        <TabsContent value="juegos">
-          <PostSearch />
-        </TabsContent>
-        <TabsContent value="comics">
-          <ComicSearch />
-        </TabsContent>
-      </Tabs>
+    <main className="flex w-full flex-col gap-6 px-4 py-8 md:flex-row">
+      {/* Sidebar — first on mobile (top), right on desktop */}
+      <div className="w-full md:order-2 md:w-80 md:shrink-0">
+        <div className="flex flex-col gap-4 md:sticky md:top-22">
+          <Tabs onValueChange={handleTabChange} value={params.type ?? "juegos"}>
+            <TabsList className="w-full">
+              <TabsTrigger value="juegos">
+                Juegos {postCount > 0 && `(${postCount})`}
+              </TabsTrigger>
+              <TabsTrigger value="comics">
+                Cómics {comicCount > 0 && `(${comicCount})`}
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="juegos">
+              <PostSearchForm />
+            </TabsContent>
+            <TabsContent value="comics">
+              <ComicSearchForm />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
+
+      {/* Results — second on mobile (below), left on desktop */}
+      <div className="min-w-0 flex-1 md:order-1 md:pt-4">
+        {filteredPosts && filteredPosts.length > 0 && (
+          <div className="mb-4 flex flex-col gap-2">
+            <p className="text-muted-foreground text-xs">
+              Mostrando {filteredPosts.length} resultados
+            </p>
+            <div className="glow-line" />
+          </div>
+        )}
+        {filteredPosts?.length === 0 ? (
+          <p className="text-pretty py-8 text-center text-muted-foreground">
+            No se encontraron resultados que coincidan con tu búsqueda.
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+            {filteredPosts?.map((r) => (
+              <PostCard key={r.id} post={r} />
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
 
-function PostSearch() {
+function PostSearchForm() {
   const params = Route.useSearch();
-  const { filteredPosts } = Route.useLoaderData();
   const navigate = useNavigate();
   const termsQuery = useTerms();
 
@@ -200,121 +232,98 @@ function PostSearch() {
   const groupedTerms = Object.groupBy(termsQuery.data, (t) => t.taxonomy);
 
   return (
-    <SearchContainer>
-      <SearchResults>
-        {filteredPosts?.length === 0 ? (
-          <div className="flex h-full w-full">
-            <p className="text-pretty text-muted-foreground">
-              No se encontraron resultados que coincidan con tu búsqueda.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {filteredPosts?.map((r) => (
-              <PostCard key={r.id} post={r} />
-            ))}
-          </div>
-        )}
-      </SearchResults>
-      <SearchForm
-        onSubmit={(e) => {
-          e.preventDefault();
-        }}
-      >
-        <Card className="w-full">
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex items-end gap-2">
-              <form.AppField name="query">
-                {(field) => (
-                  <field.TextField
-                    className="w-full"
-                    label="Buscar"
-                    type="text"
-                  />
-                )}
-              </form.AppField>
-              <Button
-                onClick={handleRandomPost}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <HugeiconsIcon icon={DiceFaces05Icon} />
-              </Button>
-            </div>
-            <SearchFiltersButton />
-            <SearchFilters>
-              <form.AppField name="orderBy">
-                {(field) => (
-                  <field.SelectField
-                    label="Ordenar por"
-                    options={[...ORDER_OPTIONS]}
-                  />
-                )}
-              </form.AppField>
-              <form.AppField name="status">
-                {(field) => (
-                  <field.MultiSelectField
-                    label="Estado"
-                    options={
-                      groupedTerms.status?.map((term) => ({
-                        value: term.id,
-                        label: term.name,
-                      })) ?? []
-                    }
-                  />
-                )}
-              </form.AppField>
-              <form.AppField name="engine">
-                {(field) => (
-                  <field.MultiSelectField
-                    label="Motor"
-                    options={
-                      groupedTerms.engine?.map((term) => ({
-                        value: term.id,
-                        label: term.name,
-                      })) ?? []
-                    }
-                  />
-                )}
-              </form.AppField>
-              <form.AppField name="platform">
-                {(field) => (
-                  <field.MultiSelectField
-                    label="Plataformas"
-                    options={
-                      groupedTerms.platform?.map((term) => ({
-                        value: term.id,
-                        label: term.name,
-                      })) ?? []
-                    }
-                  />
-                )}
-              </form.AppField>
-              <form.AppField name="tag">
-                {(field) => (
-                  <field.MultiSelectField
-                    label="Tags"
-                    options={
-                      groupedTerms.tag?.map((term) => ({
-                        value: term.id,
-                        label: term.name,
-                      })) ?? []
-                    }
-                  />
-                )}
-              </form.AppField>
-            </SearchFilters>
-          </CardContent>
-        </Card>
-      </SearchForm>
-    </SearchContainer>
+    <SearchForm
+      onSubmit={(e) => {
+        e.preventDefault();
+      }}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex items-end gap-2">
+          <form.AppField name="query">
+            {(field) => (
+              <field.TextField className="w-full" label="Buscar" type="text" />
+            )}
+          </form.AppField>
+          <Button
+            className="size-12 shrink-0"
+            onClick={handleRandomPost}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <HugeiconsIcon icon={DiceFaces05Icon} />
+          </Button>
+        </div>
+        <SearchFiltersButton />
+        <SearchFilters>
+          <form.AppField name="orderBy">
+            {(field) => (
+              <field.SelectField
+                label="Ordenar por"
+                options={[...ORDER_OPTIONS]}
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="status">
+            {(field) => (
+              <field.MultiSelectField
+                label="Estado"
+                options={
+                  groupedTerms.status?.map((term) => ({
+                    value: term.id,
+                    label: term.name,
+                  })) ?? []
+                }
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="engine">
+            {(field) => (
+              <field.MultiSelectField
+                label="Motor"
+                options={
+                  groupedTerms.engine?.map((term) => ({
+                    value: term.id,
+                    label: term.name,
+                  })) ?? []
+                }
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="platform">
+            {(field) => (
+              <field.MultiSelectField
+                label="Plataformas"
+                options={
+                  groupedTerms.platform?.map((term) => ({
+                    value: term.id,
+                    label: term.name,
+                  })) ?? []
+                }
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="tag">
+            {(field) => (
+              <field.MultiSelectField
+                label="Tags"
+                options={
+                  groupedTerms.tag?.map((term) => ({
+                    value: term.id,
+                    label: term.name,
+                  })) ?? []
+                }
+              />
+            )}
+          </form.AppField>
+        </SearchFilters>
+      </div>
+    </SearchForm>
   );
 }
 
-function ComicSearch() {
+function ComicSearchForm() {
   const params = Route.useSearch();
-  const { filteredPosts } = Route.useLoaderData();
   const navigate = useNavigate();
   const termsQuery = useTerms();
 
@@ -365,77 +374,55 @@ function ComicSearch() {
   const groupedTerms = Object.groupBy(termsQuery.data, (t) => t.taxonomy);
 
   return (
-    <SearchContainer>
-      <SearchResults>
-        {filteredPosts?.length === 0 ? (
-          <div className="flex h-full w-full">
-            <p className="text-pretty text-muted-foreground">
-              No se encontraron resultados que coincidan con tu búsqueda.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-            {filteredPosts?.map((r) => (
-              <PostCard key={r.id} post={r} />
-            ))}
-          </div>
-        )}
-      </SearchResults>
-      <SearchForm
-        onSubmit={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          form.handleSubmit();
-        }}
-      >
-        <Card className="w-full">
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex items-end gap-2">
-              <form.AppField name="query">
-                {(field) => (
-                  <field.TextField
-                    className="w-full"
-                    label="Buscar"
-                    type="text"
-                  />
-                )}
-              </form.AppField>
-              <Button
-                onClick={handleRandomComic}
-                size="icon"
-                type="button"
-                variant="outline"
-              >
-                <HugeiconsIcon icon={DiceFaces05Icon} />
-              </Button>
-            </div>
-            <SearchFiltersButton />
-            <SearchFilters>
-              <form.AppField name="orderBy">
-                {(field) => (
-                  <field.SelectField
-                    label="Ordenar por"
-                    options={[...ORDER_OPTIONS]}
-                  />
-                )}
-              </form.AppField>
-              <form.AppField name="tag">
-                {(field) => (
-                  <field.MultiSelectField
-                    label="Tags"
-                    options={
-                      groupedTerms.tag?.map((term) => ({
-                        value: term.id,
-                        label: term.name,
-                      })) ?? []
-                    }
-                  />
-                )}
-              </form.AppField>
-            </SearchFilters>
-          </CardContent>
-        </Card>
-      </SearchForm>
-    </SearchContainer>
+    <SearchForm
+      onSubmit={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        form.handleSubmit();
+      }}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex items-end gap-2">
+          <form.AppField name="query">
+            {(field) => (
+              <field.TextField className="w-full" label="Buscar" type="text" />
+            )}
+          </form.AppField>
+          <Button
+            className="size-12 shrink-0"
+            onClick={handleRandomComic}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <HugeiconsIcon icon={DiceFaces05Icon} />
+          </Button>
+        </div>
+        <SearchFiltersButton />
+        <SearchFilters>
+          <form.AppField name="orderBy">
+            {(field) => (
+              <field.SelectField
+                label="Ordenar por"
+                options={[...ORDER_OPTIONS]}
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="tag">
+            {(field) => (
+              <field.MultiSelectField
+                label="Tags"
+                options={
+                  groupedTerms.tag?.map((term) => ({
+                    value: term.id,
+                    label: term.name,
+                  })) ?? []
+                }
+              />
+            )}
+          </form.AppField>
+        </SearchFilters>
+      </div>
+    </SearchForm>
   );
 }

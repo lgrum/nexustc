@@ -1,5 +1,4 @@
 import type React from "react";
-import { Badge } from "@/components/ui/badge";
 import { cn, pickTextColorFromHex } from "@/lib/utils";
 
 export function TermBadge({
@@ -10,15 +9,6 @@ export function TermBadge({
   tag: { name: string; color: string | null | undefined };
   className?: string;
 }) {
-  // Use default Badge style when no colors are present
-  if (!tag.color || tag.color.trim() === "") {
-    return (
-      <Badge className={className} variant="outline" {...props}>
-        {tag.name}
-      </Badge>
-    );
-  }
-
   const colors = tag.color ? tag.color.split(",") : [];
 
   let color1 = "";
@@ -44,20 +34,37 @@ export function TermBadge({
     textColor = colors[2].slice(1);
   }
 
+  const hasColor = color1 || textColor;
+
+  if (!hasColor) {
+    return (
+      <span
+        className={cn(
+          "inline-flex grow items-center justify-center border border-border bg-muted px-2.5 py-1 text-center font-medium text-muted-foreground text-xs transition-colors",
+          className
+        )}
+        {...props}
+      >
+        {tag.name}
+      </span>
+    );
+  }
+
   textColor = textColor || pickTextColorFromHex(color1 || "#000000");
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border bg-primary px-2 py-0.5 font-semibold text-primary-foreground text-xs tracking-wide",
+        "inline-flex grow items-center justify-center border px-2.5 py-1 text-center font-medium text-xs transition-colors",
         className
       )}
       key={tag.name}
       style={{
         borderColor: textColor || undefined,
-        borderWidth: "1px",
-        color: textColor || pickTextColorFromHex(color1 || "#000000"),
-        background: `linear-gradient(to right, ${color1}, ${color2 || color1})`,
+        color: textColor,
+        background: color1
+          ? `linear-gradient(to right, ${color1}, ${color2 || color1})`
+          : undefined,
       }}
       {...props}
     >
