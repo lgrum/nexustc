@@ -6,6 +6,8 @@ import extras from "./extras";
 import file from "./file";
 import patreon from "./patreon";
 import post from "./post";
+import profile from "./profile";
+import profileAdmin from "./profile-admin";
 import rating from "./rating";
 import staticPage from "./staticPage";
 import sticker from "./sticker";
@@ -21,6 +23,8 @@ export const appRouter = {
   extras,
   rating,
   patreon,
+  profile,
+  profileAdmin,
   chronos,
   staticPage,
   emoji,

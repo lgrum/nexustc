@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { GamesCarousel } from "@/components/landing/games-carousel";
 import { PostCard } from "@/components/landing/post-card";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { TermBadge } from "@/components/term-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
@@ -215,6 +216,7 @@ function ActiveUsersSection() {
             params={{ id: user.id }}
             to="/user/$id"
           >
+            <ProfileAvatar className="size-8" user={user} />
             <UserLabel user={user} />
           </Link>
         ))}

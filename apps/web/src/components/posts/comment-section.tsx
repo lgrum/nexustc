@@ -9,7 +9,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Avatar, AvatarFallback, AvatarImage } from "facehash";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -20,9 +19,9 @@ import {
 import { EmojiPicker } from "@/components/comments/emoji-picker";
 import { RichCommentInput } from "@/components/comments/rich-comment-input";
 import { StickerPicker } from "@/components/comments/sticker-picker";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { useAppForm } from "@/hooks/use-app-form";
 import { orpcClient } from "@/lib/orpc";
-import { defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
 import { ErrorField } from "../forms/error-field";
@@ -250,20 +249,10 @@ export function CommentSection() {
                     key={comment.id}
                   >
                     <Link params={{ id: comment.author.id }} to="/user/$id">
-                      <Avatar className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105">
-                        <AvatarImage
-                          src={
-                            comment.author.image
-                              ? getBucketUrl(comment.author.image)
-                              : undefined
-                          }
-                        />
-                        <AvatarFallback
-                          className="rounded-full"
-                          facehashProps={defaultFacehashProps}
-                          name={comment.author.name}
-                        />
-                      </Avatar>
+                      <ProfileAvatar
+                        className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105"
+                        user={comment.author}
+                      />
                     </Link>
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-2">

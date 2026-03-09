@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, desc, eq, sql } from "@repo/db";
-import { post, postRating, user } from "@repo/db/schema/app";
+import { post, postRating } from "@repo/db/schema/app";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
 import {
@@ -8,6 +8,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../index";
+import { buildProfileSummaries } from "../services/profile";
 
 export default {
   // Create or update a rating (upsert)
@@ -141,23 +142,7 @@ export default {
 
       const userIds = [...new Set(ratings.map((r) => r.userId))];
 
-      const authors =
-        userIds.length > 0
-          ? await db
-              .select({
-                id: user.id,
-                name: user.name,
-                image: user.image,
-                role: user.role,
-              })
-              .from(user)
-              .where(
-                sql`${user.id} IN (${sql.join(
-                  userIds.map((id) => sql`${id}`),
-                  sql`, `
-                )})`
-              )
-          : [];
+      const authors = await buildProfileSummaries(db, userIds);
 
       logger?.debug(
         `Retrieved ${ratings.length} ratings with ${authors.length} unique authors for post ${input.postId}`
@@ -198,23 +183,7 @@ export default {
       const userIds = [...new Set(ratings.map((r) => r.userId))];
       const postIds = [...new Set(ratings.map((r) => r.postId))];
 
-      const authors =
-        userIds.length > 0
-          ? await db
-              .select({
-                id: user.id,
-                name: user.name,
-                image: user.image,
-                role: user.role,
-              })
-              .from(user)
-              .where(
-                sql`${user.id} IN (${sql.join(
-                  userIds.map((id) => sql`${id}`),
-                  sql`, `
-                )})`
-              )
-          : [];
+      const authors = await buildProfileSummaries(db, userIds);
 
       const posts =
         postIds.length > 0

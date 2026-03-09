@@ -3,9 +3,21 @@ import {
   PATRON_TIER_KEYS,
   TAXONOMIES,
 } from "@repo/shared/constants";
-import { relations } from "drizzle-orm";
+import {
+  PROFILE_ASSIGNMENT_SOURCE_TYPES,
+  PROFILE_BANNER_MODES,
+  PROFILE_DEFAULTS,
+  PROFILE_MEDIA_SLOTS,
+  PROFILE_MEDIA_VALIDATION_STATUSES,
+  type ProfileCrop,
+  type ProfileEmblemVisualConfig,
+  type ProfileRoleVisualConfig,
+  type ProfileVisibilityConfig,
+} from "@repo/shared/profile";
+import { relations, sql } from "drizzle-orm";
 import {
   boolean,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -34,6 +46,9 @@ export const user = pgTable(
     email: text("email").notNull().unique(),
     emailVerified: boolean("email_verified").default(false).notNull(),
     image: text("image"),
+    avatarFallbackColor: text("avatar_fallback_color")
+      .default(PROFILE_DEFAULTS.avatarFallbackColor)
+      .notNull(),
     role: text("role").default("user").notNull(),
     banned: boolean("banned").default(false),
     banReason: text("ban_reason"),
@@ -132,6 +147,10 @@ export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   patron: one(patron),
+  profileSettings: one(profileSettings),
+  profileMediaAssets: many(profileMediaAsset),
+  profileRoleAssignments: many(profileRoleAssignment),
+  profileEmblemAssignments: many(profileEmblemAssignment),
 }));
 
 export const patronRelations = relations(patron, ({ one }) => ({
@@ -330,6 +349,297 @@ export const staticPage = pgTable(
 );
 
 /** -------------------------------------------------------- */
+
+export const profileBannerModeEnum = pgEnum(
+  "profile_banner_mode",
+  PROFILE_BANNER_MODES
+);
+export const profileMediaSlotEnum = pgEnum(
+  "profile_media_slot",
+  PROFILE_MEDIA_SLOTS
+);
+export const profileMediaValidationStatusEnum = pgEnum(
+  "profile_media_validation_status",
+  PROFILE_MEDIA_VALIDATION_STATUSES
+);
+export const profileAssignmentSourceTypeEnum = pgEnum(
+  "profile_assignment_source_type",
+  PROFILE_ASSIGNMENT_SOURCE_TYPES
+);
+
+export const profileMediaAsset = pgTable(
+  "profile_media_asset",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    ownerUserId: text("owner_user_id").notNull(),
+    slot: profileMediaSlotEnum("slot").notNull(),
+    mimeType: text("mime_type").notNull(),
+    objectKey: text("object_key").notNull().unique(),
+    fileSizeBytes: integer("file_size_bytes").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    durationMs: integer("duration_ms"),
+    isAnimated: boolean("is_animated").notNull().default(false),
+    crop: jsonb("crop").$type<ProfileCrop | null>(),
+    validationStatus: profileMediaValidationStatusEnum("validation_status")
+      .notNull()
+      .default("pending"),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_media_asset_owner_idx").on(table.ownerUserId),
+    index("profile_media_asset_slot_idx").on(table.slot),
+    index("profile_media_asset_validation_idx").on(table.validationStatus),
+    foreignKey({
+      name: "pma_owner_fk",
+      columns: [table.ownerUserId],
+      foreignColumns: [user.id],
+    }).onDelete("cascade"),
+  ]
+);
+
+export const profileSettings = pgTable(
+  "profile_settings",
+  {
+    userId: text("user_id").primaryKey(),
+    bannerMode: profileBannerModeEnum("banner_mode").notNull().default("color"),
+    bannerColor: text("banner_color")
+      .notNull()
+      .default(PROFILE_DEFAULTS.bannerColor),
+    bannerAssetId: text("banner_asset_id"),
+    visibilityConfig: jsonb("visibility_config")
+      .$type<ProfileVisibilityConfig>()
+      .notNull()
+      .default(sql`'{"reserved": {}}'::jsonb`),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_settings_banner_asset_idx").on(table.bannerAssetId),
+    foreignKey({
+      name: "ps_user_fk",
+      columns: [table.userId],
+      foreignColumns: [user.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "ps_banner_asset_fk",
+      columns: [table.bannerAssetId],
+      foreignColumns: [profileMediaAsset.id],
+    }).onDelete("set null"),
+  ]
+);
+
+export const profileRoleDefinition = pgTable(
+  "profile_role_definition",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description").notNull().default(""),
+    iconAssetId: text("icon_asset_id"),
+    overlayAssetId: text("overlay_asset_id"),
+    visualConfig: jsonb("visual_config")
+      .$type<ProfileRoleVisualConfig>()
+      .notNull(),
+    priority: integer("priority").notNull().default(0),
+    isVisible: boolean("is_visible").notNull().default(true),
+    isExclusive: boolean("is_exclusive").notNull().default(false),
+    isActive: boolean("is_active").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_role_definition_priority_idx").on(table.priority),
+    index("profile_role_definition_visible_idx").on(table.isVisible),
+    foreignKey({
+      name: "prd_icon_asset_fk",
+      columns: [table.iconAssetId],
+      foreignColumns: [profileMediaAsset.id],
+    }).onDelete("set null"),
+    foreignKey({
+      name: "prd_overlay_asset_fk",
+      columns: [table.overlayAssetId],
+      foreignColumns: [profileMediaAsset.id],
+    }).onDelete("set null"),
+  ]
+);
+
+export const profileRoleAssignment = pgTable(
+  "profile_role_assignment",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    userId: text("user_id").notNull(),
+    roleDefinitionId: text("role_definition_id").notNull(),
+    sourceType: profileAssignmentSourceTypeEnum("source_type")
+      .notNull()
+      .default("manual"),
+    sourceKey: text("source_key"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    isVisible: boolean("is_visible").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_role_assignment_user_idx").on(table.userId),
+    index("profile_role_assignment_role_idx").on(table.roleDefinitionId),
+    foreignKey({
+      name: "pra_user_fk",
+      columns: [table.userId],
+      foreignColumns: [user.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "pra_role_def_fk",
+      columns: [table.roleDefinitionId],
+      foreignColumns: [profileRoleDefinition.id],
+    }).onDelete("cascade"),
+  ]
+);
+
+export const profileEmblemDefinition = pgTable(
+  "profile_emblem_definition",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    slug: text("slug").notNull().unique(),
+    name: text("name").notNull(),
+    tooltip: text("tooltip").notNull().default(""),
+    iconAssetId: text("icon_asset_id"),
+    visualConfig: jsonb("visual_config")
+      .$type<ProfileEmblemVisualConfig>()
+      .notNull(),
+    priority: integer("priority").notNull().default(0),
+    isVisible: boolean("is_visible").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_emblem_definition_priority_idx").on(table.priority),
+    foreignKey({
+      name: "ped_icon_asset_fk",
+      columns: [table.iconAssetId],
+      foreignColumns: [profileMediaAsset.id],
+    }).onDelete("set null"),
+  ]
+);
+
+export const profileEmblemAssignment = pgTable(
+  "profile_emblem_assignment",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    userId: text("user_id").notNull(),
+    emblemDefinitionId: text("emblem_definition_id").notNull(),
+    sourceType: profileAssignmentSourceTypeEnum("source_type")
+      .notNull()
+      .default("manual"),
+    sourceKey: text("source_key"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    isVisible: boolean("is_visible").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_emblem_assignment_user_idx").on(table.userId),
+    index("profile_emblem_assignment_emblem_idx").on(table.emblemDefinitionId),
+    foreignKey({
+      name: "pea_user_fk",
+      columns: [table.userId],
+      foreignColumns: [user.id],
+    }).onDelete("cascade"),
+    foreignKey({
+      name: "pea_emblem_def_fk",
+      columns: [table.emblemDefinitionId],
+      foreignColumns: [profileEmblemDefinition.id],
+    }).onDelete("cascade"),
+  ]
+);
+
+export const profileSystemConfig = pgTable("profile_system_config", {
+  id: text("id").primaryKey(),
+  maxVisibleEmblems: integer("max_visible_emblems")
+    .notNull()
+    .default(PROFILE_DEFAULTS.maxVisibleEmblems),
+  ...timestamps,
+});
+
+export const profileMediaAssetRelations = relations(
+  profileMediaAsset,
+  ({ one }) => ({
+    owner: one(user, {
+      fields: [profileMediaAsset.ownerUserId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const profileSettingsRelations = relations(
+  profileSettings,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [profileSettings.userId],
+      references: [user.id],
+    }),
+    bannerAsset: one(profileMediaAsset, {
+      fields: [profileSettings.bannerAssetId],
+      references: [profileMediaAsset.id],
+    }),
+  })
+);
+
+export const profileRoleDefinitionRelations = relations(
+  profileRoleDefinition,
+  ({ one, many }) => ({
+    iconAsset: one(profileMediaAsset, {
+      fields: [profileRoleDefinition.iconAssetId],
+      references: [profileMediaAsset.id],
+    }),
+    overlayAsset: one(profileMediaAsset, {
+      fields: [profileRoleDefinition.overlayAssetId],
+      references: [profileMediaAsset.id],
+    }),
+    assignments: many(profileRoleAssignment),
+  })
+);
+
+export const profileRoleAssignmentRelations = relations(
+  profileRoleAssignment,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [profileRoleAssignment.userId],
+      references: [user.id],
+    }),
+    roleDefinition: one(profileRoleDefinition, {
+      fields: [profileRoleAssignment.roleDefinitionId],
+      references: [profileRoleDefinition.id],
+    }),
+  })
+);
+
+export const profileEmblemDefinitionRelations = relations(
+  profileEmblemDefinition,
+  ({ one, many }) => ({
+    iconAsset: one(profileMediaAsset, {
+      fields: [profileEmblemDefinition.iconAssetId],
+      references: [profileMediaAsset.id],
+    }),
+    assignments: many(profileEmblemAssignment),
+  })
+);
+
+export const profileEmblemAssignmentRelations = relations(
+  profileEmblemAssignment,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [profileEmblemAssignment.userId],
+      references: [user.id],
+    }),
+    emblemDefinition: one(profileEmblemDefinition, {
+      fields: [profileEmblemAssignment.emblemDefinitionId],
+      references: [profileEmblemDefinition.id],
+    }),
+  })
+);
+
+export const profileSystemConfigRelations = relations(
+  profileSystemConfig,
+  () => ({})
+);
 
 export const emojiTypeEnum = pgEnum("emoji_type", ["static", "animated"]);
 

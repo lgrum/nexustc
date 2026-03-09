@@ -1,36 +1,29 @@
 import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Avatar, AvatarFallback, AvatarImage } from "facehash";
-import { toast } from "sonner";
-import z from "zod";
-import { DiscordLogo } from "@/components/icons/discord";
-import { PatreonLogo } from "@/components/icons/patreon";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppForm } from "@/hooks/use-app-form";
-import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
-import "react-image-crop/dist/ReactCrop.css";
-import {
   Cancel01Icon,
   HelpCircleIcon,
   RefreshIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Suspense } from "react";
-import { HoverReveal } from "@/components/hover-reveal";
-import { PostCard } from "@/components/landing/post-card";
-import { AvatarSection } from "@/components/profile/avatar-section";
+import { toast } from "sonner";
+import z from "zod";
+import { DiscordLogo } from "@/components/icons/discord";
+import { PatreonLogo } from "@/components/icons/patreon";
+import { AppearanceSection } from "@/components/profile/appearance-section";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { UserLabel } from "@/components/users/user-label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppForm } from "@/hooks/use-app-form";
+import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 import { orpc } from "@/lib/orpc";
-import { defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 import { authMiddleware } from "@/middleware/auth";
 
 export const Route = createFileRoute("/_main/profile")({
@@ -59,83 +52,47 @@ function RouteComponent() {
     return <Navigate replace={true} to="/" />;
   }
 
-  const session = auth.data;
-
   return (
-    <div className="flex w-full flex-col gap-4 pt-4 pb-6 lg:flex-row lg:items-start">
-      <div className="lg:w-[min(33%,22rem)] lg:min-w-[16rem] lg:max-w-88 lg:pl-4">
-        {/* Profile Card */}
-        <div className="relative border border-border bg-card">
-          {/* Gradient banner */}
-          <div className="h-20 bg-linear-to-r from-secondary/60 via-primary/30 to-accent/40" />
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 pb-8">
+      <header className="flex items-center justify-between rounded-[2rem] border border-border bg-card px-5 py-4">
+        <div>
+          <h1 className="font-black text-2xl">Perfil</h1>
+          <p className="text-muted-foreground text-sm">
+            Administra tu apariencia, cuentas y seguridad.
+          </p>
+        </div>
+        <Button
+          onClick={async () => {
+            authClient.signOut();
+            await queryClient.invalidateQueries({ queryKey: ["session"] });
+          }}
+          variant="destructive"
+        >
+          Cerrar sesión
+        </Button>
+      </header>
 
-          {/* Avatar + info */}
-          <div className="-mt-10 flex flex-col items-center gap-2 px-4 pb-4">
-            <Avatar className="size-20 rounded-full border-4 border-card">
-              <AvatarImage
-                src={
-                  session.user.image
-                    ? getBucketUrl(session.user.image)
-                    : undefined
-                }
-              />
-              <AvatarFallback
-                className="rounded-full"
-                facehashProps={defaultFacehashProps}
-                name={session.user.name}
-              />
-            </Avatar>
-            <UserLabel className="font-bold text-xl" user={session.user} />
-            <HoverReveal blur="blur-sm" className="p-1">
-              <p className="text-muted-foreground text-sm">
-                {session.user.email}
-              </p>
-            </HoverReveal>
-            <Button
-              className="mt-2 w-full"
-              onClick={async () => {
-                authClient.signOut();
-                await queryClient.invalidateQueries({ queryKey: ["session"] });
-              }}
-              variant="destructive"
-            >
-              Cerrar Sesión
-            </Button>
+      <Tabs className="w-full" defaultValue="appearance">
+        <TabsList className="w-full">
+          <TabsTrigger value="appearance">Apariencia</TabsTrigger>
+          <TabsTrigger value="account">Cuenta</TabsTrigger>
+          <TabsTrigger value="password">Contraseña</TabsTrigger>
+        </TabsList>
+        <TabsContent value="appearance">
+          <AppearanceSection />
+        </TabsContent>
+        <TabsContent value="account">
+          <AccountsSection />
+        </TabsContent>
+        <TabsContent value="password">
+          <div className="rounded-[2rem] border border-border bg-card p-4">
+            <div className="section-title">Cambiar Contraseña</div>
+            <div className="mt-4">
+              <ChangePasswordForm email={auth.data.user.email} />
+            </div>
           </div>
-        </div>
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col gap-4 lg:pr-4">
-        {/* Tabs section */}
-        <div className="px-4 lg:px-0">
-          <Tabs className="w-full" defaultValue="account">
-            <TabsList className="w-full">
-              <TabsTrigger value="account">Cuenta</TabsTrigger>
-              <TabsTrigger value="avatar">Avatar</TabsTrigger>
-              <TabsTrigger value="password">Contraseña</TabsTrigger>
-            </TabsList>
-            <TabsContent value="account">
-              <AccountsSection />
-            </TabsContent>
-            <TabsContent value="avatar">
-              <AvatarSection />
-            </TabsContent>
-            <TabsContent value="password">
-              <div className="flex flex-col gap-3">
-                <div className="section-title">Cambiar Contraseña</div>
-                <ChangePasswordForm email={session.user.email} />
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        {/* Bookmarks */}
-        <div className="px-4 lg:px-0">
-          <Suspense fallback={<Spinner />}>
-            <UserBookmarks />
-          </Suspense>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -159,7 +116,7 @@ function AccountsSection() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 rounded-[2rem] border border-border bg-card p-4">
       <div className="section-title">Cuentas Vinculadas</div>
 
       {accounts?.length === 1 && (
@@ -187,7 +144,7 @@ function AccountsSection() {
 
         return (
           <div
-            className="flex w-full items-center justify-between border border-border bg-card px-4 py-3"
+            className="flex w-full items-center justify-between rounded-2xl border border-border bg-background px-4 py-3"
             key={provider}
           >
             <div className="flex items-center gap-3">
@@ -211,9 +168,7 @@ function AccountsSection() {
         );
       })}
 
-      <Suspense fallback={<Spinner />}>
-        <PatreonStatusSection />
-      </Suspense>
+      <PatreonStatusSection />
     </div>
   );
 }
@@ -274,7 +229,6 @@ function ChangePasswordForm({ email }: { email: string }) {
         form.handleSubmit();
       }}
     >
-      {/* This email field only exists for browser autocomplete accesibility */}
       <form.AppField name="email">
         {(field) => (
           <field.TextField
@@ -337,55 +291,6 @@ function matchProvider(provider: string) {
   }
 }
 
-function UserBookmarks() {
-  const { data } = useSuspenseQuery(orpc.user.getBookmarksFull.queryOptions());
-
-  const posts = data.filter((b) => b.type === "post");
-  const comics = data.filter((b) => b.type === "comic");
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="section-title">Tus Favoritos</div>
-      <Tabs defaultValue="posts">
-        <TabsList className="w-full">
-          <TabsTrigger value="posts">
-            Juegos {posts.length > 0 && `(${posts.length})`}
-          </TabsTrigger>
-          <TabsTrigger value="comics">
-            Cómics {comics.length > 0 && `(${comics.length})`}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent
-          className="grid grid-cols-2 gap-2.5 md:grid-cols-3"
-          value="posts"
-        >
-          {posts.map((bookmark) => (
-            <PostCard key={bookmark.id} post={bookmark} />
-          ))}
-          {posts.length === 0 && (
-            <p className="col-span-2 py-4 text-center text-muted-foreground text-sm">
-              No tienes juegos guardados
-            </p>
-          )}
-        </TabsContent>
-        <TabsContent
-          className="grid grid-cols-2 gap-2.5 md:grid-cols-3"
-          value="comics"
-        >
-          {comics.map((bookmark) => (
-            <PostCard key={bookmark.id} post={bookmark} />
-          ))}
-          {comics.length === 0 && (
-            <p className="col-span-2 py-4 text-center text-muted-foreground text-sm">
-              No tienes cómics guardados
-            </p>
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
 const TIER_STYLES: Record<string, string> = {
   tier1: "bg-amber-100 text-amber-800 border-amber-200",
   tier2: "bg-purple-100 text-purple-800 border-purple-200",
@@ -417,7 +322,7 @@ function PatreonStatusSection() {
   };
 
   return (
-    <div className="flex flex-col gap-3 border border-border bg-card p-4">
+    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-4">
       <div className="flex items-center gap-2 font-semibold text-sm">
         <PatreonLogo className="size-5" />
         Estado de Patreon

@@ -1,98 +1,87 @@
 import { StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PATRON_TIERS } from "@repo/shared/constants";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { formatDistance } from "date-fns";
 import { es } from "date-fns/locale";
-import { Avatar, AvatarFallback, AvatarImage } from "facehash";
 import { Suspense } from "react";
 import { PostCard } from "@/components/landing/post-card";
-import { Badge } from "@/components/ui/badge";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
+import { ProfileBanner } from "@/components/profile/profile-banner";
+import { ProfileNameplate } from "@/components/profile/profile-nameplate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserLabel } from "@/components/users/user-label";
 import { orpc, orpcClient } from "@/lib/orpc";
-import { defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/user/$id")({
   component: RouteComponent,
   loader: async ({ params }) => {
-    const user = await orpcClient.user.getUser({ id: params.id });
+    const profile = await orpcClient.profile.getPublic({ userId: params.id });
 
-    if (!user) {
+    if (!profile) {
       throw notFound();
     }
 
-    return { user };
+    return { profile };
   },
   head: ({ loaderData }) => ({
     meta: [
       {
-        title: `NeXusTC - Usuario${loaderData ? `: ${loaderData.user.name}` : ""}`,
+        title: `NeXusTC - Usuario${loaderData ? `: ${loaderData.profile.name}` : ""}`,
       },
     ],
   }),
 });
 
 function RouteComponent() {
-  const { user } = Route.useLoaderData();
-  const patronTierConfig =
-    user.patronTier && user.isActivePatron
-      ? PATRON_TIERS[user.patronTier]
-      : null;
+  const { profile } = Route.useLoaderData();
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-2 py-4 md:px-4 md:py-8">
-      <div className="flex flex-col gap-6">
-        <Card>
-          <CardContent className="flex flex-row flex-wrap items-center gap-6 p-6">
-            <Avatar className="size-28 rounded-full">
-              <AvatarImage
-                src={user.image ? getBucketUrl(user.image) : undefined}
-              />
-              <AvatarFallback
-                className="rounded-full"
-                facehashProps={defaultFacehashProps}
-                name={user.name}
-              />
-            </Avatar>
-            <div className="flex flex-1 flex-col gap-2">
-              <div className="flex flex-row flex-wrap items-center gap-3">
-                <UserLabel className="text-2xl" user={user} />
-                {patronTierConfig?.badge && (
-                  <Badge variant="secondary">{patronTierConfig.badge}</Badge>
-                )}
-              </div>
-              <p className="text-muted-foreground text-sm">
-                Registrado{" "}
-                {formatDistance(user.createdAt, new Date(), {
-                  addSuffix: true,
-                  locale: es,
-                })}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-3 py-4 pb-10 sm:px-4 md:py-8">
+      <section className="overflow-hidden rounded-[2rem] border border-border bg-card">
+        <ProfileBanner
+          banner={profile.banner}
+          className="rounded-none border-0"
+        />
+        <div className="-mt-16 flex flex-col gap-4 px-4 pb-5 sm:px-6">
+          <ProfileAvatar
+            className="size-28 border-4 border-card shadow-xl sm:size-32"
+            user={profile}
+          />
+          <div className="flex flex-col gap-3">
+            <ProfileNameplate
+              nameClassName="text-3xl font-black tracking-tight"
+              showEmblems
+              user={profile}
+            />
+            <p className="text-muted-foreground text-sm">
+              Registrado{" "}
+              {formatDistance(profile.createdAt, new Date(), {
+                addSuffix: true,
+                locale: es,
+              })}
+            </p>
+          </div>
+        </div>
+      </section>
 
-        <Tabs defaultValue="bookmarks">
-          <TabsList className="w-full">
-            <TabsTrigger value="bookmarks">Favoritos</TabsTrigger>
-            <TabsTrigger value="reviews">Reseñas</TabsTrigger>
-          </TabsList>
-          <TabsContent value="bookmarks">
-            <Suspense fallback={<Spinner />}>
-              <UserBookmarksSection userId={user.id} />
-            </Suspense>
-          </TabsContent>
-          <TabsContent value="reviews">
-            <Suspense fallback={<Spinner />}>
-              <UserReviewsSection userId={user.id} />
-            </Suspense>
-          </TabsContent>
-        </Tabs>
-      </div>
+      <Tabs defaultValue="bookmarks">
+        <TabsList className="w-full">
+          <TabsTrigger value="bookmarks">Favoritos</TabsTrigger>
+          <TabsTrigger value="reviews">Reseñas</TabsTrigger>
+        </TabsList>
+        <TabsContent value="bookmarks">
+          <Suspense fallback={<Spinner />}>
+            <UserBookmarksSection userId={profile.id} />
+          </Suspense>
+        </TabsContent>
+        <TabsContent value="reviews">
+          <Suspense fallback={<Spinner />}>
+            <UserReviewsSection userId={profile.id} />
+          </Suspense>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -110,11 +99,14 @@ function UserBookmarksSection({ userId }: { userId: string }) {
     );
   }
 
-  const posts = bookmarks.filter((b) => b.type === "post");
-  const comics = bookmarks.filter((b) => b.type === "comic");
+  const posts = bookmarks.filter((bookmark) => bookmark.type === "post");
+  const comics = bookmarks.filter((bookmark) => bookmark.type === "comic");
 
   return (
-    <Tabs className="px-6">
+    <Tabs
+      className="rounded-[2rem] border border-border bg-card p-4"
+      defaultValue="posts"
+    >
       <TabsList className="w-full">
         <TabsTrigger value="posts">Posts</TabsTrigger>
         <TabsTrigger value="comics">Comics</TabsTrigger>
@@ -142,7 +134,7 @@ function UserReviewsSection({ userId }: { userId: string }) {
     orpc.rating.getByUserId.queryOptions({ input: { userId } })
   );
 
-  const postMap = new Map(data.posts.map((p) => [p.id, p]));
+  const postMap = new Map(data.posts.map((post) => [post.id, post]));
 
   if (data.ratings.length === 0) {
     return (
@@ -161,7 +153,7 @@ function UserReviewsSection({ userId }: { userId: string }) {
         }
 
         return (
-          <Card className="rounded-2xl" key={rating.postId}>
+          <Card className="rounded-[2rem]" key={rating.postId}>
             <CardContent className="flex flex-col gap-2 p-4">
               <div className="flex flex-row items-center justify-between gap-2">
                 <Link
@@ -179,9 +171,9 @@ function UserReviewsSection({ userId }: { userId: string }) {
                   <span>{rating.rating}/10</span>
                 </div>
               </div>
-              {rating.review && (
+              {rating.review ? (
                 <p className="text-muted-foreground text-sm">{rating.review}</p>
-              )}
+              ) : null}
               <p className="text-muted-foreground text-xs">
                 {formatDistance(rating.createdAt, new Date(), {
                   addSuffix: true,

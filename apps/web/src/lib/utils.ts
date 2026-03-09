@@ -1,19 +1,36 @@
 import { env } from "@repo/env/client";
+import type { ProfileCrop } from "@repo/shared/profile";
 import { type ClassValue, clsx } from "clsx";
 import type { FacehashProps } from "facehash";
+import type { CSSProperties } from "react";
 import { twMerge } from "tailwind-merge";
 
+const defaultFacehashColors = [
+  "#ef4444",
+  "#f97316",
+  "#22c55e",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
+
 export const defaultFacehashProps: Omit<FacehashProps, "name"> = {
-  colorClasses: [
-    "bg-red-500",
-    "bg-orange-500",
-    "bg-green-500",
-    "bg-blue-500",
-    "bg-purple-500",
-    "bg-pink-500",
-  ],
+  colors: defaultFacehashColors,
   variant: "solid",
 };
+
+export function getFacehashProps(
+  fallbackColor?: string | null
+): Omit<FacehashProps, "name"> {
+  if (!fallbackColor) {
+    return defaultFacehashProps;
+  }
+
+  return {
+    colors: [fallbackColor, ...defaultFacehashColors],
+    variant: "solid",
+  };
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -198,4 +215,18 @@ export function pickTextColorFromHex(
   }
 
   return pickTextColor(rgb);
+}
+
+export function getProfileImageStyles(crop?: ProfileCrop | null) {
+  if (!crop) {
+    return undefined;
+  }
+
+  const scale = Math.max(1 / crop.width, 1 / crop.height);
+
+  return {
+    objectPosition: `${crop.x * 100}% ${crop.y * 100}%`,
+    transform: `scale(${scale})`,
+    transformOrigin: "center center",
+  } satisfies CSSProperties;
 }

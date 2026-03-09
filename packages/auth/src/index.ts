@@ -78,6 +78,12 @@ export const auth = betterAuth({
         defaultValue: "user",
         input: false,
       },
+      avatarFallbackColor: {
+        type: "string",
+        required: false,
+        defaultValue: "#f59e0b",
+        input: false,
+      },
     },
   },
 

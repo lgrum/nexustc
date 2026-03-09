@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useState } from "react";
 import { HasPermissions } from "@/components/auth/has-role";
+import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,12 +17,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { UserLabel } from "@/components/users/user-label";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient } from "@/lib/orpc";
-import { getBucketUrl } from "@/lib/utils";
 import { ReviewMarkdown } from "./review-markdown";
 import { StarRatingInput } from "./star-rating-input";
 
@@ -123,16 +123,10 @@ export function RatingList({ postId }: RatingListProps) {
             >
               {author ? (
                 <Link params={{ id: author.id }} to="/user/$id">
-                  <Avatar className="size-10 ring-2 ring-background transition-transform group-hover:scale-105">
-                    <AvatarImage
-                      src={
-                        author.image ? getBucketUrl(author.image) : undefined
-                      }
-                    />
-                    <AvatarFallback className="bg-amber-500/10 font-medium text-amber-600">
-                      {author.name.charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <ProfileAvatar
+                    className="size-10 ring-2 ring-background transition-transform group-hover:scale-105"
+                    user={author}
+                  />
                 </Link>
               ) : (
                 <Avatar className="size-10 ring-2 ring-background">

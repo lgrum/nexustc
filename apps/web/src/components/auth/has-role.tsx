@@ -24,3 +24,13 @@ export function HasPermissions({
 
   return null;
 }
+
+export function HasOwner({ children }: React.PropsWithChildren) {
+  const { data: auth } = authClient.useSession();
+
+  if (auth?.user.role !== "owner") {
+    return null;
+  }
+
+  return children;
+}
