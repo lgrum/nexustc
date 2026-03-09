@@ -83,7 +83,6 @@ export default {
             ? {
                 id: bannerAsset.id,
                 objectKey: bannerAsset.objectKey,
-                crop: bannerAsset.crop,
                 isAnimated: bannerAsset.isAnimated,
                 mimeType: bannerAsset.mimeType,
               }
@@ -295,7 +294,6 @@ export default {
           height: validation.height,
           durationMs: validation.durationMs,
           isAnimated: validation.isAnimated,
-          crop: null,
           validationStatus: "ready",
         })
         .returning();

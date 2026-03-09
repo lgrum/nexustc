@@ -27,14 +27,6 @@ export type ProfileMediaValidationStatus =
 export type ProfileAssignmentSourceType =
   (typeof PROFILE_ASSIGNMENT_SOURCE_TYPES)[number];
 
-export type ProfileCrop = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  aspect: number;
-};
-
 export type ProfileVisibilityConfig = {
   reserved: Record<string, boolean>;
 };
