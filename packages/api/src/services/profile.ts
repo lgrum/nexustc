@@ -13,11 +13,7 @@ import {
 } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { PATRON_TIERS, type PatronTier } from "@repo/shared/constants";
-import {
-  PROFILE_DEFAULTS,
-  type ProfileCrop,
-  type ProfileMediaSlot,
-} from "@repo/shared/profile";
+import { PROFILE_DEFAULTS, type ProfileMediaSlot } from "@repo/shared/profile";
 import sharp from "sharp";
 import { getS3Client } from "../utils/s3";
 
@@ -69,7 +65,6 @@ export type ProfileSummary = {
   image: string | null;
   avatar: {
     objectKey: string;
-    crop: ProfileCrop | null;
     isAnimated: boolean;
     mimeType: string;
   } | null;
@@ -86,7 +81,6 @@ export type PublicProfile = ProfileSummary & {
     color: string;
     asset: {
       objectKey: string;
-      crop: ProfileCrop | null;
       isAnimated: boolean;
       mimeType: string;
     } | null;
@@ -655,13 +649,11 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
             return asset
               ? {
                   objectKey: asset.objectKey,
-                  crop: asset.crop,
                   isAnimated: asset.isAnimated,
                   mimeType: asset.mimeType,
                 }
               : {
                   objectKey: currentUser.image,
-                  crop: null,
                   isAnimated: false,
                   mimeType: "image/webp",
                 };
@@ -714,7 +706,6 @@ export async function getPublicProfile(db: Database, userId: string) {
       asset: bannerAsset
         ? {
             objectKey: bannerAsset.objectKey,
-            crop: bannerAsset.crop,
             isAnimated: bannerAsset.isAnimated,
             mimeType: bannerAsset.mimeType,
           }

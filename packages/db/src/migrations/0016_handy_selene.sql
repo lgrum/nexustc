@@ -1,0 +1,1 @@
+ALTER TABLE "profile_media_asset" DROP COLUMN "crop";

@@ -9,7 +9,6 @@ import {
   PROFILE_DEFAULTS,
   PROFILE_MEDIA_SLOTS,
   PROFILE_MEDIA_VALIDATION_STATUSES,
-  type ProfileCrop,
   type ProfileEmblemVisualConfig,
   type ProfileRoleVisualConfig,
   type ProfileVisibilityConfig,
@@ -428,7 +427,6 @@ export const profileMediaAsset = pgTable(
     height: integer("height").notNull(),
     durationMs: integer("duration_ms"),
     isAnimated: boolean("is_animated").notNull().default(false),
-    crop: jsonb("crop").$type<ProfileCrop | null>(),
     validationStatus: profileMediaValidationStatusEnum("validation_status")
       .notNull()
       .default("pending"),

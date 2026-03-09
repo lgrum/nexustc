@@ -23,13 +23,6 @@ import {
 import { getS3Client } from "../utils/s3";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
-const cropSchema = z.object({
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().positive().max(1),
-  height: z.number().positive().max(1),
-  aspect: z.number().positive(),
-});
 const uploadContentTypeSchema = z.enum([
   "image/avif",
   "image/gif",
@@ -150,7 +143,6 @@ export default {
           objectKey: z.string().min(1),
           contentType: uploadContentTypeSchema,
           contentLength: z.number().int().positive(),
-          crop: cropSchema.optional(),
         })
       )
       .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
@@ -200,7 +192,6 @@ export default {
             height: validation.height,
             durationMs: validation.durationMs,
             isAnimated: validation.isAnimated,
-            crop: input.crop,
             validationStatus: "ready",
           })
           .returning();
