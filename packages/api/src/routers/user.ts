@@ -29,6 +29,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../index";
+import { buildProfileSummaries } from "../services/profile";
 
 const RECENT_USERS_CACHE_TTL_SECONDS = 60 * 5; // 5 minutes
 
@@ -300,54 +301,19 @@ export default {
   getRecentUsers: publicProcedure.handler(
     async ({
       context: { db, session, ...ctx },
-    }): Promise<
-      {
-        id: string;
-        name: string;
-        image: string | null;
-        role: string;
-      }[]
-    > => {
+    }): Promise<Awaited<ReturnType<typeof buildProfileSummaries>>> => {
       const logger = getLogger(ctx);
       logger?.info("Fetching recent users list");
-
-      // const cachedList = await cache.get("recent-users");
 
       const currentUser = session?.user;
 
       if (currentUser) {
-        // If the user is authenticated, update their lastSeenAt
-        logger?.debug(`Updating lastSeenAt for user ${currentUser.id}`);
+        logger?.debug("Updating lastSeenAt for current user");
         await db
           .update(user)
           .set({ lastSeenAt: new Date() })
           .where(eq(user.id, currentUser.id));
       }
-
-      // if (cachedList) {
-      //   const result = recentUsersListSchema.safeParse(cachedList);
-
-      //   if (result.success) {
-      //     const list = result.data;
-
-      //     if (currentUser && !list.find((u) => u.id === currentUser.id)) {
-      //       // If the user is not in the cached list, add them
-      //       list.push({
-      //         id: currentUser.id,
-      //         name: currentUser.name,
-      //         role: currentUser.role ?? "user",
-      //         image: currentUser.image ?? null,
-      //       });
-      //     }
-
-      //     logger?.debug(
-      //       `Returning cached recent users list with ${list.length} users`
-      //     );
-      //     return list;
-      //   }
-
-      //   logger?.error("Invalid cached list format, will fetch from database");
-      // }
 
       logger?.debug(
         "Cache miss or invalid, fetching recent users from database"
@@ -357,24 +323,20 @@ export default {
         where: (u, { gte }) =>
           gte(
             u.lastSeenAt,
-            new Date(Date.now() - 1000 * RECENT_USERS_CACHE_TTL_SECONDS * 2) // double the cutoff window
+            new Date(Date.now() - 1000 * RECENT_USERS_CACHE_TTL_SECONDS * 2)
           ),
         columns: {
           id: true,
-          name: true,
-          role: true,
-          image: true,
         },
       });
 
-      // await cache.setEx(
-      //   "recent-users",
-      //   RECENT_USERS_CACHE_TTL_SECONDS,
-      //   JSON.stringify(users)
-      // );
+      const summaries = await buildProfileSummaries(
+        db,
+        users.map((current) => current.id)
+      );
 
-      logger?.debug(`Fetched and cached ${users.length} recent users`);
-      return users;
+      logger?.debug("Fetched recent profile summaries");
+      return summaries;
     }
   ),
 

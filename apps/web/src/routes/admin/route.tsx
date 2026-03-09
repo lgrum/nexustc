@@ -5,7 +5,7 @@ import type { AtLeastOne } from "@repo/shared/types";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Suspense } from "react";
 import { ImpersonationBanner } from "@/components/admin/users/impersonation-banner";
-import { HasPermissions } from "@/components/auth/has-role";
+import { HasOwner, HasPermissions } from "@/components/auth/has-role";
 import Loader from "@/components/loader";
 import {
   Collapsible,
@@ -152,6 +152,15 @@ const nav = {
       },
     ],
   },
+  profile: {
+    name: "Perfiles",
+    links: [
+      {
+        name: "Visuales",
+        href: "/admin/profile",
+      },
+    ],
+  },
   staticPages: {
     name: "Páginas",
     links: [
@@ -222,6 +231,9 @@ function AdminLayout() {
               <HasPermissions permissions={{ staticPages: ["update"] }}>
                 <SidebarLinks item={nav.staticPages} />
               </HasPermissions>
+              <HasOwner>
+                <SidebarLinks item={nav.profile} />
+              </HasOwner>
             </SidebarMenu>
           </SidebarGroup>
         </SidebarContent>

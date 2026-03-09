@@ -26,6 +26,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../../index";
+import { buildProfileSummaries } from "../../services/profile";
 import { resolveEngagementPrompts } from "../../utils/engagement-prompts";
 import admin from "./admin";
 
@@ -899,15 +900,7 @@ export default {
         ),
       ];
 
-      const authors = await db.query.user.findMany({
-        where: (u, { inArray }) => inArray(u.id, authorIds),
-        columns: {
-          id: true,
-          name: true,
-          role: true,
-          image: true,
-        },
-      });
+      const authors = await buildProfileSummaries(db, authorIds);
 
       // getComments is a good heuristic that the user is actually scrolling though the post
       // so we take the opportunity to increment the view count here while not blocking the response

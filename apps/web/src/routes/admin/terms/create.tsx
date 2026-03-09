@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { ColorPickerField } from "@/components/ui/color-picker-field";
 import { Field } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -161,56 +162,32 @@ function RouteComponent() {
               <div className="grid grid-cols-3 gap-3">
                 <form.AppField name="color1">
                   {(field) => (
-                    <Field className="gap-2">
-                      <Label>Color 1 (Inicio)</Label>
-                      <div className="relative">
-                        <input
-                          className="h-12 w-full cursor-pointer rounded-lg border-2 border-input transition-colors hover:border-ring focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          style={{
-                            backgroundColor: field.state.value || "#ffffff",
-                          }}
-                          type="color"
-                          value={field.state.value || "#ffffff"}
-                        />
-                      </div>
-                    </Field>
+                    <ColorPickerField
+                      id="term-color-1"
+                      label="Color 1 (Inicio)"
+                      onChange={(value) => field.handleChange(value)}
+                      value={field.state.value || "#ffffff"}
+                    />
                   )}
                 </form.AppField>
                 <form.AppField name="color2">
                   {(field) => (
-                    <Field className="gap-2">
-                      <Label>Color 2 (Fin)</Label>
-                      <div className="relative">
-                        <input
-                          className="h-12 w-full cursor-pointer rounded-lg border-2 border-input transition-colors hover:border-ring focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          style={{
-                            backgroundColor: field.state.value || "#ffffff",
-                          }}
-                          type="color"
-                          value={field.state.value || "#ffffff"}
-                        />
-                      </div>
-                    </Field>
+                    <ColorPickerField
+                      id="term-color-2"
+                      label="Color 2 (Fin)"
+                      onChange={(value) => field.handleChange(value)}
+                      value={field.state.value || "#ffffff"}
+                    />
                   )}
                 </form.AppField>
                 <form.AppField name="textColor">
                   {(field) => (
-                    <Field className="gap-2">
-                      <Label>Color de texto</Label>
-                      <div className="relative">
-                        <input
-                          className="h-12 w-full cursor-pointer rounded-lg border-2 border-input transition-colors hover:border-ring focus:border-ring focus:outline-none focus:ring-2 focus:ring-ring/20"
-                          onChange={(e) => field.handleChange(e.target.value)}
-                          style={{
-                            backgroundColor: field.state.value || "#ffffff",
-                          }}
-                          type="color"
-                          value={field.state.value || "#ffffff"}
-                        />
-                      </div>
-                    </Field>
+                    <ColorPickerField
+                      id="term-text-color"
+                      label="Color de texto"
+                      onChange={(value) => field.handleChange(value)}
+                      value={field.state.value || "#ffffff"}
+                    />
                   )}
                 </form.AppField>
               </div>

@@ -3,17 +3,32 @@ import { type ClassValue, clsx } from "clsx";
 import type { FacehashProps } from "facehash";
 import { twMerge } from "tailwind-merge";
 
+const defaultFacehashColors = [
+  "#ef4444",
+  "#f97316",
+  "#22c55e",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
+];
+
 export const defaultFacehashProps: Omit<FacehashProps, "name"> = {
-  colorClasses: [
-    "bg-red-500",
-    "bg-orange-500",
-    "bg-green-500",
-    "bg-blue-500",
-    "bg-purple-500",
-    "bg-pink-500",
-  ],
+  colors: defaultFacehashColors,
   variant: "solid",
 };
+
+export function getFacehashProps(
+  fallbackColor?: string | null
+): Omit<FacehashProps, "name"> {
+  if (!fallbackColor) {
+    return defaultFacehashProps;
+  }
+
+  return {
+    colors: [fallbackColor, ...defaultFacehashColors],
+    variant: "solid",
+  };
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -83,6 +98,8 @@ export async function convertImage(
     canvas.toBlob(resolve, selectedFormat.type, quality)
   );
 
+  originalBitmap.close();
+
   if (!convertedBlob) {
     throw new Error("Fallo al convertir imagen");
   }
@@ -94,6 +111,78 @@ export async function convertImage(
   );
 
   return convertedFile;
+}
+
+export type ImagePercentCrop = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export function getPixelCropRegion(
+  imageWidth: number,
+  imageHeight: number,
+  crop: ImagePercentCrop
+) {
+  const x = Math.max(0, Math.round((crop.x / 100) * imageWidth));
+  const y = Math.max(0, Math.round((crop.y / 100) * imageHeight));
+  const width = Math.max(1, Math.round((crop.width / 100) * imageWidth));
+  const height = Math.max(1, Math.round((crop.height / 100) * imageHeight));
+
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(width, imageWidth - x)),
+    height: Math.max(1, Math.min(height, imageHeight - y)),
+  };
+}
+
+export async function cropImage(
+  file: File,
+  crop: ImagePercentCrop,
+  quality = 0.92
+) {
+  const bitmap = await createImageBitmap(file);
+
+  try {
+    const region = getPixelCropRegion(bitmap.width, bitmap.height, crop);
+    const canvas = document.createElement("canvas");
+    canvas.width = region.width;
+    canvas.height = region.height;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Canvas context not available");
+    }
+
+    ctx.drawImage(
+      bitmap,
+      region.x,
+      region.y,
+      region.width,
+      region.height,
+      0,
+      0,
+      region.width,
+      region.height
+    );
+
+    const croppedBlob: Blob | null = await new Promise((resolve) =>
+      canvas.toBlob(resolve, file.type || "image/webp", quality)
+    );
+
+    if (!croppedBlob) {
+      throw new Error("No se pudo recortar la imagen");
+    }
+
+    return new File([croppedBlob], file.name, {
+      type: croppedBlob.type || file.type,
+      lastModified: Date.now(),
+    });
+  } finally {
+    bitmap.close();
+  }
 }
 
 type Meta = {

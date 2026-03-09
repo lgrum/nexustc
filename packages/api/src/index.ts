@@ -126,6 +126,16 @@ export const slidingWindowRatelimitMiddleware = (
 
 export const protectedProcedure = publicProcedure.use(requireAuth);
 
+export const ownerProcedure = protectedProcedure.use(
+  o.middleware(({ context, next, errors }) => {
+    if (context.session!.user.role !== "owner") {
+      throw errors.FORBIDDEN();
+    }
+
+    return next();
+  })
+);
+
 export const permissionProcedure = (permissions: AtLeastOne<Permissions>) =>
   protectedProcedure.use(
     o.middleware(async ({ context, next, errors }) => {
