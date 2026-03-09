@@ -1,5 +1,4 @@
-import type { ProfileCrop } from "@repo/shared/profile";
-import { cn, getBucketUrl, getProfileImageStyles } from "@/lib/utils";
+import { cn, getBucketUrl } from "@/lib/utils";
 
 export function ProfileBanner({
   banner,
@@ -10,7 +9,6 @@ export function ProfileBanner({
     color: string;
     asset: {
       objectKey: string;
-      crop?: ProfileCrop | null;
     } | null;
   };
   className?: string;
@@ -18,7 +16,7 @@ export function ProfileBanner({
   return (
     <div
       className={cn(
-        "relative h-36 w-full overflow-hidden rounded-[2rem] border border-border bg-card sm:h-44",
+        "relative aspect-16/5 w-full overflow-hidden rounded-4xl border border-border bg-card md:aspect-5/1",
         className
       )}
       style={{ backgroundColor: banner.color }}
@@ -29,7 +27,6 @@ export function ProfileBanner({
           aria-hidden="true"
           className="absolute inset-0 size-full object-cover opacity-90"
           src={getBucketUrl(banner.asset.objectKey)}
-          style={getProfileImageStyles(banner.asset.crop)}
         />
       ) : null}
       <div className="absolute inset-0 bg-linear-to-t from-background/85 via-background/30 to-transparent" />

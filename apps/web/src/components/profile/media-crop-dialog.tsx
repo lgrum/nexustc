@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import type { ImagePercentCrop } from "@/lib/utils";
 import "react-image-crop/dist/ReactCrop.css";
 
 function centerAspectCrop(
@@ -49,13 +50,7 @@ export default function MediaCropDialog({
   aspect: number;
   title: string;
   description: string;
-  onConfirm: (crop: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    aspect: number;
-  }) => void;
+  onConfirm: (crop: ImagePercentCrop) => void;
 }) {
   const [crop, setCrop] = useState<PercentCrop>();
 
@@ -90,15 +85,11 @@ export default function MediaCropDialog({
                 return;
               }
 
-              const focusX = (crop.x + crop.width / 2) / 100;
-              const focusY = (crop.y + crop.height / 2) / 100;
-
               onConfirm({
-                x: focusX,
-                y: focusY,
-                width: crop.width / 100,
-                height: crop.height / 100,
-                aspect,
+                x: crop.x,
+                y: crop.y,
+                width: crop.width,
+                height: crop.height,
               });
             }}
           >

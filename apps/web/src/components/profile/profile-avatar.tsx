@@ -1,11 +1,5 @@
-import type { ProfileCrop } from "@repo/shared/profile";
 import { Avatar, AvatarFallback, AvatarImage } from "facehash";
-import {
-  cn,
-  getBucketUrl,
-  getFacehashProps,
-  getProfileImageStyles,
-} from "@/lib/utils";
+import { cn, getBucketUrl, getFacehashProps } from "@/lib/utils";
 
 export function ProfileAvatar({
   user,
@@ -16,7 +10,6 @@ export function ProfileAvatar({
     image?: string | null;
     avatar?: {
       objectKey: string;
-      crop?: ProfileCrop | null;
     } | null;
     avatarFallbackColor?: string | null;
   };
@@ -28,7 +21,6 @@ export function ProfileAvatar({
     <Avatar className={cn("overflow-hidden rounded-full", className)}>
       <AvatarImage
         src={avatarObject ? getBucketUrl(avatarObject) : undefined}
-        style={getProfileImageStyles(user.avatar?.crop)}
       />
       <AvatarFallback
         className="rounded-full"

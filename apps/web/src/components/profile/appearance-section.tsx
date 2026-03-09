@@ -15,7 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
-import { convertImage, uploadBlobWithProgress } from "@/lib/utils";
+import {
+  convertImage,
+  cropImage,
+  type ImagePercentCrop,
+  uploadBlobWithProgress,
+} from "@/lib/utils";
 
 const MediaCropDialog = lazy(
   () => import("@/components/profile/media-crop-dialog")
@@ -25,7 +30,6 @@ type PendingUpload = {
   slot: "avatar" | "banner";
   file: File;
   previewUrl: string;
-  contentType: string;
 };
 
 export function AppearanceSection() {
@@ -116,6 +120,28 @@ export function AppearanceSection() {
     }
 
     let uploadFile = file;
+    const isGifUpload = file.type === "image/gif";
+
+    if (slot === "banner" && !data.entitlements.canUseUploadedBanner) {
+      throw new Error("No puedes subir banners.");
+    }
+
+    if (isGifUpload) {
+      if (slot === "avatar" && !data.entitlements.canUseAnimatedAvatar) {
+        throw new Error(
+          `Los avatares animados requieren ${data.labels.animatedAvatarRequiredTier}.`
+        );
+      }
+
+      if (slot === "banner" && !data.entitlements.canUseAnimatedBanner) {
+        throw new Error(
+          `Los banners animados requieren ${data.labels.animatedBannerRequiredTier}.`
+        );
+      }
+
+      uploadMediaMutation.mutate({ file, slot });
+      return;
+    }
 
     if (["image/png", "image/jpeg", "image/avif"].includes(file.type)) {
       uploadFile = await convertImage(file, "webp", 0.82);
@@ -125,51 +151,39 @@ export function AppearanceSection() {
       slot,
       file: uploadFile,
       previewUrl: URL.createObjectURL(uploadFile),
-      contentType: uploadFile.type,
     });
   };
 
-  const finalizeUpload = useMutation({
+  const uploadMediaMutation = useMutation({
     mutationFn: async ({
-      crop,
-      upload,
+      file,
+      slot,
     }: {
-      crop: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        aspect: number;
-      };
-      upload: PendingUpload;
+      file: File;
+      slot: "avatar" | "banner";
     }) => {
       const { objectKey, presignedUrl } =
         await orpcClient.profile.getUploadPolicy({
-          slot: upload.slot,
-          contentLength: upload.file.size,
-          contentType: upload.contentType as
+          slot,
+          contentLength: file.size,
+          contentType: file.type as
             | "image/avif"
             | "image/gif"
             | "image/jpeg"
             | "image/png"
             | "image/webp",
         });
-      await uploadBlobWithProgress(
-        upload.file,
-        presignedUrl,
-        setUploadProgress
-      );
+      await uploadBlobWithProgress(file, presignedUrl, setUploadProgress);
       return orpcClient.profile.finalizeUpload({
-        slot: upload.slot,
+        slot,
         objectKey,
-        contentLength: upload.file.size,
-        contentType: upload.contentType as
+        contentLength: file.size,
+        contentType: file.type as
           | "image/avif"
           | "image/gif"
           | "image/jpeg"
           | "image/png"
           | "image/webp",
-        crop,
       });
     },
     onSuccess: async () => {
@@ -179,9 +193,16 @@ export function AppearanceSection() {
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       toast.success("Media actualizada");
       setUploadProgress(0);
-      setPendingUpload(null);
+      setPendingUpload((current) => {
+        if (current?.previewUrl) {
+          URL.revokeObjectURL(current.previewUrl);
+        }
+
+        return null;
+      });
     },
     onError: (error) => {
+      setUploadProgress(0);
       toast.error(
         error instanceof Error ? error.message : "No se pudo subir el archivo."
       );
@@ -228,7 +249,7 @@ export function AppearanceSection() {
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="overflow-hidden rounded-[2rem] border border-border bg-card">
+      <section className="overflow-hidden rounded-4xl border border-border bg-card">
         <ProfileBanner
           banner={{
             mode: draft.bannerMode,
@@ -237,7 +258,6 @@ export function AppearanceSection() {
               draft.bannerMode === "image" && data.settings.bannerAsset
                 ? {
                     objectKey: data.settings.bannerAsset.objectKey,
-                    crop: data.settings.bannerAsset.crop,
                   }
                 : null,
           }}
@@ -256,7 +276,7 @@ export function AppearanceSection() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-[2rem] border border-border bg-card p-4 sm:grid-cols-2">
+      <section className="grid gap-4 rounded-4xl border border-border bg-card p-4 sm:grid-cols-2">
         <div className="flex flex-col gap-3">
           <div>
             <h3 className="font-semibold">Avatar</h3>
@@ -357,7 +377,7 @@ export function AppearanceSection() {
         Guardar apariencia
       </Button>
 
-      {finalizeUpload.isPending && uploadProgress > 0 ? (
+      {uploadMediaMutation.isPending && uploadProgress > 0 ? (
         <p className="text-muted-foreground text-sm">
           Subiendo: {uploadProgress}%
         </p>
@@ -373,11 +393,26 @@ export function AppearanceSection() {
                 : "Ajusta el encuadre del banner."
             }
             imageSrc={pendingUpload.previewUrl}
-            onConfirm={(crop) =>
-              finalizeUpload.mutate({ crop, upload: pendingUpload })
-            }
+            onConfirm={async (crop: ImagePercentCrop) => {
+              try {
+                const croppedFile = await cropImage(pendingUpload.file, crop);
+                uploadMediaMutation.mutate({
+                  file: croppedFile,
+                  slot: pendingUpload.slot,
+                });
+              } catch (error) {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "No se pudo recortar la imagen."
+                );
+              }
+            }}
             onOpenChange={(open) => {
               if (!open) {
+                if (pendingUpload?.previewUrl) {
+                  URL.revokeObjectURL(pendingUpload.previewUrl);
+                }
                 setPendingUpload(null);
                 setUploadProgress(0);
               }

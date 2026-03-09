@@ -6,7 +6,6 @@ import { profileMediaAsset, profileSettings, user } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import { PATRON_TIERS } from "@repo/shared/constants";
-import type { ProfileCrop } from "@repo/shared/profile";
 import z from "zod";
 import { protectedProcedure, publicProcedure } from "../index";
 import {
@@ -21,13 +20,6 @@ import {
 import { getS3Client } from "../utils/s3";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
-const cropSchema = z.object({
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().positive().max(1),
-  height: z.number().positive().max(1),
-  aspect: z.number().positive(),
-});
 const uploadContentTypeSchema = z.enum([
   "image/avif",
   "image/gif",
@@ -258,7 +250,6 @@ export default {
         objectKey: z.string().min(1),
         contentType: uploadContentTypeSchema,
         contentLength: z.number().int().positive(),
-        crop: cropSchema.optional(),
       })
     )
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
@@ -283,7 +274,6 @@ export default {
         validateProfileMediaUpload({
           slot: input.slot,
           contentType: input.contentType,
-          fileSizeBytes: input.contentLength,
           validation,
           entitlements,
         });
@@ -300,12 +290,12 @@ export default {
           slot: input.slot,
           mimeType: input.contentType,
           objectKey: input.objectKey,
-          fileSizeBytes: input.contentLength,
+          fileSizeBytes: validation.fileSizeBytes,
           width: validation.width,
           height: validation.height,
           durationMs: validation.durationMs,
           isAnimated: validation.isAnimated,
-          crop: input.crop satisfies ProfileCrop | undefined,
+          crop: null,
           validationStatus: "ready",
         })
         .returning();

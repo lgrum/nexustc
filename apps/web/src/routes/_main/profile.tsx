@@ -54,7 +54,7 @@ function RouteComponent() {
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 pb-8">
-      <header className="flex items-center justify-between rounded-[2rem] border border-border bg-card px-5 py-4">
+      <header className="flex items-center justify-between rounded-4xl border border-border bg-card px-5 py-4">
         <div>
           <h1 className="font-black text-2xl">Perfil</h1>
           <p className="text-muted-foreground text-sm">
@@ -85,7 +85,7 @@ function RouteComponent() {
           <AccountsSection />
         </TabsContent>
         <TabsContent value="password">
-          <div className="rounded-[2rem] border border-border bg-card p-4">
+          <div className="rounded-4xl border border-border bg-card p-4">
             <div className="section-title">Cambiar Contraseña</div>
             <div className="mt-4">
               <ChangePasswordForm email={auth.data.user.email} />
@@ -116,7 +116,7 @@ function AccountsSection() {
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-[2rem] border border-border bg-card p-4">
+    <div className="flex flex-col gap-4 rounded-4xl border border-border bg-card p-4">
       <div className="section-title">Cuentas Vinculadas</div>
 
       {accounts?.length === 1 && (

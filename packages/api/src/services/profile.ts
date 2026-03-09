@@ -99,6 +99,7 @@ export type ProfileMediaValidation = {
   height: number;
   durationMs: number | null;
   isAnimated: boolean;
+  fileSizeBytes: number;
 };
 
 const STAFF_OVERRIDE_ROLES = new Set(["owner", "admin", "moderator"]);
@@ -338,19 +339,18 @@ export async function inspectProfileMediaAsset(objectKey: string) {
     height,
     isAnimated,
     durationMs,
+    fileSizeBytes: buffer.length,
   } satisfies ProfileMediaValidation;
 }
 
 export function validateProfileMediaUpload({
   slot,
   contentType,
-  fileSizeBytes,
   validation,
   entitlements,
 }: {
   slot: ProfileMediaSlot;
   contentType: string;
-  fileSizeBytes: number;
   validation: ProfileMediaValidation;
   entitlements: ProfileEntitlements;
 }) {
@@ -363,7 +363,7 @@ export function validateProfileMediaUpload({
     ? limits.animatedBytes
     : limits.staticBytes;
 
-  if (fileSizeBytes > maxBytes) {
+  if (validation.fileSizeBytes > maxBytes) {
     throw new Error("FILE_TOO_LARGE");
   }
 

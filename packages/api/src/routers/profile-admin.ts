@@ -171,7 +171,6 @@ export default {
           validateProfileMediaUpload({
             slot: input.slot,
             contentType: input.contentType,
-            fileSizeBytes: input.contentLength,
             validation,
             entitlements: {
               canUseAnimatedAvatar: true,
@@ -196,7 +195,7 @@ export default {
             slot: input.slot,
             mimeType: input.contentType,
             objectKey: input.objectKey,
-            fileSizeBytes: input.contentLength,
+            fileSizeBytes: validation.fileSizeBytes,
             width: validation.width,
             height: validation.height,
             durationMs: validation.durationMs,
@@ -378,32 +377,34 @@ export default {
         })
       )
       .handler(async ({ context: { db }, input }) => {
-        await db
-          .delete(profileRoleAssignment)
-          .where(eq(profileRoleAssignment.userId, input.userId));
-        await db
-          .delete(profileEmblemAssignment)
-          .where(eq(profileEmblemAssignment.userId, input.userId));
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(profileRoleAssignment)
+            .where(eq(profileRoleAssignment.userId, input.userId));
+          await tx
+            .delete(profileEmblemAssignment)
+            .where(eq(profileEmblemAssignment.userId, input.userId));
 
-        if (input.roleIds.length > 0) {
-          await db.insert(profileRoleAssignment).values(
-            input.roleIds.map((roleId) => ({
-              userId: input.userId,
-              roleDefinitionId: roleId,
-              sourceType: "manual" as const,
-            }))
-          );
-        }
+          if (input.roleIds.length > 0) {
+            await tx.insert(profileRoleAssignment).values(
+              input.roleIds.map((roleId) => ({
+                userId: input.userId,
+                roleDefinitionId: roleId,
+                sourceType: "manual" as const,
+              }))
+            );
+          }
 
-        if (input.emblemIds.length > 0) {
-          await db.insert(profileEmblemAssignment).values(
-            input.emblemIds.map((emblemId) => ({
-              userId: input.userId,
-              emblemDefinitionId: emblemId,
-              sourceType: "manual" as const,
-            }))
-          );
-        }
+          if (input.emblemIds.length > 0) {
+            await tx.insert(profileEmblemAssignment).values(
+              input.emblemIds.map((emblemId) => ({
+                userId: input.userId,
+                emblemDefinitionId: emblemId,
+                sourceType: "manual" as const,
+              }))
+            );
+          }
+        });
 
         return { success: true };
       }),

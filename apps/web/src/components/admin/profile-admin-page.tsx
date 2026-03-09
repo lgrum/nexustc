@@ -229,6 +229,12 @@ export function ProfileAdminPage() {
         emblemIds,
       }),
     onSuccess: () => toast.success("Asignaciones guardadas"),
+    onError: (error) =>
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron guardar las asignaciones."
+      ),
   });
 
   const systemConfigMutation = useMutation({
