@@ -9,6 +9,7 @@ import type React from "react";
 import { Activity, useState } from "react";
 import { toast } from "sonner";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
+import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
 import { Markdown } from "@/components/markdown";
 import type { PostProps } from "@/components/posts/post-components";
@@ -76,6 +77,7 @@ function RouteComponent() {
       platforms: [] as string[],
       tags: [] as string[],
       languages: [] as string[],
+      manualEngagementQuestions: [] as string[],
     },
     onSubmit: async (formData) => {
       try {
@@ -429,6 +431,15 @@ function RouteComponent() {
                 />
               )}
             </form.AppField>
+            <form.AppField name="manualEngagementQuestions">
+              {(field) => (
+                <ManualEngagementQuestionsField
+                  errors={field.state.meta.errors}
+                  onChange={field.handleChange}
+                  value={field.state.value}
+                />
+              )}
+            </form.AppField>
           </section>
 
           <section className="col-span-2">
@@ -539,6 +550,14 @@ function RouteComponent() {
               .map((term) => data.terms.find((t) => t.id === term))
               .filter((term) => term !== undefined),
             premiumLinksAccess: { status: "no_premium_links" as const },
+            engagementPrompts: post.manualEngagementQuestions.map(
+              (text, index) => ({
+                id: `preview-${index}`,
+                text,
+                source: "manual" as const,
+                tagTermId: null,
+              })
+            ),
           }}
           setVisible={setPreviewVisible}
           visible={previewVisible}

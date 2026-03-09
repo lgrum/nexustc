@@ -1,7 +1,8 @@
-import type { RouterClient } from "@orpc/server";
+﻿import type { RouterClient } from "@orpc/server";
 import chronos from "./chronos";
 import comic from "./comic";
 import emoji from "./emoji";
+import engagementQuestion from "./engagementQuestion";
 import extras from "./extras";
 import file from "./file";
 import patreon from "./patreon";
@@ -14,6 +15,7 @@ import user from "./user";
 
 export const appRouter = {
   comic,
+  engagementQuestion,
   post,
   term,
   user,

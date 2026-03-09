@@ -1,4 +1,4 @@
-import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+﻿import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   ArrowLeft01Icon,
   ArrowLeftDoubleIcon,
@@ -34,6 +34,7 @@ import { Progress } from "../ui/progress";
 import { Separator } from "../ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CommentSection } from "./comment-section";
+import { EngagementPromptBlock } from "./engagement-prompt-block";
 import {
   CreatorSupportCard,
   DiscordSection,
@@ -205,6 +206,7 @@ function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
           <div className="md:hidden">
             <CreatorSupportCard />
           </div>
+          <EngagementPromptBlock prompts={comic.engagementPrompts} />
           <CommentSection />
           <TutorialsSection />
           <DiscordSection />

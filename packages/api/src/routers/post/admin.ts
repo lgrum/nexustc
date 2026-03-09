@@ -1,4 +1,4 @@
-import { getLogger } from "@orpc/experimental-pino";
+﻿import { getLogger } from "@orpc/experimental-pino";
 import { and, eq, inArray, sql } from "@repo/db";
 import { featuredPost, post } from "@repo/db/schema/app";
 import {
@@ -32,6 +32,9 @@ export default {
             with: {
               term: true,
             },
+          },
+          engagementOverrides: {
+            orderBy: (table, { asc }) => [asc(table.sortOrder)],
           },
         },
       });

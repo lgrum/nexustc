@@ -1,4 +1,4 @@
-import { ChevronRight } from "@hugeicons/core-free-icons";
+﻿import { ChevronRight } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Permissions } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
@@ -106,6 +106,10 @@ const nav = {
       {
         name: "Posts Destacados",
         href: "/admin/extras/featured",
+      },
+      {
+        name: "Preguntas de Debate",
+        href: "/admin/extras/engagement",
       },
       {
         name: "Tutoriales",

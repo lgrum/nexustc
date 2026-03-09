@@ -246,6 +246,53 @@ export const termPostRelation = pgTable(
   ]
 );
 
+export const engagementQuestion = pgTable(
+  "engagement_question",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    tagTermId: text("tag_term_id").references(() => term.id, {
+      onDelete: "cascade",
+    }),
+    isGlobal: boolean("is_global").notNull().default(false),
+    text: text("text").notNull(),
+    locale: text("locale").notNull().default("es"),
+    isActive: boolean("is_active").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    index("engagement_question_tag_term_id_idx").on(table.tagTermId),
+    index("engagement_question_tag_term_id_is_active_idx").on(
+      table.tagTermId,
+      table.isActive
+    ),
+    index("engagement_question_is_global_is_active_idx").on(
+      table.isGlobal,
+      table.isActive
+    ),
+  ]
+);
+
+export const postEngagementOverride = pgTable(
+  "post_engagement_override",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    postId: text("post_id")
+      .notNull()
+      .references(() => post.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    ...timestamps,
+  },
+  (table) => [
+    index("post_engagement_override_post_id_idx").on(table.postId),
+    index("post_engagement_override_post_id_sort_order_is_active_idx").on(
+      table.postId,
+      table.sortOrder,
+      table.isActive
+    ),
+  ]
+);
 export const postBookmark = pgTable(
   "post_bookmark",
   {
@@ -390,6 +437,7 @@ export const postRelations = relations(post, ({ many }) => ({
   likes: many(postLikes),
   ratings: many(postRating),
   featured: many(featuredPost),
+  engagementOverrides: many(postEngagementOverride),
 }));
 
 export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
@@ -401,6 +449,7 @@ export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
 
 export const termRelations = relations(term, ({ many }) => ({
   posts: many(termPostRelation),
+  engagementQuestions: many(engagementQuestion),
 }));
 
 export const commentRelations = relations(comment, ({ one }) => ({
@@ -409,6 +458,26 @@ export const commentRelations = relations(comment, ({ one }) => ({
     references: [post.id],
   }),
 }));
+
+export const engagementQuestionRelations = relations(
+  engagementQuestion,
+  ({ one }) => ({
+    tagTerm: one(term, {
+      fields: [engagementQuestion.tagTermId],
+      references: [term.id],
+    }),
+  })
+);
+
+export const postEngagementOverrideRelations = relations(
+  postEngagementOverride,
+  ({ one }) => ({
+    post: one(post, {
+      fields: [postEngagementOverride.postId],
+      references: [post.id],
+    }),
+  })
+);
 
 export const termPostRelationRelations = relations(
   termPostRelation,

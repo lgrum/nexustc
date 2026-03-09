@@ -1,7 +1,14 @@
-import type { post, postRating, term } from "@repo/db/schema/app";
+﻿import type { post, postRating, term } from "@repo/db/schema/app";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 
 export type TermType = typeof term.$inferSelect;
+
+export type EngagementPromptType = {
+  id: string;
+  text: string;
+  source: "manual" | "tag";
+  tagTermId: string | null;
+};
 
 export type PostType = Omit<
   typeof post.$inferSelect,
@@ -14,6 +21,7 @@ export type PostType = Omit<
   averageRating?: number;
   ratingCount?: number;
   premiumLinksAccess: PremiumLinksDescriptor;
+  engagementPrompts: EngagementPromptType[];
 };
 
 export type RatingType = typeof postRating.$inferSelect;

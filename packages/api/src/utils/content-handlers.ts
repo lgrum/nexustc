@@ -1,7 +1,11 @@
-import { DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+﻿import { DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq } from "@repo/db";
-import { post, termPostRelation } from "@repo/db/schema/app";
+import {
+  post,
+  postEngagementOverride,
+  termPostRelation,
+} from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import type {
@@ -25,6 +29,14 @@ type HandlerParams<T> = {
   };
 };
 
+function buildEngagementOverrideRows(postId: string, prompts: string[]) {
+  return prompts.map((text, index) => ({
+    postId,
+    text,
+    sortOrder: index,
+    isActive: true,
+  }));
+}
 export async function createContent({
   context: { db, session, ...ctx },
   input,
@@ -169,6 +181,18 @@ export async function createContent({
         );
       }
 
+      const engagementOverrides = buildEngagementOverrideRows(
+        postData.postId,
+        input.manualEngagementQuestions ?? []
+      );
+
+      if (engagementOverrides.length > 0) {
+        await tx.insert(postEngagementOverride).values(engagementOverrides);
+        logger?.debug(
+          `Inserted ${engagementOverrides.length} engagement overrides for ${contentType} ${postData.postId}`
+        );
+      }
+
       logger?.info(
         `${contentType} successfully created with ID: ${postData.postId}`
       );
@@ -197,57 +221,80 @@ export async function editContent({
   const contentType = input.type;
   logger?.info(`Editing ${contentType}: ${input.id}`);
 
-  const [postData] = await db
-    .update(post)
-    .set({
-      title: input.title,
-      content: input.type === "post" ? input.content : (input.content ?? ""),
-      status: input.documentStatus,
-      version: input.type === "post" ? input.version : (input.version ?? ""),
-      adsLinks: input.type === "post" ? input.adsLinks : (input.adsLinks ?? ""),
-      premiumLinks:
-        input.type === "post" ? input.premiumLinks : (input.premiumLinks ?? ""),
-      changelog:
-        input.type === "post" ? input.changelog : (input.changelog ?? ""),
-      creatorName: input.creatorName ?? "",
-      creatorLink: input.creatorLink ?? "",
-    })
-    .where(eq(post.id, input.id))
-    .returning({ postId: post.id });
+  const updatedPostId = await db.transaction(async (tx) => {
+    const [postData] = await tx
+      .update(post)
+      .set({
+        title: input.title,
+        content: input.type === "post" ? input.content : (input.content ?? ""),
+        status: input.documentStatus,
+        version: input.type === "post" ? input.version : (input.version ?? ""),
+        adsLinks:
+          input.type === "post" ? input.adsLinks : (input.adsLinks ?? ""),
+        premiumLinks:
+          input.type === "post"
+            ? input.premiumLinks
+            : (input.premiumLinks ?? ""),
+        changelog:
+          input.type === "post" ? input.changelog : (input.changelog ?? ""),
+        creatorName: input.creatorName ?? "",
+        creatorLink: input.creatorLink ?? "",
+      })
+      .where(eq(post.id, input.id))
+      .returning({ postId: post.id });
 
-  if (!postData) {
-    logger?.error(`${contentType} not found for edit: ${input.id}`);
-    throw errors.NOT_FOUND();
-  }
+    if (!postData) {
+      logger?.error(`${contentType} not found for edit: ${input.id}`);
+      throw errors.NOT_FOUND();
+    }
 
-  await db
-    .delete(termPostRelation)
-    .where(eq(termPostRelation.postId, postData.postId));
+    await tx
+      .delete(termPostRelation)
+      .where(eq(termPostRelation.postId, postData.postId));
 
-  const termIds = (
-    input.type === "post" ? input.platforms : (input.platforms ?? [])
-  )
-    .concat(input.tags, input.languages ?? [], [
-      input.censorship,
-      input.type === "post" ? input.engine : (input.engine ?? ""),
-      input.type === "post" ? input.status : (input.status ?? ""),
-      input.type === "post" ? input.graphics : (input.graphics ?? ""),
-    ])
-    .filter((term) => term !== "")
-    .map((termId) => ({
-      postId: postData.postId,
-      termId,
-    }));
+    const termIds = (
+      input.type === "post" ? input.platforms : (input.platforms ?? [])
+    )
+      .concat(input.tags, input.languages ?? [], [
+        input.censorship,
+        input.type === "post" ? input.engine : (input.engine ?? ""),
+        input.type === "post" ? input.status : (input.status ?? ""),
+        input.type === "post" ? input.graphics : (input.graphics ?? ""),
+      ])
+      .filter((term) => term !== "")
+      .map((termId) => ({
+        postId: postData.postId,
+        termId,
+      }));
 
-  if (termIds.length > 0) {
-    await db.insert(termPostRelation).values(termIds);
-    logger?.debug(
-      `Updated ${termIds.length} term relations for ${contentType} ${postData.postId}`
+    if (termIds.length > 0) {
+      await tx.insert(termPostRelation).values(termIds);
+      logger?.debug(
+        `Updated ${termIds.length} term relations for ${contentType} ${postData.postId}`
+      );
+    }
+
+    await tx
+      .delete(postEngagementOverride)
+      .where(eq(postEngagementOverride.postId, postData.postId));
+
+    const engagementOverrides = buildEngagementOverrideRows(
+      postData.postId,
+      input.manualEngagementQuestions ?? []
     );
-  }
+
+    if (engagementOverrides.length > 0) {
+      await tx.insert(postEngagementOverride).values(engagementOverrides);
+      logger?.debug(
+        `Replaced ${engagementOverrides.length} engagement overrides for ${contentType} ${postData.postId}`
+      );
+    }
+
+    return postData.postId;
+  });
 
   logger?.info(`${contentType} ${input.id} successfully updated`);
-  return postData.postId;
+  return updatedPostId;
 }
 
 export async function deleteContent({

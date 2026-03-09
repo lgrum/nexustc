@@ -1,0 +1,150 @@
+import { useEffect, useRef, useState } from "react";
+import type { EngagementPromptType } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+type EngagementPromptBlockProps = {
+  prompts: EngagementPromptType[];
+};
+
+function getRandomDwellMs() {
+  return 6000 + Math.floor(Math.random() * 4001);
+}
+
+export function EngagementPromptBlock({ prompts }: EngagementPromptBlockProps) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
+  const [isVisibleOnScreen, setIsVisibleOnScreen] = useState(true);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(true);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("matchMedia" in window)) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updatePreference);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const handleVisibilityChange = () => {
+      setIsPageVisible(document.visibilityState === "visible");
+    };
+
+    handleVisibilityChange();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined" || !containerRef.current) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisibleOnScreen(entry?.isIntersecting ?? true);
+      },
+      {
+        threshold: 0.2,
+      }
+    );
+
+    observer.observe(containerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the prompt pool identity marks a new rotation set.
+  useEffect(() => {
+    setCurrentIndex(0);
+    setIsFading(false);
+  }, [prompts]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: currentIndex re-arms the timer for the next rotation tick.
+  useEffect(() => {
+    if (prompts.length < 2 || !isPageVisible || !isVisibleOnScreen) {
+      return;
+    }
+
+    let fadeTimeout: number | undefined;
+
+    if (prefersReducedMotion) {
+      const timeout = window.setTimeout(() => {
+        setCurrentIndex((current) => (current + 1) % prompts.length);
+      }, getRandomDwellMs());
+
+      return () => {
+        window.clearTimeout(timeout);
+      };
+    }
+
+    const dwellTimeout = window.setTimeout(() => {
+      setIsFading(true);
+
+      fadeTimeout = window.setTimeout(() => {
+        setCurrentIndex((current) => (current + 1) % prompts.length);
+        setIsFading(false);
+      }, 250);
+    }, getRandomDwellMs());
+
+    return () => {
+      window.clearTimeout(dwellTimeout);
+      if (fadeTimeout !== undefined) {
+        window.clearTimeout(fadeTimeout);
+      }
+    };
+  }, [
+    currentIndex,
+    isPageVisible,
+    isVisibleOnScreen,
+    prefersReducedMotion,
+    prompts.length,
+  ]);
+
+  if (prompts.length === 0) {
+    return null;
+  }
+
+  const currentPrompt = prompts[currentIndex] ?? prompts[0];
+
+  return (
+    <section
+      aria-label="Disparador de debate"
+      className="overflow-hidden border border-border/70 bg-linear-to-br from-muted/60 via-card to-muted/20"
+      ref={containerRef}
+    >
+      <div className="flex min-h-28 flex-col justify-center gap-3 px-5 py-4 md:px-6">
+        <div className="font-semibold text-[11px] text-muted-foreground/80 uppercase tracking-[0.22em]">
+          Debate del post
+        </div>
+        <p
+          className={cn(
+            "max-w-3xl text-balance font-[Outfit] text-base text-foreground leading-relaxed transition-opacity md:text-lg",
+            prefersReducedMotion ? "duration-0" : "duration-250",
+            isFading ? "opacity-0" : "opacity-100"
+          )}
+        >
+          {currentPrompt?.text}
+        </p>
+      </div>
+    </section>
+  );
+}
