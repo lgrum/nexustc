@@ -9,6 +9,7 @@ import {
   ImageEditor,
   type ImageEditorRef,
 } from "@/components/admin/image-editor";
+import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { Markdown } from "@/components/markdown";
 import {
   Card,
@@ -61,6 +62,8 @@ function RouteComponent() {
       premiumLinks: oldComic.premiumLinks ?? "",
       documentStatus: oldComic.status,
       tags: terms.tag?.map((term) => term.term.id) ?? [],
+      manualEngagementQuestions:
+        oldComic.engagementOverrides?.map((item) => item.text) ?? [],
     },
     onSubmit: async (formData) => {
       const imagePayload = imageEditorRef.current?.getPayload();
@@ -218,6 +221,18 @@ function RouteComponent() {
               />
             )}
           </form.AppField>
+
+          <section className="col-span-2">
+            <form.AppField name="manualEngagementQuestions">
+              {(field) => (
+                <ManualEngagementQuestionsField
+                  errors={field.state.meta.errors}
+                  onChange={field.handleChange}
+                  value={field.state.value}
+                />
+              )}
+            </form.AppField>
+          </section>
 
           <ImageEditor
             initialImageKeys={oldComic.imageObjectKeys ?? []}

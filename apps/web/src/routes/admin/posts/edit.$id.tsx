@@ -1,4 +1,4 @@
-import { postEditSchema } from "@repo/shared/schemas";
+﻿import { postEditSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -10,6 +10,7 @@ import {
   ImageEditor,
   type ImageEditorRef,
 } from "@/components/admin/image-editor";
+import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import {
   Card,
   CardContent,
@@ -70,6 +71,8 @@ function RouteComponent() {
       platforms: terms.platform?.map((term) => term.term.id) ?? [],
       tags: terms.tag?.map((term) => term.term.id) ?? [],
       languages: terms.language?.map((term) => term.term.id) ?? [],
+      manualEngagementQuestions:
+        oldPost.engagementOverrides?.map((item) => item.text) ?? [],
     },
     onSubmit: async (formData) => {
       const imagePayload = imageEditorRef.current?.getPayload();
@@ -325,6 +328,15 @@ function RouteComponent() {
                 <field.TextareaField
                   className="w-full"
                   label="Changelog"
+                  value={field.state.value}
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="manualEngagementQuestions">
+              {(field) => (
+                <ManualEngagementQuestionsField
+                  errors={field.state.meta.errors}
+                  onChange={field.handleChange}
                   value={field.state.value}
                 />
               )}

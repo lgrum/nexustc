@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Calendar03Icon,
@@ -43,6 +43,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { BookmarkButton } from "./bookmark-button";
 import { CommentSection } from "./comment-section";
+import { EngagementPromptBlock } from "./engagement-prompt-block";
 import { LikeButton } from "./like-button";
 import { PostProvider, usePost } from "./post-context";
 
@@ -68,6 +69,7 @@ export function PostPage({ post }: { post: PostProps }) {
             <div className="md:hidden">
               <CreatorSupportCard />
             </div>
+            <EngagementPromptBlock prompts={post.engagementPrompts} />
             <CommentSection />
             <TutorialsSection />
             <DiscordSection />
@@ -601,6 +603,7 @@ export function DiscordSection() {
     <div className="py-2">
       <ShinyButton
         className="inline-flex w-full items-center justify-center gap-4 hover:bg-[#5865F2]/90"
+        nativeButton={false}
         render={
           // biome-ignore lint/a11y/useAnchorContent: the anchor has content, but it's rendered through the Button's `children` prop
           <a

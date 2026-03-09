@@ -55,6 +55,9 @@ export default {
               term: true,
             },
           },
+          engagementOverrides: {
+            orderBy: (table, { asc: ascOrder }) => [ascOrder(table.sortOrder)],
+          },
         },
       });
     }),

@@ -7,6 +7,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
+import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,7 @@ function RouteComponent() {
       premiumLinks: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
       tags: [] as string[],
+      manualEngagementQuestions: [] as string[],
     },
     onSubmit: async (formData) => {
       try {
@@ -278,7 +280,19 @@ function RouteComponent() {
           </form.AppField>
 
           <section className="col-span-2">
-            <Label htmlFor="file-upload">Subir imágenes</Label>
+            <form.AppField name="manualEngagementQuestions">
+              {(field) => (
+                <ManualEngagementQuestionsField
+                  errors={field.state.meta.errors}
+                  onChange={field.handleChange}
+                  value={field.state.value}
+                />
+              )}
+            </form.AppField>
+          </section>
+
+          <section className="col-span-2">
+            <Label htmlFor="file-upload">Subir imagenes</Label>
             <Input
               accept="image/*"
               className="mt-1 w-full"

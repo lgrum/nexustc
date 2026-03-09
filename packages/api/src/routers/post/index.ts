@@ -27,6 +27,7 @@ import {
   publicProcedure,
 } from "../../index";
 import { buildProfileSummaries } from "../../services/profile";
+import { resolveEngagementPrompts } from "../../utils/engagement-prompts";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -573,8 +574,64 @@ export default {
 
       const { rawPremiumLinks, ...postData } = result[0]!;
 
-      let premiumLinksAccess: PremiumLinksDescriptor;
+      const manualOverrides = await db.query.postEngagementOverride.findMany({
+        where: (table, { and: andWhere, eq: equals }) =>
+          andWhere(equals(table.postId, input), equals(table.isActive, true)),
+        columns: {
+          id: true,
+          text: true,
+        },
+        orderBy: (table, { asc: ascOrder }) => [
+          ascOrder(table.sortOrder),
+          ascOrder(table.createdAt),
+        ],
+      });
 
+      const tagTermIds = postData.terms
+        .filter((item) => item.taxonomy === "tag")
+        .map((item) => item.id);
+
+      const automaticQuestions =
+        manualOverrides.length > 0
+          ? []
+          : await db.query.engagementQuestion.findMany({
+              where: (
+                table,
+                {
+                  and: andWhere,
+                  eq: equals,
+                  inArray: inArrayWhere,
+                  or: orWhere,
+                }
+              ) => {
+                if (tagTermIds.length === 0) {
+                  return andWhere(
+                    equals(table.isActive, true),
+                    equals(table.isGlobal, true)
+                  );
+                }
+
+                return andWhere(
+                  equals(table.isActive, true),
+                  orWhere(
+                    equals(table.isGlobal, true),
+                    inArrayWhere(table.tagTermId, tagTermIds)
+                  )
+                );
+              },
+              columns: {
+                id: true,
+                text: true,
+                tagTermId: true,
+              },
+            });
+
+      const engagementPrompts = resolveEngagementPrompts(
+        manualOverrides,
+        automaticQuestions
+      );
+
+      let premiumLinksAccess: PremiumLinksDescriptor;
       if (rawPremiumLinks) {
         const statusTerm = postData.terms.find((t) => t.taxonomy === "status");
         const statusName = statusTerm?.name;
@@ -609,7 +666,7 @@ export default {
         premiumLinksAccess = { status: "no_premium_links" };
       }
 
-      return { ...postData, premiumLinksAccess };
+      return { ...postData, premiumLinksAccess, engagementPrompts };
     }),
 
   getLikes: publicProcedure

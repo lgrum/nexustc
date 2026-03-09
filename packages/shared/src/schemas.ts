@@ -4,6 +4,7 @@ import {
   RATING_REVIEW_MAX_LENGTH,
   TAXONOMIES,
 } from "./constants";
+import { normalizeEngagementPromptList } from "./engagement-prompts";
 
 export const termCreateSchema = z.object({
   name: z
@@ -26,6 +27,70 @@ export const termUpdateSchema = termCreateSchema
     taxonomy: true,
   });
 
+export const engagementPromptTextSchema = z
+  .string()
+  .trim()
+  .max(220, "No puede exceder los 220 caracteres.")
+  .transform((val) => val.trim());
+
+export const engagementPromptRequiredTextSchema = z
+  .string()
+  .trim()
+  .min(1, "La pregunta es obligatoria.")
+  .max(220, "No puede exceder los 220 caracteres.")
+  .transform((val) => val.trim());
+
+export const manualEngagementQuestionsSchema = z
+  .array(z.string())
+  .transform((items) => normalizeEngagementPromptList(items))
+  .pipe(
+    z
+      .array(engagementPromptTextSchema)
+      .max(2, "Solo se permiten hasta 2 preguntas manuales.")
+  );
+
+const optionalEngagementTagTermIdSchema = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue.length === 0 ? undefined : trimmedValue;
+}, z.string().trim().min(1).optional());
+
+const engagementQuestionBaseSchema = z.object({
+  tagTermId: optionalEngagementTagTermIdSchema,
+  isGlobal: z.boolean().default(false),
+  text: engagementPromptRequiredTextSchema,
+  isActive: z.boolean().default(true),
+  locale: z.literal("es").default("es"),
+});
+
+export const engagementQuestionCreateSchema =
+  engagementQuestionBaseSchema.superRefine((value, ctx) => {
+    if (!(value.isGlobal || value.tagTermId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Debe seleccionar un tag o marcar la pregunta como global.",
+        path: ["tagTermId"],
+      });
+    }
+  });
+
+export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
+  .extend({
+    id: z.string(),
+  })
+  .superRefine((value, ctx) => {
+    if (!(value.isGlobal || value.tagTermId)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Debe seleccionar un tag o marcar la pregunta como global.",
+        path: ["tagTermId"],
+      });
+    }
+  });
+
 const contentBaseFields = {
   title: z
     .string()
@@ -42,6 +107,7 @@ const contentBaseFields = {
       z.file().mime(["image/gif", "image/jpeg", "image/png", "image/webp"])
     )
     .optional(),
+  manualEngagementQuestions: manualEngagementQuestionsSchema,
 };
 
 export const postCreateSchema = z.object({

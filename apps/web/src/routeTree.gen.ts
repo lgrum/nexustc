@@ -43,6 +43,7 @@ import { Route as AdminPagesSlugRouteImport } from './routes/admin/pages/$slug'
 import { Route as AdminExtrasWeeklyRouteImport } from './routes/admin/extras/weekly'
 import { Route as AdminExtrasTutorialsRouteImport } from './routes/admin/extras/tutorials'
 import { Route as AdminExtrasFeaturedRouteImport } from './routes/admin/extras/featured'
+import { Route as AdminExtrasEngagementRouteImport } from './routes/admin/extras/engagement'
 import { Route as AdminEmojisCreateRouteImport } from './routes/admin/emojis/create'
 import { Route as AdminComicsCreateRouteImport } from './routes/admin/comics/create'
 import { Route as AdminChronosEditRouteImport } from './routes/admin/chronos/edit'
@@ -223,6 +224,11 @@ const AdminExtrasFeaturedRoute = AdminExtrasFeaturedRouteImport.update({
   path: '/extras/featured',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminExtrasEngagementRoute = AdminExtrasEngagementRouteImport.update({
+  id: '/extras/engagement',
+  path: '/extras/engagement',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminEmojisCreateRoute = AdminEmojisCreateRouteImport.update({
   id: '/emojis/create',
   path: '/emojis/create',
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/admin/chronos/edit': typeof AdminChronosEditRoute
   '/admin/comics/create': typeof AdminComicsCreateRoute
   '/admin/emojis/create': typeof AdminEmojisCreateRoute
+  '/admin/extras/engagement': typeof AdminExtrasEngagementRoute
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/admin/chronos/edit': typeof AdminChronosEditRoute
   '/admin/comics/create': typeof AdminComicsCreateRoute
   '/admin/emojis/create': typeof AdminEmojisCreateRoute
+  '/admin/extras/engagement': typeof AdminExtrasEngagementRoute
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
@@ -387,6 +395,7 @@ export interface FileRoutesById {
   '/admin/chronos/edit': typeof AdminChronosEditRoute
   '/admin/comics/create': typeof AdminComicsCreateRoute
   '/admin/emojis/create': typeof AdminEmojisCreateRoute
+  '/admin/extras/engagement': typeof AdminExtrasEngagementRoute
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
@@ -434,6 +443,7 @@ export interface FileRouteTypes {
     | '/admin/chronos/edit'
     | '/admin/comics/create'
     | '/admin/emojis/create'
+    | '/admin/extras/engagement'
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
@@ -478,6 +488,7 @@ export interface FileRouteTypes {
     | '/admin/chronos/edit'
     | '/admin/comics/create'
     | '/admin/emojis/create'
+    | '/admin/extras/engagement'
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
@@ -524,6 +535,7 @@ export interface FileRouteTypes {
     | '/admin/chronos/edit'
     | '/admin/comics/create'
     | '/admin/emojis/create'
+    | '/admin/extras/engagement'
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
@@ -798,6 +810,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminExtrasFeaturedRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/extras/engagement': {
+      id: '/admin/extras/engagement'
+      path: '/extras/engagement'
+      fullPath: '/admin/extras/engagement'
+      preLoaderRoute: typeof AdminExtrasEngagementRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/emojis/create': {
       id: '/admin/emojis/create'
       path: '/emojis/create'
@@ -915,6 +934,7 @@ interface AdminRouteRouteChildren {
   AdminChronosEditRoute: typeof AdminChronosEditRoute
   AdminComicsCreateRoute: typeof AdminComicsCreateRoute
   AdminEmojisCreateRoute: typeof AdminEmojisCreateRoute
+  AdminExtrasEngagementRoute: typeof AdminExtrasEngagementRoute
   AdminExtrasFeaturedRoute: typeof AdminExtrasFeaturedRoute
   AdminExtrasTutorialsRoute: typeof AdminExtrasTutorialsRoute
   AdminExtrasWeeklyRoute: typeof AdminExtrasWeeklyRoute
@@ -941,6 +961,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminChronosEditRoute: AdminChronosEditRoute,
   AdminComicsCreateRoute: AdminComicsCreateRoute,
   AdminEmojisCreateRoute: AdminEmojisCreateRoute,
+  AdminExtrasEngagementRoute: AdminExtrasEngagementRoute,
   AdminExtrasFeaturedRoute: AdminExtrasFeaturedRoute,
   AdminExtrasTutorialsRoute: AdminExtrasTutorialsRoute,
   AdminExtrasWeeklyRoute: AdminExtrasWeeklyRoute,
