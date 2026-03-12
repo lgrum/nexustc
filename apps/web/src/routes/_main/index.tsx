@@ -88,9 +88,9 @@ function HomeComponent() {
       {/* Sidebar — desktop only */}
       <aside className="hidden w-72 shrink-0 pt-2 pr-4 md:block">
         <div className="sticky top-16 flex flex-col gap-1">
-          <ActiveUsersSection />
-          <div className="glow-line" />
           <TagsSection />
+          <div className="glow-line" />
+          <ActiveUsersSection />
         </div>
       </aside>
     </main>

@@ -12,11 +12,10 @@ export type EngagementPromptType = {
 
 export type PostType = Omit<
   typeof post.$inferSelect,
-  "updatedAt" | "authorId" | "views" | "premiumLinks" | "status"
+  "authorId" | "premiumLinks" | "status"
 > & {
   likes: number;
   favorites: number;
-  views: number;
   terms: Omit<TermType, "createdAt" | "updatedAt">[];
   averageRating?: number;
   ratingCount?: number;

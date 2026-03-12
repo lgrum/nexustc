@@ -527,6 +527,7 @@ export default {
           creatorName: post.creatorName,
           creatorLink: post.creatorLink,
           createdAt: post.createdAt,
+          updatedAt: post.updatedAt,
           views: post.views,
           rawPremiumLinks: post.premiumLinks,
 

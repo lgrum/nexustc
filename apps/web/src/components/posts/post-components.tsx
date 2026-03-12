@@ -105,30 +105,12 @@ export function PostHero() {
             />
           </div>
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/20 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 p-4 md:p-10">
+          <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 md:p-10">
             <h1 className="mb-2 font-[Lexend] font-bold text-white text-xl drop-shadow-lg md:text-4xl">
               {post.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
-              {post.version && (
-                <Badge
-                  className="border-white/30 bg-white/20 text-white backdrop-blur-sm"
-                  variant="outline"
-                >
-                  {post.version}
-                </Badge>
-              )}
-              <span className="inline-flex items-center gap-1">
-                <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
-                {format(post.createdAt, "d 'de' MMMM, yyyy", { locale: es })}
-              </span>
-              {post.ratingCount !== undefined && post.ratingCount > 0 && (
-                <RatingDisplay
-                  averageRating={post.averageRating ?? 0}
-                  ratingCount={post.ratingCount}
-                  variant="compact"
-                />
-              )}
+            <div className="py-2 text-sm">
+              {post.version && <Badge variant="default">{post.version}</Badge>}
             </div>
           </div>
         </div>
@@ -152,6 +134,10 @@ export function PostHero() {
 
 export function PostStatsBar() {
   const post = usePost();
+
+  const createdAt = format(post.createdAt, "PP", { locale: es });
+  const updatedAt = format(post.updatedAt, "PP", { locale: es });
+
   return (
     <div className="border-border border-b bg-card">
       <div className="flex gap-1 px-2 py-2">
@@ -174,8 +160,8 @@ export function PostStatsBar() {
         )}
         <PostStat
           color="text-secondary"
-          label="Publicado"
-          value={format(post.createdAt, "PP", { locale: es })}
+          label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
+          value={updatedAt}
         />
       </div>
       <PostActionBar />
