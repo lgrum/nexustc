@@ -6,7 +6,6 @@ import { env } from "@repo/env/client";
 import { useStore } from "@tanstack/react-form";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Facehash } from "facehash";
-import { AnimatePresence } from "motion/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -20,11 +19,7 @@ import { defaultFacehashProps } from "@/lib/utils";
 import { DialogContent } from "../ui/dialog";
 
 export function AuthDialog({ ...props }: Dialog.Root.Props) {
-  return (
-    <AnimatePresence>
-      <Dialog.Root {...props} />
-    </AnimatePresence>
-  );
+  return <Dialog.Root {...props} />;
 }
 
 export function AuthDialogTrigger({ ...props }: Dialog.Trigger.Props) {

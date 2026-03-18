@@ -26,7 +26,7 @@ function Menubar({ className, ...props }: MenubarPrimitive.Props) {
   return (
     <MenubarPrimitive
       className={cn(
-        "flex h-8 items-center gap-0.5 rounded-lg border p-[3px]",
+        "flex h-8 items-center gap-0.5 rounded-lg border p-0.75",
         className
       )}
       data-slot="menubar"
@@ -58,7 +58,7 @@ function MenubarTrigger({
   return (
     <DropdownMenuTrigger
       className={cn(
-        "flex select-none items-center rounded-sm px-1.5 py-[2px] font-medium text-sm outline-hidden hover:bg-muted aria-expanded:bg-muted",
+        "flex select-none items-center rounded-sm px-1.5 py-0.5 font-medium text-sm outline-hidden hover:bg-muted aria-expanded:bg-muted",
         className
       )}
       data-slot="menubar-trigger"

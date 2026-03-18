@@ -540,6 +540,7 @@ function RouteComponent() {
             views: 0,
             imageObjectKeys: selectedFiles.map(URL.createObjectURL),
             createdAt: new Date(),
+            updatedAt: new Date(),
             terms: post.platforms
               .concat(post.tags, post.languages, [
                 post.censorship,

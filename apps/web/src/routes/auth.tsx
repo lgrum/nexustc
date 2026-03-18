@@ -230,7 +230,7 @@ function RouteComponent() {
         <div className="mb-6 text-center">
           <Link to="/">
             <h1 className="font-[Lexend] font-extrabold text-3xl">
-              <span className="bg-gradient-to-br from-primary to-accent bg-clip-text text-transparent">
+              <span className="bg-linear-to-br from-primary to-accent bg-clip-text text-transparent">
                 NeXusTC
               </span>
               <span className="align-super font-normal text-muted-foreground text-xs">
@@ -254,7 +254,7 @@ function RouteComponent() {
             }}
             value={tab}
           >
-            <TabsList className="mb-4 w-full" variant="primary">
+            <TabsList className="mb-4 w-full">
               <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
               <TabsTrigger value="register">Registrarse</TabsTrigger>
             </TabsList>

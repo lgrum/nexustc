@@ -1,30 +1,36 @@
 /// <reference types="vitest/config" />
+
+import { fileURLToPath } from "node:url";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import viteReact from "@vitejs/plugin-react";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
-import viteTsConfigPaths from "vite-tsconfig-paths";
+
+const srcDir = fileURLToPath(new URL("./src", import.meta.url));
 
 const config = defineConfig(({ mode }) => {
   return {
     plugins: [
       devtools(),
-      // this is the plugin that enables path aliases
-      viteTsConfigPaths({
-        projects: ["./tsconfig.json"],
-      }),
       tailwindcss(),
       mode !== "test" && tanstackStart(),
-      viteReact({
-        babel: {
-          plugins: ["babel-plugin-react-compiler"],
-        },
+      react(),
+      babel({
+        presets: [reactCompilerPreset()],
       }),
     ].filter(Boolean),
 
+    resolve: {
+      alias: {
+        "@": srcDir,
+      },
+      tsconfigPaths: true,
+    },
+
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         external: ["sharp"],
       },
     },

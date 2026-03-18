@@ -1,7 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { UsersChart } from "@/components/admin/users-chart";
+import { lazy, Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { orpcClient } from "@/lib/orpc";
+
+const LazyUsersChart = lazy(async () => {
+  const module = await import("@/components/admin/users-chart");
+
+  return { default: module.UsersChart };
+});
 
 export const Route = createFileRoute("/admin/users/")({
   component: RouteComponent,
@@ -35,7 +41,12 @@ function RouteComponent() {
               <CardTitle>Últimos 7 días</CardTitle>
             </CardHeader>
             <CardContent>
-              <UsersChart chart={data.registeredLastWeek} type="last7days" />
+              <Suspense fallback={<ChartFallback />}>
+                <LazyUsersChart
+                  chart={data.registeredLastWeek}
+                  type="last7days"
+                />
+              </Suspense>
             </CardContent>
           </Card>
           <Card>
@@ -43,12 +54,20 @@ function RouteComponent() {
               <CardTitle>Todo el tiempo</CardTitle>
             </CardHeader>
             <CardContent>
-              <UsersChart chart={data.registeredAllTime} type="alltime" />
+              <Suspense fallback={<ChartFallback />}>
+                <LazyUsersChart chart={data.registeredAllTime} type="alltime" />
+              </Suspense>
             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function ChartFallback() {
+  return (
+    <div className="min-h-50 w-full animate-pulse rounded-md bg-muted/50" />
   );
 }
 

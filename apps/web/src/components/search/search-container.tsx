@@ -1,6 +1,5 @@
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { AnimatePresence, motion } from "motion/react";
 import { createContext, useContext, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
@@ -38,20 +37,11 @@ export function SearchFilters({ children }: React.PropsWithChildren<unknown>) {
     filter: [openFilters],
   } = useFormContext();
 
-  return (
-    <AnimatePresence>
-      {openFilters && (
-        <motion.div
-          animate={{ height: "auto" }}
-          className="flex flex-col gap-4 overflow-hidden"
-          exit={{ height: 0 }}
-          initial={{ height: 0 }}
-        >
-          {children}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  if (!openFilters) {
+    return null;
+  }
+
+  return <div className="flex flex-col gap-4">{children}</div>;
 }
 
 function useFormContext() {

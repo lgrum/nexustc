@@ -9,8 +9,8 @@ function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
       className={cn("size-4 animate-spin", className)}
       icon={Loading03Icon}
       role="status"
-      strokeWidth={2}
       {...props}
+      strokeWidth={Number(props.strokeWidth) ?? 2}
     />
   );
 }
