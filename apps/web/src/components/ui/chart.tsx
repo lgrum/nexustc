@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 
@@ -71,7 +69,7 @@ function ChartContainer({
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
   const colorConfig = Object.entries(config).filter(
-    ([, style]) => style.theme || style.color
+    ([, config]) => config.theme || config.color
   );
 
   if (!colorConfig.length) {
@@ -80,7 +78,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
   return (
     <style
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: has to be used for this
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: intended
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(
@@ -235,7 +233,7 @@ function ChartTooltipContent({
                           {itemConfig?.label || item.name}
                         </span>
                       </div>
-                      {!!item.value && (
+                      {item.value && (
                         <span className="font-medium font-mono text-foreground tabular-nums">
                           {item.value.toLocaleString()}
                         </span>
@@ -315,7 +313,7 @@ function getPayloadConfigFromPayload(
   key: string
 ) {
   if (typeof payload !== "object" || payload === null) {
-    return;
+    return undefined;
   }
 
   const payloadPayload =

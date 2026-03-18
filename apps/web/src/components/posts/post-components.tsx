@@ -30,6 +30,7 @@ import { Markdown } from "../markdown";
 import { RatingDisplay } from "../ratings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { Card, CardContent, CardFooter } from "../ui/card";
 import {
   Carousel,
   type CarouselApi,
@@ -135,36 +136,71 @@ export function PostHero() {
 export function PostStatsBar() {
   const post = usePost();
 
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Enlace copiado al portapapeles");
+    } catch {
+      toast.error("No se pudo copiar el enlace");
+    }
+  };
+
   const createdAt = format(post.createdAt, "PP", { locale: es });
   const updatedAt = format(post.updatedAt, "PP", { locale: es });
 
   return (
-    <div className="border-border border-b bg-card">
-      <div className="flex gap-1 px-2 py-2">
-        <PostStat
-          color="text-foreground"
-          label="Vistas"
-          value={String(post.views)}
-        />
-        <PostStat
-          color="text-accent"
-          label="Me gusta"
-          value={String(post.likes)}
-        />
-        {post.ratingCount !== undefined && post.ratingCount > 0 && (
+    <div className="space-y-4 p-4">
+      <Card>
+        <CardContent className="flex flex-row gap-1">
           <PostStat
-            color="text-primary"
-            label="Rating"
-            value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
+            color="text-foreground"
+            label="Vistas"
+            value={String(post.views)}
           />
-        )}
-        <PostStat
-          color="text-secondary"
-          label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
-          value={updatedAt}
-        />
-      </div>
-      <PostActionBar />
+          <PostStat
+            color="text-accent"
+            label="Me gusta"
+            value={String(post.likes)}
+          />
+          {post.ratingCount !== undefined && post.ratingCount > 0 && (
+            <PostStat
+              color="text-primary"
+              label="Rating"
+              value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
+            />
+          )}
+          <PostStat
+            color="text-secondary"
+            label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
+            value={updatedAt}
+          />
+        </CardContent>
+        <CardFooter className="flex items-center justify-around">
+          <BookmarkButton postId={post.id} />
+          <LikeButton postId={post.id} />
+          <Button
+            className="border-yellow-600 bg-yellow-600/30 text-white"
+            nativeButton={false}
+            render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
+          >
+            <RatingDisplay
+              averageRating={post.averageRating ?? 0}
+              ratingCount={post.ratingCount}
+              variant="compact"
+            />
+          </Button>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={handleShare}
+              render={<Button variant="secondary" />}
+            >
+              <HugeiconsIcon className="size-4" icon={Share08Icon} />
+              <span className="hidden md:block">Compartir</span>
+            </TooltipTrigger>
+            <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
+          </Tooltip>
+        </CardFooter>
+      </Card>
     </div>
   );
 }
@@ -192,6 +228,7 @@ function PostStat({
 
 export function PostActionBar() {
   const post = usePost();
+
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
@@ -202,34 +239,39 @@ export function PostActionBar() {
   };
 
   return (
-    <div className="flex items-center justify-around gap-2 border-border border-t px-4 py-2">
-      <BookmarkButton postId={post.id} />
-      <LikeButton postId={post.id} />
-      <Button
-        nativeButton={false}
-        render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
-        size="sm"
-        variant="outline"
-      >
-        <RatingDisplay
-          averageRating={post.averageRating ?? 0}
-          ratingCount={post.ratingCount}
-          variant="compact"
-        />
-      </Button>
-      <Tooltip>
-        <TooltipTrigger
-          onClick={handleShare}
-          render={
-            <Button size="sm" variant="outline">
-              <HugeiconsIcon className="size-4" icon={Share08Icon} />
-              <span className="hidden md:block">Compartir</span>
-            </Button>
-          }
-        />
-        <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
-      </Tooltip>
-    </div>
+    <Card>
+      <CardContent className="flex items-center justify-around gap-2">
+        <BookmarkButton postId={post.id} />
+        <LikeButton postId={post.id} />
+        <Button
+          className="border-yellow-600 bg-yellow-600/30 text-white"
+          nativeButton={false}
+          render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
+        >
+          <RatingDisplay
+            averageRating={post.averageRating ?? 0}
+            ratingCount={post.ratingCount}
+            variant="compact"
+          />
+        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            className="border-green-600 bg-green-600/30 text-white"
+            onClick={handleShare}
+            render={
+              <Button
+                className="border-green-600 bg-green-600/30 text-white"
+                variant="secondary"
+              />
+            }
+          >
+            <HugeiconsIcon className="size-4" icon={Share08Icon} />
+            <span className="hidden md:block">Compartir</span>
+          </TooltipTrigger>
+          <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
+        </Tooltip>
+      </CardContent>
+    </Card>
   );
 }
 

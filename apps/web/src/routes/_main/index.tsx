@@ -170,7 +170,7 @@ function HeroSection() {
 
       {/* Secondary hero cards */}
       {secondary.length > 0 && (
-        <div className="grid grid-cols-2 gap-0 md:gap-2.5 md:px-4 md:py-3">
+        <div className="grid grid-cols-2 gap-2.5 p-3">
           {secondary.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
@@ -260,7 +260,7 @@ function RecentPostsSection() {
   });
 
   return (
-    <section className="px-4 py-5">
+    <section className="px-3 py-5">
       <div className="section-title mb-3.5">Publicaciones Recientes</div>
 
       {isLoading && (

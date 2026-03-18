@@ -23,13 +23,17 @@ function LikeButtonUI({
 }) {
   return (
     <Button
+      className={cn(
+        "text-white",
+        isLiked
+          ? "border-rose-600 bg-rose-600/30"
+          : "border-rose-800 bg-rose-600/10"
+      )}
       disabled={isLoading || isDisabled}
       onClick={onClick}
-      size="sm"
-      variant="outline"
     >
       <HugeiconsIcon
-        className={cn(isLiked ? "fill-primary stroke-primary" : "fill-none")}
+        className={cn("text-rose-600", isLiked ? "fill-rose-600" : "fill-none")}
         icon={FavouriteIcon}
       />
       Me Gusta

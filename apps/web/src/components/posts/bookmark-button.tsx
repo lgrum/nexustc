@@ -23,14 +23,19 @@ function BookmarkButtonUI({
 }) {
   return (
     <Button
+      className={cn(
+        "text-white",
+        isBookmarked
+          ? "border-blue-600 bg-blue-600/30"
+          : "border-blue-800 bg-blue-600/10"
+      )}
       disabled={isLoading || isDisabled}
       onClick={onClick}
-      size="sm"
-      variant="outline"
     >
       <HugeiconsIcon
         className={cn(
-          isBookmarked ? "fill-blue-500 stroke-blue-500" : "fill-none"
+          "text-blue-500",
+          isBookmarked ? "fill-blue-500" : "fill-none"
         )}
         icon={Bookmark02Icon}
       />

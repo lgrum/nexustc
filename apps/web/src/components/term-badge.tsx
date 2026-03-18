@@ -40,7 +40,7 @@ export function TermBadge({
     return (
       <span
         className={cn(
-          "inline-flex grow items-center justify-center border border-border bg-muted px-2.5 py-1 text-center font-medium text-muted-foreground text-xs transition-colors",
+          "inline-flex grow items-center justify-center rounded-4xl border border-border bg-muted px-2.5 py-1 text-center font-medium text-muted-foreground text-xs transition-colors",
           className
         )}
         {...props}
@@ -55,7 +55,7 @@ export function TermBadge({
   return (
     <span
       className={cn(
-        "inline-flex grow items-center justify-center border px-2.5 py-1 text-center font-medium text-xs transition-colors",
+        "inline-flex grow items-center justify-center rounded-4xl border px-2.5 py-1 text-center font-medium text-xs transition-colors",
         className
       )}
       key={tag.name}

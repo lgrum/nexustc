@@ -27,6 +27,7 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 import { AuthDialog, AuthDialogContent } from "./auth/auth-dialog";
+import { Button } from "./ui/button";
 
 const navItems = [
   { href: "/", label: "Inicio", search: {}, icon: Home01Icon },
@@ -89,6 +90,7 @@ export function AppSidebar() {
                 {navItems.map((item) => (
                   <SidebarMenuItem key={`${item.href}-${item.label}`}>
                     <SidebarMenuButton
+                      className="text-[0.95rem] tracking-wider [&_svg]:size-5"
                       render={<Link search={item.search} to={item.href} />}
                     >
                       <HugeiconsIcon icon={item.icon} />
@@ -99,23 +101,14 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {user?.role !== "user" && (
-            <SidebarGroup>
-              <SidebarGroupLabel>Usuario</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton render={<Link to="/admin" />}>
-                      <HugeiconsIcon icon={CircleLockIcon} />
-                      <span>Admin</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
         </SidebarContent>
         <SidebarFooter className="border-sidebar-border border-t pt-3">
+          {user && user.role !== "user" && (
+            <Button nativeButton={false} render={<Link to="/admin" />}>
+              <HugeiconsIcon icon={CircleLockIcon} />
+              <span>Admin</span>
+            </Button>
+          )}
           <SidebarAuthAction
             imageSrc={imageSrc}
             isPending={auth.isPending}

@@ -1,6 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "base-maia",
+  "style": "base-nova",
   "rsc": false,
   "tsx": true,
   "tailwind": {
@@ -11,8 +11,7 @@
     "prefix": ""
   },
   "iconLibrary": "hugeicons",
-  "menuColor": "inverted",
-  "menuAccent": "bold",
+  "rtl": false,
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",
@@ -20,6 +19,8 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
+  "menuColor": "default-translucent",
+  "menuAccent": "subtle",
   "registries": {
     "@cardcn": "https://cardcn.dev/r/{name}.json"
   }

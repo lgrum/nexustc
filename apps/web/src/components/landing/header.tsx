@@ -13,7 +13,7 @@ import { SidebarTrigger } from "../ui/sidebar";
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 w-full border-border border-b bg-[oklch(0.1684_0_0/0.85)] backdrop-blur-[20px]">
+    <header className="sticky top-0 z-50 w-full border-border border-b bg-background">
       <div className="grid w-full grid-cols-[1fr_auto_1fr] items-center px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="hidden md:block">

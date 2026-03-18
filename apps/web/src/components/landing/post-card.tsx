@@ -1,7 +1,8 @@
 import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import { getBucketUrl, getTierColor } from "@/lib/utils";
+import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
+import { Card, CardFooter, CardHeader, CardTitle } from "../ui/card";
 
 export type PostProps = {
   id: string;
@@ -30,38 +31,38 @@ export function PostCard({ post }: PostCardProps) {
       preload={false}
       to="/post/$id"
     >
-      <div className="relative overflow-hidden border border-border bg-card">
-        {/* Tier bar */}
-        <div className={`h-0.75 w-full ${getTierColor(post.favorites)}`} />
-
+      <Card
+        className="relative rounded-t-xl"
+        style={{
+          paddingBlock: "0px", // pt-0 gets overridden for some reason
+        }}
+      >
         {/* Image area */}
         <div
-          className={
+          className={cn(
+            "min-h-0 pt-0.75",
             post.type === "comic"
               ? "relative aspect-3/4"
               : "relative aspect-video"
-          }
+          )}
         >
           {count === 0 && (
             <div className="h-full w-full bg-linear-to-br from-muted to-card" />
           )}
-
           {post.type === "comic" && count > 0 && (
             <img
               alt={post.title}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300"
               src={images[0]}
             />
           )}
-
           {post.type === "post" && count === 1 && (
             <img
               alt={post.title}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              className="h-full w-full object-cover transition-transform duration-300"
               src={images[0]}
             />
           )}
-
           {post.type === "post" && count === 2 && (
             <div className="grid h-full w-full grid-cols-2">
               {images.map((img) => (
@@ -74,7 +75,6 @@ export function PostCard({ post }: PostCardProps) {
               ))}
             </div>
           )}
-
           {post.type === "post" && count === 3 && (
             <div className="grid h-full w-full grid-cols-2">
               <div className="grid min-h-0 grid-rows-2">
@@ -96,7 +96,6 @@ export function PostCard({ post }: PostCardProps) {
               />
             </div>
           )}
-
           {post.type === "post" && count >= 4 && (
             <div className="grid h-full w-full grid-cols-2 grid-rows-2">
               {images.map((img) => (
@@ -109,10 +108,8 @@ export function PostCard({ post }: PostCardProps) {
               ))}
             </div>
           )}
-
           {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-linear-to-t from-card via-transparent to-transparent" />
-
+          {/* <div className="absolute inset-0 bg-linear-to-t from-card via-transparent to-transparent" /> */}
           {/* Version badge */}
           {post.version && (
             <span className="absolute top-2 right-2 rounded bg-black/50 px-1.5 py-0.5 font-medium text-[10px] text-white backdrop-blur-sm">
@@ -121,14 +118,19 @@ export function PostCard({ post }: PostCardProps) {
           )}
         </div>
 
-        {/* Body */}
-        <div className="flex flex-col gap-1.5 p-2.5">
-          <h3 className="line-clamp-2 font-semibold text-[13px] leading-tight">
-            {post.title}
-          </h3>
+        {/* Tier bar */}
+        <div
+          className={`absolute inset-0 top-0 h-0.75 w-full ${getTierColor(post.favorites)}`}
+        />
 
+        <CardHeader>
+          <CardTitle className="text-center">{post.title}</CardTitle>
+        </CardHeader>
+
+        {/* Body */}
+        <CardFooter className="flex flex-col gap-1.5 p-3">
           {/* Stats row */}
-          <div className="flex items-center justify-center gap-3 text-muted-foreground text-xs">
+          <div className="flex items-center justify-center gap-3 text-muted-foreground text-sm">
             <span className="inline-flex items-center gap-1">
               <HugeiconsIcon
                 className="size-4 fill-red-500 text-red-500"
@@ -150,8 +152,8 @@ export function PostCard({ post }: PostCardProps) {
               {post.views}
             </span>
           </div>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </Link>
   );
 }
