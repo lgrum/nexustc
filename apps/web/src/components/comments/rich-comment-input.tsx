@@ -1,8 +1,13 @@
 import { renderTokenizedContent } from "@repo/shared/token-parser";
 import { useCallback, useEffect, useRef } from "react";
+
 import { cn, getBucketUrl } from "@/lib/utils";
 
-type AssetData = { assetKey: string; type: string; displayName: string };
+type AssetData = {
+  assetKey: string;
+  type: string;
+  displayName: string;
+};
 
 type RichCommentInputProps = {
   value: string;
@@ -22,11 +27,10 @@ function serializeToTokens(editor: HTMLDivElement): string {
       node.nodeType === Node.ELEMENT_NODE &&
       node instanceof HTMLElement
     ) {
-      if (node.tagName === "IMG" && node.dataset.token) {
-        result += node.dataset.token;
-      } else {
-        result += node.textContent ?? "";
-      }
+      result +=
+        node.tagName === "IMG" && node.dataset.token
+          ? node.dataset.token
+          : (node.textContent ?? "");
     }
   }
   return result;
@@ -73,14 +77,14 @@ export function RichCommentInput({
 
       for (const segment of segments) {
         if (segment.type === "text") {
-          editor.appendChild(document.createTextNode(segment.content));
+          editor.append(document.createTextNode(segment.content));
           continue;
         }
 
         if (segment.type === "emoji") {
           const data = emojiMap.get(segment.name);
           if (data) {
-            editor.appendChild(
+            editor.append(
               createTokenImage(
                 getBucketUrl(data.assetKey),
                 `:${segment.name}:`,
@@ -89,7 +93,7 @@ export function RichCommentInput({
               )
             );
           } else {
-            editor.appendChild(document.createTextNode(`:${segment.name}:`));
+            editor.append(document.createTextNode(`:${segment.name}:`));
           }
           continue;
         }
@@ -97,7 +101,7 @@ export function RichCommentInput({
         if (segment.type === "sticker") {
           const data = stickerMap.get(segment.name);
           if (data) {
-            editor.appendChild(
+            editor.append(
               createTokenImage(
                 getBucketUrl(data.assetKey),
                 `[sticker:${segment.name}]`,
@@ -106,9 +110,7 @@ export function RichCommentInput({
               )
             );
           } else {
-            editor.appendChild(
-              document.createTextNode(`[sticker:${segment.name}]`)
-            );
+            editor.append(document.createTextNode(`[sticker:${segment.name}]`));
           }
         }
       }
@@ -170,7 +172,7 @@ export function RichCommentInput({
       const range = selection.getRangeAt(0);
       const { startContainer, startOffset } = range;
 
-      let targetImg: Node | null = null;
+      let targetImg: HTMLImageElement | null = null;
 
       if (e.key === "Backspace") {
         if (startContainer === editor) {
@@ -206,7 +208,7 @@ export function RichCommentInput({
 
       if (targetImg) {
         e.preventDefault();
-        targetImg.parentNode?.removeChild(targetImg);
+        targetImg.remove();
         isInternalChange.current = true;
         onChange(serializeToTokens(editor));
       }

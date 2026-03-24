@@ -2,6 +2,8 @@ import { Toggle as TogglePrimitive } from "@base-ui/react/toggle";
 import { ToggleGroup as ToggleGroupPrimitive } from "@base-ui/react/toggle-group";
 import type { VariantProps } from "class-variance-authority";
 import * as React from "react";
+import { useMemo } from "react";
+
 import { toggleVariants } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 
@@ -11,10 +13,10 @@ const ToggleGroupContext = React.createContext<
     orientation?: "horizontal" | "vertical";
   }
 >({
-  size: "default",
-  variant: "default",
-  spacing: 0,
   orientation: "horizontal",
+  size: "default",
+  spacing: 0,
+  variant: "default",
 });
 
 function ToggleGroup({
@@ -30,6 +32,11 @@ function ToggleGroup({
     spacing?: number;
     orientation?: "horizontal" | "vertical";
   }) {
+  const value = useMemo(
+    () => ({ orientation, size, spacing, variant }),
+    [orientation, size, spacing, variant]
+  );
+
   return (
     <ToggleGroupPrimitive
       className={cn(
@@ -44,9 +51,7 @@ function ToggleGroup({
       style={{ "--gap": spacing } as React.CSSProperties}
       {...props}
     >
-      <ToggleGroupContext.Provider
-        value={{ variant, size, spacing, orientation }}
-      >
+      <ToggleGroupContext.Provider value={value}>
         {children}
       </ToggleGroupContext.Provider>
     </ToggleGroupPrimitive>
@@ -67,8 +72,8 @@ function ToggleGroupItem({
       className={cn(
         "shrink-0 focus:z-10 focus-visible:z-10 group-data-[spacing=0]/toggle-group:rounded-none group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:border-t-0 group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:border-l-0 group-data-[spacing=0]/toggle-group:px-2 group-data-horizontal/toggle-group:data-[spacing=0]:last:rounded-r-lg group-data-vertical/toggle-group:data-[spacing=0]:last:rounded-b-lg group-data-vertical/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-t group-data-horizontal/toggle-group:data-[spacing=0]:data-[variant=outline]:first:border-l group-data-vertical/toggle-group:data-[spacing=0]:first:rounded-t-lg group-data-horizontal/toggle-group:data-[spacing=0]:first:rounded-l-lg",
         toggleVariants({
-          variant: context.variant || variant,
           size: context.size || size,
+          variant: context.variant || variant,
         }),
         className
       )}

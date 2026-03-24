@@ -1,4 +1,5 @@
 import type React from "react";
+
 import { cn, pickTextColorFromHex } from "@/lib/utils";
 
 export function TermBadge({
@@ -19,18 +20,16 @@ export function TermBadge({
     if (colors[0].startsWith("@")) {
       textColor = colors[0].slice(1);
     } else {
-      color1 = colors[0];
+      [color1] = colors;
     }
   }
 
   if (colors.length === 2) {
-    color1 = colors[0];
-    color2 = colors[1];
+    [color1, color2] = colors;
   }
 
   if (colors.length === 3) {
-    color1 = colors[0];
-    color2 = colors[1];
+    [color1, color2] = colors;
     textColor = colors[2].slice(1);
   }
 
@@ -60,11 +59,11 @@ export function TermBadge({
       )}
       key={tag.name}
       style={{
-        borderColor: textColor || undefined,
-        color: textColor,
         background: color1
           ? `linear-gradient(to right, ${color1}, ${color2 || color1})`
           : undefined,
+        borderColor: textColor || undefined,
+        color: textColor,
       }}
       {...props}
     >

@@ -3,11 +3,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
 function BookmarkButtonUI({
@@ -72,6 +74,23 @@ export function BookmarkButton({ postId }: { postId: string }) {
   // Mutation with optimistic updates
   const bookmarkMutation = useMutation(
     orpc.user.toggleBookmark.mutationOptions({
+      onError: (error, variables, context) => {
+        // Rollback on error
+        if (context?.previousBookmarks !== undefined) {
+          queryClient.setQueryData(
+            bookmarksQueryOptions.queryKey,
+            context.previousBookmarks
+          );
+        }
+
+        // Show error toast with appropriate message
+        const action = variables.bookmarked ? "guardar" : "quitar";
+        toast.error(
+          `Error al ${action} marcador: ${error instanceof Error ? error.message : "Error desconocido"}`,
+          { duration: 5000 }
+        );
+      },
+
       onMutate: async (variables) => {
         // Cancel outgoing refetches
         await queryClient.cancelQueries(bookmarksQueryOptions);
@@ -99,23 +118,6 @@ export function BookmarkButton({ postId }: { postId: string }) {
         );
 
         return { previousBookmarks };
-      },
-
-      onError: (error, variables, context) => {
-        // Rollback on error
-        if (context?.previousBookmarks !== undefined) {
-          queryClient.setQueryData(
-            bookmarksQueryOptions.queryKey,
-            context.previousBookmarks
-          );
-        }
-
-        // Show error toast with appropriate message
-        const action = variables.bookmarked ? "guardar" : "quitar";
-        toast.error(
-          `Error al ${action} marcador: ${error instanceof Error ? error.message : "Error desconocido"}`,
-          { duration: 5000 }
-        );
       },
 
       onSettled: () => {
@@ -151,8 +153,8 @@ export function BookmarkButton({ postId }: { postId: string }) {
     setCooldown(true);
 
     bookmarkMutation.mutate({
-      postId,
       bookmarked: !isBookmarked,
+      postId,
     });
   };
 

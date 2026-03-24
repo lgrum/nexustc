@@ -5,6 +5,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type * as React from "react";
+
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,7 @@ function PaginationLink({
       render={
         <a
           aria-current={isActive ? "page" : undefined}
+          aria-label={isActive ? `Page ${props.children}` : undefined}
           data-active={isActive}
           data-slot="pagination-link"
           {...props}

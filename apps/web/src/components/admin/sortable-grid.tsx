@@ -1,7 +1,8 @@
 import { arrayMove } from "@dnd-kit/helpers";
 import { DragDropProvider } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 type SortableItemProps = {
   id: string;
@@ -25,7 +26,7 @@ function SortableItem({
 }: SortableItemProps) {
   const { ref, isDragging } = useSortable({ id, index });
 
-  return children({ ref, isDragging, isSelected, onSelect });
+  return children({ isDragging, isSelected, onSelect, ref });
 }
 
 type SortableGridProps<T> = {
@@ -128,7 +129,7 @@ export function SortableGrid<T>({
           let anchorId: string | null = null;
           let insertAfterAnchor = true;
 
-          for (let i = indices.to - 1; i >= 0; i--) {
+          for (let i = indices.to - 1; i >= 0; i -= 1) {
             const id = getItemId(projected[i]);
             if (!currentSelected.has(id)) {
               anchorId = id;
@@ -138,7 +139,7 @@ export function SortableGrid<T>({
 
           if (anchorId === null) {
             insertAfterAnchor = false;
-            for (let i = indices.to + 1; i < projected.length; i++) {
+            for (let i = indices.to + 1; i < projected.length; i += 1) {
               const id = getItemId(projected[i]);
               if (!currentSelected.has(id)) {
                 anchorId = id;

@@ -1,5 +1,5 @@
 import type { RedisClientType } from "redis";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   checkFixedWindowRateLimit,
   checkSlidingWindowRateLimit,
@@ -7,11 +7,11 @@ import {
 
 function createMockCache() {
   return {
-    incr: vi.fn(),
     expire: vi.fn(),
-    zRemRangeByScore: vi.fn(),
-    zCard: vi.fn(),
+    incr: vi.fn(),
     zAdd: vi.fn(),
+    zCard: vi.fn(),
+    zRemRangeByScore: vi.fn(),
   } as unknown as RedisClientType & {
     incr: ReturnType<typeof vi.fn>;
     expire: ReturnType<typeof vi.fn>;
@@ -21,7 +21,7 @@ function createMockCache() {
   };
 }
 
-describe("checkFixedWindowRateLimit", () => {
+describe(checkFixedWindowRateLimit, () => {
   let mockCache: ReturnType<typeof createMockCache>;
 
   beforeEach(() => {
@@ -39,7 +39,7 @@ describe("checkFixedWindowRateLimit", () => {
       60
     );
 
-    expect(result).toEqual({ exceeded: false, count: 1 });
+    expect(result).toStrictEqual({ count: 1, exceeded: false });
     expect(mockCache.incr).toHaveBeenCalledWith("rl:fw:user:123:api/posts:1");
     expect(mockCache.expire).toHaveBeenCalledWith(
       "rl:fw:user:123:api/posts:1",
@@ -57,7 +57,7 @@ describe("checkFixedWindowRateLimit", () => {
       60
     );
 
-    expect(result).toEqual({ exceeded: false, count: 5 });
+    expect(result).toStrictEqual({ count: 5, exceeded: false });
     expect(mockCache.incr).toHaveBeenCalledTimes(1);
     expect(mockCache.expire).not.toHaveBeenCalled();
   });
@@ -72,7 +72,7 @@ describe("checkFixedWindowRateLimit", () => {
       60
     );
 
-    expect(result).toEqual({ exceeded: false, count: 10 });
+    expect(result).toStrictEqual({ count: 10, exceeded: false });
   });
 
   it("returns exceeded=true when count exceeds limit", async () => {
@@ -85,7 +85,7 @@ describe("checkFixedWindowRateLimit", () => {
       60
     );
 
-    expect(result).toEqual({ exceeded: true, count: 11 });
+    expect(result).toStrictEqual({ count: 11, exceeded: true });
   });
 
   it("uses correct window seconds for expiration", async () => {
@@ -106,7 +106,7 @@ describe("checkFixedWindowRateLimit", () => {
   });
 });
 
-describe("checkSlidingWindowRateLimit", () => {
+describe(checkSlidingWindowRateLimit, () => {
   let mockCache: ReturnType<typeof createMockCache>;
   const now = 1_704_067_200_000; // 2024-01-01T00:00:00.000Z
 
@@ -128,7 +128,7 @@ describe("checkSlidingWindowRateLimit", () => {
       now
     );
 
-    expect(result).toEqual({ exceeded: false, count: 6 });
+    expect(result).toStrictEqual({ count: 6, exceeded: false });
 
     // Verify zRemRangeByScore removes entries older than windowMs
     expect(mockCache.zRemRangeByScore).toHaveBeenCalledWith(
@@ -190,7 +190,7 @@ describe("checkSlidingWindowRateLimit", () => {
       now
     );
 
-    expect(result).toEqual({ exceeded: true, count: 10 });
+    expect(result).toStrictEqual({ count: 10, exceeded: true });
     expect(mockCache.zAdd).not.toHaveBeenCalled();
     expect(mockCache.expire).not.toHaveBeenCalled();
   });
@@ -207,7 +207,7 @@ describe("checkSlidingWindowRateLimit", () => {
       now
     );
 
-    expect(result).toEqual({ exceeded: true, count: 15 });
+    expect(result).toStrictEqual({ count: 15, exceeded: true });
   });
 
   it("does not add entry when limit exceeded", async () => {
@@ -250,8 +250,8 @@ describe("checkSlidingWindowRateLimit", () => {
       now
     );
 
-    expect(zAddResolved).toBe(true);
-    expect(expireResolved).toBe(true);
+    expect(zAddResolved).toBeTruthy();
+    expect(expireResolved).toBeTruthy();
   });
 
   it("handles edge case with limit of 0", async () => {
@@ -266,6 +266,6 @@ describe("checkSlidingWindowRateLimit", () => {
       now
     );
 
-    expect(result).toEqual({ exceeded: true, count: 0 });
+    expect(result).toStrictEqual({ count: 0, exceeded: true });
   });
 });

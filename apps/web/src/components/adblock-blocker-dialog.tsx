@@ -1,6 +1,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { AlertDiamondIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+
 import { Button } from "./ui/button";
 import {
   Card,
@@ -15,11 +16,11 @@ type AdblockBlockerDialogProps = {
   open: boolean;
 };
 
-export function AdblockBlockerDialog({ open }: AdblockBlockerDialogProps) {
-  const handleReload = () => {
-    window.location.reload();
-  };
+const handleReload = () => {
+  window.location.reload();
+};
 
+export function AdblockBlockerDialog({ open }: AdblockBlockerDialogProps) {
   return (
     <Dialog.Root open={open}>
       <Dialog.Portal>
@@ -57,7 +58,10 @@ export function AdblockBlockerDialog({ open }: AdblockBlockerDialogProps) {
                     Haz clic en el icono de tu bloqueador en la barra del
                     navegador
                   </li>
-                  <li>Selecciona "Pausar en este sitio" o "Desactivar"</li>
+                  <li>
+                    Selecciona &quot;Pausar en este sitio&quot; o
+                    &quot;Desactivar&quot;
+                  </li>
                   <li>Recarga la página</li>
                 </ol>
               </div>

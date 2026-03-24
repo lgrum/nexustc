@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import z from "zod";
+
 import { PostCard } from "@/components/landing/post-card";
 import {
   SearchFilters,
@@ -17,14 +18,14 @@ import { useTerms } from "@/hooks/use-terms";
 import { orpcClient } from "@/lib/orpc";
 
 const ORDER_OPTIONS = [
-  { value: "views", label: "Más Vistos" },
-  { value: "newest", label: "Más Recientes" },
-  { value: "oldest", label: "Más Antiguos" },
-  { value: "title_asc", label: "Título (A-Z)" },
-  { value: "title_desc", label: "Título (Z-A)" },
-  { value: "rating_avg", label: "Mejor Valorados" },
-  { value: "rating_count", label: "Más Valoraciones" },
-  { value: "likes", label: "Más Likes" },
+  { label: "Más Vistos", value: "views" },
+  { label: "Más Recientes", value: "newest" },
+  { label: "Más Antiguos", value: "oldest" },
+  { label: "Título (A-Z)", value: "title_asc" },
+  { label: "Título (Z-A)", value: "title_desc" },
+  { label: "Mejor Valorados", value: "rating_avg" },
+  { label: "Más Valoraciones", value: "rating_count" },
+  { label: "Más Likes", value: "likes" },
 ] as const;
 
 const orderBySchema = z.enum([
@@ -41,34 +42,39 @@ const orderBySchema = z.enum([
 const typeSchema = z.enum(["juegos", "comics"]);
 
 const searchParamsSchema = z.object({
-  type: typeSchema.optional().default("juegos"),
-  query: z.string().optional(),
   engine: z.array(z.string()).optional().default([]),
-  status: z.array(z.string()).optional().default([]),
-  platform: z.array(z.string()).optional().default([]),
-  tag: z.array(z.string()).optional().default([]),
   orderBy: orderBySchema.optional().default("views"),
+  platform: z.array(z.string()).optional().default([]),
+  query: z.string().optional(),
+  status: z.array(z.string()).optional().default([]),
+  tag: z.array(z.string()).optional().default([]),
+  type: typeSchema.optional().default("juegos"),
 });
 
 const postSearchSchema = z.object({
-  query: z.string(),
   engine: z.array(z.string()),
-  status: z.array(z.string()),
-  platform: z.array(z.string()),
-  tag: z.array(z.string()),
   orderBy: orderBySchema,
+  platform: z.array(z.string()),
+  query: z.string(),
+  status: z.array(z.string()),
+  tag: z.array(z.string()),
 });
 
 const comicSearchSchema = z.object({
+  orderBy: orderBySchema,
   query: z.string(),
   tag: z.array(z.string()),
-  orderBy: orderBySchema,
 });
 
 export const Route = createFileRoute("/_main/search")({
   component: RouteComponent,
-  validateSearch: searchParamsSchema,
-  loaderDeps: ({ search }) => search,
+  head: () => ({
+    meta: [
+      {
+        title: "NeXusTC - Buscar",
+      },
+    ],
+  }),
   loader: async ({ deps }) => {
     const isComic = deps.type === "comics";
     const termIds = isComic
@@ -81,21 +87,16 @@ export const Route = createFileRoute("/_main/search")({
         ];
 
     const filteredPosts = await orpcClient.post.search({
-      type: isComic ? "comic" : "post",
+      orderBy: deps.orderBy,
       query: deps.query,
       termIds: termIds.length > 0 ? termIds : undefined,
-      orderBy: deps.orderBy,
+      type: isComic ? "comic" : "post",
     });
 
     return { filteredPosts };
   },
-  head: () => ({
-    meta: [
-      {
-        title: "NeXusTC - Buscar",
-      },
-    ],
-  }),
+  loaderDeps: ({ search }) => search,
+  validateSearch: searchParamsSchema,
 });
 
 function RouteComponent() {
@@ -106,8 +107,8 @@ function RouteComponent() {
   const handleTabChange = (value: string | null) => {
     if (value === "juegos" || value === "comics") {
       navigate({
-        to: "/search",
         search: { type: value },
+        to: "/search",
       });
     }
   };
@@ -172,16 +173,16 @@ function PostSearchForm() {
   const termsQuery = useTerms();
 
   const form = useAppForm({
-    validators: {
-      onSubmit: postSearchSchema,
-    },
     defaultValues: {
-      query: params.query ?? "",
       engine: params.engine ?? [],
+      orderBy: params.orderBy ?? "views",
+      platform: params.platform ?? [],
+      query: params.query ?? "",
       status: params.status ?? [],
       tag: params.tag ?? [],
-      platform: params.platform ?? [],
-      orderBy: params.orderBy ?? "views",
+    },
+    validators: {
+      onSubmit: postSearchSchema,
     },
   });
 
@@ -190,17 +191,17 @@ function PostSearchForm() {
   useDebounceEffect(
     () => {
       navigate({
-        to: "/search",
         search: {
-          type: "juegos",
-          query: formValues.query || undefined,
           engine: formValues.engine.length > 0 ? formValues.engine : undefined,
-          status: formValues.status.length > 0 ? formValues.status : undefined,
+          orderBy: formValues.orderBy,
           platform:
             formValues.platform.length > 0 ? formValues.platform : undefined,
+          query: formValues.query || undefined,
+          status: formValues.status.length > 0 ? formValues.status : undefined,
           tag: formValues.tag.length > 0 ? formValues.tag : undefined,
-          orderBy: formValues.orderBy,
+          type: "juegos",
         },
+        to: "/search",
       });
     },
     300,
@@ -217,7 +218,7 @@ function PostSearchForm() {
   const handleRandomPost = async () => {
     const result = await orpcClient.post.getRandom({ type: "post" });
     if (result) {
-      navigate({ to: "/post/$id", params: { id: result.id } });
+      navigate({ params: { id: result.id }, to: "/post/$id" });
     }
   };
 
@@ -270,8 +271,8 @@ function PostSearchForm() {
                 label="Estado"
                 options={
                   groupedTerms.status?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -283,8 +284,8 @@ function PostSearchForm() {
                 label="Motor"
                 options={
                   groupedTerms.engine?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -296,8 +297,8 @@ function PostSearchForm() {
                 label="Plataformas"
                 options={
                   groupedTerms.platform?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -309,8 +310,8 @@ function PostSearchForm() {
                 label="Tags"
                 options={
                   groupedTerms.tag?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -328,13 +329,13 @@ function ComicSearchForm() {
   const termsQuery = useTerms();
 
   const form = useAppForm({
-    validators: {
-      onSubmit: comicSearchSchema,
-    },
     defaultValues: {
+      orderBy: params.orderBy ?? "views",
       query: params.query ?? "",
       tag: params.tag ?? [],
-      orderBy: params.orderBy ?? "views",
+    },
+    validators: {
+      onSubmit: comicSearchSchema,
     },
   });
 
@@ -343,13 +344,13 @@ function ComicSearchForm() {
   useDebounceEffect(
     () => {
       navigate({
-        to: "/search",
         search: {
-          type: "comics",
+          orderBy: formValues.orderBy,
           query: formValues.query || undefined,
           tag: formValues.tag.length > 0 ? formValues.tag : undefined,
-          orderBy: formValues.orderBy,
+          type: "comics",
         },
+        to: "/search",
       });
     },
     300,
@@ -359,7 +360,7 @@ function ComicSearchForm() {
   const handleRandomComic = async () => {
     const result = await orpcClient.post.getRandom({ type: "comic" });
     if (result) {
-      navigate({ to: "/post/$id", params: { id: result.id } });
+      navigate({ params: { id: result.id }, to: "/post/$id" });
     }
   };
 
@@ -414,8 +415,8 @@ function ComicSearchForm() {
                 label="Tags"
                 options={
                   groupedTerms.tag?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />

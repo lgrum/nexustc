@@ -1,6 +1,7 @@
 import { useConfirm } from "@omit/react-confirm-dialog";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+
 import { BanUserDialog } from "./ban-user-dialog";
 import { SetPasswordDialog } from "./set-password-dialog";
 import { SetRoleDialog } from "./set-role-dialog";
@@ -29,18 +31,18 @@ export function UserActionsDropdown({
 
   const handleUnban = async () => {
     const confirmed = await confirm({
-      title: "Desbanear Usuario",
-      description: `¿Desbanear a ${user.name} (${user.email})?`,
-      confirmText: "Desbanear",
       cancelText: "Cancelar",
+      confirmText: "Desbanear",
+      description: `¿Desbanear a ${user.name} (${user.email})?`,
+      title: "Desbanear Usuario",
     });
 
     if (confirmed) {
       await toast
         .promise(authClient.admin.unbanUser({ userId: user.id }), {
+          error: "Error al desbanear usuario.",
           loading: "Desbaneando usuario...",
           success: "Usuario desbaneado.",
-          error: "Error al desbanear usuario.",
         })
         .unwrap();
       onRefresh();
@@ -49,18 +51,18 @@ export function UserActionsDropdown({
 
   const handleRevokeSessions = async () => {
     const confirmed = await confirm({
-      title: "Revocar Sesiones",
-      description: `¿Revocar todas las sesiones de ${user.name}?`,
-      confirmText: "Revocar",
       cancelText: "Cancelar",
+      confirmText: "Revocar",
+      description: `¿Revocar todas las sesiones de ${user.name}?`,
+      title: "Revocar Sesiones",
     });
 
     if (confirmed) {
       await toast
         .promise(authClient.admin.revokeUserSessions({ userId: user.id }), {
+          error: "Error al revocar sesiones.",
           loading: "Revocando sesiones...",
           success: "Sesiones revocadas.",
-          error: "Error al revocar sesiones.",
         })
         .unwrap();
     }
@@ -68,18 +70,18 @@ export function UserActionsDropdown({
 
   const handleImpersonate = async () => {
     const confirmed = await confirm({
-      title: "Suplantar Usuario",
-      description: `¿Suplantar a ${user.name} (${user.email})? Serás redirigido.`,
-      confirmText: "Suplantar",
       cancelText: "Cancelar",
+      confirmText: "Suplantar",
+      description: `¿Suplantar a ${user.name} (${user.email})? Serás redirigido.`,
+      title: "Suplantar Usuario",
     });
 
     if (confirmed) {
       await toast
         .promise(authClient.admin.impersonateUser({ userId: user.id }), {
+          error: "Error al suplantar usuario.",
           loading: "Suplantando usuario...",
           success: "Suplantando usuario.",
-          error: "Error al suplantar usuario.",
         })
         .unwrap();
       window.location.href = "/";
@@ -88,18 +90,18 @@ export function UserActionsDropdown({
 
   const handleDelete = async () => {
     const confirmed = await confirm({
-      title: "Eliminar Usuario",
-      description: `¿Estás seguro de que quieres eliminar a ${user.name} (${user.email})? Esta acción no se puede deshacer.`,
-      confirmText: "Eliminar",
       cancelText: "Cancelar",
+      confirmText: "Eliminar",
+      description: `¿Estás seguro de que quieres eliminar a ${user.name} (${user.email})? Esta acción no se puede deshacer.`,
+      title: "Eliminar Usuario",
     });
 
     if (confirmed) {
       await toast
         .promise(authClient.admin.removeUser({ userId: user.id }), {
+          error: "Error al eliminar usuario.",
           loading: "Eliminando usuario...",
           success: "Usuario eliminado.",
-          error: "Error al eliminar usuario.",
         })
         .unwrap();
       onRefresh();

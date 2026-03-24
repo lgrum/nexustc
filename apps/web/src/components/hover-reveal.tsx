@@ -1,4 +1,5 @@
 import type React from "react";
+
 import { cn } from "@/lib/utils";
 
 type HoverRevealProps = {
@@ -22,7 +23,7 @@ export function HoverReveal({
   disabled = false,
 }: HoverRevealProps) {
   if (disabled) {
-    return <>{children}</>;
+    return children;
   }
 
   return (

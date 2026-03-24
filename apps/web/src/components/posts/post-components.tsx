@@ -1,4 +1,4 @@
-﻿import {
+import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Calendar03Icon,
@@ -17,26 +17,22 @@ import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { TermBadge } from "@/components/term-badge";
 import { orpc, orpcClient } from "@/lib/orpc";
 import type { PostType } from "@/lib/types";
 import { getBucketUrl } from "@/lib/utils";
+
 import { DiscordLogo } from "../icons/discord";
-import {
-  PostCard,
-  type PostProps as PostCardProps,
-} from "../landing/post-card";
+import { PostCard } from "../landing/post-card";
+import type { PostProps as PostCardProps } from "../landing/post-card";
 import { Markdown } from "../markdown";
 import { RatingDisplay } from "../ratings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardFooter } from "../ui/card";
-import {
-  Carousel,
-  type CarouselApi,
-  CarouselContent,
-  CarouselItem,
-} from "../ui/carousel";
+import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
+import type { CarouselApi } from "../ui/carousel";
 import { ImageViewer } from "../ui/image-viewer";
 import { ShinyButton } from "../ui/shiny-button";
 import { Skeleton } from "../ui/skeleton";
@@ -181,7 +177,7 @@ export function PostStatsBar() {
           <Button
             className="border-yellow-600 bg-yellow-600/30 text-white"
             nativeButton={false}
-            render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
+            render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
           >
             <RatingDisplay
               averageRating={post.averageRating ?? 0}
@@ -246,7 +242,7 @@ export function PostActionBar() {
         <Button
           className="border-yellow-600 bg-yellow-600/30 text-white"
           nativeButton={false}
-          render={<Link params={{ id: post.id }} to={"/post/reviews/$id"} />}
+          render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
         >
           <RatingDisplay
             averageRating={post.averageRating ?? 0}
@@ -314,9 +310,9 @@ export function PostTagsSection() {
 export function PostSidebarContent() {
   const post = usePost();
   const { data: related, isLoading } = useQuery({
-    queryKey: ["related", post.id],
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
+    queryKey: ["related", post.id],
   });
 
   return (
@@ -328,7 +324,6 @@ export function PostSidebarContent() {
         <div className="flex flex-col gap-3">
           {isLoading &&
             Array.from({ length: 5 }, (_, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: loading placeholder
               <Skeleton className="h-28 w-full" key={i} />
             ))}
           {!isLoading && related?.length === 0 && (
@@ -348,9 +343,9 @@ export function PostSidebarContent() {
 export function RelatedGamesSection() {
   const post = usePost();
   const { data: related, isLoading } = useQuery({
-    queryKey: ["related", post.id],
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
+    queryKey: ["related", post.id],
   });
 
   return (
@@ -359,7 +354,6 @@ export function RelatedGamesSection() {
       {isLoading && (
         <div className="grid grid-cols-2 gap-2.5">
           {Array.from({ length: 4 }, (_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: loading placeholder
             <Skeleton className="aspect-video w-full" key={i} />
           ))}
         </div>
@@ -387,8 +381,8 @@ export function PostCarousel() {
 
   const allImages = post.imageObjectKeys ?? [];
   const galleryImages = allImages.map((key, index) => ({
-    src: getBucketUrl(key),
     alt: `${post.title} - Imagen ${index + 1}`,
+    src: getBucketUrl(key),
   }));
   const hasImages = (post.imageObjectKeys?.length ?? 0) > 0;
 
@@ -400,15 +394,15 @@ export function PostCarousel() {
           <Carousel
             opts={{
               align: "start",
-              loop: true,
               dragFree: true,
+              loop: true,
             }}
             plugins={[
               AutoScroll({
                 playOnInit: true,
+                speed: 1,
                 startDelay: 0,
                 stopOnInteraction: false,
-                speed: 1,
               }),
             ]}
           >
@@ -592,14 +586,14 @@ export function TutorialsSection() {
       </div>
       <Carousel
         opts={{
-          loop: true,
           dragFree: true,
+          loop: true,
         }}
         plugins={[
           Autoplay({
+            delay: 10_000,
             playOnInit: true,
             stopOnInteraction: true,
-            delay: 10_000,
           }),
         ]}
         setApi={setApi}
@@ -617,6 +611,7 @@ export function TutorialsSection() {
                 referrerPolicy="strict-origin-when-cross-origin"
                 src={tutorial.embedUrl}
                 title="YouTube video player"
+                sandbox="allow-scripts"
               />
             </CarouselItem>
           ))}
@@ -633,10 +628,10 @@ export function DiscordSection() {
         className="inline-flex w-full items-center justify-center gap-4 hover:bg-[#5865F2]/90"
         nativeButton={false}
         render={
-          // biome-ignore lint/a11y/useAnchorContent: the anchor has content, but it's rendered through the Button's `children` prop
+          // oxlint-disable-next-line jsx_a11y/anchor-has-content: the anchor has content, but it's rendered through the Button's `children` prop
           <a
             href="https://discord.nexustc18.com/"
-            rel="noopener"
+            rel="noreferrer"
             target="_blank"
           />
         }

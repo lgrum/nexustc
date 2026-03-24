@@ -5,6 +5,7 @@ import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import MDEditor from "@uiw/react-md-editor";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import { SortableGrid } from "@/components/admin/sortable-grid";
 import {
   AlertDialog,
@@ -41,11 +42,11 @@ export const Route = createFileRoute("/admin/chronos/edit")({
     const data = await orpcClient.chronos.getForEdit();
     return {
       initialData: {
-        stickyImageKey: data.stickyImageKey,
-        headerImageKey: data.headerImageKey,
         carouselImageKeys: data.carouselImageKeys ?? [],
+        headerImageKey: data.headerImageKey,
         markdownContent: data.markdownContent,
         markdownImageKeys: data.markdownImageKeys ?? [],
+        stickyImageKey: data.stickyImageKey,
       },
     };
   },
@@ -82,8 +83,8 @@ function RouteComponent() {
     [currentData.markdownImageKeys]
   );
 
-  const hasChanges = useMemo(() => {
-    return (
+  const hasChanges = useMemo(
+    () =>
       currentData.stickyImageKey !== savedData.stickyImageKey ||
       currentData.headerImageKey !== savedData.headerImageKey ||
       JSON.stringify(currentData.carouselImageKeys) !==
@@ -93,19 +94,19 @@ function RouteComponent() {
         JSON.stringify(savedData.markdownImageKeys) ||
       stickyImageFile !== null ||
       headerImageFile !== null ||
-      carousel.selectedFiles.length > 0
-    );
-  }, [
-    currentData,
-    savedData,
-    stickyImageFile,
-    headerImageFile,
-    carousel.selectedFiles,
-  ]);
+      carousel.selectedFiles.length > 0,
+    [
+      currentData,
+      savedData,
+      stickyImageFile,
+      headerImageFile,
+      carousel.selectedFiles,
+    ]
+  );
 
   const blocker = useBlocker({
-    shouldBlockFn: () => hasChanges,
     enableBeforeUnload: true,
+    shouldBlockFn: () => hasChanges,
     withResolver: true,
   });
 
@@ -119,7 +120,7 @@ function RouteComponent() {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (event.target.files?.[0]) {
-      const file = event.target.files[0];
+      const [file] = event.target.files;
       const converted = await convertImage(file, "webp", 0.8);
       setStickyImageFile(converted);
       setStickyImagePreview(URL.createObjectURL(converted));
@@ -130,7 +131,7 @@ function RouteComponent() {
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (event.target.files?.[0]) {
-      const file = event.target.files[0];
+      const [file] = event.target.files;
       const converted = await convertImage(file, "webp", 0.8);
       setHeaderImageFile(converted);
       setHeaderImagePreview(URL.createObjectURL(converted));
@@ -145,13 +146,13 @@ function RouteComponent() {
     setUploadingStickyImage(true);
     try {
       const [presignedUrl] = await orpcClient.chronos.getPresignedUrls({
-        type: "sticky",
         objects: [
           {
             contentLength: stickyImageFile.size,
             extension: "webp",
           },
         ],
+        type: "sticky",
       });
 
       await uploadBlobWithProgress(
@@ -176,13 +177,13 @@ function RouteComponent() {
     setUploadingHeaderImage(true);
     try {
       const [presignedUrl] = await orpcClient.chronos.getPresignedUrls({
-        type: "header",
         objects: [
           {
             contentLength: headerImageFile.size,
             extension: "webp",
           },
         ],
+        type: "header",
       });
 
       await uploadBlobWithProgress(
@@ -207,11 +208,11 @@ function RouteComponent() {
     setUploadingCarouselImages(true);
     try {
       const presignedUrls = await orpcClient.chronos.getPresignedUrls({
-        type: "carousel",
         objects: carousel.selectedFiles.map((file) => ({
           contentLength: file.size,
           extension: file.name.split(".").pop() ?? "webp",
         })),
+        type: "carousel",
       });
 
       await Promise.all(
@@ -219,11 +220,11 @@ function RouteComponent() {
           const file = carousel.selectedFiles[index];
 
           return fetch(url.presignedUrl, {
-            method: "PUT",
             body: file,
             headers: {
               "Content-Type": file.type ?? "application/octet-stream",
             },
+            method: "PUT",
           }).then((response) => {
             if (!response.ok) {
               throw new Error(
@@ -248,7 +249,7 @@ function RouteComponent() {
       return;
     }
 
-    const files = Array.from(event.target.files);
+    const files = [...event.target.files];
     setUploadingHelperImages(true);
 
     try {
@@ -261,11 +262,11 @@ function RouteComponent() {
       );
 
       const presignedUrls = await orpcClient.chronos.getPresignedUrls({
-        type: "markdown",
         objects: convertedFiles.map((file) => ({
           contentLength: file.size,
           extension: file.name.split(".").pop() ?? "webp",
         })),
+        type: "markdown",
       });
 
       await Promise.all(
@@ -316,20 +317,26 @@ function RouteComponent() {
       ]);
 
       return orpcClient.chronos.update({
-        stickyImageKey: stickyKey ?? undefined,
-        headerImageKey: headerKey ?? undefined,
         carouselImageKeys: carouselKeys,
+        headerImageKey: headerKey ?? undefined,
         markdownContent: currentData.markdownContent,
         markdownImageKeys: currentData.markdownImageKeys,
+        stickyImageKey: stickyKey ?? undefined,
       });
+    },
+    onError: (error) => {
+      toast.error(
+        `Error al actualizar página de Chronos: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        { duration: 5000 }
+      );
     },
     onSuccess: async (data) => {
       const newData = {
-        stickyImageKey: data.stickyImageKey,
-        headerImageKey: data.headerImageKey,
         carouselImageKeys: data.carouselImageKeys ?? [],
+        headerImageKey: data.headerImageKey,
         markdownContent: data.markdownContent,
         markdownImageKeys: data.markdownImageKeys ?? [],
+        stickyImageKey: data.stickyImageKey,
       };
 
       setSavedData(newData);
@@ -342,7 +349,7 @@ function RouteComponent() {
 
       await queryClient.invalidateQueries({
         predicate: (query) => {
-          const key = query.queryKey[0];
+          const [key] = query.queryKey;
           return typeof key === "string" && key.includes("chronos");
         },
       });
@@ -350,12 +357,6 @@ function RouteComponent() {
       toast.success("Página de Chronos actualizada correctamente", {
         duration: 3000,
       });
-    },
-    onError: (error) => {
-      toast.error(
-        `Error al actualizar página de Chronos: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        { duration: 5000 }
-      );
     },
   });
 
@@ -538,7 +539,7 @@ function RouteComponent() {
                     }
                   }}
                   ref={ref as React.Ref<HTMLDivElement>}
-                  role="button"
+                  role="gridcell"
                   tabIndex={0}
                 >
                   <img
@@ -580,7 +581,13 @@ function RouteComponent() {
             type="file"
           />
           <Button
-            onClick={() => document.getElementById("carousel-upload")?.click()}
+            onClick={() =>
+              (
+                document.querySelector(
+                  "#carousel-upload"
+                ) as HTMLInputElement | null
+              )?.click()
+            }
             type="button"
             variant="outline"
           >

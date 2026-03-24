@@ -5,6 +5,7 @@ import { Menubar as MenubarPrimitive } from "@base-ui/react/menubar";
 import { Tick02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type * as React from "react";
+
 import {
   DropdownMenu,
   DropdownMenuContent,

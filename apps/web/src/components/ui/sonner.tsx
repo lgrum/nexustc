@@ -9,7 +9,8 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useTheme } from "next-themes";
-import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { Toaster as Sonner } from "sonner";
+import type { ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
@@ -18,10 +19,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       className="toaster group"
       icons={{
-        success: (
+        error: (
           <HugeiconsIcon
             className="size-4"
-            icon={CheckmarkCircle02Icon}
+            icon={MultiplicationSignCircleIcon}
             strokeWidth={2}
           />
         ),
@@ -32,20 +33,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
             strokeWidth={2}
           />
         ),
-        warning: (
-          <HugeiconsIcon
-            className="size-4"
-            icon={Alert02Icon}
-            strokeWidth={2}
-          />
-        ),
-        error: (
-          <HugeiconsIcon
-            className="size-4"
-            icon={MultiplicationSignCircleIcon}
-            strokeWidth={2}
-          />
-        ),
         loading: (
           <HugeiconsIcon
             className="size-4 animate-spin"
@@ -53,13 +40,27 @@ const Toaster = ({ ...props }: ToasterProps) => {
             strokeWidth={2}
           />
         ),
+        success: (
+          <HugeiconsIcon
+            className="size-4"
+            icon={CheckmarkCircle02Icon}
+            strokeWidth={2}
+          />
+        ),
+        warning: (
+          <HugeiconsIcon
+            className="size-4"
+            icon={Alert02Icon}
+            strokeWidth={2}
+          />
+        ),
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          "--normal-bg": "var(--popover)",
+          "--normal-border": "var(--border)",
+          "--normal-text": "var(--popover-foreground)",
         } as React.CSSProperties
       }
       theme={theme as ToasterProps["theme"]}

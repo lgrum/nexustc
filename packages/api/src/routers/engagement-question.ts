@@ -6,57 +6,20 @@ import {
   engagementQuestionUpdateSchema,
 } from "@repo/shared/schemas";
 import z from "zod";
+
 import type { Context } from "../context";
 import { permissionProcedure } from "../index";
 
 async function assertTagTermExists(db: Context["db"], tagTermId: string) {
   const tagTerm = await db.query.term.findFirst({
-    where: and(eq(term.id, tagTermId), eq(term.taxonomy, "tag")),
     columns: { id: true },
+    where: and(eq(term.id, tagTermId), eq(term.taxonomy, "tag")),
   });
 
   return tagTerm;
 }
 
 export default {
-  getDashboardData: permissionProcedure({ posts: ["list"] }).handler(
-    async ({ context: { db, ...ctx } }) => {
-      const logger = getLogger(ctx);
-      logger?.info("Fetching engagement question dashboard data");
-
-      const [tagTerms, questions] = await Promise.all([
-        db.query.term.findMany({
-          where: eq(term.taxonomy, "tag"),
-          columns: {
-            id: true,
-            name: true,
-            color: true,
-          },
-          orderBy: [asc(term.name)],
-        }),
-        db.query.engagementQuestion.findMany({
-          with: {
-            tagTerm: {
-              columns: {
-                id: true,
-                name: true,
-                color: true,
-              },
-            },
-          },
-          orderBy: (table, { asc, desc }) => [
-            desc(table.isGlobal),
-            desc(table.isActive),
-            asc(table.tagTermId),
-            asc(table.createdAt),
-          ],
-        }),
-      ]);
-
-      return { tagTerms, questions };
-    }
-  ),
-
   create: permissionProcedure({ posts: ["create"] })
     .input(engagementQuestionCreateSchema)
     .handler(async ({ context: { db, ...ctx }, input, errors }) => {
@@ -82,15 +45,27 @@ export default {
       const [createdQuestion] = await db
         .insert(engagementQuestion)
         .values({
-          tagTermId,
-          isGlobal: input.isGlobal,
-          text: input.text,
           isActive: input.isActive,
+          isGlobal: input.isGlobal,
           locale: input.locale,
+          tagTermId,
+          text: input.text,
         })
         .returning({ id: engagementQuestion.id });
 
       return createdQuestion;
+    }),
+
+  delete: permissionProcedure({ posts: ["delete"] })
+    .input(
+      z.object({
+        id: z.string(),
+      })
+    )
+    .handler(async ({ context: { db }, input }) => {
+      await db
+        .delete(engagementQuestion)
+        .where(eq(engagementQuestion.id, input.id));
     }),
 
   edit: permissionProcedure({ posts: ["update"] })
@@ -114,11 +89,11 @@ export default {
       const [updatedQuestion] = await db
         .update(engagementQuestion)
         .set({
-          tagTermId,
-          isGlobal: input.isGlobal,
-          text: input.text,
           isActive: input.isActive,
+          isGlobal: input.isGlobal,
           locale: input.locale,
+          tagTermId,
+          text: input.text,
         })
         .where(eq(engagementQuestion.id, input.id))
         .returning({ id: engagementQuestion.id });
@@ -129,6 +104,44 @@ export default {
 
       return updatedQuestion;
     }),
+
+  getDashboardData: permissionProcedure({ posts: ["list"] }).handler(
+    async ({ context: { db, ...ctx } }) => {
+      const logger = getLogger(ctx);
+      logger?.info("Fetching engagement question dashboard data");
+
+      const [tagTerms, questions] = await Promise.all([
+        db.query.term.findMany({
+          columns: {
+            color: true,
+            id: true,
+            name: true,
+          },
+          orderBy: [asc(term.name)],
+          where: eq(term.taxonomy, "tag"),
+        }),
+        db.query.engagementQuestion.findMany({
+          orderBy: (table, { asc: ascSql, desc }) => [
+            desc(table.isGlobal),
+            desc(table.isActive),
+            ascSql(table.tagTermId),
+            ascSql(table.createdAt),
+          ],
+          with: {
+            tagTerm: {
+              columns: {
+                color: true,
+                id: true,
+                name: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      return { questions, tagTerms };
+    }
+  ),
 
   toggleActive: permissionProcedure({ posts: ["update"] })
     .input(
@@ -147,17 +160,5 @@ export default {
       if (updated.length === 0) {
         throw errors.NOT_FOUND();
       }
-    }),
-
-  delete: permissionProcedure({ posts: ["delete"] })
-    .input(
-      z.object({
-        id: z.string(),
-      })
-    )
-    .handler(async ({ context: { db }, input }) => {
-      await db
-        .delete(engagementQuestion)
-        .where(eq(engagementQuestion.id, input.id));
     }),
 };

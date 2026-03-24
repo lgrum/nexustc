@@ -1,50 +1,47 @@
-import { describe, expect, it } from "vitest";
-import {
-  type ProfileEntitlements,
-  validateProfileMediaUpload,
-} from "./profile";
+import { validateProfileMediaUpload } from "./profile";
+import type { ProfileEntitlements } from "./profile";
 
 const unrestrictedEntitlements: ProfileEntitlements = {
-  canUseAnimatedAvatar: true,
-  canUseUploadedBanner: true,
-  canUseAnimatedBanner: true,
   animatedAvatarRequiredTier: "level3",
-  uploadedBannerRequiredTier: "level5",
   animatedBannerRequiredTier: "level8",
+  canUseAnimatedAvatar: true,
+  canUseAnimatedBanner: true,
+  canUseUploadedBanner: true,
   overrideSource: "staff",
+  uploadedBannerRequiredTier: "level5",
 };
 
-describe("validateProfileMediaUpload", () => {
+describe(validateProfileMediaUpload, () => {
   it("rejects uploads when the server-measured size exceeds the slot limit", () => {
     expect(() =>
       validateProfileMediaUpload({
-        slot: "avatar",
         contentType: "image/webp",
-        validation: {
-          width: 256,
-          height: 256,
-          durationMs: null,
-          isAnimated: false,
-          fileSizeBytes: 1024 * 512 + 1,
-        },
         entitlements: unrestrictedEntitlements,
+        slot: "avatar",
+        validation: {
+          durationMs: null,
+          fileSizeBytes: 1024 * 512 + 1,
+          height: 256,
+          isAnimated: false,
+          width: 256,
+        },
       })
-    ).toThrowError("FILE_TOO_LARGE");
+    ).toThrow("FILE_TOO_LARGE");
   });
 
   it("allows uploads that stay within the server-measured size limit", () => {
     expect(() =>
       validateProfileMediaUpload({
-        slot: "banner",
         contentType: "image/webp",
-        validation: {
-          width: 1200,
-          height: 240,
-          durationMs: null,
-          isAnimated: false,
-          fileSizeBytes: 1024 * 1024,
-        },
         entitlements: unrestrictedEntitlements,
+        slot: "banner",
+        validation: {
+          durationMs: null,
+          fileSizeBytes: 1024 * 1024,
+          height: 240,
+          isAnimated: false,
+          width: 1200,
+        },
       })
     ).not.toThrow();
   });

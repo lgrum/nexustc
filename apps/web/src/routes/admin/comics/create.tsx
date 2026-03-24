@@ -6,6 +6,7 @@ import { useStore } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
@@ -51,19 +52,16 @@ function RouteComponent() {
   const [tagsDialogVisible, setTagsDialogVisible] = useState(false);
 
   const form = useAppForm({
-    validators: {
-      onSubmit: comicCreateSchema,
-    },
     defaultValues: {
-      type: "comic" as const,
-      title: "",
-      censorship: "",
-      status: "",
       adsLinks: "",
-      premiumLinks: "",
+      censorship: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
-      tags: [] as string[],
       manualEngagementQuestions: [] as string[],
+      premiumLinks: "",
+      status: "",
+      tags: [] as string[],
+      title: "",
+      type: "comic" as const,
     },
     onSubmit: async (formData) => {
       try {
@@ -74,20 +72,20 @@ function RouteComponent() {
               files: selectedFiles,
             }),
             {
+              error: (error) => ({
+                duration: 10_000,
+                message: `Error al crear comic: ${error}`,
+              }),
               loading: "Creando comic...",
               success: "Comic creado!",
-              error: (error) => ({
-                message: `Error al crear comic: ${error}`,
-                duration: 10_000,
-              }),
             }
           )
           .unwrap();
 
         navigate({
-          to: "/admin/comics/create",
           reloadDocument: true,
           resetScroll: true,
+          to: "/admin/comics/create",
         });
       } catch (error) {
         toast.error(`Error al crear comic: ${error}`, {
@@ -98,6 +96,9 @@ function RouteComponent() {
         toast.dismiss("uploading");
         toast.dismiss("creating");
       }
+    },
+    validators: {
+      onSubmit: comicCreateSchema,
     },
   });
 
@@ -135,9 +136,9 @@ function RouteComponent() {
       toast.error(
         `No se encontraron los siguientes tags: ${notFoundTags.join(", ")}`,
         {
+          closeButton: true,
           dismissible: true,
           duration: Number.POSITIVE_INFINITY,
-          closeButton: true,
         }
       );
     }
@@ -207,8 +208,8 @@ function RouteComponent() {
                 label="Censura"
                 options={
                   groupedTerms.censorship?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -221,8 +222,8 @@ function RouteComponent() {
                 label="Estado"
                 options={
                   groupedTerms.status?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -237,8 +238,8 @@ function RouteComponent() {
                   label="Tags"
                   options={
                     groupedTerms.tag?.map((term) => ({
-                      value: term.id,
                       label: term.name,
+                      value: term.id,
                     })) ?? []
                   }
                 />
@@ -269,10 +270,10 @@ function RouteComponent() {
               <field.SelectField
                 label="Estado del Documento"
                 options={[
-                  { value: "publish", label: "Publicar" },
-                  { value: "pending", label: "Pendiente" },
-                  { value: "draft", label: "Borrador" },
-                  { value: "trash", label: "Basura" },
+                  { label: "Publicar", value: "publish" },
+                  { label: "Pendiente", value: "pending" },
+                  { label: "Borrador", value: "draft" },
+                  { label: "Basura", value: "trash" },
                 ]}
                 required
               />
@@ -301,9 +302,9 @@ function RouteComponent() {
               name="file-upload"
               onChange={async (e) => {
                 await toast.promise(handleFileChange(e), {
+                  error: (error) => `Error al convertir imágenes: ${error}`,
                   loading: "Convirtiendo imágenes...",
                   success: "Imágenes convertidas!",
-                  error: (error) => `Error al convertir imágenes: ${error}`,
                 });
               }}
               type="file"

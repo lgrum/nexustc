@@ -1,21 +1,20 @@
 import type React from "react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const Icon = ({
   className,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => {
-  return (
-    <div
-      className={cn(
-        "absolute size-6 border-zinc-700 dark:border-zinc-200",
-        className
-      )}
-      {...props}
-    />
-  );
-};
+}: React.HTMLAttributes<HTMLDivElement>) => (
+  <div
+    className={cn(
+      "absolute size-6 border-zinc-700 dark:border-zinc-200",
+      className
+    )}
+    {...props}
+  />
+);
 
 const Icons = () => (
   <>
@@ -32,14 +31,12 @@ export const Card_5 = ({
 }: {
   title: React.ReactNode;
   content: React.ReactNode;
-}) => {
-  return (
-    <Card className="relative rounded-md bg-muted/20">
-      <Icons />
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>{content}</CardContent>
-    </Card>
-  );
-};
+}) => (
+  <Card className="relative rounded-md bg-muted/20">
+    <Icons />
+    <CardHeader>
+      <CardTitle>{title}</CardTitle>
+    </CardHeader>
+    <CardContent>{content}</CardContent>
+  </Card>
+);

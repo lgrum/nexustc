@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,7 +54,7 @@ export const Route = createFileRoute("/admin/extras/weekly")({
 
     if (isDefined) {
       return {
-        error: { code: error.code, name: error.name, message: error.message },
+        error: { code: error.code, message: error.message, name: error.name },
         initialSelectedIds: [] as string[],
       };
     }
@@ -83,8 +84,8 @@ function RouteComponent() {
 
   // Calculate dirty state - compare current selection with last saved state
   const isDirty = useMemo(() => {
-    const sortedSaved = [...savedSelectedPosts].sort();
-    const sortedCurrent = [...selectedPosts].sort();
+    const sortedSaved = [...savedSelectedPosts].toSorted();
+    const sortedCurrent = [...selectedPosts].toSorted();
 
     return (
       sortedSaved.length !== sortedCurrent.length ||
@@ -105,8 +106,8 @@ function RouteComponent() {
 
   // Block navigation when there are unsaved changes
   const blocker = useBlocker({
-    shouldBlockFn: () => isDirty,
     enableBeforeUnload: true,
+    shouldBlockFn: () => isDirty,
     withResolver: true,
   });
 
@@ -144,11 +145,17 @@ function RouteComponent() {
 
   const weeklyMutation = useMutation({
     ...orpc.post.admin.uploadWeeklyPosts.mutationOptions(),
+    onError: (error) => {
+      toast.error(
+        `Error al actualizar posts semanales: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        { duration: 5000 }
+      );
+    },
     onSuccess: async () => {
       // Invalidate ALL weekly-related queries to prevent stale data
       await queryClient.invalidateQueries({
         predicate: (query) => {
-          const key = query.queryKey[0];
+          const [key] = query.queryKey;
           return (
             typeof key === "string" &&
             (key.includes("getWeeklySelectionPosts") ||
@@ -161,12 +168,6 @@ function RouteComponent() {
       setSavedSelectedPosts([...selectedPosts]);
       setSearch("");
       setDebouncedSearch("");
-    },
-    onError: (error) => {
-      toast.error(
-        `Error al actualizar posts semanales: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        { duration: 5000 }
-      );
     },
   });
 
@@ -219,7 +220,7 @@ function RouteComponent() {
         </Button>
         {isDirty ? (
           <Badge variant="outline">
-            {changesCount} cambio{changesCount !== 1 ? "s" : ""} sin guardar
+            {changesCount} cambio{changesCount === 1 ? "" : "s"} sin guardar
           </Badge>
         ) : null}
       </div>

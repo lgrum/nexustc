@@ -1,4 +1,5 @@
-import { type AnyFieldApi, useStore } from "@tanstack/react-form";
+import { useStore } from "@tanstack/react-form";
+import type { AnyFieldApi } from "@tanstack/react-form";
 
 export function ErrorField({ field }: { field: AnyFieldApi }) {
   const errors = useStore(field.store, (state) => state.meta.errors);

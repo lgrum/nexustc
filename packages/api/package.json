@@ -1,5 +1,6 @@
 {
   "name": "@repo/api",
+  "type": "module",
   "exports": {
     ".": {
       "default": "./src/index.ts"
@@ -8,19 +9,9 @@
       "default": "./src/*.ts"
     }
   },
-  "type": "module",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"
-  },
-  "devDependencies": {
-    "@repo/config": "workspace:*",
-    "@repo/env": "workspace:*",
-    "redis": "catalog:",
-    "vitest": "catalog:"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.947.0",
@@ -41,5 +32,14 @@
     "pino": "catalog:",
     "sharp": "catalog:",
     "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@repo/config": "workspace:*",
+    "@repo/env": "workspace:*",
+    "redis": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
   }
 }

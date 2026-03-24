@@ -1,11 +1,8 @@
 import { db } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
 import { PatreonIdentity } from "@repo/patreon";
-import {
-  PATREON_TIER_MAPPING,
-  PATRON_TIERS,
-  type PatronTier,
-} from "@repo/shared/constants";
+import { PATREON_TIER_MAPPING, PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 
 function determineTierFromIds(tierIds: string[]): PatronTier {
   let highestTier: PatronTier = "none";
@@ -59,23 +56,23 @@ export async function syncPatreonMembership(
     await db
       .insert(patron)
       .values({
-        userId,
-        patreonUserId: patreonAccountId,
-        tier,
-        pledgeAmountCents,
         isActivePatron: isActive,
-        patronSince: patronSince ? new Date(patronSince) : null,
         lastSyncAt: new Date(),
+        patreonUserId: patreonAccountId,
+        patronSince: patronSince ? new Date(patronSince) : null,
+        pledgeAmountCents,
+        tier,
+        userId,
       })
       .onConflictDoUpdate({
-        target: patron.userId,
         set: {
-          tier,
-          pledgeAmountCents: 0,
           isActivePatron: isActive,
-          patronSince: patronSince ? new Date(patronSince) : null,
           lastSyncAt: new Date(),
+          patronSince: patronSince ? new Date(patronSince) : null,
+          pledgeAmountCents: 0,
+          tier,
         },
+        target: patron.userId,
       });
 
     console.log(

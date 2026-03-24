@@ -9,10 +9,10 @@ type ReviewMarkdownProps = {
  * Only allows: bold, italic, links, lists
  * Disallows: headings, images, code blocks
  */
-export function ReviewMarkdown({ children }: ReviewMarkdownProps) {
+export function ReviewMarkdown({ children: review }: ReviewMarkdownProps) {
   return (
     <div
-      className="prose prose-sm dark:prose-invert max-w-none break-words [&_a]:text-primary"
+      className="prose prose-sm dark:prose-invert max-w-none wrap-break-word [&_a]:text-primary"
       role="document"
     >
       <ReactMarkdown
@@ -46,7 +46,7 @@ export function ReviewMarkdown({ children }: ReviewMarkdownProps) {
           ),
         }}
       >
-        {children}
+        {review}
       </ReactMarkdown>
     </div>
   );

@@ -3,32 +3,20 @@ import { eq } from "@repo/db";
 import { term } from "@repo/db/schema/app";
 import { TAXONOMIES } from "@repo/shared/constants";
 import z from "zod";
+
 import { permissionProcedure, publicProcedure } from "../index";
 
 export default {
-  getAll: publicProcedure.handler(({ context: { db, ...ctx } }) => {
-    const logger = getLogger(ctx);
-    logger?.info("Fetching all terms");
-    return db.query.term.findMany({
-      columns: {
-        id: true,
-        name: true,
-        taxonomy: true,
-        color: true,
-      },
-    });
-  }),
-
   create: permissionProcedure({ terms: ["create"] })
     .input(
       z.object({
+        color: z.string().trim(),
         name: z
           .string()
           .trim()
           .min(1)
           .max(255)
           .transform((val) => val.trim()),
-        color: z.string().trim(),
         taxonomy: z.enum(TAXONOMIES),
       })
     )
@@ -41,9 +29,9 @@ export default {
       try {
         if (input.color === "") {
           await db.insert(term).values({
+            color: null,
             name: input.name,
             taxonomy: input.taxonomy,
-            color: null,
           });
 
           logger?.debug(`Term created without color: ${input.name}`);
@@ -62,9 +50,20 @@ export default {
       }
     }),
 
+  delete: permissionProcedure({ terms: ["delete"] })
+    .input(z.object({ id: z.string() }))
+    .handler(async ({ context: { db, ...ctx }, input }) => {
+      const logger = getLogger(ctx);
+      logger?.info(`Deleting term: ${input.id}`);
+
+      await db.delete(term).where(eq(term.id, input.id));
+      logger?.debug(`Term ${input.id} deleted successfully`);
+    }),
+
   edit: permissionProcedure({ terms: ["update"] })
     .input(
       z.object({
+        color: z.string().trim(),
         id: z.string(),
         name: z
           .string()
@@ -72,7 +71,6 @@ export default {
           .min(1)
           .max(255)
           .transform((val) => val.trim()),
-        color: z.string().trim(),
       })
     )
     .handler(async ({ context: { db, ...ctx }, input }) => {
@@ -83,6 +81,19 @@ export default {
       logger?.debug(`Term ${input.id} updated successfully`);
     }),
 
+  getAll: publicProcedure.handler(({ context: { db, ...ctx } }) => {
+    const logger = getLogger(ctx);
+    logger?.info("Fetching all terms");
+    return db.query.term.findMany({
+      columns: {
+        color: true,
+        id: true,
+        name: true,
+        taxonomy: true,
+      },
+    });
+  }),
+
   getDashboardList: permissionProcedure({ terms: ["list"] }).handler(
     ({ context: { db, ...ctx } }) => {
       const logger = getLogger(ctx);
@@ -91,14 +102,4 @@ export default {
       return db.query.term.findMany();
     }
   ),
-
-  delete: permissionProcedure({ terms: ["delete"] })
-    .input(z.object({ id: z.string() }))
-    .handler(async ({ context: { db, ...ctx }, input }) => {
-      const logger = getLogger(ctx);
-      logger?.info(`Deleting term: ${input.id}`);
-
-      await db.delete(term).where(eq(term.id, input.id));
-      logger?.debug(`Term ${input.id} deleted successfully`);
-    }),
 };

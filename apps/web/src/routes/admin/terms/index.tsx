@@ -11,6 +11,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import { TermBadge } from "@/components/term-badge";
 import {
   AlertDialog,
@@ -66,13 +67,13 @@ function RouteComponent() {
       toast.dismiss("deleting");
       toast.success("Eliminado");
       setSelectedTerm(undefined);
-    } catch (_) {
+    } catch {
       toast.error("Error al eliminar");
     } finally {
       toast.dismiss("deleting");
       setOpenAlert(false);
     }
-  }, [deleteMutation, selectedTerm, queryClient.refetchQueries]);
+  }, [deleteMutation, selectedTerm, queryClient]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -151,14 +152,11 @@ function EditDialog({
   const [useCustomColors, setUseCustomColors] = useState(!!term.color);
 
   const form = useAppForm({
-    validators: {
-      onSubmit: termUpdateSchema,
-    },
     defaultValues: {
-      id: term.id,
-      name: term.name,
       color1: colors[0] || "",
       color2: colors[1] || "",
+      id: term.id,
+      name: term.name,
       textColor: colors[2]?.replace("@", "") || "",
     },
     onSubmit: async ({ value: { id, name, color1, color2, textColor } }) => {
@@ -183,7 +181,7 @@ function EditDialog({
 
       try {
         toast.loading("Editando...", { id: "submitting" });
-        await mutation.mutateAsync({ id, name, color: finalColor });
+        await mutation.mutateAsync({ color: finalColor, id, name });
         await queryClient.refetchQueries(query);
         toast.dismiss("submitting");
         toast.success("Editado!");
@@ -195,29 +193,32 @@ function EditDialog({
         setOpen(false);
       }
     },
+    validators: {
+      onSubmit: termUpdateSchema,
+    },
   });
 
   const values = useStore(form.store, (state) => ({
-    name: state.values.name,
     color1: state.values.color1,
     color2: state.values.color2,
+    name: state.values.name,
     textColor: state.values.textColor,
   }));
 
   // Generate preview color string for TermBadge
   const previewColor = useCustomColors
     ? (() => {
-        const colors: string[] = [];
+        const cols: string[] = [];
         if (values.color1) {
-          colors.push(values.color1);
+          cols.push(values.color1);
         }
         if (values.color2) {
-          colors.push(values.color2);
+          cols.push(values.color2);
         }
         if (values.textColor) {
-          colors.push(`@${values.textColor}`);
+          cols.push(`@${values.textColor}`);
         }
-        return colors.join(",");
+        return cols.join(",");
       })()
     : "";
 
@@ -320,8 +321,8 @@ function EditDialog({
               <div>
                 <TermBadge
                   tag={{
-                    name: values.name || "Vista previa",
                     color: previewColor,
+                    name: values.name || "Vista previa",
                   }}
                 />
               </div>

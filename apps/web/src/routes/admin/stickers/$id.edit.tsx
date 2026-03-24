@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+
 import {
   Card,
   CardContent,
@@ -23,24 +24,24 @@ import {
 
 export const Route = createFileRoute("/admin/stickers/$id/edit")({
   component: RouteComponent,
+  gcTime: 0,
   loader: async ({ params }) => ({
     sticker: await orpcClient.sticker.admin.getById(params.id),
   }),
-  gcTime: 0,
 });
 
 const stickerEditSchema = z.object({
+  displayName: z.string().min(1).max(128),
   id: z.string(),
+  isActive: z.boolean(),
   name: z
     .string()
     .min(1)
     .max(64)
     .regex(/^\w[\w-]*$/),
-  displayName: z.string().min(1).max(128),
-  type: z.enum(["static", "animated"]),
-  requiredTier: z.enum(PATRON_TIER_KEYS),
   order: z.number().int(),
-  isActive: z.boolean(),
+  requiredTier: z.enum(PATRON_TIER_KEYS),
+  type: z.enum(["static", "animated"]),
 });
 
 function RouteComponent() {
@@ -52,30 +53,25 @@ function RouteComponent() {
   const [preview, setPreview] = useState<string | null>(null);
 
   const form = useAppForm({
-    validators: { onSubmit: stickerEditSchema },
     defaultValues: {
-      id: sticker.id,
-      name: sticker.name,
       displayName: sticker.displayName,
-      type: sticker.type as "static" | "animated",
-      requiredTier: sticker.requiredTier,
-      order: sticker.order,
+      id: sticker.id,
       isActive: sticker.isActive,
+      name: sticker.name,
+      order: sticker.order,
+      requiredTier: sticker.requiredTier,
+      type: sticker.type as "static" | "animated",
     },
     onSubmit: async (formData) => {
       const values = formData.value;
-      let assetKey = sticker.assetKey;
-      let assetFormat = sticker.assetFormat;
+      let { assetKey } = sticker;
+      let { assetFormat } = sticker;
 
       if (file) {
         const isAnimated = values.type === "animated";
-        let uploadFile: File;
-
-        if (isAnimated) {
-          uploadFile = file;
-        } else {
-          uploadFile = await convertImage(file, "webp", 0.8);
-        }
+        const uploadFile = isAnimated
+          ? file
+          : await convertImage(file, "webp", 0.8);
 
         const extension = isAnimated
           ? file.name.split(".").pop()?.toLowerCase() === "gif"
@@ -86,28 +82,28 @@ function RouteComponent() {
         assetFormat = extension;
 
         const { presignedUrl } = await orpcClient.sticker.admin.getUploadUrl({
-          name: values.name,
-          extension: extension as "webp" | "gif",
           contentLength: uploadFile.size,
+          extension: extension as "webp" | "gif",
+          name: values.name,
         });
 
-        await uploadBlobWithProgress(uploadFile, presignedUrl, () => undefined);
+        await uploadBlobWithProgress(uploadFile, presignedUrl);
       }
 
       await toast
         .promise(
           mutation.mutateAsync({
             ...values,
-            assetKey,
             assetFormat,
+            assetKey,
           }),
           {
+            error: (error) => ({
+              duration: 10_000,
+              message: `Error al editar sticker: ${error}`,
+            }),
             loading: "Editando sticker...",
             success: "Sticker editado!",
-            error: (error) => ({
-              message: `Error al editar sticker: ${error}`,
-              duration: 10_000,
-            }),
           }
         )
         .unwrap();
@@ -116,6 +112,7 @@ function RouteComponent() {
       );
       navigate({ to: "/admin/stickers" });
     },
+    validators: { onSubmit: stickerEditSchema },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,8 +172,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Tipo"
                 options={[
-                  { value: "static", label: "Estático" },
-                  { value: "animated", label: "Animado" },
+                  { label: "Estático", value: "static" },
+                  { label: "Animado", value: "animated" },
                 ]}
               />
             )}
@@ -200,8 +197,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Tier requerido"
                 options={PATRON_TIER_KEYS.map((tier) => ({
-                  value: tier,
                   label: tier,
+                  value: tier,
                 }))}
               />
             )}

@@ -1,11 +1,9 @@
 import { createHmac } from "node:crypto";
+
 import { env } from "@repo/env";
 import { PatreonIdentity } from "@repo/patreon";
-import {
-  PATREON_TIER_MAPPING,
-  PATRON_TIERS,
-  type PatronTier,
-} from "@repo/shared/constants";
+import { PATREON_TIER_MAPPING, PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 
 export type PatreonTokenResponse = {
   accessToken: string;
@@ -27,14 +25,14 @@ export async function refreshPatreonToken(
   refreshToken: string
 ): Promise<PatreonTokenResponse> {
   const response = await fetch("https://www.patreon.com/api/oauth2/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
       client_id: env.PATREON_CLIENT_ID,
       client_secret: env.PATREON_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
     }),
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method: "POST",
   });
 
   if (!response.ok) {
@@ -50,8 +48,8 @@ export async function refreshPatreonToken(
 
   return {
     accessToken: data.access_token,
-    refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
+    refreshToken: data.refresh_token,
   };
 }
 
@@ -82,11 +80,11 @@ export async function fetchPatreonMembership(
     membership.relationships?.currently_entitled_tiers?.data ?? [];
 
   return {
+    entitledTierIds: entitledTiers.map((t) => t.id),
     isActive: membership.attributes?.patron_status === "active_patron",
+    patronSince: membership.attributes?.pledge_relationship_start ?? null,
     pledgeAmountCents:
       membership.attributes?.currently_entitled_amount_cents ?? 0,
-    patronSince: membership.attributes?.pledge_relationship_start ?? null,
-    entitledTierIds: entitledTiers.map((t) => t.id),
   };
 }
 

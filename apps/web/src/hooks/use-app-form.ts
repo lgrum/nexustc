@@ -1,22 +1,22 @@
-import { createFormHook, createFormHookContexts } from "@tanstack/react-form";
+import { createFormHook } from "@tanstack/react-form";
+
+import { fieldContext, formContext } from "@/components/forms/form-context";
 import { MultiSelectField } from "@/components/forms/multi-select-field";
 import { SelectField } from "@/components/forms/select-field";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { TextField } from "@/components/forms/text-field";
 import { TextareaField } from "@/components/forms/textarea-field";
-export const { fieldContext, formContext, useFieldContext, useFormContext } =
-  createFormHookContexts();
 
 export const { useAppForm } = createFormHook({
   fieldComponents: {
+    MultiSelectField,
+    SelectField,
     TextField,
     TextareaField,
-    SelectField,
-    MultiSelectField,
   },
+  fieldContext,
   formComponents: {
     SubmitButton,
   },
-  fieldContext,
   formContext,
 });

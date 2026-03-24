@@ -3,6 +3,7 @@ import { env } from "@repo/env";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
+
 import { resend } from "./email";
 import { syncPatreonMembership } from "./patreon-sync";
 import { adminPlugin } from "./plugins/admin";
@@ -10,9 +11,26 @@ import { patreonPlugin } from "./plugins/patreon";
 import { turnstilePlugin } from "./plugins/turnstile";
 
 export const auth = betterAuth({
+  account: {
+    accountLinking: {
+      allowDifferentEmails: true,
+      enabled: true,
+    },
+  },
+  advanced: {
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+    },
+  },
+
+  baseURL: env.BETTER_AUTH_URL,
+
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
+
   databaseHooks: {
     account: {
       create: {
@@ -36,9 +54,9 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await resend.emails.send({
         from: "NeXusTC <noreply@accounts.nexustc18.com>",
-        to: user.email,
-        subject: "Restablece tu contraseña",
         html: `<p>Haz click <a href="${url}">aquí</a> para restablecer tu contraseña</p>`,
+        subject: "Restablece tu contraseña",
+        to: user.email,
       });
     },
   },
@@ -50,41 +68,14 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       await resend.emails.send({
         from: "NeXusTC <noreply@accounts.nexustc18.com>",
-        to: user.email,
         template: { id: "confirm-email", variables: { VERIFICATION_URL: url } },
+        to: user.email,
       });
     },
   },
 
-  account: {
-    accountLinking: {
-      enabled: true,
-      allowDifferentEmails: true,
-    },
-  },
-
-  session: {
-    cookieCache: {
-      enabled: true,
-      maxAge: 60,
-    },
-  },
-
-  user: {
-    additionalFields: {
-      role: {
-        type: "string",
-        required: true,
-        defaultValue: "user",
-        input: false,
-      },
-      avatarFallbackColor: {
-        type: "string",
-        required: false,
-        defaultValue: "#f59e0b",
-        input: false,
-      },
-    },
+  experimental: {
+    joins: true,
   },
 
   plugins: [
@@ -93,17 +84,27 @@ export const auth = betterAuth({
     turnstilePlugin(),
     tanstackStartCookies(), // this must be the last plugin in the array
   ],
-
   secret: env.BETTER_AUTH_SECRET,
-  baseURL: env.BETTER_AUTH_URL,
-  advanced: {
-    defaultCookieAttributes: {
-      sameSite: "none",
-      secure: true,
-      httpOnly: true,
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60,
     },
   },
-  experimental: {
-    joins: true,
+  user: {
+    additionalFields: {
+      avatarFallbackColor: {
+        defaultValue: "#f59e0b",
+        input: false,
+        required: false,
+        type: "string",
+      },
+      role: {
+        defaultValue: "user",
+        input: false,
+        required: true,
+        type: "string",
+      },
+    },
   },
 });

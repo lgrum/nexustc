@@ -4,6 +4,7 @@ import { MinusSignIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { OTPInput, OTPInputContext } from "input-otp";
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 function InputOTP({
@@ -76,7 +77,6 @@ function InputOTPSeparator({ ...props }: React.ComponentProps<"div">) {
       aria-orientation="horizontal"
       className="flex items-center [&_svg:not([class*='size-'])]:size-4"
       data-slot="input-otp-separator"
-      // biome-ignore lint/a11y/useAriaPropsForRole: non focusable
       role="separator"
       {...props}
     >

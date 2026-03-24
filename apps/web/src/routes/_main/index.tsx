@@ -2,6 +2,7 @@ import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+
 import { GamesCarousel } from "@/components/landing/games-carousel";
 import { PostCard } from "@/components/landing/post-card";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
@@ -16,6 +17,13 @@ const RECENT_POSTS_LIMIT = 12;
 
 export const Route = createFileRoute("/_main/")({
   component: HomeComponent,
+  head: () => ({
+    meta: [
+      {
+        title: "NeXusTC - Principal",
+      },
+    ],
+  }),
   loader: async () => {
     const [recentUsersResult, weeklyGamesResult, featuredPostsResult] =
       await Promise.all([
@@ -32,30 +40,23 @@ export const Route = createFileRoute("/_main/")({
       featuredPostsResult;
 
     return {
-      recentUsers: recentUsersDefined
-        ? { error: { code: recentUsersError.code }, data: undefined }
-        : recentUsers
-          ? { error: undefined, data: recentUsers }
-          : { error: { code: "UNKNOWN" }, data: undefined },
-      weeklyGames: weeklyGamesDefined
-        ? { error: { code: weeklyGamesError.code }, data: undefined }
-        : weeklyGames
-          ? { error: undefined, data: weeklyGames }
-          : { error: { code: "UNKNOWN" }, data: undefined },
       featuredPosts: featuredPostsDefined
-        ? { error: { code: featuredPostsError.code }, data: undefined }
+        ? { data: undefined, error: { code: featuredPostsError.code } }
         : featuredPosts
-          ? { error: undefined, data: featuredPosts }
-          : { error: { code: "UNKNOWN" }, data: undefined },
+          ? { data: featuredPosts, error: undefined }
+          : { data: undefined, error: { code: "UNKNOWN" } },
+      recentUsers: recentUsersDefined
+        ? { data: undefined, error: { code: recentUsersError.code } }
+        : recentUsers
+          ? { data: recentUsers, error: undefined }
+          : { data: undefined, error: { code: "UNKNOWN" } },
+      weeklyGames: weeklyGamesDefined
+        ? { data: undefined, error: { code: weeklyGamesError.code } }
+        : weeklyGames
+          ? { data: weeklyGames, error: undefined }
+          : { data: undefined, error: { code: "UNKNOWN" } },
     };
   },
-  head: () => ({
-    meta: [
-      {
-        title: "NeXusTC - Principal",
-      },
-    ],
-  }),
 });
 
 function HomeComponent() {
@@ -112,7 +113,7 @@ function HeroSection() {
   const main = posts.find((p) => p.position === "main");
   const secondary = posts
     .filter((p) => p.position === "secondary")
-    .sort((a, b) => a.order - b.order);
+    .toSorted((a, b) => a.order - b.order);
 
   return (
     <div>
@@ -255,8 +256,8 @@ function RecentPostsSection() {
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ["posts", "recent", RECENT_POSTS_LIMIT],
     queryFn: () => orpcClient.post.getRecent({ limit: RECENT_POSTS_LIMIT }),
+    queryKey: ["posts", "recent", RECENT_POSTS_LIMIT],
   });
 
   return (
@@ -266,7 +267,7 @@ function RecentPostsSection() {
       {isLoading && (
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
           {Array.from({ length: RECENT_POSTS_LIMIT }).map((_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static skeleton placeholders
+            // oxlint-disable-next-line react/no-array-index-key static skeleton placeholders
             <Skeleton className="aspect-video w-full" key={i} />
           ))}
         </div>

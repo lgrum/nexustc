@@ -5,6 +5,11 @@
   "scripts": {
     "dev": "email dev --port 3002"
   },
+  "dependencies": {
+    "@react-email/components": "1.0.2",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
   "devDependencies": {
     "@react-email/preview-server": "5.1.0",
     "@repo/config": "workspace:*",
@@ -15,10 +20,5 @@
   },
   "peerDependencies": {
     "typescript": "^5"
-  },
-  "dependencies": {
-    "@react-email/components": "1.0.2",
-    "react": "catalog:",
-    "react-dom": "catalog:"
   }
 }

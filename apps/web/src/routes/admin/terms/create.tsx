@@ -1,12 +1,14 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { type TAXONOMIES, TAXONOMY_DATA } from "@repo/shared/constants";
+import { TAXONOMY_DATA } from "@repo/shared/constants";
+import type { TAXONOMIES } from "@repo/shared/constants";
 import { termCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { TermBadge } from "@/components/term-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,15 +33,12 @@ function RouteComponent() {
   const [useCustomColors, setUseCustomColors] = useState(false);
   const mutation = useMutation(orpc.term.create.mutationOptions());
   const form = useAppForm({
-    validators: {
-      onSubmit: termCreateSchema,
-    },
     defaultValues: {
-      name: "",
       color1: "",
       color2: "",
-      textColor: "",
+      name: "",
       taxonomy: "" as (typeof TAXONOMIES)[number],
+      textColor: "",
     },
     onSubmit: async ({
       value: { name, color1, color2, textColor, taxonomy },
@@ -65,7 +64,7 @@ function RouteComponent() {
 
       try {
         toast.loading("Creando...", { id: "submitting" });
-        await mutation.mutateAsync({ name, color: finalColor, taxonomy });
+        await mutation.mutateAsync({ color: finalColor, name, taxonomy });
         toast.dismiss("submitting");
         toast.success("Creado!");
         form.resetField("name");
@@ -75,12 +74,15 @@ function RouteComponent() {
         toast.dismiss("submitting");
       }
     },
+    validators: {
+      onSubmit: termCreateSchema,
+    },
   });
 
   const values = useStore(form.store, (state) => ({
-    name: state.values.name,
     color1: state.values.color1,
     color2: state.values.color2,
+    name: state.values.name,
     textColor: state.values.textColor,
   }));
 
@@ -128,8 +130,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Taxonomía"
                 options={Object.entries(TAXONOMY_DATA).map(([key, value]) => ({
-                  value: key,
                   label: value.label,
+                  value: key,
                 }))}
                 required
               />
@@ -213,8 +215,8 @@ function RouteComponent() {
             <div>
               <TermBadge
                 tag={{
-                  name: values.name || "Vista previa",
                   color: previewColor,
+                  name: values.name || "Vista previa",
                 }}
               />
             </div>

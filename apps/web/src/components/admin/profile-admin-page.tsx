@@ -1,11 +1,13 @@
-﻿import {
+import {
   useMutation,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { type ComponentProps, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ComponentProps } from "react";
 import { toast } from "sonner";
+
 import { ProfileAssetInput } from "@/components/admin/profile-asset-input";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,66 +95,66 @@ type EmblemFormState = {
 };
 
 const defaultRoleState = (): RoleFormState => ({
-  slug: "",
-  name: "",
+  accentColor: "#1d4ed8",
+  baseColor: "#111827",
   description: "",
+  glowColor: "#60a5fa",
   iconAssetId: null,
   iconObjectKey: null,
+  isExclusive: false,
+  isVisible: true,
+  name: "",
   overlayAssetId: null,
   overlayObjectKey: null,
   priority: 0,
-  isVisible: true,
-  isExclusive: false,
-  baseColor: "#111827",
-  accentColor: "#1d4ed8",
+  slug: "",
   textColor: "#f8fafc",
-  glowColor: "#60a5fa",
 });
 
 const defaultEmblemState = (): EmblemFormState => ({
-  slug: "",
-  name: "",
-  tooltip: "",
+  backgroundColor: "#111827",
+  glowColor: "#f59e0b",
   iconAssetId: null,
   iconObjectKey: null,
-  priority: 0,
   isVisible: true,
-  glowColor: "#f59e0b",
-  backgroundColor: "#111827",
+  name: "",
+  priority: 0,
+  slug: "",
+  tooltip: "",
 });
 
 function mapRole(role: RoleDefinitionListItem): RoleFormState {
   return {
-    id: role.id,
-    slug: role.slug,
-    name: role.name,
+    accentColor: role.visualConfig.accentColor,
+    baseColor: role.visualConfig.baseColor,
     description: role.description,
+    glowColor: role.visualConfig.glowColor,
     iconAssetId: role.iconAssetId ?? null,
     iconObjectKey: role.iconAsset?.objectKey ?? null,
+    id: role.id,
+    isExclusive: role.isExclusive,
+    isVisible: role.isVisible,
+    name: role.name,
     overlayAssetId: role.overlayAssetId ?? null,
     overlayObjectKey: role.overlayAsset?.objectKey ?? null,
     priority: role.priority,
-    isVisible: role.isVisible,
-    isExclusive: role.isExclusive,
-    baseColor: role.visualConfig.baseColor,
-    accentColor: role.visualConfig.accentColor,
+    slug: role.slug,
     textColor: role.visualConfig.textColor,
-    glowColor: role.visualConfig.glowColor,
   };
 }
 
 function mapEmblem(emblem: EmblemDefinitionListItem): EmblemFormState {
   return {
-    id: emblem.id,
-    slug: emblem.slug,
-    name: emblem.name,
-    tooltip: emblem.tooltip,
+    backgroundColor: emblem.visualConfig.backgroundColor,
+    glowColor: emblem.visualConfig.glowColor,
     iconAssetId: emblem.iconAssetId ?? null,
     iconObjectKey: emblem.iconAsset?.objectKey ?? null,
-    priority: emblem.priority,
+    id: emblem.id,
     isVisible: emblem.isVisible,
-    glowColor: emblem.visualConfig.glowColor,
-    backgroundColor: emblem.visualConfig.backgroundColor,
+    name: emblem.name,
+    priority: emblem.priority,
+    slug: emblem.slug,
+    tooltip: emblem.tooltip,
   };
 }
 
@@ -168,7 +170,6 @@ export function ProfileAdminPage() {
     orpc.profileAdmin.systemConfig.get.queryOptions()
   );
   const usersQuery = useQuery({
-    queryKey: ["owner-users"],
     queryFn: async () => {
       const result = await authClient.admin.listUsers({
         query: { limit: 200, offset: 0 },
@@ -180,6 +181,7 @@ export function ProfileAdminPage() {
 
       return result.data.users;
     },
+    queryKey: ["owner-users"],
   });
 
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -224,17 +226,17 @@ export function ProfileAdminPage() {
   const assignmentsMutation = useMutation({
     mutationFn: () =>
       orpcClient.profileAdmin.assignments.setUserAssignments({
-        userId: selectedUserId,
-        roleIds,
         emblemIds,
+        roleIds,
+        userId: selectedUserId,
       }),
-    onSuccess: () => toast.success("Asignaciones guardadas"),
     onError: (error) =>
       toast.error(
         error instanceof Error
           ? error.message
           : "No se pudieron guardar las asignaciones."
       ),
+    onSuccess: () => toast.success("Asignaciones guardadas"),
   });
 
   const systemConfigMutation = useMutation({

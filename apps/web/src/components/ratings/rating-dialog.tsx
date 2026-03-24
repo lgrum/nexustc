@@ -1,6 +1,7 @@
 import { RATING_REVIEW_MAX_LENGTH } from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { orpcClient } from "@/lib/orpc";
+
 import { StarRatingInput } from "./star-rating-input";
 
 type RatingDialogProps = {
@@ -32,9 +34,9 @@ export function RatingDialog({
 
   // Fetch existing user rating
   const { data: existingRating, isLoading } = useQuery({
-    queryKey: ["rating", "user", postId],
-    queryFn: () => orpcClient.rating.getUserRating({ postId }),
     enabled: open,
+    queryFn: () => orpcClient.rating.getUserRating({ postId }),
+    queryKey: ["rating", "user", postId],
   });
 
   // Sync form values when dialog opens or existing rating data changes

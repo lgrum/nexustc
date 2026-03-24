@@ -1,5 +1,6 @@
 import { Loading03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+
 import { cn } from "@/lib/utils";
 
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
@@ -10,7 +11,7 @@ function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
       icon={Loading03Icon}
       role="status"
       {...props}
-      strokeWidth={Number(props.strokeWidth) ?? 2}
+      strokeWidth={Number(props.strokeWidth)}
     />
   );
 }

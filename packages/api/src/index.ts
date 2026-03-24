@@ -4,6 +4,7 @@ import { getRedis } from "@repo/db";
 import type { Permissions, Role } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
 import { z } from "zod";
+
 import type { Context } from "./context";
 import {
   calculateRetryAfter,
@@ -20,27 +21,27 @@ export const o = os.$context<Context>().errors({
   BAD_REQUEST: {
     status: 400,
   },
-  UNAUTHORIZED: {
-    status: 401,
-  },
   FORBIDDEN: {
     status: 403,
+  },
+  INTERNAL_SERVER_ERROR: {
+    status: 500,
   },
   NOT_FOUND: {
     status: 404,
   },
   RATE_LIMITED: {
-    status: 429,
     data: z.object({
       retryAfter: z.number(),
     }),
+    status: 429,
   },
-  INTERNAL_SERVER_ERROR: {
-    status: 500,
+  UNAUTHORIZED: {
+    status: 401,
   },
 });
 
-export const router = o.router;
+export const { router } = o;
 
 export const publicProcedure = o;
 
@@ -68,12 +69,12 @@ export const fixedWindowRatelimitMiddleware = ({
     }
 
     const ip = context.headers.get("cf-connecting-ip") ?? "unknown";
-    const identifier = getIdentifier({ session: context.session, ip });
+    const identifier = getIdentifier({ ip, session: context.session });
     const window = getCurrentWindow(windowSeconds);
     const key = getRateLimitKey({
-      strategy: "fixed",
       identifier,
       path,
+      strategy: "fixed",
       window,
     });
 
@@ -104,8 +105,8 @@ export const slidingWindowRatelimitMiddleware = (
 
     const ip = context.headers.get("cf-connecting-ip");
     const now = Date.now();
-    const identifier = getIdentifier({ session: context.session, ip });
-    const key = getRateLimitKey({ strategy: "sliding", identifier, path });
+    const identifier = getIdentifier({ ip, session: context.session });
+    const key = getRateLimitKey({ identifier, path, strategy: "sliding" });
 
     const { exceeded } = await checkSlidingWindowRateLimit(
       await getRedis(),
@@ -150,7 +151,7 @@ export const permissionProcedure = (permissions: AtLeastOne<Permissions>) =>
       }
 
       const allowed = await auth.api.userHasPermission({
-        body: { userId: user.id, role: user.role as Role, permissions },
+        body: { permissions, role: user.role as Role, userId: user.id },
       });
 
       if (!allowed.success) {

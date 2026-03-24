@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": [
+    "./node_modules/ultracite/config/oxlint/core/.oxlintrc.json",
+    "./node_modules/ultracite/config/oxlint/react/.oxlintrc.json",
+    "./node_modules/ultracite/config/oxlint/remix/.oxlintrc.json"
+  ],
+  "ignorePatterns": ["routeTree.gen.ts"],
+  "rules": {
+    "no-promise-executor-return": "off",
+    "no-use-before-define": "off",
+
+    "eslint/complexity": "off",
+    "eslint/func-style": "off",
+    "eslint/no-inline-comments": "off",
+    "eslint/no-nested-ternary": "off",
+    "eslint/no-warning-comments": "warn",
+    "eslint/sort-keys": "off",
+
+    "import/no-named-as-default": "off",
+
+    "promise/avoid-new": "off",
+    "promise/prefer-await-to-callbacks": "off",
+
+    "react-perf/jsx-no-new-function-as-prop": "off",
+
+    "typescript/ban-types": "off",
+    "typescript/consistent-type-definitions": ["warn", "type"],
+    "typescript/no-non-null-assertion": "off",
+
+    "unicorn/no-nested-ternary": "off"
+  }
+}

@@ -1,9 +1,10 @@
-﻿import { ChevronRight } from "@hugeicons/core-free-icons";
+import { ChevronRight } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { Permissions } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Suspense } from "react";
+
 import { ImpersonationBanner } from "@/components/admin/users/impersonation-banner";
 import { HasOwner, HasPermissions } from "@/components/auth/has-role";
 import Loader from "@/components/loader";
@@ -43,144 +44,144 @@ export const Route = createFileRoute("/admin")({
 });
 
 const nav = {
-  users: {
-    name: "Usuarios",
+  chronos: {
     links: [
       {
+        href: "/admin/chronos/edit",
+        name: "Editar Página",
+      },
+    ],
+    name: "Chronos",
+  },
+  comics: {
+    links: [
+      {
+        href: "/admin/comics",
         name: "Listar",
-        href: "/admin/users",
       },
       {
-        name: "Gestionar",
+        href: "/admin/comics/create",
+        name: "Crear",
+      },
+    ],
+    name: "Comics",
+  },
+  emojis: {
+    links: [
+      {
+        href: "/admin/emojis",
+        name: "Listar",
+      },
+      {
+        href: "/admin/emojis/create",
+        name: "Crear",
+      },
+    ],
+    name: "Emojis",
+  },
+  extras: {
+    links: [
+      {
+        href: "/admin/extras/weekly",
+        name: "Juegos de la Semana",
+      },
+      {
+        href: "/admin/extras/featured",
+        name: "Posts Destacados",
+      },
+      {
+        href: "/admin/extras/engagement",
+        name: "Preguntas de Debate",
+      },
+      {
+        href: "/admin/extras/tutorials",
+        name: "Tutoriales",
+      },
+    ],
+    name: "Extras",
+  },
+  posts: {
+    links: [
+      {
+        href: "/admin/posts",
+        name: "Listar",
+      },
+      {
+        href: "/admin/posts/create",
+        name: "Crear",
+      },
+    ],
+    name: "Posts",
+  },
+  profile: {
+    links: [
+      {
+        href: "/admin/profile",
+        name: "Visuales",
+      },
+    ],
+    name: "Perfiles",
+  },
+  staticPages: {
+    links: [
+      {
+        href: "/admin/pages/about",
+        name: "Sobre Nosotros",
+      },
+      {
+        href: "/admin/pages/legal",
+        name: "Aviso Legal",
+      },
+      {
+        href: "/admin/pages/privacy",
+        name: "Política de Privacidad",
+      },
+      {
+        href: "/admin/pages/terms",
+        name: "Términos y Condiciones",
+      },
+    ],
+    name: "Páginas",
+  },
+  stickers: {
+    links: [
+      {
+        href: "/admin/stickers",
+        name: "Listar",
+      },
+      {
+        href: "/admin/stickers/create",
+        name: "Crear",
+      },
+    ],
+    name: "Stickers",
+  },
+  terms: {
+    links: [
+      {
+        href: "/admin/terms",
+        name: "Listar",
+      },
+      {
+        href: "/admin/terms/create",
+        name: "Crear",
+      },
+    ],
+    name: "Términos",
+  },
+  users: {
+    links: [
+      {
+        href: "/admin/users",
+        name: "Listar",
+      },
+      {
         href: "/admin/users/manage",
+        name: "Gestionar",
         permissions: { user: ["set-role"] } as AtLeastOne<Permissions>,
       },
     ],
-  },
-  terms: {
-    name: "Términos",
-    links: [
-      {
-        name: "Listar",
-        href: "/admin/terms",
-      },
-      {
-        name: "Crear",
-        href: "/admin/terms/create",
-      },
-    ],
-  },
-  posts: {
-    name: "Posts",
-    links: [
-      {
-        name: "Listar",
-        href: "/admin/posts",
-      },
-      {
-        name: "Crear",
-        href: "/admin/posts/create",
-      },
-    ],
-  },
-  comics: {
-    name: "Comics",
-    links: [
-      {
-        name: "Listar",
-        href: "/admin/comics",
-      },
-      {
-        name: "Crear",
-        href: "/admin/comics/create",
-      },
-    ],
-  },
-  extras: {
-    name: "Extras",
-    links: [
-      {
-        name: "Juegos de la Semana",
-        href: "/admin/extras/weekly",
-      },
-      {
-        name: "Posts Destacados",
-        href: "/admin/extras/featured",
-      },
-      {
-        name: "Preguntas de Debate",
-        href: "/admin/extras/engagement",
-      },
-      {
-        name: "Tutoriales",
-        href: "/admin/extras/tutorials",
-      },
-    ],
-  },
-  chronos: {
-    name: "Chronos",
-    links: [
-      {
-        name: "Editar Página",
-        href: "/admin/chronos/edit",
-      },
-    ],
-  },
-  emojis: {
-    name: "Emojis",
-    links: [
-      {
-        name: "Listar",
-        href: "/admin/emojis",
-      },
-      {
-        name: "Crear",
-        href: "/admin/emojis/create",
-      },
-    ],
-  },
-  stickers: {
-    name: "Stickers",
-    links: [
-      {
-        name: "Listar",
-        href: "/admin/stickers",
-      },
-      {
-        name: "Crear",
-        href: "/admin/stickers/create",
-      },
-    ],
-  },
-  profile: {
-    name: "Perfiles",
-    links: [
-      {
-        name: "Visuales",
-        href: "/admin/profile",
-      },
-    ],
-  },
-  staticPages: {
-    name: "Páginas",
-    links: [
-      {
-        name: "Sobre Nosotros",
-        href: "/admin/pages/about",
-      },
-      {
-        name: "Aviso Legal",
-        href: "/admin/pages/legal",
-      },
-      {
-        name: "Política de Privacidad",
-        href: "/admin/pages/privacy",
-      },
-      {
-        name: "Términos y Condiciones",
-        href: "/admin/pages/terms",
-      },
-    ],
+    name: "Usuarios",
   },
 };
 

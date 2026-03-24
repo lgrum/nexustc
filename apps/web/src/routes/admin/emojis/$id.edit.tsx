@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+
 import {
   Card,
   CardContent,
@@ -23,24 +24,24 @@ import {
 
 export const Route = createFileRoute("/admin/emojis/$id/edit")({
   component: RouteComponent,
+  gcTime: 0,
   loader: async ({ params }) => ({
     emoji: await orpcClient.emoji.admin.getById(params.id),
   }),
-  gcTime: 0,
 });
 
 const emojiEditSchema = z.object({
+  displayName: z.string().min(1).max(128),
   id: z.string(),
+  isActive: z.boolean(),
   name: z
     .string()
     .min(1)
     .max(64)
     .regex(/^\w[\w-]*$/),
-  displayName: z.string().min(1).max(128),
-  type: z.enum(["static", "animated"]),
-  requiredTier: z.enum(PATRON_TIER_KEYS),
   order: z.number().int(),
-  isActive: z.boolean(),
+  requiredTier: z.enum(PATRON_TIER_KEYS),
+  type: z.enum(["static", "animated"]),
 });
 
 function RouteComponent() {
@@ -52,30 +53,25 @@ function RouteComponent() {
   const [preview, setPreview] = useState<string | null>(null);
 
   const form = useAppForm({
-    validators: { onSubmit: emojiEditSchema },
     defaultValues: {
-      id: emoji.id,
-      name: emoji.name,
       displayName: emoji.displayName,
-      type: emoji.type as "static" | "animated",
-      requiredTier: emoji.requiredTier,
-      order: emoji.order,
+      id: emoji.id,
       isActive: emoji.isActive,
+      name: emoji.name,
+      order: emoji.order,
+      requiredTier: emoji.requiredTier,
+      type: emoji.type as "static" | "animated",
     },
     onSubmit: async (formData) => {
       const values = formData.value;
-      let assetKey = emoji.assetKey;
-      let assetFormat = emoji.assetFormat;
+      let { assetKey } = emoji;
+      let { assetFormat } = emoji;
 
       if (file) {
         const isAnimated = values.type === "animated";
-        let uploadFile: File;
-
-        if (isAnimated) {
-          uploadFile = file;
-        } else {
-          uploadFile = await convertImage(file, "webp", 0.8);
-        }
+        const uploadFile = isAnimated
+          ? file
+          : await convertImage(file, "webp", 0.8);
 
         const extension = isAnimated
           ? file.name.split(".").pop()?.toLowerCase() === "gif"
@@ -86,34 +82,35 @@ function RouteComponent() {
         assetFormat = extension;
 
         const { presignedUrl } = await orpcClient.emoji.admin.getUploadUrl({
-          name: values.name,
-          extension: extension as "webp" | "gif",
           contentLength: uploadFile.size,
+          extension: extension as "webp" | "gif",
+          name: values.name,
         });
 
-        await uploadBlobWithProgress(uploadFile, presignedUrl, () => undefined);
+        await uploadBlobWithProgress(uploadFile, presignedUrl);
       }
 
       await toast
         .promise(
           mutation.mutateAsync({
             ...values,
-            assetKey,
             assetFormat,
+            assetKey,
           }),
           {
+            error: (error) => ({
+              duration: 10_000,
+              message: `Error al editar emoji: ${error}`,
+            }),
             loading: "Editando emoji...",
             success: "Emoji editado!",
-            error: (error) => ({
-              message: `Error al editar emoji: ${error}`,
-              duration: 10_000,
-            }),
           }
         )
         .unwrap();
       await queryClient.invalidateQueries(orpc.emoji.admin.list.queryOptions());
       navigate({ to: "/admin/emojis" });
     },
+    validators: { onSubmit: emojiEditSchema },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -173,8 +170,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Tipo"
                 options={[
-                  { value: "static", label: "Estático" },
-                  { value: "animated", label: "Animado" },
+                  { label: "Estático", value: "static" },
+                  { label: "Animado", value: "animated" },
                 ]}
               />
             )}
@@ -198,8 +195,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Tier requerido"
                 options={PATRON_TIER_KEYS.map((tier) => ({
-                  value: tier,
                   label: tier,
+                  value: tier,
                 }))}
               />
             )}

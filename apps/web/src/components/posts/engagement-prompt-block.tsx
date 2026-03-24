@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+
 import type { EngagementPromptType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -72,13 +73,11 @@ export function EngagementPromptBlock({ prompts }: EngagementPromptBlockProps) {
     };
   }, []);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the prompt pool identity marks a new rotation set.
   useEffect(() => {
     setCurrentIndex(0);
     setIsFading(false);
   }, [prompts]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: currentIndex re-arms the timer for the next rotation tick.
   useEffect(() => {
     if (prompts.length < 2 || !isPageVisible || !isVisibleOnScreen) {
       return;

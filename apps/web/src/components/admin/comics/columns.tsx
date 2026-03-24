@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
+
 import { Button } from "@/components/ui/button";
 import { orpc, orpcClient } from "@/lib/orpc";
 
@@ -18,7 +19,6 @@ export type Comic = {
 export const columns: ColumnDef<Comic>[] = [
   {
     accessorKey: "title",
-    header: "Título",
     cell: (info) =>
       info.row.original.status === "publish" ? (
         <Link params={{ id: info.row.original.id }} to="/post/$id">
@@ -27,10 +27,10 @@ export const columns: ColumnDef<Comic>[] = [
       ) : (
         info.row.original.title
       ),
+    header: "Título",
   },
   {
     accessorKey: "status",
-    header: "Estado",
     cell: (info) => {
       const label =
         DOCUMENT_STATUS_LABELS[
@@ -38,10 +38,10 @@ export const columns: ColumnDef<Comic>[] = [
         ];
       return label;
     },
+    header: "Estado",
   },
   {
-    header: "Acciones",
-    cell: (info) => {
+    cell: function Cell(info) {
       const confirm = useConfirm();
       const queryClient = useQueryClient();
 
@@ -56,11 +56,11 @@ export const columns: ColumnDef<Comic>[] = [
           <Button
             onClick={async () => {
               const isConfirmed = await confirm({
-                title: "Eliminar Cómic",
+                cancelText: "Cancelar",
+                confirmText: "Eliminar",
                 description:
                   "¿Estás absolutamente seguro de que quieres eliminar este cómic? Esta acción no se puede deshacer.",
-                confirmText: "Eliminar",
-                cancelText: "Cancelar",
+                title: "Eliminar Cómic",
               });
 
               if (isConfirmed) {
@@ -68,12 +68,12 @@ export const columns: ColumnDef<Comic>[] = [
                   .promise(
                     orpcClient.comic.admin.delete(info.row.original.id),
                     {
+                      error: (error) => ({
+                        duration: 10_000,
+                        message: `Error al eliminar cómic: ${error}`,
+                      }),
                       loading: "Eliminando cómic...",
                       success: "Cómic eliminado.",
-                      error: (error) => ({
-                        message: `Error al eliminar cómic: ${error}`,
-                        duration: 10_000,
-                      }),
                     }
                   )
                   .unwrap();
@@ -91,5 +91,6 @@ export const columns: ColumnDef<Comic>[] = [
         </div>
       );
     },
+    header: "Acciones",
   },
 ];

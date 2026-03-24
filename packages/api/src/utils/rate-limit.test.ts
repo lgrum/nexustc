@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   calculateRetryAfter,
   getCurrentWindow,
@@ -7,46 +6,46 @@ import {
   isLimitExceeded,
 } from "./rate-limit";
 
-describe("getIdentifier", () => {
+describe(getIdentifier, () => {
   it("returns user identifier when session exists", () => {
     const result = getIdentifier({
-      session: { user: { id: "user-123" } },
       ip: "192.168.1.1",
+      session: { user: { id: "user-123" } },
     });
     expect(result).toBe("user:user-123");
   });
 
   it("returns ip identifier when no session", () => {
     const result = getIdentifier({
-      session: null,
       ip: "192.168.1.1",
+      session: null,
     });
     expect(result).toBe("ip:192.168.1.1");
   });
 
   it("returns ip:unknown when no session and no ip", () => {
     const result = getIdentifier({
-      session: null,
       ip: null,
+      session: null,
     });
     expect(result).toBe("ip:unknown");
   });
 
   it("returns ip identifier when session is undefined", () => {
     const result = getIdentifier({
-      session: undefined,
       ip: "10.0.0.1",
+      session: undefined,
     });
     expect(result).toBe("ip:10.0.0.1");
   });
 });
 
-describe("getRateLimitKey", () => {
+describe(getRateLimitKey, () => {
   it("generates correct key for fixed window strategy", () => {
     const result = getRateLimitKey({
-      strategy: "fixed",
       identifier: "user:123",
       path: ["api", "posts"],
+      strategy: "fixed",
       window: 12_345,
     });
     expect(result).toBe("rl:fw:user:123:api/posts:12345");
@@ -54,18 +53,18 @@ describe("getRateLimitKey", () => {
 
   it("generates correct key for sliding window strategy", () => {
     const result = getRateLimitKey({
-      strategy: "sliding",
       identifier: "ip:192.168.1.1",
       path: ["api", "users"],
+      strategy: "sliding",
     });
     expect(result).toBe("rl:sw:ip:192.168.1.1:api/users");
   });
 
   it("handles single path segment", () => {
     const result = getRateLimitKey({
-      strategy: "fixed",
       identifier: "user:abc",
       path: ["endpoint"],
+      strategy: "fixed",
       window: 1,
     });
     expect(result).toBe("rl:fw:user:abc:endpoint:1");
@@ -73,15 +72,15 @@ describe("getRateLimitKey", () => {
 
   it("handles empty path array", () => {
     const result = getRateLimitKey({
-      strategy: "sliding",
       identifier: "ip:unknown",
       path: [],
+      strategy: "sliding",
     });
     expect(result).toBe("rl:sw:ip:unknown:");
   });
 });
 
-describe("getCurrentWindow", () => {
+describe(getCurrentWindow, () => {
   it("calculates window correctly for 60 second window", () => {
     // 90 seconds since epoch
     const result = getCurrentWindow(60, 90_000);
@@ -107,7 +106,7 @@ describe("getCurrentWindow", () => {
   });
 });
 
-describe("calculateRetryAfter", () => {
+describe(calculateRetryAfter, () => {
   it("calculates correct retry time within window", () => {
     // 45 seconds since epoch
     const result = calculateRetryAfter(60, 45_000);
@@ -134,20 +133,20 @@ describe("calculateRetryAfter", () => {
   });
 });
 
-describe("isLimitExceeded", () => {
+describe(isLimitExceeded, () => {
   it("returns true when count exceeds limit", () => {
-    expect(isLimitExceeded(11, 10)).toBe(true);
+    expect(isLimitExceeded(11, 10)).toBeTruthy();
   });
 
   it("returns false when count equals limit", () => {
-    expect(isLimitExceeded(10, 10)).toBe(false);
+    expect(isLimitExceeded(10, 10)).toBeFalsy();
   });
 
   it("returns false when count is below limit", () => {
-    expect(isLimitExceeded(5, 10)).toBe(false);
+    expect(isLimitExceeded(5, 10)).toBeFalsy();
   });
 
   it("handles edge case of count = 1, limit = 0", () => {
-    expect(isLimitExceeded(1, 0)).toBe(true);
+    expect(isLimitExceeded(1, 0)).toBeTruthy();
   });
 });

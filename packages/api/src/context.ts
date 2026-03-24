@@ -1,7 +1,5 @@
-import {
-  CONTEXT_LOGGER_SYMBOL,
-  type LoggerContext,
-} from "@orpc/experimental-pino";
+import { CONTEXT_LOGGER_SYMBOL } from "@orpc/experimental-pino";
+import type { LoggerContext } from "@orpc/experimental-pino";
 import { auth } from "@repo/auth";
 import { db } from "@repo/db";
 import { pino } from "pino";
@@ -15,11 +13,11 @@ export type Context = {
 const logger = pino({
   level: process.env.LOG_LEVEL || "error",
   transport: {
-    target: "pino-pretty",
     options: {
       colorize: true,
       depth: null,
     },
+    target: "pino-pretty",
   },
 });
 

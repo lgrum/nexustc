@@ -1,4 +1,3 @@
-/** biome-ignore-all lint/performance/useTopLevelRegex: it's a one-off thing, no performance impact */
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
@@ -8,6 +7,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type React from "react";
 import { Activity, useState } from "react";
 import { toast } from "sonner";
+
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
@@ -56,28 +56,25 @@ function RouteComponent() {
   const [tagsDialogVisible, setTagsDialogVisible] = useState(false);
 
   const form = useAppForm({
-    validators: {
-      onSubmit: postCreateSchema,
-    },
     defaultValues: {
-      type: "post" as const,
-      title: "",
-      version: "",
+      adsLinks: "",
       censorship: "",
-      status: "",
+      changelog: "",
+      content: "",
+      creatorLink: "",
+      creatorName: "",
+      documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
       engine: "",
       graphics: "",
-      content: "",
-      creatorName: "",
-      creatorLink: "",
-      adsLinks: "",
-      premiumLinks: "",
-      changelog: "",
-      documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
-      platforms: [] as string[],
-      tags: [] as string[],
       languages: [] as string[],
       manualEngagementQuestions: [] as string[],
+      platforms: [] as string[],
+      premiumLinks: "",
+      status: "",
+      tags: [] as string[],
+      title: "",
+      type: "post" as const,
+      version: "",
     },
     onSubmit: async (formData) => {
       try {
@@ -88,19 +85,19 @@ function RouteComponent() {
               files: selectedFiles,
             }),
             {
-              loading: "Creando post...",
-              success: "Post creado!",
               error: (error) => ({
                 message: `Error al crear post: ${error}`,
               }),
+              loading: "Creando post...",
+              success: "Post creado!",
             }
           )
           .unwrap();
 
         navigate({
-          to: "/admin/posts/create",
           reloadDocument: true,
           resetScroll: true,
+          to: "/admin/posts/create",
         });
       } catch (error) {
         toast.error(`Error al crear post: ${error}`, {
@@ -111,6 +108,9 @@ function RouteComponent() {
         toast.dismiss("uploading");
         toast.dismiss("creating");
       }
+    },
+    validators: {
+      onSubmit: postCreateSchema,
     },
   });
 
@@ -150,9 +150,9 @@ function RouteComponent() {
       toast.error(
         `No se encontraron los siguientes tags: ${notFoundTags.join(", ")}`,
         {
+          closeButton: true,
           dismissible: true,
           duration: Number.POSITIVE_INFINITY,
-          closeButton: true,
         }
       );
     }
@@ -174,9 +174,9 @@ function RouteComponent() {
       }
 
       const values = {
-        creatorName: form.getFieldValue("creatorName"),
-        content: form.getFieldValue("content"),
         adsLinks: form.getFieldValue("adsLinks"),
+        content: form.getFieldValue("content"),
+        creatorName: form.getFieldValue("creatorName"),
         tags: form.getFieldValue("tags"),
       };
 
@@ -264,8 +264,8 @@ function RouteComponent() {
                 label="Censura"
                 options={
                   groupedTerms.censorship?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -278,8 +278,8 @@ function RouteComponent() {
                 label="Estado"
                 options={
                   groupedTerms.status?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -292,8 +292,8 @@ function RouteComponent() {
                 label="Motor"
                 options={
                   groupedTerms.engine?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -306,8 +306,8 @@ function RouteComponent() {
                 label="Gráficos"
                 options={
                   groupedTerms.graphics?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -320,8 +320,8 @@ function RouteComponent() {
                 label="Plataformas"
                 options={
                   groupedTerms.platform?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -336,8 +336,8 @@ function RouteComponent() {
                   label="Tags"
                   options={
                     groupedTerms.tag?.map((term) => ({
-                      value: term.id,
                       label: term.name,
+                      value: term.id,
                     })) ?? []
                   }
                 />
@@ -369,8 +369,8 @@ function RouteComponent() {
                 label="Idiomas"
                 options={
                   groupedTerms.language?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -382,10 +382,10 @@ function RouteComponent() {
               <field.SelectField
                 label="Estado del Documento"
                 options={[
-                  { value: "publish", label: "Publicar" },
-                  { value: "pending", label: "Pendiente" },
-                  { value: "draft", label: "Borrador" },
-                  { value: "trash", label: "Basura" },
+                  { label: "Publicar", value: "publish" },
+                  { label: "Pendiente", value: "pending" },
+                  { label: "Borrador", value: "draft" },
+                  { label: "Basura", value: "trash" },
                 ]}
                 required
               />
@@ -452,9 +452,9 @@ function RouteComponent() {
               name="file-upload"
               onChange={async (e) => {
                 await toast.promise(handleFileChange(e), {
+                  error: (error) => `Error al convertir imágenes: ${error}`,
                   loading: "Convirtiendo imágenes...",
                   success: "Imágenes convertidas!",
-                  error: (error) => `Error al convertir imágenes: ${error}`,
                 });
               }}
               type="file"
@@ -535,30 +535,32 @@ function RouteComponent() {
         <Preview
           post={{
             ...post,
-            id: "0",
-            likes: 0,
-            views: 0,
-            imageObjectKeys: selectedFiles.map(URL.createObjectURL),
             createdAt: new Date(),
-            updatedAt: new Date(),
-            terms: post.platforms
-              .concat(post.tags, post.languages, [
-                post.censorship,
-                post.engine,
-                post.status,
-                post.graphics,
-              ])
-              .map((term) => data.terms.find((t) => t.id === term))
-              .filter((term) => term !== undefined),
-            premiumLinksAccess: { status: "no_premium_links" as const },
             engagementPrompts: post.manualEngagementQuestions.map(
               (text, index) => ({
                 id: `preview-${index}`,
-                text,
                 source: "manual" as const,
                 tagTermId: null,
+                text,
               })
             ),
+            id: "0",
+            imageObjectKeys: selectedFiles.map(URL.createObjectURL),
+            likes: 0,
+            premiumLinksAccess: { status: "no_premium_links" as const },
+            terms: [
+              ...post.platforms,
+              ...post.tags,
+              ...post.languages,
+              post.censorship,
+              post.engine,
+              post.status,
+              post.graphics,
+            ]
+              .map((term) => data.terms.find((t) => t.id === term))
+              .filter((term) => term !== undefined),
+            updatedAt: new Date(),
+            views: 0,
           }}
           setVisible={setPreviewVisible}
           visible={previewVisible}
@@ -618,7 +620,7 @@ export function parseTemplate(md: string): ParsedTemplate {
   );
 
   // Remove decorative separators inside links block
-  const cleanedLinksBlock = linksBlock.replace(/═{5,}/g, "").trim();
+  const cleanedLinksBlock = linksBlock.replaceAll(/═{5,}/g, "").trim();
 
   // 4. LORE (between header and closing separator)
   const lore = extract(
@@ -627,13 +629,13 @@ export function parseTemplate(md: string): ParsedTemplate {
 
   return {
     creatorBlock,
+    linksBlock: cleanedLinksBlock,
+    lore,
     tags: tagsRaw
       ? tagsRaw
           .split(",")
           .map((t) => t.trim())
           .filter(Boolean)
       : [],
-    linksBlock: cleanedLinksBlock,
-    lore,
   };
 }

@@ -1,6 +1,8 @@
 import { env } from "@repo/env";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { createClient, type RedisClientType } from "redis";
+import { createClient } from "redis";
+import type { RedisClientType } from "redis";
+
 import * as schema from "./schema/app";
 
 export const db = drizzle(env.DATABASE_URL, {
@@ -45,4 +47,5 @@ export {
 } from "drizzle-orm";
 
 // Re-export schema
+// oxlint-disable-next-line oxc/no-barrel-file
 export * from "./schema/app";

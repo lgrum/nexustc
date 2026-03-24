@@ -14,13 +14,9 @@ import {
   ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  type TouchEvent,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { TouchEvent } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -173,27 +169,31 @@ export function ImageViewer({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case "ArrowLeft":
+        case "ArrowLeft": {
           e.preventDefault();
           goToPrevious();
           showControlsTemporarily();
           break;
-        case "ArrowRight":
+        }
+        case "ArrowRight": {
           e.preventDefault();
           goToNext();
           showControlsTemporarily();
           break;
-        case "Home":
+        }
+        case "Home": {
           e.preventDefault();
           goToFirst();
           showControlsTemporarily();
           break;
-        case "End":
+        }
+        case "End": {
           e.preventDefault();
           goToLast();
           showControlsTemporarily();
           break;
-        case "Escape":
+        }
+        case "Escape": {
           if (scale > 1) {
             resetZoom();
           } else if (showThumbnails) {
@@ -202,21 +202,26 @@ export function ImageViewer({
             onOpenChange(false);
           }
           break;
+        }
         case "+":
-        case "=":
+        case "=": {
           e.preventDefault();
           zoomIn();
           break;
-        case "-":
+        }
+        case "-": {
           e.preventDefault();
           zoomOut();
           break;
-        case "f":
+        }
+        case "f": {
           e.preventDefault();
           toggleFullscreen();
           break;
-        default:
+        }
+        default: {
           break;
+        }
       }
     };
 
@@ -262,9 +267,9 @@ export function ImageViewer({
   const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 1) {
       touchStartRef.current = {
+        time: Date.now(),
         x: e.touches[0].clientX,
         y: e.touches[0].clientY,
-        time: Date.now(),
       };
       if (scale > 1) {
         setIsDragging(true);
@@ -475,9 +480,7 @@ export function ImageViewer({
           </div>
 
           {/* Main Image Area */}
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: image area needs touch/mouse events for zoom/pan */}
-          {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: image area needs touch/mouse events for zoom/pan */}
-          {/** biome-ignore lint/a11y/useKeyWithClickEvents: required for click outside the image area */}
+          {/* oxlint-disable-next-line jsx_a11y/click-events-have-key-events */}
           <div
             className={cn(
               "relative flex flex-1 items-center justify-center overflow-hidden",
@@ -497,6 +500,7 @@ export function ImageViewer({
             onTouchMove={handleTouchMove}
             onTouchStart={handleTouchStart}
             onWheel={handleWheel}
+            role="presentation"
           >
             {/* Navigation Zones */}
             {hasMultipleImages && (
@@ -552,7 +556,6 @@ export function ImageViewer({
 
             {/* Main Image */}
             {currentImage && (
-              // biome-ignore lint/a11y/noNoninteractiveElementInteractions: image needs onLoad for loading state
               <img
                 alt={currentImage.alt}
                 className={cn(

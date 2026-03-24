@@ -1,10 +1,13 @@
 import { SearchIcon, SmileIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PATRON_TIERS, type PatronTier } from "@repo/shared/constants";
+import { PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+
 import { orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
+
 import {
   InputGroup,
   InputGroupAddon,
@@ -22,9 +25,9 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
   const [search, setSearch] = useState("");
 
   const { data: emojis } = useQuery({
-    queryKey: ["emoji-picker-list"],
-    queryFn: () => orpcClient.emoji.list(),
     enabled: open,
+    queryFn: () => orpcClient.emoji.list(),
+    queryKey: ["emoji-picker-list"],
     staleTime: 5 * 60 * 1000,
   });
 

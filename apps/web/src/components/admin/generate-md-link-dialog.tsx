@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -14,8 +15,8 @@ import { Input } from "../ui/input";
 export function GenerateMarkdownLinkDialog() {
   const [openDialog, setOpenDialog] = useState(false);
   const [dialogData, setDialogData] = useState({
-    text: "",
     link: "",
+    text: "",
   });
 
   return (
@@ -30,20 +31,20 @@ export function GenerateMarkdownLinkDialog() {
             event.preventDefault();
             event.stopPropagation();
 
-            const text = dialogData.text;
-            const link = dialogData.link;
+            const { text } = dialogData;
+            const { link } = dialogData;
 
             setOpenDialog(false);
 
             toast.promise(navigator.clipboard.writeText(`[${text}](${link})`), {
+              error: "Error al generar link",
               loading: "Generando...",
               success: "Link copiado al portapapeles!",
-              error: "Error al generar link",
             });
 
             setDialogData({
-              text: "",
               link: "",
+              text: "",
             });
           }}
         >

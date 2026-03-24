@@ -9,9 +9,11 @@ import {
   PROFILE_DEFAULTS,
   PROFILE_MEDIA_SLOTS,
   PROFILE_MEDIA_VALIDATION_STATUSES,
-  type ProfileEmblemVisualConfig,
-  type ProfileRoleVisualConfig,
-  type ProfileVisibilityConfig,
+} from "@repo/shared/profile";
+import type {
+  ProfileEmblemVisualConfig,
+  ProfileRoleVisualConfig,
+  ProfileVisibilityConfig,
 } from "@repo/shared/profile";
 import { relations, sql } from "drizzle-orm";
 import {
@@ -26,6 +28,7 @@ import {
   text,
   timestamp,
 } from "drizzle-orm/pg-core";
+
 import { generateId } from "../utils";
 
 const timestamps = {
@@ -40,19 +43,19 @@ const timestamps = {
 export const user = pgTable(
   "user",
   {
-    id: text("id").primaryKey(),
-    name: text("name").notNull(),
-    email: text("email").notNull().unique(),
-    emailVerified: boolean("email_verified").default(false).notNull(),
-    image: text("image"),
     avatarFallbackColor: text("avatar_fallback_color")
       .default(PROFILE_DEFAULTS.avatarFallbackColor)
       .notNull(),
-    role: text("role").default("user").notNull(),
-    banned: boolean("banned").default(false),
-    banReason: text("ban_reason"),
     banExpires: timestamp("ban_expires", { withTimezone: true }),
+    banReason: text("ban_reason"),
+    banned: boolean("banned").default(false),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    id: text("id").primaryKey(),
+    image: text("image"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    name: text("name").notNull(),
+    role: text("role").default("user").notNull(),
     ...timestamps,
   },
   (table) => [
@@ -64,15 +67,15 @@ export const user = pgTable(
 export const session = pgTable(
   "session",
   {
-    id: text("id").primaryKey(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    token: text("token").notNull().unique(),
+    id: text("id").primaryKey(),
+    impersonatedBy: text("impersonated_by"),
     ipAddress: text("ip_address"),
+    token: text("token").notNull().unique(),
     userAgent: text("user_agent"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    impersonatedBy: text("impersonated_by"),
     ...timestamps,
   },
   (table) => [
@@ -84,23 +87,23 @@ export const session = pgTable(
 export const account = pgTable(
   "account",
   {
-    id: text("id").primaryKey(),
-    accountId: text("account_id").notNull(),
-    providerId: text("provider_id").notNull(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
     accessToken: text("access_token"),
-    refreshToken: text("refresh_token"),
-    idToken: text("id_token"),
     accessTokenExpiresAt: timestamp("access_token_expires_at", {
       withTimezone: true,
     }),
+    accountId: text("account_id").notNull(),
+    id: text("id").primaryKey(),
+    idToken: text("id_token"),
+    password: text("password"),
+    providerId: text("provider_id").notNull(),
+    refreshToken: text("refresh_token"),
     refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
       withTimezone: true,
     }),
     scope: text("scope"),
-    password: text("password"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
     ...timestamps,
   },
   (table) => [index("account_userId_idx").on(table.userId)]
@@ -109,10 +112,10 @@ export const account = pgTable(
 export const verification = pgTable(
   "verification",
   {
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     id: text("id").primaryKey(),
     identifier: text("identifier").notNull(),
     value: text("value").notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     ...timestamps,
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)]
@@ -122,17 +125,17 @@ export const patron = pgTable(
   "patron",
   {
     id: text("id").primaryKey().$defaultFn(generateId),
+    isActivePatron: boolean("is_active_patron").notNull().default(false),
+    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }).notNull(),
+    lastWebhookAt: timestamp("last_webhook_at", { withTimezone: true }),
+    patreonUserId: text("patreon_user_id").notNull().unique(),
+    patronSince: timestamp("patron_since", { withTimezone: true }),
+    pledgeAmountCents: integer("pledge_amount_cents").notNull().default(0),
+    tier: text("tier", { enum: PATRON_TIER_KEYS }).notNull().default("none"),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" })
       .unique(),
-    patreonUserId: text("patreon_user_id").notNull().unique(),
-    tier: text("tier", { enum: PATRON_TIER_KEYS }).notNull().default("none"),
-    pledgeAmountCents: integer("pledge_amount_cents").notNull().default(0),
-    isActivePatron: boolean("is_active_patron").notNull().default(false),
-    patronSince: timestamp("patron_since", { withTimezone: true }),
-    lastSyncAt: timestamp("last_sync_at", { withTimezone: true }).notNull(),
-    lastWebhookAt: timestamp("last_webhook_at", { withTimezone: true }),
     ...timestamps,
   },
   (table) => [
@@ -143,13 +146,13 @@ export const patron = pgTable(
 );
 
 export const userRelations = relations(user, ({ many, one }) => ({
-  sessions: many(session),
   accounts: many(account),
   patron: one(patron),
-  profileSettings: one(profileSettings),
+  profileEmblemAssignments: many(profileEmblemAssignment),
   profileMediaAssets: many(profileMediaAsset),
   profileRoleAssignments: many(profileRoleAssignment),
-  profileEmblemAssignments: many(profileEmblemAssignment),
+  profileSettings: one(profileSettings),
+  sessions: many(session),
 }));
 
 export const patronRelations = relations(patron, ({ one }) => ({
@@ -183,9 +186,9 @@ export const featuredPositionEnum = pgEnum("featured_position", [
 ]);
 
 export const term = pgTable("term", {
+  color: text("color"),
   id: text("id").primaryKey().$defaultFn(generateId),
   name: text("name").notNull(),
-  color: text("color"),
   taxonomy: text("taxonomy", { enum: TAXONOMIES }).notNull(),
   ...timestamps,
 });
@@ -193,21 +196,21 @@ export const term = pgTable("term", {
 export const post = pgTable(
   "post",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    title: text("title").notNull(),
-    content: text("content").notNull().default(""),
-    type: postTypeEnum("type").notNull().default("post"),
-    isWeekly: boolean("is_weekly").notNull().default(false),
-    authorId: text("author_id").notNull(),
-    creatorName: text("creator_name").notNull().default(""),
-    creatorLink: text("creator_link").notNull().default(""),
-    status: documentStatusEnum("status").notNull().default("draft"),
-    version: text("version"),
     adsLinks: text("ads_links"),
-    premiumLinks: text("premium_links"),
+    authorId: text("author_id").notNull(),
     changelog: text("changelog").notNull().default(""),
-    views: integer("views").notNull().default(0),
+    content: text("content").notNull().default(""),
+    creatorLink: text("creator_link").notNull().default(""),
+    creatorName: text("creator_name").notNull().default(""),
+    id: text("id").primaryKey().$defaultFn(generateId),
     imageObjectKeys: jsonb("image_object_keys").$type<string[]>(),
+    isWeekly: boolean("is_weekly").notNull().default(false),
+    premiumLinks: text("premium_links"),
+    status: documentStatusEnum("status").notNull().default("draft"),
+    title: text("title").notNull(),
+    type: postTypeEnum("type").notNull().default("post"),
+    version: text("version"),
+    views: integer("views").notNull().default(0),
     ...timestamps,
   },
   (table) => [
@@ -221,11 +224,11 @@ export const featuredPost = pgTable(
   "featured_post",
   {
     id: text("id").primaryKey().$defaultFn(generateId),
+    order: integer("order").notNull(),
+    position: featuredPositionEnum("position").notNull(),
     postId: text("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),
-    position: featuredPositionEnum("position").notNull(),
-    order: integer("order").notNull(),
     ...timestamps,
   },
   (table) => [
@@ -237,12 +240,12 @@ export const featuredPost = pgTable(
 export const comment = pgTable(
   "comment",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    postId: text("post_id").references(() => post.id, { onDelete: "cascade" }),
     authorId: text("author_id").references(() => user.id, {
       onDelete: "cascade",
     }),
     content: text("content").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    postId: text("post_id").references(() => post.id, { onDelete: "cascade" }),
     ...timestamps,
   },
   (table) => [index("comment_post_id_idx").on(table.postId)]
@@ -251,12 +254,12 @@ export const comment = pgTable(
 export const termPostRelation = pgTable(
   "term_post_relation",
   {
-    termId: text("term_id")
-      .notNull()
-      .references(() => term.id, { onDelete: "cascade" }),
     postId: text("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),
+    termId: text("term_id")
+      .notNull()
+      .references(() => term.id, { onDelete: "cascade" }),
   },
   (table) => [
     primaryKey({ columns: [table.termId, table.postId] }),
@@ -268,13 +271,13 @@ export const engagementQuestion = pgTable(
   "engagement_question",
   {
     id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
+    isGlobal: boolean("is_global").notNull().default(false),
+    locale: text("locale").notNull().default("es"),
     tagTermId: text("tag_term_id").references(() => term.id, {
       onDelete: "cascade",
     }),
-    isGlobal: boolean("is_global").notNull().default(false),
     text: text("text").notNull(),
-    locale: text("locale").notNull().default("es"),
-    isActive: boolean("is_active").notNull().default(true),
     ...timestamps,
   },
   (table) => [
@@ -294,12 +297,12 @@ export const postEngagementOverride = pgTable(
   "post_engagement_override",
   {
     id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
     postId: text("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),
-    text: text("text").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
-    isActive: boolean("is_active").notNull().default(true),
+    text: text("text").notNull(),
     ...timestamps,
   },
   (table) => [
@@ -315,11 +318,11 @@ export const postEngagementOverride = pgTable(
 export const postBookmark = pgTable(
   "post_bookmark",
   {
-    userId: text("user_id")
-      .references(() => user.id, { onDelete: "cascade" })
-      .notNull(),
     postId: text("post_id")
       .references(() => post.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: text("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
   },
   (table) => [
@@ -331,11 +334,11 @@ export const postBookmark = pgTable(
 export const postLikes = pgTable(
   "post_like",
   {
-    userId: text("user_id")
-      .references(() => user.id, { onDelete: "cascade" })
-      .notNull(),
     postId: text("post_id")
       .references(() => post.id, { onDelete: "cascade" })
+      .notNull(),
+    userId: text("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
   },
   (table) => [
@@ -350,11 +353,11 @@ export const postRating = pgTable(
     postId: text("post_id")
       .references(() => post.id, { onDelete: "cascade" })
       .notNull(),
+    rating: integer("rating").notNull(),
+    review: text("review").notNull().default(""),
     userId: text("user_id")
       .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
-    rating: integer("rating").notNull(),
-    review: text("review").notNull().default(""),
     ...timestamps,
   },
   (table) => [
@@ -365,31 +368,31 @@ export const postRating = pgTable(
 );
 
 export const tutorials = pgTable("tutorial", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  title: text("title").notNull(),
   description: text("content").notNull(),
   embedUrl: text("embed_url").notNull(),
+  id: text("id").primaryKey().$defaultFn(generateId),
+  title: text("title").notNull(),
   ...timestamps,
 });
 
 export const chronosPage = pgTable("chronos_page", {
-  id: text("id").primaryKey().$defaultFn(generateId),
-  stickyImageKey: text("sticky_image_key"),
-  headerImageKey: text("header_image_key"),
   carouselImageKeys: jsonb("carousel_image_keys").$type<string[]>(),
+  headerImageKey: text("header_image_key"),
+  id: text("id").primaryKey().$defaultFn(generateId),
+  isActive: boolean("is_active").notNull().default(true),
   markdownContent: text("markdown_content").notNull().default(""),
   markdownImageKeys: jsonb("markdown_image_keys").$type<string[]>(),
-  isActive: boolean("is_active").notNull().default(true),
+  stickyImageKey: text("sticky_image_key"),
   ...timestamps,
 });
 
 export const staticPage = pgTable(
   "static_page",
   {
+    content: text("content").notNull().default(""),
     id: text("id").primaryKey().$defaultFn(generateId),
     slug: text("slug").notNull().unique(),
     title: text("title").notNull(),
-    content: text("content").notNull().default(""),
     ...timestamps,
   },
   (table) => [index("static_page_slug_idx").on(table.slug)]
@@ -417,19 +420,19 @@ export const profileAssignmentSourceTypeEnum = pgEnum(
 export const profileMediaAsset = pgTable(
   "profile_media_asset",
   {
+    durationMs: integer("duration_ms"),
+    fileSizeBytes: integer("file_size_bytes").notNull(),
+    height: integer("height").notNull(),
     id: text("id").primaryKey().$defaultFn(generateId),
-    ownerUserId: text("owner_user_id").notNull(),
-    slot: profileMediaSlotEnum("slot").notNull(),
+    isAnimated: boolean("is_animated").notNull().default(false),
     mimeType: text("mime_type").notNull(),
     objectKey: text("object_key").notNull().unique(),
-    fileSizeBytes: integer("file_size_bytes").notNull(),
-    width: integer("width").notNull(),
-    height: integer("height").notNull(),
-    durationMs: integer("duration_ms"),
-    isAnimated: boolean("is_animated").notNull().default(false),
+    ownerUserId: text("owner_user_id").notNull(),
+    slot: profileMediaSlotEnum("slot").notNull(),
     validationStatus: profileMediaValidationStatusEnum("validation_status")
       .notNull()
       .default("pending"),
+    width: integer("width").notNull(),
     ...timestamps,
   },
   (table) => [
@@ -437,9 +440,9 @@ export const profileMediaAsset = pgTable(
     index("profile_media_asset_slot_idx").on(table.slot),
     index("profile_media_asset_validation_idx").on(table.validationStatus),
     foreignKey({
-      name: "pma_owner_fk",
       columns: [table.ownerUserId],
       foreignColumns: [user.id],
+      name: "pma_owner_fk",
     }).onDelete("cascade"),
   ]
 );
@@ -447,12 +450,12 @@ export const profileMediaAsset = pgTable(
 export const profileSettings = pgTable(
   "profile_settings",
   {
-    userId: text("user_id").primaryKey(),
-    bannerMode: profileBannerModeEnum("banner_mode").notNull().default("color"),
+    bannerAssetId: text("banner_asset_id"),
     bannerColor: text("banner_color")
       .notNull()
       .default(PROFILE_DEFAULTS.bannerColor),
-    bannerAssetId: text("banner_asset_id"),
+    bannerMode: profileBannerModeEnum("banner_mode").notNull().default("color"),
+    userId: text("user_id").primaryKey(),
     visibilityConfig: jsonb("visibility_config")
       .$type<ProfileVisibilityConfig>()
       .notNull()
@@ -462,14 +465,14 @@ export const profileSettings = pgTable(
   (table) => [
     index("profile_settings_banner_asset_idx").on(table.bannerAssetId),
     foreignKey({
-      name: "ps_user_fk",
       columns: [table.userId],
       foreignColumns: [user.id],
+      name: "ps_user_fk",
     }).onDelete("cascade"),
     foreignKey({
-      name: "ps_banner_asset_fk",
       columns: [table.bannerAssetId],
       foreignColumns: [profileMediaAsset.id],
+      name: "ps_banner_asset_fk",
     }).onDelete("set null"),
   ]
 );
@@ -477,33 +480,33 @@ export const profileSettings = pgTable(
 export const profileRoleDefinition = pgTable(
   "profile_role_definition",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    slug: text("slug").notNull().unique(),
-    name: text("name").notNull(),
     description: text("description").notNull().default(""),
     iconAssetId: text("icon_asset_id"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
+    isExclusive: boolean("is_exclusive").notNull().default(false),
+    isVisible: boolean("is_visible").notNull().default(true),
+    name: text("name").notNull(),
     overlayAssetId: text("overlay_asset_id"),
+    priority: integer("priority").notNull().default(0),
+    slug: text("slug").notNull().unique(),
     visualConfig: jsonb("visual_config")
       .$type<ProfileRoleVisualConfig>()
       .notNull(),
-    priority: integer("priority").notNull().default(0),
-    isVisible: boolean("is_visible").notNull().default(true),
-    isExclusive: boolean("is_exclusive").notNull().default(false),
-    isActive: boolean("is_active").notNull().default(true),
     ...timestamps,
   },
   (table) => [
     index("profile_role_definition_priority_idx").on(table.priority),
     index("profile_role_definition_visible_idx").on(table.isVisible),
     foreignKey({
-      name: "prd_icon_asset_fk",
       columns: [table.iconAssetId],
       foreignColumns: [profileMediaAsset.id],
+      name: "prd_icon_asset_fk",
     }).onDelete("set null"),
     foreignKey({
-      name: "prd_overlay_asset_fk",
       columns: [table.overlayAssetId],
       foreignColumns: [profileMediaAsset.id],
+      name: "prd_overlay_asset_fk",
     }).onDelete("set null"),
   ]
 );
@@ -511,30 +514,30 @@ export const profileRoleDefinition = pgTable(
 export const profileRoleAssignment = pgTable(
   "profile_role_assignment",
   {
+    endsAt: timestamp("ends_at", { withTimezone: true }),
     id: text("id").primaryKey().$defaultFn(generateId),
-    userId: text("user_id").notNull(),
+    isVisible: boolean("is_visible").notNull().default(true),
     roleDefinitionId: text("role_definition_id").notNull(),
+    sourceKey: text("source_key"),
     sourceType: profileAssignmentSourceTypeEnum("source_type")
       .notNull()
       .default("manual"),
-    sourceKey: text("source_key"),
     startsAt: timestamp("starts_at", { withTimezone: true }),
-    endsAt: timestamp("ends_at", { withTimezone: true }),
-    isVisible: boolean("is_visible").notNull().default(true),
+    userId: text("user_id").notNull(),
     ...timestamps,
   },
   (table) => [
     index("profile_role_assignment_user_idx").on(table.userId),
     index("profile_role_assignment_role_idx").on(table.roleDefinitionId),
     foreignKey({
-      name: "pra_user_fk",
       columns: [table.userId],
       foreignColumns: [user.id],
+      name: "pra_user_fk",
     }).onDelete("cascade"),
     foreignKey({
-      name: "pra_role_def_fk",
       columns: [table.roleDefinitionId],
       foreignColumns: [profileRoleDefinition.id],
+      name: "pra_role_def_fk",
     }).onDelete("cascade"),
   ]
 );
@@ -542,25 +545,25 @@ export const profileRoleAssignment = pgTable(
 export const profileEmblemDefinition = pgTable(
   "profile_emblem_definition",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    slug: text("slug").notNull().unique(),
-    name: text("name").notNull(),
-    tooltip: text("tooltip").notNull().default(""),
     iconAssetId: text("icon_asset_id"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
+    isVisible: boolean("is_visible").notNull().default(true),
+    name: text("name").notNull(),
+    priority: integer("priority").notNull().default(0),
+    slug: text("slug").notNull().unique(),
+    tooltip: text("tooltip").notNull().default(""),
     visualConfig: jsonb("visual_config")
       .$type<ProfileEmblemVisualConfig>()
       .notNull(),
-    priority: integer("priority").notNull().default(0),
-    isVisible: boolean("is_visible").notNull().default(true),
-    isActive: boolean("is_active").notNull().default(true),
     ...timestamps,
   },
   (table) => [
     index("profile_emblem_definition_priority_idx").on(table.priority),
     foreignKey({
-      name: "ped_icon_asset_fk",
       columns: [table.iconAssetId],
       foreignColumns: [profileMediaAsset.id],
+      name: "ped_icon_asset_fk",
     }).onDelete("set null"),
   ]
 );
@@ -568,30 +571,30 @@ export const profileEmblemDefinition = pgTable(
 export const profileEmblemAssignment = pgTable(
   "profile_emblem_assignment",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    userId: text("user_id").notNull(),
     emblemDefinitionId: text("emblem_definition_id").notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isVisible: boolean("is_visible").notNull().default(true),
+    sourceKey: text("source_key"),
     sourceType: profileAssignmentSourceTypeEnum("source_type")
       .notNull()
       .default("manual"),
-    sourceKey: text("source_key"),
     startsAt: timestamp("starts_at", { withTimezone: true }),
-    endsAt: timestamp("ends_at", { withTimezone: true }),
-    isVisible: boolean("is_visible").notNull().default(true),
+    userId: text("user_id").notNull(),
     ...timestamps,
   },
   (table) => [
     index("profile_emblem_assignment_user_idx").on(table.userId),
     index("profile_emblem_assignment_emblem_idx").on(table.emblemDefinitionId),
     foreignKey({
-      name: "pea_user_fk",
       columns: [table.userId],
       foreignColumns: [user.id],
+      name: "pea_user_fk",
     }).onDelete("cascade"),
     foreignKey({
-      name: "pea_emblem_def_fk",
       columns: [table.emblemDefinitionId],
       foreignColumns: [profileEmblemDefinition.id],
+      name: "pea_emblem_def_fk",
     }).onDelete("cascade"),
   ]
 );
@@ -617,13 +620,13 @@ export const profileMediaAssetRelations = relations(
 export const profileSettingsRelations = relations(
   profileSettings,
   ({ one }) => ({
-    user: one(user, {
-      fields: [profileSettings.userId],
-      references: [user.id],
-    }),
     bannerAsset: one(profileMediaAsset, {
       fields: [profileSettings.bannerAssetId],
       references: [profileMediaAsset.id],
+    }),
+    user: one(user, {
+      fields: [profileSettings.userId],
+      references: [user.id],
     }),
   })
 );
@@ -631,6 +634,7 @@ export const profileSettingsRelations = relations(
 export const profileRoleDefinitionRelations = relations(
   profileRoleDefinition,
   ({ one, many }) => ({
+    assignments: many(profileRoleAssignment),
     iconAsset: one(profileMediaAsset, {
       fields: [profileRoleDefinition.iconAssetId],
       references: [profileMediaAsset.id],
@@ -639,20 +643,19 @@ export const profileRoleDefinitionRelations = relations(
       fields: [profileRoleDefinition.overlayAssetId],
       references: [profileMediaAsset.id],
     }),
-    assignments: many(profileRoleAssignment),
   })
 );
 
 export const profileRoleAssignmentRelations = relations(
   profileRoleAssignment,
   ({ one }) => ({
-    user: one(user, {
-      fields: [profileRoleAssignment.userId],
-      references: [user.id],
-    }),
     roleDefinition: one(profileRoleDefinition, {
       fields: [profileRoleAssignment.roleDefinitionId],
       references: [profileRoleDefinition.id],
+    }),
+    user: one(user, {
+      fields: [profileRoleAssignment.userId],
+      references: [user.id],
     }),
   })
 );
@@ -660,24 +663,24 @@ export const profileRoleAssignmentRelations = relations(
 export const profileEmblemDefinitionRelations = relations(
   profileEmblemDefinition,
   ({ one, many }) => ({
+    assignments: many(profileEmblemAssignment),
     iconAsset: one(profileMediaAsset, {
       fields: [profileEmblemDefinition.iconAssetId],
       references: [profileMediaAsset.id],
     }),
-    assignments: many(profileEmblemAssignment),
   })
 );
 
 export const profileEmblemAssignmentRelations = relations(
   profileEmblemAssignment,
   ({ one }) => ({
-    user: one(user, {
-      fields: [profileEmblemAssignment.userId],
-      references: [user.id],
-    }),
     emblemDefinition: one(profileEmblemDefinition, {
       fields: [profileEmblemAssignment.emblemDefinitionId],
       references: [profileEmblemDefinition.id],
+    }),
+    user: one(user, {
+      fields: [profileEmblemAssignment.userId],
+      references: [user.id],
     }),
   })
 );
@@ -692,17 +695,17 @@ export const emojiTypeEnum = pgEnum("emoji_type", ["static", "animated"]);
 export const emoji = pgTable(
   "emoji",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    name: text("name").notNull().unique(),
-    displayName: text("display_name").notNull(),
-    type: emojiTypeEnum("type").notNull().default("static"),
-    assetKey: text("asset_key").notNull(),
     assetFormat: text("asset_format").notNull(),
+    assetKey: text("asset_key").notNull(),
+    displayName: text("display_name").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
+    name: text("name").notNull().unique(),
+    order: integer("order").notNull().default(0),
     requiredTier: text("required_tier", { enum: PATRON_TIER_KEYS })
       .notNull()
       .default("level1"),
-    order: integer("order").notNull().default(0),
-    isActive: boolean("is_active").notNull().default(true),
+    type: emojiTypeEnum("type").notNull().default("static"),
     ...timestamps,
   },
   (table) => [
@@ -714,17 +717,17 @@ export const emoji = pgTable(
 export const sticker = pgTable(
   "sticker",
   {
-    id: text("id").primaryKey().$defaultFn(generateId),
-    name: text("name").notNull().unique(),
-    displayName: text("display_name").notNull(),
-    type: emojiTypeEnum("type").notNull().default("static"),
-    assetKey: text("asset_key").notNull(),
     assetFormat: text("asset_format").notNull(),
+    assetKey: text("asset_key").notNull(),
+    displayName: text("display_name").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
+    name: text("name").notNull().unique(),
+    order: integer("order").notNull().default(0),
     requiredTier: text("required_tier", { enum: PATRON_TIER_KEYS })
       .notNull()
       .default("level3"),
-    order: integer("order").notNull().default(0),
-    isActive: boolean("is_active").notNull().default(true),
+    type: emojiTypeEnum("type").notNull().default("static"),
     ...timestamps,
   },
   (table) => [
@@ -740,13 +743,13 @@ export const stickerRelations = relations(sticker, () => ({}));
 /** -------------------------------------------------------- */
 
 export const postRelations = relations(post, ({ many }) => ({
-  terms: many(termPostRelation),
   comments: many(comment),
+  engagementOverrides: many(postEngagementOverride),
   favorites: many(postBookmark),
+  featured: many(featuredPost),
   likes: many(postLikes),
   ratings: many(postRating),
-  featured: many(featuredPost),
-  engagementOverrides: many(postEngagementOverride),
+  terms: many(termPostRelation),
 }));
 
 export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
@@ -757,8 +760,8 @@ export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
 }));
 
 export const termRelations = relations(term, ({ many }) => ({
-  posts: many(termPostRelation),
   engagementQuestions: many(engagementQuestion),
+  posts: many(termPostRelation),
 }));
 
 export const commentRelations = relations(comment, ({ one }) => ({
@@ -791,13 +794,13 @@ export const postEngagementOverrideRelations = relations(
 export const termPostRelationRelations = relations(
   termPostRelation,
   ({ one }) => ({
-    term: one(term, {
-      fields: [termPostRelation.termId],
-      references: [term.id],
-    }),
     post: one(post, {
       fields: [termPostRelation.postId],
       references: [post.id],
+    }),
+    term: one(term, {
+      fields: [termPostRelation.termId],
+      references: [term.id],
     }),
   })
 );

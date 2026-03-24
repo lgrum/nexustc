@@ -2,8 +2,10 @@ import { ArrowRight01Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+
 import { RatingButton } from "./rating-button";
 import { RatingDisplay } from "./rating-display";
 import { RatingList } from "./rating-list";

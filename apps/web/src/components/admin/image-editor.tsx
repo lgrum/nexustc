@@ -1,7 +1,9 @@
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { type ChangeEvent, useImperativeHandle, useRef, useState } from "react";
+import { useImperativeHandle, useRef, useState } from "react";
+import type { ChangeEvent } from "react";
 import { toast } from "sonner";
+
 import { SortableGrid } from "@/components/admin/sortable-grid";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,7 +50,7 @@ export function ImageEditor({ initialImageKeys, ref }: ImageEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [items, setItems] = useState<ImageItem[]>(() =>
-    initialImageKeys.map((key) => ({ type: "existing", key }))
+    initialImageKeys.map((key) => ({ key, type: "existing" }))
   );
 
   useImperativeHandle(ref, () => ({
@@ -65,15 +67,15 @@ export function ImageEditor({ initialImageKeys, ref }: ImageEditorProps) {
 
       const order = items.map((item) => {
         if (item.type === "existing") {
-          return { type: "existing" as const, key: item.key };
+          return { key: item.key, type: "existing" as const };
         }
         return {
-          type: "new" as const,
           index: newFileIndexMap.get(item.file)!,
+          type: "new" as const,
         };
       });
 
-      return { order, newFiles };
+      return { newFiles, order };
     },
   }));
 
@@ -82,7 +84,7 @@ export function ImageEditor({ initialImageKeys, ref }: ImageEditorProps) {
       return;
     }
 
-    const files = Array.from(event.target.files).filter((f) =>
+    const files = [...event.target.files].filter((f) =>
       f.type.startsWith("image/")
     );
 
@@ -96,9 +98,9 @@ export function ImageEditor({ initialImageKeys, ref }: ImageEditorProps) {
     );
 
     const newItems: ImageItem[] = converted.map((file) => ({
-      type: "new" as const,
       file,
       previewUrl: URL.createObjectURL(file),
+      type: "new" as const,
     }));
 
     setItems((prev) => [...prev, ...newItems]);
@@ -182,9 +184,9 @@ export function ImageEditor({ initialImageKeys, ref }: ImageEditorProps) {
         multiple
         onChange={async (e) => {
           await toast.promise(handleFileChange(e), {
+            error: (error) => `Error al convertir imágenes: ${error}`,
             loading: "Convirtiendo imágenes...",
             success: "Imágenes convertidas!",
-            error: (error) => `Error al convertir imágenes: ${error}`,
           });
         }}
         ref={fileInputRef}

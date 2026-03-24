@@ -13,9 +13,9 @@ import { toast } from "sonner";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false,
+      refetchOnWindowFocus: false,
       retry: 1,
       retryDelay: 1000,
     },
@@ -35,18 +35,18 @@ export const queryClient = new QueryClient({
 const getORPCClient = createIsomorphicFn()
   .server(() =>
     createRouterClient(appRouter, {
-      context: async () => createContext(getRequestHeaders()),
+      context: () => createContext(getRequestHeaders()),
     })
   )
   .client((): RouterClient<typeof appRouter> => {
     const link = new RPCLink({
-      url: `${window.location.origin}/api/rpc`,
       fetch(_url, options) {
         return fetch(_url, {
           ...options,
           credentials: "include",
         });
       },
+      url: `${window.location.origin}/api/rpc`,
     });
 
     return createORPCClient(link);

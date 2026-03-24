@@ -1,11 +1,13 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useConfirm } from "@omit/react-confirm-dialog";
-import { PATRON_TIERS, type PatronTier } from "@repo/shared/constants";
+import { PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
+
 import { DataTable } from "@/components/admin/data-table";
 import { Button } from "@/components/ui/button";
 import { orpc, orpcClient } from "@/lib/orpc";
@@ -29,7 +31,6 @@ type Emoji = {
 const columns: ColumnDef<Emoji>[] = [
   {
     accessorKey: "assetKey",
-    header: "Vista previa",
     cell: (info) => (
       <img
         alt={info.row.original.displayName}
@@ -37,27 +38,27 @@ const columns: ColumnDef<Emoji>[] = [
         src={getBucketUrl(info.row.original.assetKey)}
       />
     ),
+    header: "Vista previa",
   },
   { accessorKey: "name", header: "Nombre" },
   { accessorKey: "displayName", header: "Nombre visible" },
   { accessorKey: "type", header: "Tipo" },
   {
     accessorKey: "requiredTier",
-    header: "Tier",
     cell: (info) => {
       const tier = info.row.original.requiredTier as PatronTier;
       return PATRON_TIERS[tier]?.badge ?? tier;
     },
+    header: "Tier",
   },
   { accessorKey: "order", header: "Orden" },
   {
     accessorKey: "isActive",
-    header: "Activo",
     cell: (info) => (info.row.original.isActive ? "Sí" : "No"),
+    header: "Activo",
   },
   {
-    header: "Acciones",
-    cell: (info) => {
+    cell: function Cell(info) {
       const confirm = useConfirm();
       const queryClient = useQueryClient();
 
@@ -72,11 +73,11 @@ const columns: ColumnDef<Emoji>[] = [
           <Button
             onClick={async () => {
               const isConfirmed = await confirm({
-                title: "Desactivar Emoji",
+                cancelText: "Cancelar",
+                confirmText: "Desactivar",
                 description:
                   "¿Estás seguro de que quieres desactivar este emoji?",
-                confirmText: "Desactivar",
-                cancelText: "Cancelar",
+                title: "Desactivar Emoji",
               });
 
               if (isConfirmed) {
@@ -84,12 +85,12 @@ const columns: ColumnDef<Emoji>[] = [
                   .promise(
                     orpcClient.emoji.admin.delete(info.row.original.id),
                     {
+                      error: (error) => ({
+                        duration: 10_000,
+                        message: `Error: ${error}`,
+                      }),
                       loading: "Desactivando emoji...",
                       success: "Emoji desactivado.",
-                      error: (error) => ({
-                        message: `Error: ${error}`,
-                        duration: 10_000,
-                      }),
                     }
                   )
                   .unwrap();
@@ -107,6 +108,7 @@ const columns: ColumnDef<Emoji>[] = [
         </div>
       );
     },
+    header: "Acciones",
   },
 ];
 

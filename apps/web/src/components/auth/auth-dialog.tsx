@@ -1,7 +1,8 @@
 import { Dialog } from "@base-ui/react";
 import { AlertCircleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
+import { Turnstile } from "@marsidev/react-turnstile";
+import type { TurnstileInstance } from "@marsidev/react-turnstile";
 import { env } from "@repo/env/client";
 import { useStore } from "@tanstack/react-form";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -9,6 +10,7 @@ import { Facehash } from "facehash";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -16,6 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 import { defaultFacehashProps } from "@/lib/utils";
+
 import { DialogContent } from "../ui/dialog";
 
 export function AuthDialog({ ...props }: Dialog.Root.Props) {
@@ -28,7 +31,7 @@ export function AuthDialogTrigger({ ...props }: Dialog.Trigger.Props) {
 
 export function AuthDialogContent() {
   const [tab, setTab] = useState("login");
-  const [error, setError] = useState<string>();
+  const [formError, setFormError] = useState<string>();
   const [showVerificationDialog, setShowVerificationDialog] = useState(false);
   const loginTurnstileRef = useRef<TurnstileInstance>(null);
   const registerTurnstileRef = useRef<TurnstileInstance>(null);
@@ -42,27 +45,27 @@ export function AuthDialogContent() {
       turnstileToken: "",
     },
     onSubmit: async ({ value, formApi }) => {
-      const { data, error } = loginSchema.safeParse(value);
+      const { data, success } = loginSchema.safeParse(value);
 
-      if (error) {
-        setError("Email o contraseña inválidos");
+      if (!success) {
+        setFormError("Email o contraseña inválidos");
         return;
       }
 
       try {
-        setError(undefined);
+        setFormError(undefined);
 
         const { error: authError } = await toast
           .promise(
             authClient.signIn.email({
-              email: data.email,
-              password: data.password,
               callbackURL: window.location.origin,
+              email: data.email,
               fetchOptions: {
                 headers: {
                   "x-captcha-response": data.turnstileToken,
                 },
               },
+              password: data.password,
             }),
             {
               loading: "Iniciando sesión...",
@@ -78,13 +81,15 @@ export function AuthDialogContent() {
             return;
           }
 
-          setError(getErrorMessage(authError));
+          setFormError(getErrorMessage(authError));
           return;
         }
 
         navigate({ to: "/" });
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Error desconocido");
+      } catch (error) {
+        setFormError(
+          error instanceof Error ? error.message : "Error desconocido"
+        );
       } finally {
         loginForm.resetField("turnstileToken");
         loginTurnstileRef.current?.reset();
@@ -94,37 +99,34 @@ export function AuthDialogContent() {
   });
 
   const registerForm = useAppForm({
-    validators: {
-      onSubmit: registerSchema,
-    },
     defaultValues: {
-      name: "",
-      email: "",
-      password: "",
       confirmPassword: "",
+      email: "",
+      name: "",
+      password: "",
       turnstileToken: "",
     },
     onSubmit: async ({ value }) => {
       try {
-        setError(undefined);
+        setFormError(undefined);
 
         toast.loading("Registrando...", { id: "auth" });
 
         const { error: authError } = await authClient.signUp.email({
-          name: value.name,
-          email: value.email,
-          password: value.password,
           callbackURL: "/",
+          email: value.email,
           fetchOptions: {
             headers: {
               "x-captcha-response": value.turnstileToken,
             },
           },
+          name: value.name,
+          password: value.password,
         });
 
         if (authError) {
           toast.dismiss("auth");
-          setError(getErrorMessage(authError));
+          setFormError(getErrorMessage(authError));
           return;
         }
 
@@ -137,13 +139,18 @@ export function AuthDialogContent() {
         registerForm.resetField("password");
         registerForm.resetField("confirmPassword");
         registerForm.resetField("turnstileToken");
-      } catch (err) {
+      } catch (error) {
         toast.dismiss("auth");
-        setError(err instanceof Error ? err.message : "Error desconocido");
+        setFormError(
+          error instanceof Error ? error.message : "Error desconocido"
+        );
       } finally {
         registerForm.resetField("turnstileToken");
         registerTurnstileRef.current?.reset();
       }
+    },
+    validators: {
+      onSubmit: registerSchema,
     },
   });
 
@@ -171,7 +178,7 @@ export function AuthDialogContent() {
               registerForm.resetField("turnstileToken");
               loginTurnstileRef.current?.reset();
               registerTurnstileRef.current?.reset();
-              setError(undefined); // Clear errors when switching tabs
+              setFormError(undefined); // Clear errors when switching tabs
             }}
             value={tab}
           >
@@ -209,10 +216,10 @@ export function AuthDialogContent() {
                     />
                   )}
                 </loginForm.AppField>
-                {!!error && (
+                {!!formError && (
                   <Alert variant="destructive">
                     <HugeiconsIcon icon={AlertCircleIcon} />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription>{formError}</AlertDescription>
                   </Alert>
                 )}
                 <loginForm.AppForm>
@@ -283,10 +290,10 @@ export function AuthDialogContent() {
                     />
                   )}
                 </registerForm.AppField>
-                {!!error && (
+                {!!formError && (
                   <Alert variant="destructive">
                     <HugeiconsIcon icon={AlertCircleIcon} />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription>{formError}</AlertDescription>
                   </Alert>
                 )}
                 <registerForm.AppForm>
@@ -314,13 +321,13 @@ const loginSchema = z.object({
 
 const registerSchema = z
   .object({
-    name: z.string(),
+    confirmPassword: z.string(),
     email: z.email("Email inválido"),
+    name: z.string(),
     password: z
       .string()
       .min(8, "Debe tener al menos 8 caracteres")
       .max(64, "Debe tener como máximo 64 caracteres"),
-    confirmPassword: z.string(),
     turnstileToken: z.string().nonempty("Por favor completa el CAPTCHA"),
   })
   .refine((data) => data.password === data.confirmPassword, {

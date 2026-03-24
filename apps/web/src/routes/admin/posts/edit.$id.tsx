@@ -1,15 +1,14 @@
-﻿import { postEditSchema } from "@repo/shared/schemas";
+import { postEditSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import Markdown from "react-markdown";
 import { toast } from "sonner";
+
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
-import {
-  ImageEditor,
-  type ImageEditorRef,
-} from "@/components/admin/image-editor";
+import { ImageEditor } from "@/components/admin/image-editor";
+import type { ImageEditorRef } from "@/components/admin/image-editor";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import {
   Card,
@@ -24,11 +23,11 @@ import { orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/posts/edit/$id")({
   component: RouteComponent,
-  loader: async ({ params }) => ({
-    prerequisites: await orpcClient.post.admin.createPostPrerequisites(),
-    oldPost: await orpcClient.post.admin.getEdit(params.id),
-  }),
   gcTime: 0,
+  loader: async ({ params }) => ({
+    oldPost: await orpcClient.post.admin.getEdit(params.id),
+    prerequisites: await orpcClient.post.admin.createPostPrerequisites(),
+  }),
 });
 
 function RouteComponent() {
@@ -49,30 +48,27 @@ function RouteComponent() {
   const terms = Object.groupBy(oldPost.terms, (item) => item.term.taxonomy);
 
   const form = useAppForm({
-    validators: {
-      onSubmit: postEditSchema,
-    },
     defaultValues: {
-      type: "post" as const,
-      id: oldPost.id,
-      title: oldPost.title,
-      version: oldPost.version ?? "",
+      adsLinks: oldPost.adsLinks ?? "",
       censorship: terms.censorship?.[0]?.term.id ?? "",
-      status: terms.status?.[0]?.term.id ?? "",
+      changelog: oldPost.changelog ?? "",
+      content: oldPost.content,
+      creatorLink: oldPost.creatorLink,
+      creatorName: oldPost.creatorName,
+      documentStatus: oldPost.status,
       engine: terms.engine?.[0]?.term.id ?? "",
       graphics: terms.graphics?.[0].term.id ?? "",
-      content: oldPost.content,
-      creatorName: oldPost.creatorName,
-      creatorLink: oldPost.creatorLink,
-      adsLinks: oldPost.adsLinks ?? "",
-      premiumLinks: oldPost.premiumLinks ?? "",
-      changelog: oldPost.changelog ?? "",
-      documentStatus: oldPost.status,
-      platforms: terms.platform?.map((term) => term.term.id) ?? [],
-      tags: terms.tag?.map((term) => term.term.id) ?? [],
+      id: oldPost.id,
       languages: terms.language?.map((term) => term.term.id) ?? [],
       manualEngagementQuestions:
         oldPost.engagementOverrides?.map((item) => item.text) ?? [],
+      platforms: terms.platform?.map((term) => term.term.id) ?? [],
+      premiumLinks: oldPost.premiumLinks ?? "",
+      status: terms.status?.[0]?.term.id ?? "",
+      tags: terms.tag?.map((term) => term.term.id) ?? [],
+      title: oldPost.title,
+      type: "post" as const,
+      version: oldPost.version ?? "",
     },
     onSubmit: async (formData) => {
       const imagePayload = imageEditorRef.current?.getPayload();
@@ -83,23 +79,23 @@ function RouteComponent() {
             await mutation.mutateAsync(formData.value);
             if (imagePayload) {
               await imagesMutation.mutateAsync({
-                postId: oldPost.id,
-                type: "post",
-                order: imagePayload.order,
                 newFiles:
                   imagePayload.newFiles.length > 0
                     ? imagePayload.newFiles
                     : undefined,
+                order: imagePayload.order,
+                postId: oldPost.id,
+                type: "post",
               });
             }
           })(),
           {
+            error: (error) => ({
+              duration: 10_000,
+              message: `Error al editar post: ${error}`,
+            }),
             loading: "Editando post...",
             success: "Post editado!",
-            error: (error) => ({
-              message: `Error al editar post: ${error}`,
-              duration: 10_000,
-            }),
           }
         )
         .unwrap();
@@ -107,6 +103,9 @@ function RouteComponent() {
         orpc.post.admin.getDashboardList.queryOptions()
       );
       navigate({ to: "/admin/posts" });
+    },
+    validators: {
+      onSubmit: postEditSchema,
     },
   });
 
@@ -186,8 +185,8 @@ function RouteComponent() {
                 label="Censura"
                 options={
                   groupedTerms.censorship?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -200,8 +199,8 @@ function RouteComponent() {
                 label="Estado"
                 options={
                   groupedTerms.status?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -214,8 +213,8 @@ function RouteComponent() {
                 label="Motor"
                 options={
                   groupedTerms.engine?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -228,8 +227,8 @@ function RouteComponent() {
                 label="Gráficos"
                 options={
                   groupedTerms.graphics?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -242,8 +241,8 @@ function RouteComponent() {
                 label="Plataformas"
                 options={
                   groupedTerms.platform?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -256,8 +255,8 @@ function RouteComponent() {
                 label="Tags"
                 options={
                   groupedTerms.tag?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -270,8 +269,8 @@ function RouteComponent() {
                 label="Idiomas"
                 options={
                   groupedTerms.language?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -283,10 +282,10 @@ function RouteComponent() {
               <field.SelectField
                 label="Estado del Documento"
                 options={[
-                  { value: "publish", label: "Publicar" },
-                  { value: "pending", label: "Pendiente" },
-                  { value: "draft", label: "Borrador" },
-                  { value: "trash", label: "Basura" },
+                  { label: "Publicar", value: "publish" },
+                  { label: "Pendiente", value: "pending" },
+                  { label: "Borrador", value: "draft" },
+                  { label: "Basura", value: "trash" },
                 ]}
                 required
               />

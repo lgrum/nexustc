@@ -68,9 +68,9 @@ export function selectAutomaticEngagementPrompts(
     return [
       {
         id: onlyPrompt!.id,
-        text: onlyPrompt!.text,
         source: "tag",
         tagTermId: onlyPrompt!.tagTermId,
+        text: onlyPrompt!.text,
       },
     ];
   }
@@ -117,9 +117,9 @@ export function selectAutomaticEngagementPrompts(
 
   return selected.map((item) => ({
     id: item.id,
-    text: item.text,
     source: "tag",
     tagTermId: item.tagTermId,
+    text: item.text,
   }));
 }
 
@@ -131,9 +131,9 @@ export function resolveEngagementPrompts(
   const normalizedManualOverrides = dedupePromptsByText(manualOverrides).map(
     (item) => ({
       id: item.id,
-      text: item.text,
       source: "manual" as const,
       tagTermId: null,
+      text: item.text,
     })
   );
 

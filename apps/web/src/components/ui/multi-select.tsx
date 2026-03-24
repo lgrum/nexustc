@@ -5,16 +5,17 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  type ComponentPropsWithoutRef,
   createContext,
-  type ReactNode,
   useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import type { Button } from "@/components/ui/button";
 import {
@@ -60,19 +61,22 @@ export function MultiSelect({
   );
   const [items, setItems] = useState<Map<string, ReactNode>>(new Map());
 
-  function toggleValue(value: string) {
-    const getNewSet = (prev: Set<string>) => {
-      const newSet = new Set(prev);
-      if (newSet.has(value)) {
-        newSet.delete(value);
-      } else {
-        newSet.add(value);
-      }
-      return newSet;
-    };
-    setSelectedValues(getNewSet);
-    onValuesChange?.([...getNewSet(selectedValues)]);
-  }
+  const toggleValue = useCallback(
+    (value: string) => {
+      const getNewSet = (prev: Set<string>) => {
+        const newSet = new Set(prev);
+        if (newSet.has(value)) {
+          newSet.delete(value);
+        } else {
+          newSet.add(value);
+        }
+        return newSet;
+      };
+      setSelectedValues(getNewSet);
+      onValuesChange?.([...getNewSet(selectedValues)]);
+    },
+    [onValuesChange, selectedValues]
+  );
 
   const onItemAdded = useCallback((value: string, label: ReactNode) => {
     setItems((prev) => {
@@ -83,17 +87,20 @@ export function MultiSelect({
     });
   }, []);
 
+  const value = useMemo(
+    () => ({
+      items,
+      onItemAdded,
+      open,
+      selectedValues: values ? new Set(values) : selectedValues,
+      setOpen,
+      toggleValue,
+    }),
+    [values, items, selectedValues, toggleValue, open, onItemAdded]
+  );
+
   return (
-    <MultiSelectContext
-      value={{
-        open,
-        setOpen,
-        selectedValues: values ? new Set(values) : selectedValues,
-        toggleValue,
-        items,
-        onItemAdded,
-      }}
-    >
+    <MultiSelectContext value={value}>
       <Popover onOpenChange={setOpen} open={open}>
         {children}
       </Popover>
@@ -173,7 +180,7 @@ export function MultiSelectValue({
       child.style.removeProperty("display");
     }
     let amount = 0;
-    for (let i = itemsRef.current.size - 1; i >= 0; i--) {
+    for (let i = itemsRef.current.size - 1; i >= 0; i -= 1) {
       const child = [...itemsRef.current][i];
       if (containerElement.scrollWidth <= containerElement.clientWidth) {
         break;

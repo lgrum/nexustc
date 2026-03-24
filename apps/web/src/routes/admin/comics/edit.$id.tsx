@@ -4,11 +4,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef } from "react";
 import { toast } from "sonner";
+
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
-import {
-  ImageEditor,
-  type ImageEditorRef,
-} from "@/components/admin/image-editor";
+import { ImageEditor } from "@/components/admin/image-editor";
+import type { ImageEditorRef } from "@/components/admin/image-editor";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { Markdown } from "@/components/markdown";
 import {
@@ -24,11 +23,11 @@ import { orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/edit/$id")({
   component: RouteComponent,
-  loader: async ({ params }) => ({
-    prerequisites: await orpcClient.comic.admin.createComicPrerequisites(),
-    oldComic: await orpcClient.comic.admin.getEdit(params.id),
-  }),
   gcTime: 0,
+  loader: async ({ params }) => ({
+    oldComic: await orpcClient.comic.admin.getEdit(params.id),
+    prerequisites: await orpcClient.comic.admin.createComicPrerequisites(),
+  }),
 });
 
 function RouteComponent() {
@@ -49,21 +48,18 @@ function RouteComponent() {
   const terms = Object.groupBy(oldComic.terms, (item) => item.term.taxonomy);
 
   const form = useAppForm({
-    validators: {
-      onSubmit: comicEditSchema,
-    },
     defaultValues: {
-      type: "comic" as const,
-      id: oldComic.id,
-      title: oldComic.title,
-      censorship: terms.censorship?.[0]?.term.id ?? "",
-      status: terms.status?.[0]?.term.id ?? "",
       adsLinks: oldComic.adsLinks ?? "",
-      premiumLinks: oldComic.premiumLinks ?? "",
+      censorship: terms.censorship?.[0]?.term.id ?? "",
       documentStatus: oldComic.status,
-      tags: terms.tag?.map((term) => term.term.id) ?? [],
+      id: oldComic.id,
       manualEngagementQuestions:
         oldComic.engagementOverrides?.map((item) => item.text) ?? [],
+      premiumLinks: oldComic.premiumLinks ?? "",
+      status: terms.status?.[0]?.term.id ?? "",
+      tags: terms.tag?.map((term) => term.term.id) ?? [],
+      title: oldComic.title,
+      type: "comic" as const,
     },
     onSubmit: async (formData) => {
       const imagePayload = imageEditorRef.current?.getPayload();
@@ -74,23 +70,23 @@ function RouteComponent() {
             await mutation.mutateAsync(formData.value);
             if (imagePayload) {
               await imagesMutation.mutateAsync({
-                postId: oldComic.id,
-                type: "comic",
-                order: imagePayload.order,
                 newFiles:
                   imagePayload.newFiles.length > 0
                     ? imagePayload.newFiles
                     : undefined,
+                order: imagePayload.order,
+                postId: oldComic.id,
+                type: "comic",
               });
             }
           })(),
           {
+            error: (error) => ({
+              duration: 10_000,
+              message: `Error al editar cómic: ${error}`,
+            }),
             loading: "Editando cómic...",
             success: "Cómic editado!",
-            error: (error) => ({
-              message: `Error al editar cómic: ${error}`,
-              duration: 10_000,
-            }),
           }
         )
         .unwrap();
@@ -98,6 +94,9 @@ function RouteComponent() {
         orpc.comic.admin.getDashboardList.queryOptions()
       );
       navigate({ to: "/admin/comics" });
+    },
+    validators: {
+      onSubmit: comicEditSchema,
     },
   });
 
@@ -171,8 +170,8 @@ function RouteComponent() {
                 label="Censura"
                 options={
                   groupedTerms.censorship?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -185,8 +184,8 @@ function RouteComponent() {
                 label="Estado"
                 options={
                   groupedTerms.status?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -199,8 +198,8 @@ function RouteComponent() {
                 label="Tags"
                 options={
                   groupedTerms.tag?.map((term) => ({
-                    value: term.id,
                     label: term.name,
+                    value: term.id,
                   })) ?? []
                 }
               />
@@ -212,10 +211,10 @@ function RouteComponent() {
               <field.SelectField
                 label="Estado del Documento"
                 options={[
-                  { value: "publish", label: "Publicar" },
-                  { value: "pending", label: "Pendiente" },
-                  { value: "draft", label: "Borrador" },
-                  { value: "trash", label: "Basura" },
+                  { label: "Publicar", value: "publish" },
+                  { label: "Pendiente", value: "pending" },
+                  { label: "Borrador", value: "draft" },
+                  { label: "Basura", value: "trash" },
                 ]}
                 required
               />

@@ -16,13 +16,13 @@ function checkDomBait(): Promise<boolean> {
     const bait = document.createElement("div");
     bait.className =
       "ads ad adsbox ad-unit ad-container ad-wrapper sponsored advertisement";
-    bait.setAttribute("data-ad-slot", "1234567890");
-    bait.setAttribute("data-ad-format", "auto");
+    bait.dataset.adSlot = "1234567890";
+    bait.dataset.adFormat = "auto";
     bait.id = "ad-banner-top";
     bait.innerHTML = "&nbsp;";
     bait.style.cssText =
       "position:absolute;top:-1000px;left:-1000px;height:1px;width:1px;";
-    document.body.appendChild(bait);
+    document.body.append(bait);
 
     requestAnimationFrame(() => {
       const style = window.getComputedStyle(bait);
@@ -34,7 +34,7 @@ function checkDomBait(): Promise<boolean> {
         bait.offsetWidth === 0 ||
         bait.offsetParent === null;
 
-      document.body.removeChild(bait);
+      bait.remove();
       resolve(isBlocked);
     });
   });
@@ -46,29 +46,31 @@ function checkBaitScript(): Promise<boolean> {
 
     const script = document.createElement("script");
     script.src = "/oncc-adbanner.js";
-    script.onerror = () => {
+    script.addEventListener("error", () => {
       clearTimeout(timeout);
+      // oxlint-disable-next-line promise/no-multiple-resolved: it's meant to timeout, or get cleared if the script errors or loads
       resolve(true);
-    };
-    script.onload = () => {
+    });
+    script.addEventListener("load", () => {
       clearTimeout(timeout);
+      // oxlint-disable-next-line promise/no-multiple-resolved: see above
       setTimeout(() => {
-        const markerExists = document.getElementById("38ml23f9joasl34");
+        const markerExists = document.querySelector("#38ml23f9joasl34");
         const win = window as WindowWithAd;
         const adLoadedSuccessfully =
           win.adLoaded === true && markerExists !== null;
         resolve(!adLoadedSuccessfully);
       }, 100);
-    };
-    document.body.appendChild(script);
+    });
+    document.body.append(script);
   });
 }
 
 async function checkFetchBlocking(): Promise<boolean> {
   try {
     const response = await fetch("/ads/banner.gif", {
-      method: "HEAD",
       cache: "no-store",
+      method: "HEAD",
     });
     return !response.ok;
   } catch {
@@ -80,19 +82,19 @@ function checkCssInjection(): Promise<boolean> {
   return new Promise((resolve) => {
     const style = document.createElement("style");
     style.textContent = ".adsbox-test { height: 10px !important; }";
-    document.head.appendChild(style);
+    document.head.append(style);
 
     const testDiv = document.createElement("div");
     testDiv.className = "adsbox adsbox-test";
     testDiv.style.height = "10px";
     testDiv.style.position = "absolute";
     testDiv.style.top = "-1000px";
-    document.body.appendChild(testDiv);
+    document.body.append(testDiv);
 
     requestAnimationFrame(() => {
       const height = testDiv.offsetHeight;
-      document.body.removeChild(testDiv);
-      document.head.removeChild(style);
+      testDiv.remove();
+      style.remove();
       resolve(height === 0);
     });
   });
@@ -111,8 +113,8 @@ function withTimeout<T>(
 
 export function useAdblockDetector() {
   const [state, setState] = useState<AdblockDetectorState>({
-    detected: false,
     checked: false,
+    detected: false,
   });
 
   useEffect(() => {
@@ -135,7 +137,7 @@ export function useAdblockDetector() {
 
       console.log(results);
 
-      setState({ detected, checked: true });
+      setState({ checked: true, detected });
     };
 
     runDetection();

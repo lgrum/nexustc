@@ -7,6 +7,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import { EngagementPromptBlock } from "@/components/posts/engagement-prompt-block";
 import { TermBadge } from "@/components/term-badge";
 import {
@@ -63,10 +64,10 @@ type FormState = {
 
 function getInitialFormState(tagTermId = ""): FormState {
   return {
-    tagTermId,
-    isGlobal: false,
-    text: "",
     isActive: true,
+    isGlobal: false,
+    tagTermId,
+    text: "",
   };
 }
 
@@ -106,10 +107,10 @@ function RouteComponent() {
     }
 
     setFormState({
-      tagTermId: selectedQuestion.tagTermId ?? "",
-      isGlobal: selectedQuestion.isGlobal,
-      text: selectedQuestion.text,
       isActive: selectedQuestion.isActive,
+      isGlobal: selectedQuestion.isGlobal,
+      tagTermId: selectedQuestion.tagTermId ?? "",
+      text: selectedQuestion.text,
     });
   }, [data.tagTerms, selectedQuestion]);
 
@@ -142,11 +143,11 @@ function RouteComponent() {
   const saveMutation = useMutation({
     mutationFn: () => {
       const payload = {
-        tagTermId: formState.isGlobal ? undefined : formState.tagTermId,
-        isGlobal: formState.isGlobal,
-        text: formState.text,
         isActive: formState.isActive,
+        isGlobal: formState.isGlobal,
         locale: "es" as const,
+        tagTermId: formState.isGlobal ? undefined : formState.tagTermId,
+        text: formState.text,
       };
 
       if (selectedQuestion) {
@@ -158,6 +159,9 @@ function RouteComponent() {
 
       return orpcClient.engagementQuestion.create(payload);
     },
+    onError: (error) => {
+      toast.error(`No se pudo guardar la pregunta: ${error}`);
+    },
     onSuccess: async (result) => {
       await invalidateDashboard();
       setSelectedQuestionId(result?.id ?? null);
@@ -165,42 +169,39 @@ function RouteComponent() {
         selectedQuestion ? "Pregunta actualizada" : "Pregunta creada"
       );
     },
-    onError: (error) => {
-      toast.error(`No se pudo guardar la pregunta: ${error}`);
-    },
   });
 
   const toggleMutation = useMutation({
     mutationFn: (payload: { id: string; isActive: boolean }) =>
       orpcClient.engagementQuestion.toggleActive(payload),
-    onSuccess: async () => {
-      await invalidateDashboard();
-    },
     onError: (error) => {
       toast.error(`No se pudo actualizar el estado: ${error}`);
+    },
+    onSuccess: async () => {
+      await invalidateDashboard();
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => orpcClient.engagementQuestion.delete({ id }),
+    onError: (error) => {
+      toast.error(`No se pudo eliminar la pregunta: ${error}`);
+    },
     onSuccess: async () => {
       await invalidateDashboard();
       setDeleteDialogOpen(false);
       setSelectedQuestionId(null);
       toast.success("Pregunta eliminada");
     },
-    onError: (error) => {
-      toast.error(`No se pudo eliminar la pregunta: ${error}`);
-    },
   });
 
   const onSave = async () => {
     const result = engagementQuestionCreateSchema.safeParse({
-      tagTermId: formState.isGlobal ? undefined : formState.tagTermId,
-      isGlobal: formState.isGlobal,
-      text: formState.text,
       isActive: formState.isActive,
+      isGlobal: formState.isGlobal,
       locale: "es",
+      tagTermId: formState.isGlobal ? undefined : formState.tagTermId,
+      text: formState.text,
     });
 
     if (!result.success) {
@@ -389,9 +390,9 @@ function RouteComponent() {
               prompts={[
                 {
                   id: "preview",
-                  text: previewText,
                   source: "tag",
                   tagTermId: formState.isGlobal ? null : formState.tagTermId,
+                  text: previewText,
                 },
               ]}
             />
@@ -494,8 +495,8 @@ function RouteComponent() {
                       ) : question.tagTerm ? (
                         <TermBadge
                           tag={{
-                            name: question.tagTerm.name,
                             color: question.tagTerm.color,
+                            name: question.tagTerm.name,
                           }}
                         />
                       ) : null}

@@ -1,9 +1,11 @@
-import { PATRON_TIER_KEYS, type PatronTier } from "@repo/shared/constants";
+import { PATRON_TIER_KEYS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+
 import {
   Card,
   CardContent,
@@ -20,16 +22,16 @@ export const Route = createFileRoute("/admin/stickers/create")({
 });
 
 const stickerCreateSchema = z.object({
+  displayName: z.string().min(1).max(128),
+  isActive: z.boolean(),
   name: z
     .string()
     .min(1)
     .max(64)
     .regex(/^\w[\w-]*$/),
-  displayName: z.string().min(1).max(128),
-  type: z.enum(["static", "animated"]),
-  requiredTier: z.enum(PATRON_TIER_KEYS),
   order: z.number().int(),
-  isActive: z.boolean(),
+  requiredTier: z.enum(PATRON_TIER_KEYS),
+  type: z.enum(["static", "animated"]),
 });
 
 function RouteComponent() {
@@ -40,14 +42,13 @@ function RouteComponent() {
   const [preview, setPreview] = useState<string | null>(null);
 
   const form = useAppForm({
-    validators: { onSubmit: stickerCreateSchema },
     defaultValues: {
-      name: "",
       displayName: "",
-      type: "static" as "static" | "animated",
-      requiredTier: "level3" as PatronTier,
-      order: 0,
       isActive: true,
+      name: "",
+      order: 0,
+      requiredTier: "level3" as PatronTier,
+      type: "static" as "static" | "animated",
     },
     onSubmit: async (formData) => {
       if (!file) {
@@ -57,13 +58,9 @@ function RouteComponent() {
 
       const values = formData.value;
       const isAnimated = values.type === "animated";
-      let uploadFile: File;
-
-      if (isAnimated) {
-        uploadFile = file;
-      } else {
-        uploadFile = await convertImage(file, "webp", 0.8);
-      }
+      const uploadFile = isAnimated
+        ? file
+        : await convertImage(file, "webp", 0.8);
 
       const extension = isAnimated
         ? file.name.split(".").pop()?.toLowerCase() === "gif"
@@ -73,27 +70,27 @@ function RouteComponent() {
       const assetKey = `stickers/${values.name}.${extension}`;
 
       const { presignedUrl } = await orpcClient.sticker.admin.getUploadUrl({
-        name: values.name,
-        extension: extension as "webp" | "gif",
         contentLength: uploadFile.size,
+        extension: extension as "webp" | "gif",
+        name: values.name,
       });
 
-      await uploadBlobWithProgress(uploadFile, presignedUrl, () => undefined);
+      await uploadBlobWithProgress(uploadFile, presignedUrl);
 
       await toast
         .promise(
           mutation.mutateAsync({
             ...values,
-            assetKey,
             assetFormat: extension,
+            assetKey,
           }),
           {
+            error: (error) => ({
+              duration: 10_000,
+              message: `Error al crear sticker: ${error}`,
+            }),
             loading: "Creando sticker...",
             success: "Sticker creado!",
-            error: (error) => ({
-              message: `Error al crear sticker: ${error}`,
-              duration: 10_000,
-            }),
           }
         )
         .unwrap();
@@ -102,6 +99,7 @@ function RouteComponent() {
       );
       navigate({ to: "/admin/stickers" });
     },
+    validators: { onSubmit: stickerCreateSchema },
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,8 +151,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Tipo"
                 options={[
-                  { value: "static", label: "Estático" },
-                  { value: "animated", label: "Animado" },
+                  { label: "Estático", value: "static" },
+                  { label: "Animado", value: "animated" },
                 ]}
               />
             )}
@@ -188,8 +186,8 @@ function RouteComponent() {
               <field.SelectField
                 label="Tier requerido"
                 options={PATRON_TIER_KEYS.map((tier) => ({
-                  value: tier,
                   label: tier,
+                  value: tier,
                 }))}
               />
             )}

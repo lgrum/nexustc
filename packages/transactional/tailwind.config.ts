@@ -2,23 +2,23 @@ import type { Config } from "tailwindcss";
 
 export default {
   theme: {
-    screens: {
-      sm: "480px",
-      md: "768px",
-      lg: "976px",
-      xl: "1440px",
-    },
-    fontFamily: {
-      sans: ["Outfit", "sans-serif"],
-    },
     extend: {
+      borderRadius: {
+        "4xl": "2rem",
+      },
       spacing: {
         "128": "32rem",
         "144": "36rem",
       },
-      borderRadius: {
-        "4xl": "2rem",
-      },
+    },
+    fontFamily: {
+      sans: ["Outfit", "sans-serif"],
+    },
+    screens: {
+      lg: "976px",
+      md: "768px",
+      sm: "480px",
+      xl: "1440px",
     },
   },
 } satisfies Config;

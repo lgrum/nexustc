@@ -1,13 +1,13 @@
+import type { ZodError } from "zod";
 import z from "zod";
 
 const PATREON_API_BASE = "https://www.patreon.com/api/oauth2/v2";
 
 const patreonMemberSchema = z.looseObject({
-  type: z.literal("member"),
   attributes: z.object({
+    currently_entitled_amount_cents: z.number().nullable().optional(),
     patron_status: z.string().nullable().optional(),
     pledge_relationship_start: z.string().nullable().optional(),
-    currently_entitled_amount_cents: z.number().nullable().optional(),
   }),
   relationships: z
     .object({
@@ -18,6 +18,7 @@ const patreonMemberSchema = z.looseObject({
         .optional(),
     })
     .optional(),
+  type: z.literal("member"),
 });
 
 const patreonTierSchema = z.looseObject({
@@ -33,7 +34,6 @@ const patreonCampaignSchema = z.looseObject({
 const patreonIdentityResponseSchema = z.looseObject({
   data: z.looseObject({
     id: z.string(),
-    type: z.literal("user"),
     relationships: z
       .object({
         memberships: z
@@ -45,6 +45,7 @@ const patreonIdentityResponseSchema = z.looseObject({
           .optional(),
       })
       .optional(),
+    type: z.literal("user"),
   }),
   included: z
     .array(
@@ -59,12 +60,12 @@ const patreonIdentityResponseSchema = z.looseObject({
 
 const patreonUserInfoSchema = z.looseObject({
   data: z.looseObject({
-    id: z.string(),
     attributes: z.looseObject({
       email: z.string(),
       full_name: z.string(),
       image_url: z.string(),
     }),
+    id: z.string(),
   }),
 });
 
@@ -78,12 +79,7 @@ export class PatreonIdentity {
   async fetchIdentity(): Promise<
     | [null, z.infer<typeof patreonIdentityResponseSchema>, true]
     | [
-        (
-          | ReturnType<
-              (typeof patreonIdentityResponseSchema)["safeParse"]
-            >["error"]
-          | string
-        ),
+        ZodError<z.infer<typeof patreonIdentityResponseSchema>> | string,
         null,
         false,
       ]
@@ -115,7 +111,7 @@ export class PatreonIdentity {
       return [parseResult.error, null, false] as const;
     }
 
-    const data = parseResult.data;
+    const { data } = parseResult;
 
     return [null, data, true] as const;
   }
@@ -152,7 +148,7 @@ export class PatreonIdentity {
       return [parseResult.error, null, false] as const;
     }
 
-    const data = parseResult.data;
+    const { data } = parseResult;
 
     return [null, data, true] as const;
   }

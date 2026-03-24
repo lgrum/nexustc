@@ -1,8 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import { useEffect, useState } from "react";
+
 import { authClient } from "@/lib/auth-client";
 import { defaultFacehashProps, getBucketUrl } from "@/lib/utils";
+
 import {
   AuthDialog,
   AuthDialogContent,

@@ -62,9 +62,9 @@
  * Usage:
  *   bun run server.ts
  */
-/** biome-ignore-all lint/complexity/noForEach: it's fine here */
 
 import path from "node:path";
+
 import Bun from "bun";
 import "dotenv/config";
 
@@ -75,6 +75,12 @@ const SERVER_ENTRY_POINT = "./dist/server/server.js";
 
 // Logging utilities for professional output
 const log = {
+  error: (message: string) => {
+    console.log(`[ERROR] ${message}`);
+  },
+  header: (message: string) => {
+    console.log(`\n${message}\n`);
+  },
   info: (message: string) => {
     console.log(`[INFO] ${message}`);
   },
@@ -84,13 +90,19 @@ const log = {
   warning: (message: string) => {
     console.log(`[WARNING] ${message}`);
   },
-  error: (message: string) => {
-    console.log(`[ERROR] ${message}`);
-  },
-  header: (message: string) => {
-    console.log(`\n${message}\n`);
-  },
 };
+
+/**
+ * Convert a simple glob pattern to a regular expression
+ * Supports * wildcard for matching any characters
+ */
+function convertGlobToRegExp(globPattern: string): RegExp {
+  // Escape regex special chars except *, then replace * with .*
+  const escapedPattern = globPattern
+    .replaceAll(/[-/\\^$+?.()|[\]{}]/g, "\\$&")
+    .replaceAll("*", ".*");
+  return new RegExp(`^${escapedPattern}$`, "i");
+}
 
 // Preloading configuration from environment variables
 const MAX_PRELOAD_BYTES = Number(
@@ -129,18 +141,6 @@ const GZIP_TYPES = (
   .split(",")
   .map((v) => v.trim())
   .filter(Boolean);
-
-/**
- * Convert a simple glob pattern to a regular expression
- * Supports * wildcard for matching any characters
- */
-function convertGlobToRegExp(globPattern: string): RegExp {
-  // Escape regex special chars except *, then replace * with .*
-  const escapedPattern = globPattern
-    .replace(/[-/\\^$+?.()|[\]{}]/g, "\\$&")
-    .replace(/\*/g, ".*");
-  return new RegExp(`^${escapedPattern}$`, "i");
-}
 
 /**
  * Compute ETag for a given data buffer
@@ -232,7 +232,7 @@ function compressDataIfAppropriate(
   try {
     return Bun.gzipSync(data.buffer as ArrayBuffer);
   } catch {
-    return;
+    //
   }
 }
 
@@ -244,18 +244,18 @@ function createResponseHandler(
 ): (req: Request) => Response {
   return (req: Request) => {
     const headers: Record<string, string> = {
-      "Content-Type": asset.type,
       "Cache-Control": asset.immutable
         ? "public, max-age=31536000, immutable"
         : "public, max-age=3600",
+      "Content-Type": asset.type,
     };
 
     if (ENABLE_ETAG && asset.etag) {
       const ifNone = req.headers.get("if-none-match");
       if (ifNone && ifNone === asset.etag) {
         return new Response(null, {
-          status: 304,
           headers: { ETag: asset.etag },
+          status: 304,
         });
       }
       headers.ETag = asset.etag;
@@ -269,12 +269,12 @@ function createResponseHandler(
       headers["Content-Encoding"] = "gzip";
       headers["Content-Length"] = String(asset.gz.byteLength);
       const gzCopy = new Uint8Array(asset.gz);
-      return new Response(gzCopy, { status: 200, headers });
+      return new Response(gzCopy, { headers, status: 200 });
     }
 
     headers["Content-Length"] = String(asset.raw.byteLength);
     const rawCopy = new Uint8Array(asset.raw);
-    return new Response(rawCopy, { status: 200, headers });
+    return new Response(rawCopy, { headers, status: 200 });
   };
 }
 
@@ -293,6 +293,28 @@ function createCompositeGlobPattern(): Bun.Glob {
     return new Bun.Glob(raw[0]);
   }
   return new Bun.Glob(`{${raw.join(",")}}`);
+}
+
+// Format file size with KB and actual gzip size
+function formatFileSize(bytes: number, gzBytes?: number) {
+  const kb = bytes / 1024;
+  const sizeStr = kb < 100 ? kb.toFixed(2) : kb.toFixed(1);
+
+  if (gzBytes !== undefined) {
+    const gzKb = gzBytes / 1024;
+    const gzStr = gzKb < 100 ? gzKb.toFixed(2) : gzKb.toFixed(1);
+    return {
+      gzip: gzStr,
+      size: sizeStr,
+    };
+  }
+
+  // Rough gzip estimation (typically 30-70% compression) if no actual gzip data
+  const gzipKb = kb * 0.35;
+  return {
+    gzip: gzipKb < 100 ? gzipKb.toFixed(2) : gzipKb.toFixed(1),
+    size: sizeStr,
+  };
 }
 
 /**
@@ -357,12 +379,12 @@ async function initializeStaticRoutes(
           const gz = compressDataIfAppropriate(bytes, metadata.type);
           const etag = ENABLE_ETAG ? computeEtag(bytes) : undefined;
           const asset: InMemoryAsset = {
-            raw: bytes,
-            gz,
             etag,
-            type: metadata.type,
+            gz,
             immutable: true,
+            raw: bytes,
             size: bytes.byteLength,
+            type: metadata.type,
           };
           routes[route] = createResponseHandler(asset);
 
@@ -374,8 +396,8 @@ async function initializeStaticRoutes(
             const fileOnDemand = Bun.file(filepath);
             return new Response(fileOnDemand, {
               headers: {
-                "Content-Type": metadata.type,
                 "Cache-Control": "public, max-age=3600",
+                "Content-Type": metadata.type,
               },
             });
           };
@@ -391,7 +413,7 @@ async function initializeStaticRoutes(
 
     // Show detailed file overview only when verbose mode is enabled
     if (VERBOSE && (loaded.length > 0 || skipped.length > 0)) {
-      const allFiles = [...loaded, ...skipped].sort((a, b) =>
+      const allFiles = [...loaded, ...skipped].toSorted((a, b) =>
         a.route.localeCompare(b.route)
       );
 
@@ -401,42 +423,20 @@ async function initializeStaticRoutes(
         60
       );
 
-      // Format file size with KB and actual gzip size
-      const formatFileSize = (bytes: number, gzBytes?: number) => {
-        const kb = bytes / 1024;
-        const sizeStr = kb < 100 ? kb.toFixed(2) : kb.toFixed(1);
-
-        if (gzBytes !== undefined) {
-          const gzKb = gzBytes / 1024;
-          const gzStr = gzKb < 100 ? gzKb.toFixed(2) : gzKb.toFixed(1);
-          return {
-            size: sizeStr,
-            gzip: gzStr,
-          };
-        }
-
-        // Rough gzip estimation (typically 30-70% compression) if no actual gzip data
-        const gzipKb = kb * 0.35;
-        return {
-          size: sizeStr,
-          gzip: gzipKb < 100 ? gzipKb.toFixed(2) : gzipKb.toFixed(1),
-        };
-      };
-
       if (loaded.length > 0) {
         console.log("\n📁 Preloaded into memory:");
         console.log(
           "Path                                          │    Size │ Gzip Size"
         );
-        loaded
-          .sort((a, b) => a.route.localeCompare(b.route))
-          .forEach((file) => {
-            const { size, gzip } = formatFileSize(file.size);
-            const paddedPath = file.route.padEnd(maxPathLength);
-            const sizeStr = `${size.padStart(7)} kB`;
-            const gzipStr = `${gzip.padStart(7)} kB`;
-            console.log(`${paddedPath} │ ${sizeStr} │  ${gzipStr}`);
-          });
+        for (const file of loaded.toSorted((a, b) =>
+          a.route.localeCompare(b.route)
+        )) {
+          const { size, gzip } = formatFileSize(file.size);
+          const paddedPath = file.route.padEnd(maxPathLength);
+          const sizeStr = `${size.padStart(7)} kB`;
+          const gzipStr = `${gzip.padStart(7)} kB`;
+          console.log(`${paddedPath} │ ${sizeStr} │  ${gzipStr}`);
+        }
       }
 
       if (skipped.length > 0) {
@@ -444,29 +444,29 @@ async function initializeStaticRoutes(
         console.log(
           "Path                                          │    Size │ Gzip Size"
         );
-        skipped
-          .sort((a, b) => a.route.localeCompare(b.route))
-          .forEach((file) => {
-            const { size, gzip } = formatFileSize(file.size);
-            const paddedPath = file.route.padEnd(maxPathLength);
-            const sizeStr = `${size.padStart(7)} kB`;
-            const gzipStr = `${gzip.padStart(7)} kB`;
-            console.log(`${paddedPath} │ ${sizeStr} │  ${gzipStr}`);
-          });
+        for (const file of skipped.toSorted((a, b) =>
+          a.route.localeCompare(b.route)
+        )) {
+          const { size, gzip } = formatFileSize(file.size);
+          const paddedPath = file.route.padEnd(maxPathLength);
+          const sizeStr = `${size.padStart(7)} kB`;
+          const gzipStr = `${gzip.padStart(7)} kB`;
+          console.log(`${paddedPath} │ ${sizeStr} │  ${gzipStr}`);
+        }
       }
     }
 
     // Show detailed verbose info if enabled
     if (VERBOSE) {
       if (loaded.length > 0 || skipped.length > 0) {
-        const allFiles = [...loaded, ...skipped].sort((a, b) =>
+        const allFiles = [...loaded, ...skipped].toSorted((a, b) =>
           a.route.localeCompare(b.route)
         );
         console.log("\n📊 Detailed file information:");
         console.log(
           "Status       │ Path                            │ MIME Type                    │ Reason"
         );
-        allFiles.forEach((file) => {
+        for (const file of allFiles) {
           const isPreloaded = loaded.includes(file);
           const status = isPreloaded ? "MEMORY" : "ON-DEMAND";
           const reason =
@@ -477,12 +477,12 @@ async function initializeStaticRoutes(
                 : "filtered";
           const route =
             file.route.length > 30
-              ? `${file.route.substring(0, 27)}...`
+              ? `${file.route.slice(0, 27)}...`
               : file.route;
           console.log(
             `${status.padEnd(12)} │ ${route.padEnd(30)} │ ${file.type.padEnd(28)} │ ${reason.padEnd(10)}`
           );
-        });
+        }
       } else {
         console.log("\n📊 No files found to display");
       }
@@ -511,7 +511,7 @@ async function initializeStaticRoutes(
     );
   }
 
-  return { routes, loaded, skipped };
+  return { loaded, routes, skipped };
 }
 
 /**
@@ -538,6 +538,14 @@ async function initializeServer() {
 
   // Create Bun server
   const server = Bun.serve({
+    // Global error handler
+    error(error) {
+      log.error(
+        `Uncaught server error: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return new Response("Internal Server Error", { status: 500 });
+    },
+
     port: SERVER_PORT,
 
     routes: {
@@ -554,21 +562,15 @@ async function initializeServer() {
         }
       },
     },
-
-    // Global error handler
-    error(error) {
-      log.error(
-        `Uncaught server error: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return new Response("Internal Server Error", { status: 500 });
-    },
   });
 
   log.success(`Server listening on http://localhost:${String(server.port)}`);
 }
 
 // Initialize the server
-initializeServer().catch((error: unknown) => {
+try {
+  await initializeServer();
+} catch (error: unknown) {
   log.error(`Failed to start server: ${String(error)}`);
   process.exit(1);
-});
+}

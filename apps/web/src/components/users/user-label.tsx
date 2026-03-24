@@ -6,7 +6,7 @@ export function UserLabel({
 }: {
   user: {
     name: string;
-    profileRoles?: Array<{
+    profileRoles?: {
       id: string;
       slug: string;
       name: string;
@@ -21,7 +21,7 @@ export function UserLabel({
       };
       icon?: { objectKey: string; isAnimated: boolean } | null;
       overlay?: { objectKey: string; isAnimated: boolean } | null;
-    }>;
+    }[];
   };
   className?: string;
   disableTooltip?: boolean;

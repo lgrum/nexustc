@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import { authClient } from "@/lib/auth-client";
 
 export function SignedOut({ children }: React.PropsWithChildren) {

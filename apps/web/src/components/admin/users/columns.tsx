@@ -1,7 +1,9 @@
 import { ROLE_LABELS } from "@repo/shared/constants";
 import type { ColumnDef } from "@tanstack/react-table";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+
 import type { AdminUser } from "./types";
 import { UserActionsDropdown } from "./user-actions-dropdown";
 
@@ -15,9 +17,9 @@ function getInitials(name: string) {
 }
 
 const roleBadgeVariant: Record<string, "default" | "accent" | "outline"> = {
-  owner: "accent",
   admin: "accent",
   moderator: "default",
+  owner: "accent",
   uploader: "default",
   user: "outline",
 };
@@ -26,7 +28,6 @@ export function getColumns(onRefresh: () => void): ColumnDef<AdminUser>[] {
   return [
     {
       accessorKey: "name",
-      header: "Usuario",
       cell: ({ row }) => {
         const user = row.original;
         return (
@@ -39,10 +40,10 @@ export function getColumns(onRefresh: () => void): ColumnDef<AdminUser>[] {
           </div>
         );
       },
+      header: "Usuario",
     },
     {
       accessorKey: "email",
-      header: "Email",
       cell: ({ row }) => (
         <div className="flex items-center gap-1">
           <span>{row.original.email}</span>
@@ -51,10 +52,10 @@ export function getColumns(onRefresh: () => void): ColumnDef<AdminUser>[] {
           )}
         </div>
       ),
+      header: "Email",
     },
     {
       accessorKey: "role",
-      header: "Rol",
       cell: ({ row }) => (
         <Badge
           className="font-semibold"
@@ -63,29 +64,30 @@ export function getColumns(onRefresh: () => void): ColumnDef<AdminUser>[] {
           {ROLE_LABELS[row.original.role]}
         </Badge>
       ),
+      header: "Rol",
     },
     {
       accessorKey: "banned",
-      header: "Estado",
       cell: ({ row }) =>
         row.original.banned ? (
           <Badge variant="destructive">Baneado</Badge>
         ) : (
           <Badge variant="outline">Activo</Badge>
         ),
+      header: "Estado",
     },
     {
       accessorKey: "createdAt",
-      header: "Registro",
       cell: ({ row }) =>
         new Date(row.original.createdAt).toLocaleDateString("es-ES"),
+      header: "Registro",
     },
     {
-      id: "actions",
-      header: "Acciones",
       cell: ({ row }) => (
         <UserActionsDropdown onRefresh={onRefresh} user={row.original} />
       ),
+      header: "Acciones",
+      id: "actions",
     },
   ];
 }

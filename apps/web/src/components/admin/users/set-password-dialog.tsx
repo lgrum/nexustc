@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+
 import {
   Dialog,
   DialogContent,
@@ -8,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient } from "@/lib/auth-client";
+
 import type { AdminUser } from "./types";
 
 export function SetPasswordDialog({
@@ -29,13 +31,13 @@ export function SetPasswordDialog({
       await toast
         .promise(
           authClient.admin.setUserPassword({
-            userId: user.id,
             newPassword: value.newPassword,
+            userId: user.id,
           }),
           {
+            error: "Error al cambiar contraseña.",
             loading: "Cambiando contraseña...",
             success: "Contraseña actualizada.",
-            error: "Error al cambiar contraseña.",
           }
         )
         .unwrap();

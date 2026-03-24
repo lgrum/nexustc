@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
+
 import { columns } from "@/components/admin/comics/columns";
 import { DataTable } from "@/components/admin/posts/data-table";
 import { orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/")({
   component: RouteComponent,
-  loader: () => orpcClient.comic.admin.getDashboardList(),
   gcTime: 0,
+  loader: () => orpcClient.comic.admin.getDashboardList(),
 });
 
 function RouteComponent() {

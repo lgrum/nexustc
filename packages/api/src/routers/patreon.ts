@@ -3,6 +3,7 @@ import { eq } from "@repo/db";
 import { account, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { PATRON_TIERS } from "@repo/shared/constants";
+
 import { fixedWindowRatelimitMiddleware, protectedProcedure } from "../index";
 import {
   determineTierFromIds,
@@ -25,20 +26,20 @@ export default {
 
       if (!patronRecord) {
         return {
-          isPatron: false,
-          tier: "none" as const,
           benefits: PATRON_TIERS.none,
+          isPatron: false,
           lastSyncAt: null,
+          tier: "none" as const,
         };
       }
 
       return {
-        isPatron: patronRecord.isActivePatron,
-        tier: patronRecord.tier,
         benefits: PATRON_TIERS[patronRecord.tier],
-        pledgeAmountCents: patronRecord.pledgeAmountCents,
-        patronSince: patronRecord.patronSince,
+        isPatron: patronRecord.isActivePatron,
         lastSyncAt: patronRecord.lastSyncAt,
+        patronSince: patronRecord.patronSince,
+        pledgeAmountCents: patronRecord.pledgeAmountCents,
+        tier: patronRecord.tier,
       };
     }
   ),
@@ -67,7 +68,7 @@ export default {
       }
 
       // Refresh token if expired
-      let accessToken = patreonAccount.accessToken;
+      let { accessToken } = patreonAccount;
       if (
         patreonAccount.accessTokenExpiresAt &&
         new Date(patreonAccount.accessTokenExpiresAt) < new Date()
@@ -85,17 +86,17 @@ export default {
         const newTokens = await refreshPatreonToken(
           patreonAccount.refreshToken
         );
-        accessToken = newTokens.accessToken;
+        ({ accessToken } = newTokens);
 
         // Update account with new tokens
         await db
           .update(account)
           .set({
             accessToken: newTokens.accessToken,
-            refreshToken: newTokens.refreshToken,
             accessTokenExpiresAt: new Date(
               Date.now() + newTokens.expiresIn * 1000
             ),
+            refreshToken: newTokens.refreshToken,
           })
           .where(eq(account.id, patreonAccount.id));
       }
@@ -119,27 +120,27 @@ export default {
       await db
         .insert(patron)
         .values({
-          userId: session.user.id,
-          patreonUserId: patreonAccount.accountId,
-          tier,
-          pledgeAmountCents: membership?.pledgeAmountCents ?? 0,
           isActivePatron: membership?.isActive ?? false,
+          lastSyncAt: new Date(),
+          patreonUserId: patreonAccount.accountId,
           patronSince: membership?.patronSince
             ? new Date(membership.patronSince)
             : null,
-          lastSyncAt: new Date(),
+          pledgeAmountCents: membership?.pledgeAmountCents ?? 0,
+          tier,
+          userId: session.user.id,
         })
         .onConflictDoUpdate({
-          target: patron.userId,
           set: {
-            tier,
-            pledgeAmountCents: membership?.pledgeAmountCents ?? 0,
             isActivePatron: membership?.isActive ?? false,
+            lastSyncAt: new Date(),
             patronSince: membership?.patronSince
               ? new Date(membership.patronSince)
               : null,
-            lastSyncAt: new Date(),
+            pledgeAmountCents: membership?.pledgeAmountCents ?? 0,
+            tier,
           },
+          target: patron.userId,
         });
 
       logger?.info(
@@ -147,9 +148,9 @@ export default {
       );
 
       return {
-        tier,
         benefits: PATRON_TIERS[tier],
         isActivePatron: membership?.isActive ?? false,
+        tier,
       };
     }),
 };

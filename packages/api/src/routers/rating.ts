@@ -3,6 +3,7 @@ import { and, desc, eq, sql } from "@repo/db";
 import { post, postRating } from "@repo/db/schema/app";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
+
 import {
   permissionProcedure,
   protectedProcedure,
@@ -24,17 +25,17 @@ export default {
         .insert(postRating)
         .values({
           postId: input.postId,
-          userId: session.user.id,
           rating: input.rating,
           review: input.review ?? "",
+          userId: session.user.id,
         })
         .onConflictDoUpdate({
-          target: [postRating.userId, postRating.postId],
           set: {
             rating: input.rating,
             review: input.review ?? "",
             updatedAt: new Date(),
           },
+          target: [postRating.userId, postRating.postId],
         });
 
       logger?.debug(
@@ -129,12 +130,12 @@ export default {
 
       const ratings = await db
         .select({
+          createdAt: postRating.createdAt,
           postId: postRating.postId,
-          userId: postRating.userId,
           rating: postRating.rating,
           review: postRating.review,
-          createdAt: postRating.createdAt,
           updatedAt: postRating.updatedAt,
+          userId: postRating.userId,
         })
         .from(postRating)
         .where(eq(postRating.postId, input.postId))
@@ -147,7 +148,7 @@ export default {
       logger?.debug(
         `Retrieved ${ratings.length} ratings with ${authors.length} unique authors for post ${input.postId}`
       );
-      return { ratings, authors };
+      return { authors, ratings };
     }),
 
   // Get recent ratings across all posts (paginated)
@@ -166,12 +167,12 @@ export default {
 
       const ratings = await db
         .select({
+          createdAt: postRating.createdAt,
           postId: postRating.postId,
-          userId: postRating.userId,
           rating: postRating.rating,
           review: postRating.review,
-          createdAt: postRating.createdAt,
           updatedAt: postRating.updatedAt,
+          userId: postRating.userId,
         })
         .from(postRating)
         .innerJoin(post, eq(post.id, postRating.postId))
@@ -190,9 +191,9 @@ export default {
           ? await db
               .select({
                 id: post.id,
+                imageObjectKeys: post.imageObjectKeys,
                 title: post.title,
                 type: post.type,
-                imageObjectKeys: post.imageObjectKeys,
               })
               .from(post)
               .where(
@@ -206,15 +207,15 @@ export default {
       logger?.debug(
         `Retrieved ${ratings.length} recent ratings with ${authors.length} authors and ${posts.length} posts`
       );
-      return { ratings, authors, posts };
+      return { authors, posts, ratings };
     }),
 
   getByUserId: publicProcedure
     .input(
       z.object({
-        userId: z.string(),
         limit: z.number().min(1).max(30).default(10),
         offset: z.number().min(0).default(0),
+        userId: z.string(),
       })
     )
     .handler(async ({ context: { db, ...ctx }, input }) => {
@@ -225,10 +226,10 @@ export default {
 
       const ratings = await db
         .select({
+          createdAt: postRating.createdAt,
           postId: postRating.postId,
           rating: postRating.rating,
           review: postRating.review,
-          createdAt: postRating.createdAt,
           updatedAt: postRating.updatedAt,
         })
         .from(postRating)
@@ -247,9 +248,9 @@ export default {
           ? await db
               .select({
                 id: post.id,
+                imageObjectKeys: post.imageObjectKeys,
                 title: post.title,
                 type: post.type,
-                imageObjectKeys: post.imageObjectKeys,
               })
               .from(post)
               .where(
@@ -263,7 +264,7 @@ export default {
       logger?.debug(
         `Retrieved ${ratings.length} ratings with ${posts.length} posts for user ${input.userId}`
       );
-      return { ratings, posts };
+      return { posts, ratings };
     }),
 
   // Get current user's rating for a post
@@ -283,12 +284,12 @@ export default {
 
       const result = await db
         .select({
+          createdAt: postRating.createdAt,
           postId: postRating.postId,
-          userId: postRating.userId,
           rating: postRating.rating,
           review: postRating.review,
-          createdAt: postRating.createdAt,
           updatedAt: postRating.updatedAt,
+          userId: postRating.userId,
         })
         .from(postRating)
         .where(

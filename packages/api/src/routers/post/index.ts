@@ -11,16 +11,19 @@ import {
   term,
   termPostRelation,
 } from "@repo/db/schema/app";
-import type { TAXONOMIES } from "@repo/shared/constants";
 import {
   canAccessPremiumLinks,
   getRequiredTierLabel,
-  type PatronTier,
-  type PremiumLinksDescriptor,
   userMeetsTierLevel,
+} from "@repo/shared/constants";
+import type {
+  TAXONOMIES,
+  PatronTier,
+  PremiumLinksDescriptor,
 } from "@repo/shared/constants";
 import { parseTokens, validateTokenLimit } from "@repo/shared/token-parser";
 import z from "zod";
+
 import {
   fixedWindowRatelimitMiddleware,
   protectedProcedure,
@@ -42,8 +45,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -51,8 +54,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -60,11 +63,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
         })
         .from(postRating)
         .groupBy(postRating.postId)
@@ -72,20 +75,20 @@ export default {
 
       const posts = await db
         .select({
+          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
+          content: post.content,
+          createdAt: post.createdAt,
+          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          isWeekly: post.isWeekly,
+
+          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           title: post.title,
           type: post.type,
           version: post.version,
-          content: post.content,
-          isWeekly: post.isWeekly,
-          imageObjectKeys: post.imageObjectKeys,
 
           views: post.views,
-          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
-          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
-          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-
-          createdAt: post.createdAt,
         })
         .from(post)
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
@@ -107,8 +110,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -116,8 +119,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -125,11 +128,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
@@ -138,20 +141,20 @@ export default {
 
       const posts = await db
         .select({
-          id: post.id,
-          title: post.title,
-          version: post.version,
-          type: post.type,
-          content: post.content,
-          isWeekly: post.isWeekly,
-          imageObjectKeys: post.imageObjectKeys,
-          views: post.views,
-
-          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
-          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-
+          content: post.content,
           createdAt: post.createdAt,
+          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          isWeekly: post.isWeekly,
+          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+
+          title: post.title,
+          type: post.type,
+          version: post.version,
+
+          views: post.views,
         })
         .from(post)
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
@@ -173,8 +176,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -182,8 +185,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -191,11 +194,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
@@ -204,27 +207,27 @@ export default {
 
       const posts = await db
         .select({
+          adsLinks: post.adsLinks,
+          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
+          changelog: post.changelog,
+          content: post.content,
+          createdAt: post.createdAt,
+          creatorLink: post.creatorLink,
+          creatorName: post.creatorName,
+          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          order: featuredPost.order,
+          position: featuredPost.position,
+
+          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
           title: post.title,
+
           type: post.type,
           version: post.version,
-          content: post.content,
-          imageObjectKeys: post.imageObjectKeys,
-          adsLinks: post.adsLinks,
-          changelog: post.changelog,
-          creatorName: post.creatorName,
-          creatorLink: post.creatorLink,
+
           views: post.views,
-          position: featuredPost.position,
-          order: featuredPost.order,
-
-          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
-          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
-
-          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
-
-          createdAt: post.createdAt,
         })
         .from(featuredPost)
         .innerJoin(post, eq(post.id, featuredPost.postId))
@@ -245,9 +248,6 @@ export default {
   search: publicProcedure
     .input(
       z.object({
-        type: z.enum(["post", "comic"]),
-        query: z.string().optional(),
-        termIds: z.array(z.string()).optional(),
         orderBy: z
           .enum([
             "newest",
@@ -261,6 +261,9 @@ export default {
           ])
           .optional()
           .default("views"),
+        query: z.string().optional(),
+        termIds: z.array(z.string()).optional(),
+        type: z.enum(["post", "comic"]),
       })
     )
     .handler(async ({ context: { db, ...context }, input }) => {
@@ -271,8 +274,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -280,8 +283,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -308,11 +311,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
@@ -357,21 +360,21 @@ export default {
       // Build the base query
       const baseQuery = db
         .select({
-          id: post.id,
-          title: post.title,
-          type: post.type,
-          version: post.version,
-          content: post.content,
-          isWeekly: post.isWeekly,
-          imageObjectKeys: post.imageObjectKeys,
           adsLinks: post.adsLinks,
+          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           changelog: post.changelog,
-          creatorName: post.creatorName,
+          content: post.content,
+          createdAt: post.createdAt,
           creatorLink: post.creatorLink,
-
-          views: post.views,
+          creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          isWeekly: post.isWeekly,
+
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          similarity: sql<number>`similarity(${post.title}, ${input.query?.trim() || ""})`,
 
           terms: sql<
             {
@@ -382,11 +385,11 @@ export default {
             }[]
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
 
-          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          title: post.title,
+          type: post.type,
 
-          createdAt: post.createdAt,
-          similarity: sql<number>`similarity(${post.title}, ${input.query?.trim() || ""})`,
+          version: post.version,
+          views: post.views,
         })
         .from(post)
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
@@ -402,31 +405,40 @@ export default {
         const similarityPrefix = hasQuery ? sql`similarity DESC, ` : sql``;
 
         switch (input.orderBy) {
-          case "newest":
+          case "newest": {
             return sql`${similarityPrefix}${post.createdAt} DESC`;
-          case "oldest":
+          }
+          case "oldest": {
             return sql`${similarityPrefix}${post.createdAt} ASC`;
-          case "title_asc":
+          }
+          case "title_asc": {
             return sql`${similarityPrefix}${post.title} ASC`;
-          case "title_desc":
+          }
+          case "title_desc": {
             return sql`${similarityPrefix}${post.title} DESC`;
-          case "views":
+          }
+          case "views": {
             return sql`${similarityPrefix}${post.views} DESC`;
-          case "rating_avg":
+          }
+          case "rating_avg": {
             return sql`${similarityPrefix}COALESCE(${ratingsAgg.averageRating}, 0) DESC`;
-          case "rating_count":
+          }
+          case "rating_count": {
             return sql`${similarityPrefix}COALESCE(${ratingsAgg.ratingCount}, 0) DESC`;
-          case "likes":
+          }
+          case "likes": {
             return sql`${similarityPrefix}COALESCE(${likesAgg.count}, 0) DESC`;
-          default:
+          }
+          default: {
             return sql`${similarityPrefix}${post.views} DESC`;
+          }
         }
       };
 
       const posts = await baseQuery.orderBy(getOrderClause());
 
       // Remove similarity field from the final result
-      const result = posts.map(({ similarity, ...postData }) => postData);
+      const result = posts.map(({ similarity: _, ...postData }) => postData);
       logger?.debug(`Search returned ${result.length} posts`);
 
       return result;
@@ -465,8 +477,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -474,8 +486,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -502,11 +514,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
@@ -515,25 +527,20 @@ export default {
 
       const result = await db
         .select({
-          id: post.id,
-          title: post.title,
-          type: post.type,
-          version: post.version,
-          content: post.content,
-          isWeekly: post.isWeekly,
-          imageObjectKeys: post.imageObjectKeys,
           adsLinks: post.adsLinks,
+          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           changelog: post.changelog,
-          creatorName: post.creatorName,
-          creatorLink: post.creatorLink,
+          content: post.content,
           createdAt: post.createdAt,
-          updatedAt: post.updatedAt,
-          views: post.views,
-          rawPremiumLinks: post.premiumLinks,
-
+          creatorLink: post.creatorLink,
+          creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
-
+          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          rawPremiumLinks: post.premiumLinks,
           terms: sql<
             {
               id: string;
@@ -543,8 +550,13 @@ export default {
             }[]
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
 
-          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          title: post.title,
+          type: post.type,
+
+          updatedAt: post.updatedAt,
+
+          version: post.version,
+          views: post.views,
         })
         .from(post)
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
@@ -576,8 +588,6 @@ export default {
       const { rawPremiumLinks, ...postData } = result[0]!;
 
       const manualOverrides = await db.query.postEngagementOverride.findMany({
-        where: (table, { and: andWhere, eq: equals }) =>
-          andWhere(equals(table.postId, input), equals(table.isActive, true)),
         columns: {
           id: true,
           text: true,
@@ -586,6 +596,8 @@ export default {
           ascOrder(table.sortOrder),
           ascOrder(table.createdAt),
         ],
+        where: (table, { and: andWhere, eq: equals }) =>
+          andWhere(equals(table.postId, input), equals(table.isActive, true)),
       });
 
       const tagTermIds = postData.terms
@@ -596,6 +608,11 @@ export default {
         manualOverrides.length > 0
           ? []
           : await db.query.engagementQuestion.findMany({
+              columns: {
+                id: true,
+                tagTermId: true,
+                text: true,
+              },
               where: (
                 table,
                 {
@@ -620,11 +637,6 @@ export default {
                   )
                 );
               },
-              columns: {
-                id: true,
-                text: true,
-                tagTermId: true,
-              },
             });
 
       const engagementPrompts = resolveEngagementPrompts(
@@ -640,11 +652,11 @@ export default {
         let tier: PatronTier = "none";
         if (context.session?.user) {
           const patronRecord = await db.query.patron.findFirst({
+            columns: { isActivePatron: true, tier: true },
             where: eq(patron.userId, context.session.user.id),
-            columns: { tier: true, isActivePatron: true },
           });
           if (patronRecord?.isActivePatron) {
-            tier = patronRecord.tier;
+            ({ tier } = patronRecord);
           }
         }
 
@@ -654,20 +666,20 @@ export default {
             statusName
           )
         ) {
-          premiumLinksAccess = { status: "granted", content: rawPremiumLinks };
+          premiumLinksAccess = { content: rawPremiumLinks, status: "granted" };
         } else if (tier === "none") {
           premiumLinksAccess = { status: "denied_need_patron" };
         } else {
           premiumLinksAccess = {
-            status: "denied_need_upgrade",
             requiredTierLabel: getRequiredTierLabel(tier, statusName),
+            status: "denied_need_upgrade",
           };
         }
       } else {
         premiumLinksAccess = { status: "no_premium_links" };
       }
 
-      return { ...postData, premiumLinksAccess, engagementPrompts };
+      return { ...postData, engagementPrompts, premiumLinksAccess };
     }),
 
   getLikes: publicProcedure
@@ -744,8 +756,8 @@ export default {
   toggleLike: protectedProcedure
     .input(
       z.object({
-        postId: z.string(),
         liked: z.boolean(),
+        postId: z.string(),
       })
     )
     .handler(async ({ context: { db, session, ...context }, input }) => {
@@ -788,8 +800,8 @@ export default {
     .use(fixedWindowRatelimitMiddleware({ limit: 10, windowSeconds: 60 }))
     .input(
       z.object({
-        postId: z.string(),
         content: z.string().min(10).max(2048),
+        postId: z.string(),
       })
     )
     .handler(
@@ -809,8 +821,8 @@ export default {
 
           let userTier: PatronTier = "none";
           const patronRecord = await db.query.patron.findFirst({
+            columns: { isActivePatron: true, tier: true },
             where: eq(patron.userId, session.user.id),
-            columns: { tier: true, isActivePatron: true },
           });
           if (patronRecord?.isActivePatron) {
             userTier = patronRecord.tier;
@@ -872,9 +884,9 @@ export default {
         }
 
         await db.insert(comment).values({
-          postId: input.postId,
           authorId: session.user.id,
           content: input.content,
+          postId: input.postId,
         });
         logger?.info(
           `Comment successfully created by user ${session.user.id} on post ${input.postId}`
@@ -914,7 +926,7 @@ export default {
         `Retrieved ${comments.length} comments for post ${input.postId} with ${authors.length} unique authors`
       );
       logger?.info(`View count incremented for post ${input.postId}`);
-      return { comments, authors };
+      return { authors, comments };
     }),
 
   getRelated: publicProcedure
@@ -967,8 +979,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -976,8 +988,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -985,11 +997,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
         })
         .from(postRating)
         .groupBy(postRating.postId)
@@ -1016,14 +1028,18 @@ export default {
 
       const results = await db
         .select({
-          id: post.id,
-          title: post.title,
-          type: post.type,
-          imageObjectKeys: post.imageObjectKeys,
-          views: post.views,
-          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
-          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
+          favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          score: sql<number>`
+            COALESCE(${termWeightSubquery.weightedCount}, 0) * 10
+            + LN(COALESCE(${post.views}, 0) + 1)
+            + COALESCE(${ratingsAgg.averageRating}, 0) * 0.5
+            + COALESCE(${likesAgg.count}, 0) * 0.2
+            + COALESCE(${favoritesAgg.count}, 0) * 0.3
+          `.as("score"),
           terms: sql<
             {
               id: string;
@@ -1032,13 +1048,9 @@ export default {
               color: string;
             }[]
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
-          score: sql<number>`
-            COALESCE(${termWeightSubquery.weightedCount}, 0) * 10
-            + LN(COALESCE(${post.views}, 0) + 1)
-            + COALESCE(${ratingsAgg.averageRating}, 0) * 0.5
-            + COALESCE(${likesAgg.count}, 0) * 0.2
-            + COALESCE(${favoritesAgg.count}, 0) * 0.3
-          `.as("score"),
+          title: post.title,
+          type: post.type,
+          views: post.views,
         })
         .from(post)
         .leftJoin(termWeightSubquery, eq(termWeightSubquery.postId, post.id))
@@ -1056,7 +1068,7 @@ export default {
         .orderBy(sql`score DESC`)
         .limit(RECOMMENDATION_LIMIT);
 
-      const data = results.map(({ score, ...rest }) => rest);
+      const data = results.map(({ score: _, ...rest }) => rest);
 
       if (data.length > 0) {
         try {

@@ -10,7 +10,7 @@ export function AnimatedAsset({ src, alt, className }: AnimatedAssetProps) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [frozenSrc, setFrozenSrc] = useState<string | null>(null);
   const hasPlayed = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>();
 
   const freezeFrame = useCallback((img: HTMLImageElement) => {
     try {

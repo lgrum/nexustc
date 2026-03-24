@@ -10,7 +10,7 @@ export function ProfileNameplate({
 }: {
   user: {
     name: string;
-    profileRoles?: Array<{
+    profileRoles?: {
       id: string;
       slug: string;
       name: string;
@@ -25,8 +25,8 @@ export function ProfileNameplate({
       };
       icon?: { objectKey: string; isAnimated: boolean } | null;
       overlay?: { objectKey: string; isAnimated: boolean } | null;
-    }>;
-    profileEmblems?: Array<{
+    }[];
+    profileEmblems?: {
       id: string;
       slug: string;
       name: string;
@@ -36,7 +36,7 @@ export function ProfileNameplate({
         backgroundColor: string | null;
       };
       icon?: { objectKey: string; isAnimated: boolean } | null;
-    }>;
+    }[];
   };
   className?: string;
   nameClassName?: string;

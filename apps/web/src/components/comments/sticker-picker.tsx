@@ -1,11 +1,14 @@
 import { Image01Icon, SearchIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PATRON_TIERS, type PatronTier } from "@repo/shared/constants";
+import { PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import { orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
+
 import {
   InputGroup,
   InputGroupAddon,
@@ -29,9 +32,9 @@ export function StickerPicker({
   const [search, setSearch] = useState("");
 
   const { data: stickers } = useQuery({
-    queryKey: ["sticker-picker-list"],
-    queryFn: () => orpcClient.sticker.list(),
     enabled: open,
+    queryFn: () => orpcClient.sticker.list(),
+    queryKey: ["sticker-picker-list"],
     staleTime: 5 * 60 * 1000,
   });
 

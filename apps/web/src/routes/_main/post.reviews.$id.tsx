@@ -2,6 +2,7 @@ import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+
 import { RatingButton } from "@/components/ratings/rating-button";
 import { RatingDisplay } from "@/components/ratings/rating-display";
 import { RatingList } from "@/components/ratings/rating-list";
@@ -24,13 +25,13 @@ function ReviewsPage() {
   const { id: postId } = Route.useParams();
 
   const { data: post } = useQuery({
-    queryKey: ["post", postId],
     queryFn: () => orpcClient.post.getPostById(postId),
+    queryKey: ["post", postId],
   });
 
   const { data: stats } = useQuery({
-    queryKey: ["rating", "stats", postId],
     queryFn: () => orpcClient.rating.getStats({ postId }),
+    queryKey: ["rating", "stats", postId],
   });
 
   return (

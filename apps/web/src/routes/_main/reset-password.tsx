@@ -2,15 +2,13 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { toast } from "sonner";
 import z from "zod";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_main/reset-password")({
   component: RouteComponent,
-  validateSearch: zodValidator(
-    z.object({ token: z.string().nullish(), error: z.string().nullish() })
-  ),
   head: () => ({
     meta: [
       {
@@ -18,6 +16,9 @@ export const Route = createFileRoute("/_main/reset-password")({
       },
     ],
   }),
+  validateSearch: zodValidator(
+    z.object({ error: z.string().nullish(), token: z.string().nullish() })
+  ),
 });
 
 function RouteComponent() {
@@ -25,17 +26,9 @@ function RouteComponent() {
   const navigate = Route.useNavigate();
 
   const form = useAppForm({
-    validators: {
-      onSubmit: z
-        .object({ password: z.string(), confirmPassword: z.string() })
-        .refine((data) => data.password === data.confirmPassword, {
-          message: "Las contraseñas no coinciden",
-          path: ["confirmPassword"],
-        }),
-    },
     defaultValues: {
-      password: "",
       confirmPassword: "",
+      password: "",
     },
     onSubmit: async ({ value }) => {
       if (!search.token) {
@@ -43,8 +36,8 @@ function RouteComponent() {
       }
 
       const { error } = await authClient.resetPassword({
-        token: search.token,
         newPassword: value.password,
+        token: search.token,
       });
 
       if (error) {
@@ -62,6 +55,14 @@ function RouteComponent() {
       );
 
       navigate({ to: "/auth" });
+    },
+    validators: {
+      onSubmit: z
+        .object({ confirmPassword: z.string(), password: z.string() })
+        .refine((data) => data.password === data.confirmPassword, {
+          message: "Las contraseñas no coinciden",
+          path: ["confirmPassword"],
+        }),
     },
   });
 

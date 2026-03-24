@@ -1,12 +1,15 @@
 import Autoplay from "embla-carousel-autoplay";
 import { useEffect, useState } from "react";
+
 import {
   Carousel,
-  type CarouselApi,
   CarouselContent,
   CarouselItem,
 } from "@/components/ui/carousel";
-import { PostCard, type PostProps } from "./post-card";
+import type { CarouselApi } from "@/components/ui/carousel";
+
+import { PostCard } from "./post-card";
+import type { PostProps } from "./post-card";
 
 export function GamesCarousel({ games }: { games: PostProps[] }) {
   const [api, setApi] = useState<CarouselApi | undefined>();
@@ -28,8 +31,8 @@ export function GamesCarousel({ games }: { games: PostProps[] }) {
   return (
     <Carousel
       opts={{
-        loop: true,
         dragFree: true,
+        loop: true,
       }}
       plugins={[
         Autoplay({

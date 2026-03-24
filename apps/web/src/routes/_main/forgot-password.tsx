@@ -3,6 +3,7 @@ import { env } from "@repo/env/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import z from "zod";
+
 import {
   Card,
   CardContent,
@@ -26,12 +27,6 @@ export const Route = createFileRoute("/_main/forgot-password")({
 
 function RouteComponent() {
   const form = useAppForm({
-    validators: {
-      onSubmit: z.object({
-        email: z.email(),
-        turnstileToken: z.string().nonempty("Por favor completa el CAPTCHA"),
-      }),
-    },
     defaultValues: {
       email: "",
       turnstileToken: "",
@@ -40,12 +35,12 @@ function RouteComponent() {
       try {
         const { error } = await authClient.requestPasswordReset({
           email: value.email,
-          redirectTo: `${window.location.origin}/reset-password`,
           fetchOptions: {
             headers: {
               "x-captcha-response": value.turnstileToken,
             },
           },
+          redirectTo: `${window.location.origin}/reset-password`,
         });
 
         if (error) {
@@ -65,6 +60,12 @@ function RouteComponent() {
       } catch (error) {
         console.error(error);
       }
+    },
+    validators: {
+      onSubmit: z.object({
+        email: z.email(),
+        turnstileToken: z.string().nonempty("Por favor completa el CAPTCHA"),
+      }),
     },
   });
 
@@ -95,8 +96,8 @@ function RouteComponent() {
                 onError={() => field.setValue("")}
                 onSuccess={(token) => field.setValue(token)}
                 options={{
-                  theme: "auto",
                   size: "flexible",
+                  theme: "auto",
                 }}
                 siteKey={env.VITE_TURNSTILE_SITE_KEY!}
               />

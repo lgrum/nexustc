@@ -12,6 +12,7 @@ import { es } from "date-fns/locale";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
+
 import {
   CommentContent,
   useEmojiStickerMaps,
@@ -22,6 +23,7 @@ import { StickerPicker } from "@/components/comments/sticker-picker";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { useAppForm } from "@/hooks/use-app-form";
 import { orpcClient } from "@/lib/orpc";
+
 import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
 import { ErrorField } from "../forms/error-field";
@@ -45,22 +47,14 @@ export function CommentSection() {
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
 
   const form = useAppForm({
-    validators: {
-      onSubmit: z.object({
-        content: z
-          .string()
-          .min(10, "Debe tener al menos 10 caracteres.")
-          .max(2048, "No puede exceder los 2048 caracteres."),
-      }),
-    },
     defaultValues: {
       content: "",
     },
     onSubmit: async (formData) => {
       try {
         await orpcClient.post.createComment({
-          postId: post.id,
           content: formData.value.content,
+          postId: post.id,
         });
         queryClient.invalidateQueries({
           queryKey: ["comments", post.id],
@@ -69,6 +63,14 @@ export function CommentSection() {
       } catch (error) {
         toast.error(`Ocurrió un error. ${error}`);
       }
+    },
+    validators: {
+      onSubmit: z.object({
+        content: z
+          .string()
+          .min(10, "Debe tener al menos 10 caracteres.")
+          .max(2048, "No puede exceder los 2048 caracteres."),
+      }),
     },
   });
 
@@ -81,7 +83,7 @@ export function CommentSection() {
   };
 
   const commentsQuery = useQuery({
-    queryKey: ["comments", post.id],
+    enabled: visible,
     queryFn: async () => {
       const { comments, authors } = await orpcClient.post.getComments({
         postId: post.id,
@@ -96,7 +98,7 @@ export function CommentSection() {
 
       return commentsWithAuthors;
     },
-    enabled: visible,
+    queryKey: ["comments", post.id],
   });
 
   useEffect(() => {

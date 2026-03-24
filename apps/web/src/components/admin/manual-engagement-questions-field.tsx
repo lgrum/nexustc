@@ -2,6 +2,7 @@ import {
   engagementPromptListFromTextarea,
   engagementPromptListToTextarea,
 } from "@repo/shared/engagement-prompts";
+
 import { FieldDescription, FieldError } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 type ManualEngagementQuestionsFieldProps = {
   value: string[];
   onChange: (value: string[]) => void;
-  errors?: Array<{ message?: string } | undefined>;
+  errors?: ({ message?: string } | undefined)[];
 };
 
 export function ManualEngagementQuestionsField({

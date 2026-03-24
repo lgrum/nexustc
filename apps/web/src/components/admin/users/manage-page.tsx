@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PaginationState } from "@tanstack/react-table";
 import { useCallback, useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,19 +13,20 @@ import {
 } from "@/components/ui/select";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { authClient } from "@/lib/auth-client";
+
 import { getColumns } from "./columns";
 import { CreateUserDialog } from "./create-user-dialog";
 import type { AdminUser } from "./types";
 import { UsersDataTable } from "./users-data-table";
 
 const filterOptions = [
-  { value: "all", label: "Todos" },
-  { value: "banned", label: "Baneados" },
-  { value: "role:owner", label: "Rol: AlphaNeXusTC⁺¹⁸" },
-  { value: "role:admin", label: "Rol: Alpha⁺¹⁸" },
-  { value: "role:moderator", label: "Rol: BetaTC⁺¹⁸" },
-  { value: "role:uploader", label: "Rol: DEALER⁺¹⁸" },
-  { value: "role:user", label: "Rol: Sobrino⁺¹⁸" },
+  { label: "Todos", value: "all" },
+  { label: "Baneados", value: "banned" },
+  { label: "Rol: AlphaNeXusTC⁺¹⁸", value: "role:owner" },
+  { label: "Rol: Alpha⁺¹⁸", value: "role:admin" },
+  { label: "Rol: BetaTC⁺¹⁸", value: "role:moderator" },
+  { label: "Rol: DEALER⁺¹⁸", value: "role:uploader" },
+  { label: "Rol: Sobrino⁺¹⁸", value: "role:user" },
 ];
 
 export function UserManagePage() {
@@ -69,7 +71,6 @@ export function UserManagePage() {
   ];
 
   const { data, isLoading } = useQuery({
-    queryKey,
     queryFn: async () => {
       const result = await authClient.admin.listUsers({
         query: {
@@ -86,6 +87,7 @@ export function UserManagePage() {
 
       return result.data as { users: AdminUser[]; total: number };
     },
+    queryKey,
   });
 
   const handleRefresh = useCallback(() => {

@@ -2,6 +2,7 @@ import { getLogger } from "@orpc/experimental-pino";
 import { eq, staticPage } from "@repo/db";
 import { staticPageUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
+
 import { permissionProcedure, publicProcedure } from "../index";
 
 const STATIC_PAGE_SLUGS = ["about", "legal", "privacy", "terms"] as const;
@@ -45,11 +46,11 @@ export default {
           `Static page not found, returning defaults: ${input.slug}`
         );
         return {
+          content: "",
+          createdAt: new Date(),
           id: "",
           slug: input.slug,
           title: "",
-          content: "",
-          createdAt: new Date(),
           updatedAt: new Date(),
         };
       }
@@ -75,9 +76,9 @@ export default {
         const result = await db
           .insert(staticPage)
           .values({
+            content: input.content,
             slug: input.slug,
             title: input.title,
-            content: input.content,
           })
           .returning();
 
@@ -89,8 +90,8 @@ export default {
       const result = await db
         .update(staticPage)
         .set({
-          title: input.title,
           content: input.content,
+          title: input.title,
         })
         .where(eq(staticPage.id, existing[0]!.id))
         .returning();

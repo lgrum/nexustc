@@ -19,11 +19,11 @@ export function parseTokens(content: string): Token[] {
   const tokens: Token[] = [];
 
   for (const match of content.matchAll(EMOJI_REGEX)) {
-    tokens.push({ type: "emoji", name: match[1]!, raw: match[0] });
+    tokens.push({ name: match[1]!, raw: match[0], type: "emoji" });
   }
 
   for (const match of content.matchAll(STICKER_REGEX)) {
-    tokens.push({ type: "sticker", name: match[1]!, raw: match[0] });
+    tokens.push({ name: match[1]!, raw: match[0], type: "sticker" });
   }
 
   return tokens;
@@ -36,8 +36,8 @@ export function validateTokenLimit(tokens: Token[]): {
   const stickerCount = tokens.filter((t) => t.type === "sticker").length;
   if (stickerCount > MAX_STICKERS_PER_COMMENT) {
     return {
-      valid: false,
       error: `Solo un sticker por comentario (encontrados: ${stickerCount})`,
+      valid: false,
     };
   }
   return { valid: true };
@@ -56,22 +56,22 @@ export function renderTokenizedContent(content: string): ContentSegment[] {
 
     if (matchIndex > lastIndex) {
       segments.push({
-        type: "text",
         content: content.slice(lastIndex, matchIndex),
+        type: "text",
       });
     }
 
     if (match[0].startsWith(":")) {
-      segments.push({ type: "emoji", name: match[1]! });
+      segments.push({ name: match[1]!, type: "emoji" });
     } else {
-      segments.push({ type: "sticker", name: match[2]! });
+      segments.push({ name: match[2]!, type: "sticker" });
     }
 
     lastIndex = matchIndex + match[0].length;
   }
 
   if (lastIndex < content.length) {
-    segments.push({ type: "text", content: content.slice(lastIndex) });
+    segments.push({ content: content.slice(lastIndex), type: "text" });
   }
 
   return segments;

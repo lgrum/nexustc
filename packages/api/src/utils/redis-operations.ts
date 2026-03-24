@@ -4,6 +4,7 @@
  */
 
 import type { RedisClientType } from "redis";
+
 import { isLimitExceeded } from "./rate-limit";
 
 type RateLimitResult = {
@@ -33,8 +34,8 @@ export async function checkFixedWindowRateLimit(
   }
 
   return {
-    exceeded: isLimitExceeded(count, limit),
     count,
+    exceeded: isLimitExceeded(count, limit),
   };
 }
 
@@ -65,7 +66,7 @@ export async function checkSlidingWindowRateLimit(
 
   // Check if adding this request would exceed the limit
   if (count >= limit) {
-    return { exceeded: true, count };
+    return { count, exceeded: true };
   }
 
   // Add new entry and set expiration
@@ -74,5 +75,5 @@ export async function checkSlidingWindowRateLimit(
     cache.expire(key, windowSeconds),
   ]);
 
-  return { exceeded: false, count: count + 1 };
+  return { count: count + 1, exceeded: false };
 }

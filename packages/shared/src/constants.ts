@@ -12,13 +12,13 @@ export const TAXONOMY_DATA: Record<
   (typeof TAXONOMIES)[number],
   { label: string; mode: "single" | "multiple" }
 > = {
-  language: { label: "Idiomas", mode: "multiple" },
-  tag: { label: "Tags", mode: "multiple" },
-  platform: { label: "Plataformas", mode: "multiple" },
+  censorship: { label: "Censura", mode: "single" },
   engine: { label: "Motor Gráfico", mode: "single" },
   graphics: { label: "Gráficos", mode: "single" },
-  censorship: { label: "Censura", mode: "single" },
+  language: { label: "Idiomas", mode: "multiple" },
+  platform: { label: "Plataformas", mode: "multiple" },
   status: { label: "Estado", mode: "single" },
+  tag: { label: "Tags", mode: "multiple" },
 } as const;
 
 export const DOCUMENT_STATUSES = [
@@ -32,9 +32,9 @@ export const DOCUMENT_STATUS_LABELS: Record<
   (typeof DOCUMENT_STATUSES)[number],
   string
 > = {
-  publish: "Publicado",
-  pending: "Pendiente",
   draft: "Borrador",
+  pending: "Pendiente",
+  publish: "Publicado",
   trash: "Basura",
 } as const;
 
@@ -59,9 +59,9 @@ export type PremiumLinksDescriptor =
   | { status: "denied_need_upgrade"; requiredTierLabel: string };
 
 export const ROLE_LABELS: Record<string, string> = {
-  owner: "AlphaNeXusTC⁺¹⁸",
   admin: "Alpha⁺¹⁸",
   moderator: "BetaTC⁺¹⁸",
+  owner: "AlphaNeXusTC⁺¹⁸",
   uploader: "DEALER⁺¹⁸",
   user: "Sobrino⁺¹⁸",
 };
@@ -87,54 +87,54 @@ export const PATRON_TIERS: Record<
     maxBookmarks: number; // Optional: max bookmarks allowed for this tier
   }
 > = {
-  none: {
-    level: 0,
-    badge: null,
-    adFree: false,
-    premiumLinks: { type: "none" },
-    maxBookmarks: 5,
-  },
   level1: {
-    level: 1,
-    badge: "LvL 1",
     adFree: false,
-    premiumLinks: { type: "category", categories: ["completed"] },
+    badge: "LvL 1",
+    level: 1,
     maxBookmarks: 10,
-  },
-  level3: {
-    level: 2,
-    badge: "LvL 3",
-    adFree: true,
-    premiumLinks: { type: "category", categories: ["ongoing"] },
-    maxBookmarks: 10,
-  },
-  level5: {
-    level: 3,
-    badge: "LvL 5",
-    adFree: true,
-    premiumLinks: { type: "all" },
-    maxBookmarks: 15,
-  },
-  level8: {
-    level: 3,
-    badge: "LvL 8",
-    adFree: true,
-    premiumLinks: { type: "all" },
-    maxBookmarks: 50,
+    premiumLinks: { categories: ["completed"], type: "category" },
   },
   level12: {
-    level: 3,
-    badge: "LvL 12",
     adFree: true,
-    premiumLinks: { type: "all" },
+    badge: "LvL 12",
+    level: 3,
     maxBookmarks: Number.POSITIVE_INFINITY,
+    premiumLinks: { type: "all" },
+  },
+  level3: {
+    adFree: true,
+    badge: "LvL 3",
+    level: 2,
+    maxBookmarks: 10,
+    premiumLinks: { categories: ["ongoing"], type: "category" },
+  },
+  level5: {
+    adFree: true,
+    badge: "LvL 5",
+    level: 3,
+    maxBookmarks: 15,
+    premiumLinks: { type: "all" },
   },
   level69: {
-    level: 3,
-    badge: "LvL 69",
     adFree: true,
-    premiumLinks: { type: "all" },
+    badge: "LvL 69",
+    level: 3,
     maxBookmarks: Number.POSITIVE_INFINITY,
+    premiumLinks: { type: "all" },
+  },
+  level8: {
+    adFree: true,
+    badge: "LvL 8",
+    level: 3,
+    maxBookmarks: 50,
+    premiumLinks: { type: "all" },
+  },
+  none: {
+    adFree: false,
+    badge: null,
+    level: 0,
+    maxBookmarks: 5,
+    premiumLinks: { type: "none" },
   },
 } as const;
 
@@ -190,7 +190,7 @@ export function canBookmark(
     return true;
   }
 
-  const maxBookmarks = PATRON_TIERS[user.tier].maxBookmarks;
+  const { maxBookmarks } = PATRON_TIERS[user.tier];
   return currentBookmarks < maxBookmarks;
 }
 

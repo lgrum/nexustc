@@ -1,7 +1,9 @@
 import { ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
+
 import { cn } from "@/lib/utils";
+
 import { Button } from "../ui/button";
 
 export function SearchContainer({ children }: React.PropsWithChildren) {
@@ -17,17 +19,19 @@ const formContext = createContext<{
 } | null>(null);
 
 export function SearchForm({
-  ref,
   children,
   ...props
 }: React.PropsWithChildren<React.ComponentProps<"form">>) {
   const [openFilters, setOpenFilters] = useState(false);
 
+  const value: ReturnType<typeof useFormContext> = useMemo(
+    () => ({ filter: [openFilters, setOpenFilters] }),
+    [openFilters, setOpenFilters]
+  );
+
   return (
     <form {...props}>
-      <formContext.Provider value={{ filter: [openFilters, setOpenFilters] }}>
-        {children}
-      </formContext.Provider>
+      <formContext.Provider value={value}>{children}</formContext.Provider>
     </form>
   );
 }
@@ -55,10 +59,9 @@ function useFormContext() {
 }
 
 export function SearchFiltersButton({
-  children,
   className,
   ...props
-}: React.PropsWithChildren<React.ComponentProps<"button">>) {
+}: Omit<React.ComponentProps<"button">, "children">) {
   const {
     filter: [openFilters, setOpenFilters],
   } = useFormContext();

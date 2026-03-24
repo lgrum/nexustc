@@ -9,6 +9,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import * as z from "zod";
+
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -41,22 +42,22 @@ function RouteComponent() {
   const confirm = useConfirm();
 
   const form = useAppForm({
-    validators: {
-      onSubmit: z.object({
-        title: z.string(),
-        description: z.string(),
-        embedUrl: z.url(),
-      }),
-    },
     defaultValues: {
-      title: "",
       description: "",
       embedUrl: "",
+      title: "",
     },
     onSubmit: async ({ value }) => {
       await orpcClient.extras.createTutorial(value);
       await queryClient.invalidateQueries(query);
       form.reset();
+    },
+    validators: {
+      onSubmit: z.object({
+        description: z.string(),
+        embedUrl: z.url(),
+        title: z.string(),
+      }),
     },
   });
 
@@ -111,11 +112,11 @@ function RouteComponent() {
                     disabled={deleteTutorialMutation.isPending}
                     onClick={async () => {
                       const isConfirmed = await confirm({
-                        title: "Eliminar Tutorial",
+                        cancelText: "Cancelar",
+                        confirmText: "Eliminar",
                         description:
                           "¿Estás absolutamente seguro de que quieres eliminar este tutorial? Esta acción no se puede deshacer.",
-                        confirmText: "Eliminar",
-                        cancelText: "Cancelar",
+                        title: "Eliminar Tutorial",
                       });
 
                       if (!isConfirmed) {
@@ -127,12 +128,12 @@ function RouteComponent() {
                           id: tutorial.id,
                         }),
                         {
+                          error: (error) => ({
+                            duration: 10_000,
+                            message: `Error al eliminar tutorial: ${error}`,
+                          }),
                           loading: "Eliminando tutorial...",
                           success: "Tutorial eliminado",
-                          error: (error) => ({
-                            message: `Error al eliminar tutorial: ${error}`,
-                            duration: 10_000,
-                          }),
                         }
                       );
                     }}
@@ -151,6 +152,7 @@ function RouteComponent() {
                   referrerPolicy="strict-origin-when-cross-origin"
                   src={tutorial.embedUrl}
                   title="YouTube video player"
+                  sandbox="allow-scripts"
                 />
               </CardContent>
             </Card>

@@ -1,5 +1,6 @@
 import { env } from "@repo/env/client";
-import { type ClassValue, clsx } from "clsx";
+import { clsx } from "clsx";
+import type { ClassValue } from "clsx";
 import type { FacehashProps } from "facehash";
 import { twMerge } from "tailwind-merge";
 
@@ -37,28 +38,29 @@ export function cn(...inputs: ClassValue[]) {
 export function uploadBlobWithProgress(
   blob: Blob,
   url: string,
-  onProgress: (percent: number) => void
+  onProgress?: (percent: number) => void
 ) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
 
-    xhr.upload.onprogress = (event) => {
+    xhr.upload.addEventListener("progress", (event) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100);
-        onProgress(percent);
+        onProgress?.(percent);
       }
-    };
+    });
 
-    xhr.onload = () => {
+    xhr.addEventListener("load", () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve();
       } else {
         reject(new Error(`Upload failed with status ${xhr.status}`));
       }
-    };
+    });
 
-    xhr.onerror = () => reject(new Error("Upload failed"));
+    xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+
     xhr.setRequestHeader(
       "Content-Type",
       blob.type || "application/octet-stream"
@@ -69,11 +71,11 @@ export function uploadBlobWithProgress(
 
 const extensionRegex = /\.\w+$/;
 const formats = {
-  jpeg: { type: "image/jpeg", extension: "jpg" },
-  png: { type: "image/png", extension: "png" },
-  gif: { type: "image/gif", extension: "gif" },
-  webp: { type: "image/webp", extension: "webp" },
-  avif: { type: "image/avif", extension: "avif" },
+  avif: { extension: "avif", type: "image/avif" },
+  gif: { extension: "gif", type: "image/gif" },
+  jpeg: { extension: "jpg", type: "image/jpeg" },
+  png: { extension: "png", type: "image/png" },
+  webp: { extension: "webp", type: "image/webp" },
 } as const;
 
 export async function convertImage(
@@ -131,10 +133,10 @@ export function getPixelCropRegion(
   const height = Math.max(1, Math.round((crop.height / 100) * imageHeight));
 
   return {
+    height: Math.max(1, Math.min(height, imageHeight - y)),
+    width: Math.max(1, Math.min(width, imageWidth - x)),
     x,
     y,
-    width: Math.max(1, Math.min(width, imageWidth - x)),
-    height: Math.max(1, Math.min(height, imageHeight - y)),
   };
 }
 
@@ -177,8 +179,8 @@ export async function cropImage(
     }
 
     return new File([croppedBlob], file.name, {
-      type: croppedBlob.type || file.type,
       lastModified: Date.now(),
+      type: croppedBlob.type || file.type,
     });
   } finally {
     bitmap.close();
@@ -197,10 +199,11 @@ export function parseMetaToObject(
     metaValue: unknown;
   }[]
 ) {
-  return meta.reduce((acc, curr) => {
-    (acc as Record<string, unknown>)[curr.metaKey] = curr.metaValue;
-    return acc;
-  }, {} as Meta);
+  const acc: Record<string, unknown> = {};
+  for (const curr of meta) {
+    acc[curr.metaKey] = curr.metaValue;
+  }
+  return acc as Meta;
 }
 
 export function getCookie(name: string): string | null {
@@ -224,10 +227,10 @@ export function getBucketUrl(object: string) {
 
 const TIER_BREAKPOINTS = {
   0: "bg-gray-400",
-  20: "bg-green-400",
   100: "bg-blue-400",
-  500: "bg-purple-400",
   1000: "bg-amber-400",
+  20: "bg-green-400",
+  500: "bg-purple-400",
 };
 
 export function getTierColor(favoriteCount: number) {

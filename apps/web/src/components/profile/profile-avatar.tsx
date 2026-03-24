@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "facehash";
+
 import { cn, getBucketUrl, getFacehashProps } from "@/lib/utils";
 
 export function ProfileAvatar({

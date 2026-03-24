@@ -1,8 +1,9 @@
-﻿import type { RouterClient } from "@orpc/server";
+import type { RouterClient } from "@orpc/server";
+
 import chronos from "./chronos";
 import comic from "./comic";
 import emoji from "./emoji";
-import engagementQuestion from "./engagementQuestion";
+import engagementQuestion from "./engagement-question";
 import extras from "./extras";
 import file from "./file";
 import patreon from "./patreon";
@@ -10,27 +11,27 @@ import post from "./post";
 import profile from "./profile";
 import profileAdmin from "./profile-admin";
 import rating from "./rating";
-import staticPage from "./staticPage";
+import staticPage from "./static-page";
 import sticker from "./sticker";
 import term from "./term";
 import user from "./user";
 
 export const appRouter = {
+  chronos,
   comic,
+  emoji,
   engagementQuestion,
-  post,
-  term,
-  user,
-  file,
   extras,
-  rating,
+  file,
   patreon,
+  post,
   profile,
   profileAdmin,
-  chronos,
+  rating,
   staticPage,
-  emoji,
   sticker,
+  term,
+  user,
 };
 
 export type AppRouter = typeof appRouter;

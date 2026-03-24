@@ -30,5 +30,5 @@ export function useTheme() {
     setTheme(next);
   }
 
-  return { theme, setTheme: apply };
+  return { setTheme: apply, theme };
 }

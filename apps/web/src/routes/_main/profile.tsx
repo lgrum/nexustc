@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import z from "zod";
+
 import { DiscordLogo } from "@/components/icons/discord";
 import { PatreonLogo } from "@/components/icons/patreon";
 import { AppearanceSection } from "@/components/profile/appearance-section";
@@ -99,8 +100,11 @@ function RouteComponent() {
 
 function AccountsSection() {
   const { data: accounts } = useSuspenseQuery({
+    queryFn: async () => {
+      const accs = await authClient.listAccounts();
+      return accs.data;
+    },
     queryKey: ["accounts"],
-    queryFn: () => authClient.listAccounts().then((res) => res.data),
     staleTime: 1000 * 60,
   });
   const queryClient = useQueryClient();
@@ -133,7 +137,7 @@ function AccountsSection() {
             <Button
               key={provider}
               onClick={() => {
-                authClient.linkSocial({ provider, callbackURL: "/profile" });
+                authClient.linkSocial({ callbackURL: "/profile", provider });
               }}
             >
               {providerData.Icon}
@@ -154,8 +158,8 @@ function AccountsSection() {
             <Button
               onClick={async () => {
                 await authClient.unlinkAccount({
-                  providerId: provider,
                   accountId,
+                  providerId: provider,
                 });
                 queryClient.invalidateQueries({ queryKey: ["accounts"] });
               }}
@@ -175,28 +179,14 @@ function AccountsSection() {
 
 function ChangePasswordForm({ email }: { email: string }) {
   const form = useAppForm({
-    validators: {
-      onSubmit: z.object({
-        email: z.string(),
-        currentPassword: z.string().min(1, "Requerido"),
-        newPassword: z
-          .string()
-          .min(8, "Debe tener al menos 8 caracteres")
-          .max(64, "Debe tener como máximo 64 caracteres"),
-        confirmNewPassword: z
-          .string()
-          .min(8, "Debe tener al menos 8 caracteres")
-          .max(64, "Debe tener como máximo 64 caracteres"),
-      }),
-    },
     defaultValues: {
-      email,
-      currentPassword: "",
-      newPassword: "",
       confirmNewPassword: "",
+      currentPassword: "",
+      email,
+      newPassword: "",
     },
     onSubmit: async () => {
-      const values = form.state.values;
+      const { values } = form.state;
 
       try {
         const { error } = await authClient.changePassword({
@@ -217,6 +207,20 @@ function ChangePasswordForm({ email }: { email: string }) {
       } catch (error) {
         console.error(error);
       }
+    },
+    validators: {
+      onSubmit: z.object({
+        confirmNewPassword: z
+          .string()
+          .min(8, "Debe tener al menos 8 caracteres")
+          .max(64, "Debe tener como máximo 64 caracteres"),
+        currentPassword: z.string().min(1, "Requerido"),
+        email: z.string(),
+        newPassword: z
+          .string()
+          .min(8, "Debe tener al menos 8 caracteres")
+          .max(64, "Debe tener como máximo 64 caracteres"),
+      }),
     },
   });
 
@@ -279,15 +283,18 @@ function matchProvider(provider: string) {
   };
 
   switch (provider) {
-    case "discord":
+    case "discord": {
       return { Icon: <DiscordLogo {...defaultProps} />, label: "Discord" };
-    case "patreon":
+    }
+    case "patreon": {
       return { Icon: <PatreonLogo {...defaultProps} />, label: "Patreon" };
-    default:
+    }
+    default: {
       return {
         Icon: <HugeiconsIcon icon={HelpCircleIcon} {...defaultProps} />,
         label: provider,
       };
+    }
   }
 }
 
@@ -376,10 +383,10 @@ function PatreonStatusSection() {
           <p className="text-muted-foreground text-xs">
             {new Date(status.lastSyncAt).toLocaleString("es", {
               day: "numeric",
-              month: "short",
-              year: "numeric",
               hour: "2-digit",
               minute: "2-digit",
+              month: "short",
+              year: "numeric",
             })}
           </p>
         )}

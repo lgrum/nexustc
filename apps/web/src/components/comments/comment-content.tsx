@@ -1,8 +1,10 @@
 import { renderTokenizedContent } from "@repo/shared/token-parser";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+
 import { orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
+
 import { AnimatedAsset } from "./animated-asset";
 
 type CommentContentProps = {
@@ -100,14 +102,14 @@ export function CommentContent({
 
 export function useEmojiStickerMaps() {
   const emojiQuery = useQuery({
-    queryKey: ["emojis-for-rendering"],
     queryFn: () => orpcClient.emoji.list(),
+    queryKey: ["emojis-for-rendering"],
     staleTime: 5 * 60 * 1000,
   });
 
   const stickerQuery = useQuery({
-    queryKey: ["stickers-for-rendering"],
     queryFn: () => orpcClient.sticker.list(),
+    queryKey: ["stickers-for-rendering"],
     staleTime: 5 * 60 * 1000,
   });
 
@@ -119,8 +121,8 @@ export function useEmojiStickerMaps() {
     for (const e of emojiQuery.data ?? []) {
       map.set(e.name, {
         assetKey: e.assetKey,
-        type: e.type,
         displayName: e.displayName,
+        type: e.type,
       });
     }
     return map;
@@ -134,8 +136,8 @@ export function useEmojiStickerMaps() {
     for (const s of stickerQuery.data ?? []) {
       map.set(s.name, {
         assetKey: s.assetKey,
-        type: s.type,
         displayName: s.displayName,
+        type: s.type,
       });
     }
     return map;

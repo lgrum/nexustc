@@ -1,5 +1,6 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { type db as database, eq, inArray } from "@repo/db";
+import { eq, inArray } from "@repo/db";
+import type { db as database } from "@repo/db";
 import {
   patron,
   profileEmblemAssignment,
@@ -12,9 +13,12 @@ import {
   user,
 } from "@repo/db/schema/app";
 import { env } from "@repo/env";
-import { PATRON_TIERS, type PatronTier } from "@repo/shared/constants";
-import { PROFILE_DEFAULTS, type ProfileMediaSlot } from "@repo/shared/profile";
+import { PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
+import { PROFILE_DEFAULTS } from "@repo/shared/profile";
+import type { ProfileMediaSlot } from "@repo/shared/profile";
 import sharp from "sharp";
+
 import { getS3Client } from "../utils/s3";
 
 type Database = typeof database;
@@ -100,45 +104,45 @@ const STAFF_OVERRIDE_ROLES = new Set(["owner", "admin", "moderator"]);
 
 const PROFILE_ENTITLEMENT_RULES = {
   animatedAvatarRequiredTier: "level3",
-  uploadedBannerRequiredTier: "level5",
   animatedBannerRequiredTier: "level8",
+  uploadedBannerRequiredTier: "level5",
 } as const satisfies Record<string, PatronTier>;
 
 const SLOT_LIMITS = {
   avatar: {
-    staticBytes: 1024 * 512,
     animatedBytes: 1024 * 1024 * 1.5,
     maxDurationMs: 6000,
-    minWidth: 128,
     minHeight: 128,
+    minWidth: 128,
+    staticBytes: 1024 * 512,
   },
   banner: {
-    staticBytes: 1024 * 1024 * 1.5,
     animatedBytes: 1024 * 1024 * 3,
     maxDurationMs: 8000,
-    minWidth: 640,
     minHeight: 160,
-  },
-  "role-icon": {
-    staticBytes: 1024 * 512,
-    animatedBytes: 1024 * 1024,
-    maxDurationMs: 6000,
-    minWidth: 32,
-    minHeight: 32,
-  },
-  "role-overlay": {
-    staticBytes: 1024 * 512,
-    animatedBytes: 1024 * 1024,
-    maxDurationMs: 6000,
-    minWidth: 32,
-    minHeight: 32,
+    minWidth: 640,
+    staticBytes: 1024 * 1024 * 1.5,
   },
   "emblem-icon": {
-    staticBytes: 1024 * 512,
     animatedBytes: 1024 * 1024,
     maxDurationMs: 6000,
-    minWidth: 32,
     minHeight: 32,
+    minWidth: 32,
+    staticBytes: 1024 * 512,
+  },
+  "role-icon": {
+    animatedBytes: 1024 * 1024,
+    maxDurationMs: 6000,
+    minHeight: 32,
+    minWidth: 32,
+    staticBytes: 1024 * 512,
+  },
+  "role-overlay": {
+    animatedBytes: 1024 * 1024,
+    maxDurationMs: 6000,
+    minHeight: 32,
+    minWidth: 32,
+    staticBytes: 1024 * 512,
   },
 } as const;
 
@@ -151,7 +155,7 @@ const MIME_EXTENSIONS: Record<string, string> = {
 };
 
 function clampVisibleRoles(roles: PublicProfileRole[]) {
-  const sorted = [...roles].sort((a, b) => b.priority - a.priority);
+  const sorted = [...roles].toSorted((a, b) => b.priority - a.priority);
   const topExclusive = sorted.find((role) => role.isExclusive);
 
   if (!topExclusive) {
@@ -166,7 +170,7 @@ function clampVisibleEmblems(
   maxVisibleEmblems: number
 ) {
   return [...emblems]
-    .sort((a, b) => b.priority - a.priority)
+    .toSorted((a, b) => b.priority - a.priority)
     .slice(0, maxVisibleEmblems);
 }
 
@@ -176,8 +180,8 @@ function getEffectiveTierLevel(tier: PatronTier) {
 
 export async function getUserPatronTier(db: Database, userId: string) {
   const patronRecord = await db.query.patron.findFirst({
+    columns: { isActivePatron: true, tier: true },
     where: eq(patron.userId, userId),
-    columns: { tier: true, isActivePatron: true },
   });
 
   if (!patronRecord?.isActivePatron) {
@@ -194,16 +198,16 @@ export async function getProfileEntitlements(
 ): Promise<ProfileEntitlements> {
   if (role && STAFF_OVERRIDE_ROLES.has(role)) {
     return {
-      canUseAnimatedAvatar: true,
-      canUseUploadedBanner: true,
-      canUseAnimatedBanner: true,
       animatedAvatarRequiredTier:
         PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier,
-      uploadedBannerRequiredTier:
-        PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier,
       animatedBannerRequiredTier:
         PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier,
+      canUseAnimatedAvatar: true,
+      canUseAnimatedBanner: true,
+      canUseUploadedBanner: true,
       overrideSource: "staff",
+      uploadedBannerRequiredTier:
+        PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier,
     };
   }
 
@@ -211,28 +215,28 @@ export async function getProfileEntitlements(
   const tierLevel = getEffectiveTierLevel(tier);
 
   return {
+    animatedAvatarRequiredTier:
+      PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier,
+    animatedBannerRequiredTier:
+      PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier,
     canUseAnimatedAvatar:
       tierLevel >=
       getEffectiveTierLevel(
         PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier
-      ),
-    canUseUploadedBanner:
-      tierLevel >=
-      getEffectiveTierLevel(
-        PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier
       ),
     canUseAnimatedBanner:
       tierLevel >=
       getEffectiveTierLevel(
         PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier
       ),
-    animatedAvatarRequiredTier:
-      PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier,
+    canUseUploadedBanner:
+      tierLevel >=
+      getEffectiveTierLevel(
+        PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier
+      ),
+    overrideSource: "none",
     uploadedBannerRequiredTier:
       PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier,
-    animatedBannerRequiredTier:
-      PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier,
-    overrideSource: "none",
   };
 }
 
@@ -248,9 +252,9 @@ export async function getOrCreateProfileSettings(db: Database, userId: string) {
   const [created] = await db
     .insert(profileSettings)
     .values({
-      userId,
       bannerColor: PROFILE_DEFAULTS.bannerColor,
       bannerMode: "color",
+      userId,
       visibilityConfig: { reserved: {} },
     })
     .returning();
@@ -329,11 +333,11 @@ export async function inspectProfileMediaAsset(objectKey: string) {
   }
 
   return {
-    width,
-    height,
-    isAnimated,
     durationMs,
     fileSizeBytes: buffer.length,
+    height,
+    isAnimated,
+    width,
   } satisfies ProfileMediaValidation;
 }
 
@@ -414,42 +418,42 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
   const [users, systemConfig, settings, roleRows, emblemRows] =
     await Promise.all([
       db.query.user.findMany({
-        where: inArray(user.id, uniqueUserIds),
         columns: {
-          id: true,
-          name: true,
-          image: true,
-          role: true,
           avatarFallbackColor: true,
+          id: true,
+          image: true,
+          name: true,
+          role: true,
         },
+        where: inArray(user.id, uniqueUserIds),
       }),
       getOrCreateProfileSystemConfig(db),
       db.query.profileSettings.findMany({
-        where: inArray(profileSettings.userId, uniqueUserIds),
         columns: {
-          userId: true,
           bannerAssetId: true,
           bannerColor: true,
           bannerMode: true,
+          userId: true,
         },
+        where: inArray(profileSettings.userId, uniqueUserIds),
       }),
       db
         .select({
-          userId: profileRoleAssignment.userId,
           assignmentVisible: profileRoleAssignment.isVisible,
-          startsAt: profileRoleAssignment.startsAt,
-          endsAt: profileRoleAssignment.endsAt,
-          id: profileRoleDefinition.id,
-          slug: profileRoleDefinition.slug,
-          name: profileRoleDefinition.name,
           description: profileRoleDefinition.description,
-          priority: profileRoleDefinition.priority,
+          endsAt: profileRoleAssignment.endsAt,
+          iconAssetId: profileRoleDefinition.iconAssetId,
+          id: profileRoleDefinition.id,
+          isActive: profileRoleDefinition.isActive,
           isExclusive: profileRoleDefinition.isExclusive,
           isVisible: profileRoleDefinition.isVisible,
-          isActive: profileRoleDefinition.isActive,
-          visualConfig: profileRoleDefinition.visualConfig,
-          iconAssetId: profileRoleDefinition.iconAssetId,
+          name: profileRoleDefinition.name,
           overlayAssetId: profileRoleDefinition.overlayAssetId,
+          priority: profileRoleDefinition.priority,
+          slug: profileRoleDefinition.slug,
+          startsAt: profileRoleAssignment.startsAt,
+          userId: profileRoleAssignment.userId,
+          visualConfig: profileRoleDefinition.visualConfig,
         })
         .from(profileRoleAssignment)
         .innerJoin(
@@ -459,19 +463,19 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
         .where(inArray(profileRoleAssignment.userId, uniqueUserIds)),
       db
         .select({
-          userId: profileEmblemAssignment.userId,
           assignmentVisible: profileEmblemAssignment.isVisible,
-          startsAt: profileEmblemAssignment.startsAt,
           endsAt: profileEmblemAssignment.endsAt,
-          id: profileEmblemDefinition.id,
-          slug: profileEmblemDefinition.slug,
-          name: profileEmblemDefinition.name,
-          tooltip: profileEmblemDefinition.tooltip,
-          priority: profileEmblemDefinition.priority,
-          isVisible: profileEmblemDefinition.isVisible,
-          isActive: profileEmblemDefinition.isActive,
-          visualConfig: profileEmblemDefinition.visualConfig,
           iconAssetId: profileEmblemDefinition.iconAssetId,
+          id: profileEmblemDefinition.id,
+          isActive: profileEmblemDefinition.isActive,
+          isVisible: profileEmblemDefinition.isVisible,
+          name: profileEmblemDefinition.name,
+          priority: profileEmblemDefinition.priority,
+          slug: profileEmblemDefinition.slug,
+          startsAt: profileEmblemAssignment.startsAt,
+          tooltip: profileEmblemDefinition.tooltip,
+          userId: profileEmblemAssignment.userId,
+          visualConfig: profileEmblemDefinition.visualConfig,
         })
         .from(profileEmblemAssignment)
         .innerJoin(
@@ -498,12 +502,14 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
 
           return [row.iconAssetId].filter(Boolean);
         })
+        // oxlint-disable-next-line unicorn/prefer-native-coercion-functions: the type guard is necessary
         .filter((value): value is string => Boolean(value))
     ),
   ];
 
   const avatarObjectKeys = users
     .map((currentUser) => currentUser.image)
+    // oxlint-disable-next-line unicorn/prefer-native-coercion-functions: see above
     .filter((value): value is string => Boolean(value));
 
   const [mediaAssets, avatarAssets] = await Promise.all([
@@ -542,22 +548,22 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
       ? mediaAssetMap.get(row.overlayAssetId)
       : null;
     const role = {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
       description: row.description,
-      priority: row.priority,
-      isExclusive: row.isExclusive,
-      visualConfig: row.visualConfig,
       icon: iconAsset
-        ? { objectKey: iconAsset.objectKey, isAnimated: iconAsset.isAnimated }
+        ? { isAnimated: iconAsset.isAnimated, objectKey: iconAsset.objectKey }
         : null,
+      id: row.id,
+      isExclusive: row.isExclusive,
+      name: row.name,
       overlay: overlayAsset
         ? {
-            objectKey: overlayAsset.objectKey,
             isAnimated: overlayAsset.isAnimated,
+            objectKey: overlayAsset.objectKey,
           }
         : null,
+      priority: row.priority,
+      slug: row.slug,
+      visualConfig: row.visualConfig,
     } satisfies PublicProfileRole;
     const group = roleGroups.get(row.userId) ?? [];
     group.push(role);
@@ -580,15 +586,15 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
       ? mediaAssetMap.get(row.iconAssetId)
       : null;
     const emblem = {
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      tooltip: row.tooltip,
-      priority: row.priority,
-      visualConfig: row.visualConfig,
       icon: iconAsset
-        ? { objectKey: iconAsset.objectKey, isAnimated: iconAsset.isAnimated }
+        ? { isAnimated: iconAsset.isAnimated, objectKey: iconAsset.objectKey }
         : null,
+      id: row.id,
+      name: row.name,
+      priority: row.priority,
+      slug: row.slug,
+      tooltip: row.tooltip,
+      visualConfig: row.visualConfig,
     } satisfies PublicProfileEmblem;
     const group = emblemGroups.get(row.userId) ?? [];
     group.push(emblem);
@@ -604,24 +610,21 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
         : fallbackRole && currentUser.role !== "user"
           ? [
               {
-                id: fallbackRole.id,
-                slug: fallbackRole.slug,
-                name: fallbackRole.name,
                 description: fallbackRole.description,
-                priority: fallbackRole.priority,
-                isExclusive: fallbackRole.isExclusive,
-                visualConfig: fallbackRole.visualConfig,
                 icon: fallbackRole.iconAssetId
                   ? (() => {
                       const asset = mediaAssetMap.get(fallbackRole.iconAssetId);
                       return asset
                         ? {
-                            objectKey: asset.objectKey,
                             isAnimated: asset.isAnimated,
+                            objectKey: asset.objectKey,
                           }
                         : null;
                     })()
                   : null,
+                id: fallbackRole.id,
+                isExclusive: fallbackRole.isExclusive,
+                name: fallbackRole.name,
                 overlay: fallbackRole.overlayAssetId
                   ? (() => {
                       const asset = mediaAssetMap.get(
@@ -629,44 +632,47 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
                       );
                       return asset
                         ? {
-                            objectKey: asset.objectKey,
                             isAnimated: asset.isAnimated,
+                            objectKey: asset.objectKey,
                           }
                         : null;
                     })()
                   : null,
+                priority: fallbackRole.priority,
+                slug: fallbackRole.slug,
+                visualConfig: fallbackRole.visualConfig,
               },
             ]
           : [];
 
     return {
-      id: currentUser.id,
-      name: currentUser.name,
-      image: currentUser.image,
       avatar: currentUser.image
         ? (() => {
             const asset = avatarAssetMap.get(currentUser.image);
             return asset
               ? {
-                  objectKey: asset.objectKey,
                   isAnimated: asset.isAnimated,
                   mimeType: asset.mimeType,
+                  objectKey: asset.objectKey,
                 }
               : {
-                  objectKey: currentUser.image,
                   isAnimated: false,
                   mimeType: "image/webp",
+                  objectKey: currentUser.image,
                 };
           })()
         : null,
       avatarFallbackColor:
         currentUser.avatarFallbackColor ?? PROFILE_DEFAULTS.avatarFallbackColor,
       href: `/user/${currentUser.id}`,
-      profileRoles: clampVisibleRoles(resolvedRoles),
+      id: currentUser.id,
+      image: currentUser.image,
+      name: currentUser.name,
       profileEmblems: clampVisibleEmblems(
         emblemGroups.get(currentUser.id) ?? [],
         systemConfig.maxVisibleEmblems
       ),
+      profileRoles: clampVisibleRoles(resolvedRoles),
     } satisfies ProfileSummary;
   });
 }
@@ -681,8 +687,8 @@ export async function getPublicProfile(db: Database, userId: string) {
   const [settings, currentUser, systemConfig] = await Promise.all([
     getOrCreateProfileSettings(db, userId),
     db.query.user.findFirst({
-      where: eq(user.id, userId),
       columns: { createdAt: true },
+      where: eq(user.id, userId),
     }),
     getOrCreateProfileSystemConfig(db),
   ]);
@@ -699,18 +705,18 @@ export async function getPublicProfile(db: Database, userId: string) {
 
   return {
     ...summary,
-    createdAt: currentUser.createdAt,
     banner: {
-      mode: settings.bannerMode,
-      color: settings.bannerColor,
       asset: bannerAsset
         ? {
-            objectKey: bannerAsset.objectKey,
             isAnimated: bannerAsset.isAnimated,
             mimeType: bannerAsset.mimeType,
+            objectKey: bannerAsset.objectKey,
           }
         : null,
+      color: settings.bannerColor,
+      mode: settings.bannerMode,
     },
+    createdAt: currentUser.createdAt,
     maxVisibleEmblems: systemConfig.maxVisibleEmblems,
   } satisfies PublicProfile;
 }

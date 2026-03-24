@@ -3,6 +3,7 @@ import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import MDEditor from "@uiw/react-md-editor";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +41,8 @@ export const Route = createFileRoute("/admin/pages/$slug")({
     const data = await orpcClient.staticPage.getForEdit({ slug });
     return {
       initialData: {
-        title: data.title || PAGE_TITLES[slug] || "",
         content: data.content || "",
+        title: data.title || PAGE_TITLES[slug] || "",
       },
       slug,
     };
@@ -66,16 +67,16 @@ function StaticPageEditor({
   const [savedData, setSavedData] = useState<StaticPageData>(initialData);
   const [blockerDialogOpen, setBlockerDialogOpen] = useState(false);
 
-  const hasChanges = useMemo(() => {
-    return (
+  const hasChanges = useMemo(
+    () =>
       currentData.title !== savedData.title ||
-      currentData.content !== savedData.content
-    );
-  }, [currentData, savedData]);
+      currentData.content !== savedData.content,
+    [currentData, savedData]
+  );
 
   const blocker = useBlocker({
-    shouldBlockFn: () => hasChanges,
     enableBeforeUnload: true,
+    shouldBlockFn: () => hasChanges,
     withResolver: true,
   });
 
@@ -86,17 +87,22 @@ function StaticPageEditor({
   }, [blocker.status]);
 
   const updateMutation = useMutation({
-    mutationFn: () => {
-      return orpcClient.staticPage.update({
+    mutationFn: () =>
+      orpcClient.staticPage.update({
+        content: currentData.content,
         slug,
         title: currentData.title,
-        content: currentData.content,
-      });
+      }),
+    onError: (error) => {
+      toast.error(
+        `Error al actualizar página: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        { duration: 5000 }
+      );
     },
     onSuccess: async (data) => {
       const newData = {
-        title: data.title,
         content: data.content,
+        title: data.title,
       };
 
       setSavedData(newData);
@@ -104,18 +110,12 @@ function StaticPageEditor({
 
       await queryClient.invalidateQueries({
         predicate: (query) => {
-          const key = query.queryKey[0];
+          const [key] = query.queryKey;
           return typeof key === "string" && key.includes("staticPage");
         },
       });
 
       toast.success("Página actualizada correctamente", { duration: 3000 });
-    },
-    onError: (error) => {
-      toast.error(
-        `Error al actualizar página: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        { duration: 5000 }
-      );
     },
   });
 

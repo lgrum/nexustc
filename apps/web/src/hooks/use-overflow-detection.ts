@@ -38,13 +38,14 @@ export function useOverflowDetection() {
   );
 
   // Cleanup on unmount
-  useEffect(() => {
-    return () => {
+  useEffect(
+    () => () => {
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
       }
-    };
-  }, []);
+    },
+    []
+  );
 
   return { containerRef: setRef, hasOverflow };
 }

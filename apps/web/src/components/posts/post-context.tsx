@@ -1,4 +1,6 @@
-import { createContext, type ReactNode, use } from "react";
+import { createContext, use } from "react";
+import type { ReactNode } from "react";
+
 import type { PostProps } from "./post-components";
 
 const PostContext = createContext<PostProps | null>(null);

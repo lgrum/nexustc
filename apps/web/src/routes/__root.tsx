@@ -8,28 +8,30 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
+
 import { AgeVerificationDialog } from "@/components/age-verification-dialog";
 import { Toaster } from "@/components/ui/sonner";
+
 import appCss from "../styles.css?url";
 
 export const Route = createRootRoute({
   head: () => ({
+    links: [
+      {
+        href: appCss,
+        rel: "stylesheet",
+      },
+    ],
     meta: [
       {
-        charSet: "utf-8",
+        charSet: "utf8",
       },
       {
-        name: "viewport",
         content: "width=device-width, initial-scale=1",
+        name: "viewport",
       },
       {
         title: "TanStack Start Starter",
-      },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
       },
     ],
   }),
@@ -52,20 +54,20 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <ScriptOnce>{themeInitScript()}</ScriptOnce>
         <ConfirmDialogProvider
           defaultOptions={{
-            confirmButton: {
-              variant: "destructive",
-            },
-            cancelButton: {
-              variant: "outline",
-            },
             alertDialogContent: {
               className: "sm:max-w-[425px] rounded-md",
+            },
+            alertDialogFooter: {
+              className: "gap-2",
             },
             alertDialogOverlay: {
               className: "bg-black/50 backdrop-blur",
             },
-            alertDialogFooter: {
-              className: "gap-2",
+            cancelButton: {
+              variant: "outline",
+            },
+            confirmButton: {
+              variant: "destructive",
             },
           }}
         >

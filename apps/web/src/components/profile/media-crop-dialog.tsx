@@ -1,9 +1,7 @@
 import { useState } from "react";
-import ReactCrop, {
-  centerCrop,
-  makeAspectCrop,
-  type PercentCrop,
-} from "react-image-crop";
+import ReactCrop, { centerCrop, makeAspectCrop } from "react-image-crop";
+import type { PercentCrop } from "react-image-crop";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { ImagePercentCrop } from "@/lib/utils";
+
 import "react-image-crop/dist/ReactCrop.css";
 
 function centerAspectCrop(
@@ -67,7 +66,6 @@ export default function MediaCropDialog({
             crop={crop}
             onChange={(_, nextCrop) => setCrop(nextCrop)}
           >
-            {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: Image load initializes the default crop. */}
             <img
               alt={title}
               className="max-h-[60vh] w-full rounded-2xl object-contain"
@@ -86,10 +84,10 @@ export default function MediaCropDialog({
               }
 
               onConfirm({
+                height: crop.height,
+                width: crop.width,
                 x: crop.x,
                 y: crop.y,
-                width: crop.width,
-                height: crop.height,
               });
             }}
           >

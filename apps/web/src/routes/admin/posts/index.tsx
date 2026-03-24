@@ -1,5 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+
 import { columns } from "@/components/admin/posts/columns";
 import { DataTable } from "@/components/admin/posts/data-table";
 import { orpc } from "@/lib/orpc";

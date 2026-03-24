@@ -2,6 +2,7 @@ import { SquareLock01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 
@@ -18,7 +19,7 @@ export function UserSection() {
   }
 
   if (auth?.session) {
-    const role = auth.user.role;
+    const { role } = auth.user;
 
     return (
       <>

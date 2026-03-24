@@ -1,5 +1,6 @@
 import type { Permissions, Role } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
+
 import { authClient } from "@/lib/auth-client";
 
 export function HasPermissions({

@@ -11,18 +11,16 @@ import {
   termPostRelation,
   user,
 } from "@repo/db/schema/app";
-import {
-  canBookmark,
-  type PatronTier,
-  type TAXONOMIES,
-} from "@repo/shared/constants";
+import { canBookmark } from "@repo/shared/constants";
+import type { PatronTier, TAXONOMIES } from "@repo/shared/constants";
 import {
   getAllowedRoles,
   getRoleLevel,
   ROLE_HIERARCHY,
-  type Role,
 } from "@repo/shared/permissions";
+import type { Role } from "@repo/shared/permissions";
 import * as z from "zod";
+
 import {
   fixedWindowRatelimitMiddleware,
   permissionProcedure,
@@ -50,10 +48,10 @@ export default {
       logger?.info(`Fetching bookmarks for user: ${session.user.id}`);
 
       return db.query.postBookmark.findMany({
-        where: (b, { eq: equals }) => equals(b.userId, session.user.id),
         columns: {
           postId: true,
         },
+        where: (b, { eq: equals }) => equals(b.userId, session.user.id),
       });
     }
   ),
@@ -65,8 +63,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -74,8 +72,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -102,11 +100,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
@@ -115,21 +113,18 @@ export default {
 
       const result = await db
         .select({
-          id: post.id,
-          title: post.title,
-          type: post.type,
-          version: post.version,
-          content: post.content,
-          isWeekly: post.isWeekly,
-          imageObjectKeys: post.imageObjectKeys,
           adsLinks: post.adsLinks,
-          creatorName: post.creatorName,
-          creatorLink: post.creatorLink,
+          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
+          content: post.content,
           createdAt: post.createdAt,
-          views: post.views,
-
+          creatorLink: post.creatorLink,
+          creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
 
           terms: sql<
             {
@@ -139,9 +134,12 @@ export default {
               color: string;
             }[]
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
+          title: post.title,
 
-          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          type: post.type,
+
+          version: post.version,
+          views: post.views,
         })
         .from(postBookmark)
         .innerJoin(post, eq(post.id, postBookmark.postId))
@@ -176,11 +174,11 @@ export default {
       let tier: PatronTier = "none";
       if (session?.user) {
         const patronRecord = await db.query.patron.findFirst({
+          columns: { isActivePatron: true, tier: true },
           where: eq(patron.userId, session.user.id),
-          columns: { tier: true, isActivePatron: true },
         });
         if (patronRecord?.isActivePatron) {
-          tier = patronRecord.tier;
+          ({ tier } = patronRecord);
         }
       }
 
@@ -279,10 +277,10 @@ export default {
       logger?.info(`Fetching likes for user: ${session.user.id}`);
 
       return db.query.postLikes.findMany({
-        where: (b, { eq: equals }) => equals(b.userId, session.user.id),
         columns: {
           postId: true,
         },
+        where: (b, { eq: equals }) => equals(b.userId, session.user.id),
       });
     }
   ),
@@ -320,14 +318,14 @@ export default {
       );
 
       const users = await db.query.user.findMany({
+        columns: {
+          id: true,
+        },
         where: (u, { gte }) =>
           gte(
             u.lastSeenAt,
             new Date(Date.now() - 1000 * RECENT_USERS_CACHE_TTL_SECONDS * 2)
           ),
-        columns: {
-          id: true,
-        },
       });
 
       const summaries = await buildProfileSummaries(
@@ -348,13 +346,13 @@ export default {
 
       const result = await db
         .select({
-          id: user.id,
-          name: user.name,
-          role: user.role,
-          image: user.image,
           createdAt: user.createdAt,
-          patronTier: patron.tier,
+          id: user.id,
+          image: user.image,
           isActivePatron: patron.isActivePatron,
+          name: user.name,
+          patronTier: patron.tier,
+          role: user.role,
         })
         .from(user)
         .leftJoin(patron, eq(patron.userId, user.id))
@@ -367,9 +365,9 @@ export default {
   getUserBookmarks: publicProcedure
     .input(
       z.object({
-        userId: z.string(),
         limit: z.number().min(1).max(30).default(12),
         offset: z.number().min(0).default(0),
+        userId: z.string(),
       })
     )
     .handler(async ({ context: { db, ...ctx }, input }) => {
@@ -378,8 +376,8 @@ export default {
 
       const likesAgg = db
         .select({
-          postId: postLikes.postId,
           count: sql<number>`COUNT(*)`.as("likes_count"),
+          postId: postLikes.postId,
         })
         .from(postLikes)
         .groupBy(postLikes.postId)
@@ -387,8 +385,8 @@ export default {
 
       const favoritesAgg = db
         .select({
-          postId: postBookmark.postId,
           count: sql<number>`COUNT(*)`.as("favorites_count"),
+          postId: postBookmark.postId,
         })
         .from(postBookmark)
         .groupBy(postBookmark.postId)
@@ -415,11 +413,11 @@ export default {
 
       const ratingsAgg = db
         .select({
-          postId: postRating.postId,
           averageRating:
             sql<number>`COALESCE(AVG(${postRating.rating})::float, 0)`.as(
               "average_rating"
             ),
+          postId: postRating.postId,
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
@@ -428,16 +426,13 @@ export default {
 
       const result = await db
         .select({
-          id: post.id,
-          title: post.title,
-          version: post.version,
-          type: post.type,
-          imageObjectKeys: post.imageObjectKeys,
+          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           createdAt: post.createdAt,
-          views: post.views,
-
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
 
           terms: sql<
             {
@@ -447,9 +442,12 @@ export default {
               color: string;
             }[]
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
+          title: post.title,
 
-          averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
-          ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          type: post.type,
+
+          version: post.version,
+          views: post.views,
         })
         .from(postBookmark)
         .innerJoin(post, eq(post.id, postBookmark.postId))
@@ -491,8 +489,8 @@ export default {
     })
       .input(
         z.object({
-          name: z.string().min(1),
           email: z.string().email(),
+          name: z.string().min(1),
           password: z.string().min(8),
           role: z.enum(ROLE_HIERARCHY as [Role, ...Role[]]),
         })
@@ -517,8 +515,8 @@ export default {
 
         const created = await auth.api.createUser({
           body: {
-            name: input.name,
             email: input.email,
+            name: input.name,
             password: input.password,
             role: input.role,
           },
@@ -532,8 +530,8 @@ export default {
     })
       .input(
         z.object({
-          userId: z.string(),
           role: z.enum(ROLE_HIERARCHY as [Role, ...Role[]]),
+          userId: z.string(),
         })
       )
       .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
@@ -552,8 +550,8 @@ export default {
         }
 
         const targetUser = await db.query.user.findFirst({
-          where: eq(user.id, input.userId),
           columns: { role: true },
+          where: eq(user.id, input.userId),
         });
 
         if (!targetUser) {
@@ -580,8 +578,8 @@ export default {
 
         await auth.api.setRole({
           body: {
-            userId: input.userId,
             role: input.role,
+            userId: input.userId,
           },
           headers: ctx.headers,
         });
@@ -598,8 +596,8 @@ export default {
 
     const registeredLastWeekPromise = db
       .select({
-        time: sql<string>`t.d`,
         count: sql<number>`count(*)`,
+        time: sql<string>`t.d`,
       })
       .from(
         db
@@ -617,8 +615,8 @@ export default {
 
     const registeredAllTimePromise = db
       .select({
-        time: sql<string>`t.d`,
         count: sql<number>`count(*)`,
+        time: sql<string>`t.d`,
       })
       .from(
         db
@@ -674,8 +672,8 @@ export default {
 
     const usersByRolePromise = db
       .select({
-        role: user.role,
         count: sql<number>`count(*)`.as("count"),
+        role: user.role,
       })
       .from(user)
       .groupBy(user.role)
@@ -683,8 +681,8 @@ export default {
 
     const patronsByTierPromise = db
       .select({
-        tier: patron.tier,
         count: sql<number>`count(*)`.as("count"),
+        tier: patron.tier,
       })
       .from(patron)
       .where(eq(patron.isActivePatron, true))
@@ -748,19 +746,19 @@ export default {
     );
 
     return {
-      registeredLastWeek,
-      registeredAllTime,
-      userCount: totalUsers,
-      activePatronsCount: activePatronsCount[0]?.count ?? 0,
-      verifiedEmailsCount: verifiedEmailsCount[0]?.count ?? 0,
-      bannedUsersCount: bannedUsersCount[0]?.count ?? 0,
-      newTodayCount: newTodayCount[0]?.count ?? 0,
-      newThisWeekCount: newThisWeekCount[0]?.count ?? 0,
-      usersByRole,
-      patronsByTier,
       activeLastDay: activeLastDay[0]?.count ?? 0,
-      activeLastWeek: activeLastWeek[0]?.count ?? 0,
       activeLastMonth: activeLastMonth[0]?.count ?? 0,
+      activeLastWeek: activeLastWeek[0]?.count ?? 0,
+      activePatronsCount: activePatronsCount[0]?.count ?? 0,
+      bannedUsersCount: bannedUsersCount[0]?.count ?? 0,
+      newThisWeekCount: newThisWeekCount[0]?.count ?? 0,
+      newTodayCount: newTodayCount[0]?.count ?? 0,
+      patronsByTier,
+      registeredAllTime,
+      registeredLastWeek,
+      userCount: totalUsers,
+      usersByRole,
+      verifiedEmailsCount: verifiedEmailsCount[0]?.count ?? 0,
     };
   }),
 };

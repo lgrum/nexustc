@@ -1,8 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { useDebounceEffect } from "./use-debounce-effect";
 
-describe("useDebounceEffect", () => {
+describe(useDebounceEffect, () => {
   beforeEach(() => {
     vi.useFakeTimers();
   });
@@ -24,7 +24,7 @@ describe("useDebounceEffect", () => {
       vi.advanceTimersByTime(1000);
     });
 
-    expect(callback).toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledWith();
   });
 
   it("succeeds with latest ref pattern", () => {

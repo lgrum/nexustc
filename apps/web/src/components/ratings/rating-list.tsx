@@ -5,6 +5,7 @@ import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useState } from "react";
+
 import { HasPermissions } from "@/components/auth/has-role";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import {
@@ -22,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { UserLabel } from "@/components/users/user-label";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient } from "@/lib/orpc";
+
 import { ReviewMarkdown } from "./review-markdown";
 import { StarRatingInput } from "./star-rating-input";
 
@@ -40,13 +42,13 @@ export function RatingList({ postId }: RatingListProps) {
   } | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["ratings", postId],
     queryFn: () => orpcClient.rating.getByPostId({ postId }),
+    queryKey: ["ratings", postId],
   });
 
   const deleteOwnMutation = useMutation({
-    mutationFn: ({ postId }: { postId: string }) =>
-      orpcClient.rating.delete({ postId }),
+    mutationFn: ({ postId: post }: { postId: string }) =>
+      orpcClient.rating.delete({ postId: post }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "user", postId] });
@@ -57,8 +59,13 @@ export function RatingList({ postId }: RatingListProps) {
   });
 
   const deleteAnyMutation = useMutation({
-    mutationFn: ({ postId, userId }: { postId: string; userId: string }) =>
-      orpcClient.rating.deleteAny({ postId, userId }),
+    mutationFn: ({
+      postId: post,
+      userId,
+    }: {
+      postId: string;
+      userId: string;
+    }) => orpcClient.rating.deleteAny({ postId: post, userId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });
@@ -158,9 +165,9 @@ export function RatingList({ postId }: RatingListProps) {
                       className="ml-auto opacity-0 transition-opacity group-hover:opacity-100"
                       onClick={() =>
                         setDeleteTarget({
+                          isOwnRating: true,
                           postId: rating.postId,
                           userId: rating.userId,
-                          isOwnRating: true,
                         })
                       }
                       size="icon-xs"
@@ -178,9 +185,9 @@ export function RatingList({ postId }: RatingListProps) {
                         className="ml-auto opacity-0 transition-opacity group-hover:opacity-100"
                         onClick={() =>
                           setDeleteTarget({
+                            isOwnRating: false,
                             postId: rating.postId,
                             userId: rating.userId,
-                            isOwnRating: false,
                           })
                         }
                         size="icon-xs"

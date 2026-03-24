@@ -1,13 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+
 import { Markdown } from "@/components/markdown";
 import { orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/_main/about")({
   component: RouteComponent,
-  loader: async () => {
-    const data = await orpcClient.staticPage.getBySlug({ slug: "about" });
-    return { page: data };
-  },
   head: ({ loaderData }) => ({
     meta: [
       {
@@ -17,6 +14,10 @@ export const Route = createFileRoute("/_main/about")({
       },
     ],
   }),
+  loader: async () => {
+    const data = await orpcClient.staticPage.getBySlug({ slug: "about" });
+    return { page: data };
+  },
 });
 
 function RouteComponent() {

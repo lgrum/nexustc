@@ -14,6 +14,7 @@ import {
   Tailwind,
   Text,
 } from "@react-email/components";
+
 import tailwindConfig from "../tailwind.config";
 
 type ConfirmEmailProps = {
@@ -29,8 +30,8 @@ export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
         fontStyle="normal"
         fontWeight={400}
         webFont={{
-          url: "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap",
           format: "woff2",
+          url: "https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap",
         }}
       />
     </Head>

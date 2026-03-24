@@ -1,10 +1,10 @@
 import {
-  type ColumnDef,
   flexRender,
   getCoreRowModel,
-  type PaginationState,
   useReactTable,
 } from "@tanstack/react-table";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
+
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -40,17 +40,17 @@ export function UsersDataTable<TData, TValue>({
   totalCount,
 }: UsersDataTableProps<TData, TValue>) {
   const table = useReactTable({
-    data,
     columns,
+    data,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
-    pageCount,
-    state: { pagination },
     onPaginationChange: (updater) => {
       const next =
         typeof updater === "function" ? updater(pagination) : updater;
       onPaginationChange(next);
     },
+    pageCount,
+    state: { pagination },
   });
 
   const from = pagination.pageIndex * pagination.pageSize + 1;

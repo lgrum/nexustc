@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+
 import { ProfileAdminPage } from "@/components/admin/profile-admin-page";
 import { ownerMiddleware } from "@/middleware/owner";
 

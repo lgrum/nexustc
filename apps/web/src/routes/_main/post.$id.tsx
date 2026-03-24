@@ -1,6 +1,7 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import z from "zod";
+
 import { ComicPage } from "@/components/posts/comic-page";
 import { PostPage } from "@/components/posts/post-components";
 import { safeOrpcClient } from "@/lib/orpc";
@@ -38,10 +39,10 @@ export const Route = createFileRoute("/_main/post/$id")({
   head: ({ loaderData }) => ({
     meta: [
       {
-        title: `NeXusTC - ${loaderData ? loaderData.title : "Post"}`,
         media: loaderData?.imageObjectKeys?.[0]
           ? getBucketUrl(loaderData?.imageObjectKeys?.[0])
           : undefined,
+        title: `NeXusTC - ${loaderData ? loaderData.title : "Post"}`,
       },
     ],
   }),

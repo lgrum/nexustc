@@ -1,6 +1,7 @@
 import type React from "react";
-import { useFieldContext } from "@/hooks/use-app-form";
+
 import { cn } from "@/lib/utils";
+
 import { Label } from "../ui/label";
 import {
   Select,
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { ErrorField } from "./error-field";
+import { useFieldContext } from "./form-context";
 
 export type SelectFieldOption = {
   value: string;

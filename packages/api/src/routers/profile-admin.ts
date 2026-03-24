@@ -13,6 +13,7 @@ import {
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import z from "zod";
+
 import { ownerProcedure } from "../index";
 import {
   getObjectExtension,
@@ -32,36 +33,36 @@ const uploadContentTypeSchema = z.enum([
 ]);
 const ownerSlotsSchema = z.enum(["role-icon", "role-overlay", "emblem-icon"]);
 const roleDefinitionSchema = z.object({
-  slug: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  name: z.string().min(1).max(64),
+  accentColor: colorSchema.nullable(),
+  baseColor: colorSchema,
   description: z.string().max(160).default(""),
+  glowColor: colorSchema.nullable(),
   iconAssetId: z.string().nullable().optional(),
+  isExclusive: z.boolean(),
+  isVisible: z.boolean(),
+  name: z.string().min(1).max(64),
   overlayAssetId: z.string().nullable().optional(),
   priority: z.number().int().min(0).max(1000),
-  isVisible: z.boolean(),
-  isExclusive: z.boolean(),
-  baseColor: colorSchema,
-  accentColor: colorSchema.nullable(),
-  textColor: colorSchema,
-  glowColor: colorSchema.nullable(),
-});
-const emblemDefinitionSchema = z.object({
   slug: z
     .string()
     .min(1)
     .max(64)
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-  name: z.string().min(1).max(64),
-  tooltip: z.string().max(160).default(""),
-  iconAssetId: z.string().nullable().optional(),
-  priority: z.number().int().min(0).max(1000),
-  isVisible: z.boolean(),
-  glowColor: colorSchema.nullable(),
+  textColor: colorSchema,
+});
+const emblemDefinitionSchema = z.object({
   backgroundColor: colorSchema.nullable(),
+  glowColor: colorSchema.nullable(),
+  iconAssetId: z.string().nullable().optional(),
+  isVisible: z.boolean(),
+  name: z.string().min(1).max(64),
+  priority: z.number().int().min(0).max(1000),
+  slug: z
+    .string()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  tooltip: z.string().max(160).default(""),
 });
 
 function getOwnerUploadObjectKey(
@@ -84,6 +85,7 @@ async function enrichDefinitionsWithAssets<
     ...new Set(
       rows
         .flatMap((row) => [row.iconAssetId, row.overlayAssetId].filter(Boolean))
+        // oxlint-disable-next-line unicorn/prefer-native-coercion-functions: type guard is necessary
         .filter((id): id is string => Boolean(id))
     ),
   ];
@@ -105,44 +107,142 @@ async function enrichDefinitionsWithAssets<
 }
 
 export default {
-  media: {
-    getUploadPolicy: ownerProcedure
-      .input(
-        z.object({
-          slot: ownerSlotsSchema,
-          contentType: uploadContentTypeSchema,
-          contentLength: z.number().int().positive(),
-        })
-      )
-      .handler(async ({ context: { session, ...ctx }, input }) => {
-        const logger = getLogger(ctx);
-        logger?.info(`Generating owner upload policy for ${input.slot}`);
-        const objectKey = getOwnerUploadObjectKey(
-          input.slot,
-          session.user.id,
-          input.contentType
-        );
-        const presignedUrl = await getSignedUrl(
-          getS3Client(),
-          new PutObjectCommand({
-            Bucket: env.R2_ASSETS_BUCKET_NAME,
-            Key: objectKey,
-            ContentLength: input.contentLength,
-            ContentType: input.contentType,
+  assignments: {
+    getUserAssignments: ownerProcedure
+      .input(z.object({ userId: z.string() }))
+      .handler(async ({ context: { db }, input }) => {
+        const [roles, emblems] = await Promise.all([
+          db.query.profileRoleAssignment.findMany({
+            columns: { roleDefinitionId: true },
+            where: eq(profileRoleAssignment.userId, input.userId),
           }),
-          { expiresIn: 3600 }
-        );
+          db.query.profileEmblemAssignment.findMany({
+            columns: { emblemDefinitionId: true },
+            where: eq(profileEmblemAssignment.userId, input.userId),
+          }),
+        ]);
 
-        return { objectKey, presignedUrl };
+        return {
+          emblemIds: emblems.map((item) => item.emblemDefinitionId),
+          roleIds: roles.map((item) => item.roleDefinitionId),
+        };
       }),
 
+    setUserAssignments: ownerProcedure
+      .input(
+        z.object({
+          emblemIds: z.array(z.string()).default([]),
+          roleIds: z.array(z.string()).default([]),
+          userId: z.string(),
+        })
+      )
+      .handler(async ({ context: { db }, input }) => {
+        await db.transaction(async (tx) => {
+          await tx
+            .delete(profileRoleAssignment)
+            .where(eq(profileRoleAssignment.userId, input.userId));
+          await tx
+            .delete(profileEmblemAssignment)
+            .where(eq(profileEmblemAssignment.userId, input.userId));
+
+          if (input.roleIds.length > 0) {
+            await tx.insert(profileRoleAssignment).values(
+              input.roleIds.map((roleId) => ({
+                roleDefinitionId: roleId,
+                sourceType: "manual" as const,
+                userId: input.userId,
+              }))
+            );
+          }
+
+          if (input.emblemIds.length > 0) {
+            await tx.insert(profileEmblemAssignment).values(
+              input.emblemIds.map((emblemId) => ({
+                emblemDefinitionId: emblemId,
+                sourceType: "manual" as const,
+                userId: input.userId,
+              }))
+            );
+          }
+        });
+
+        return { success: true };
+      }),
+  },
+
+  emblems: {
+    create: ownerProcedure
+      .input(emblemDefinitionSchema)
+      .handler(async ({ context: { db }, input }) => {
+        const [created] = await db
+          .insert(profileEmblemDefinition)
+          .values({
+            iconAssetId: input.iconAssetId ?? null,
+            isVisible: input.isVisible,
+            name: input.name,
+            priority: input.priority,
+            slug: input.slug,
+            tooltip: input.tooltip,
+            visualConfig: {
+              backgroundColor: input.backgroundColor,
+              glowColor: input.glowColor,
+            },
+          })
+          .returning();
+
+        return created;
+      }),
+
+    delete: ownerProcedure
+      .input(z.object({ id: z.string() }))
+      .handler(async ({ context: { db }, input }) => {
+        await db
+          .update(profileEmblemDefinition)
+          .set({ isActive: false })
+          .where(eq(profileEmblemDefinition.id, input.id));
+        return { success: true };
+      }),
+
+    list: ownerProcedure.handler(async ({ context: { db } }) => {
+      const rows = await db.query.profileEmblemDefinition.findMany({
+        orderBy: (table, { desc }) => [desc(table.priority)],
+      });
+      return enrichDefinitionsWithAssets(db, rows);
+    }),
+
+    update: ownerProcedure
+      .input(emblemDefinitionSchema.extend({ id: z.string() }))
+      .handler(async ({ context: { db }, input }) => {
+        const { id, ...rest } = input;
+        const [updated] = await db
+          .update(profileEmblemDefinition)
+          .set({
+            iconAssetId: rest.iconAssetId ?? null,
+            isVisible: rest.isVisible,
+            name: rest.name,
+            priority: rest.priority,
+            slug: rest.slug,
+            tooltip: rest.tooltip,
+            visualConfig: {
+              backgroundColor: rest.backgroundColor,
+              glowColor: rest.glowColor,
+            },
+          })
+          .where(eq(profileEmblemDefinition.id, id))
+          .returning();
+
+        return updated;
+      }),
+  },
+
+  media: {
     finalizeUpload: ownerProcedure
       .input(
         z.object({
-          slot: ownerSlotsSchema,
-          objectKey: z.string().min(1),
-          contentType: uploadContentTypeSchema,
           contentLength: z.number().int().positive(),
+          contentType: uploadContentTypeSchema,
+          objectKey: z.string().min(1),
+          slot: ownerSlotsSchema,
         })
       )
       .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
@@ -161,18 +261,18 @@ export default {
 
         try {
           validateProfileMediaUpload({
-            slot: input.slot,
             contentType: input.contentType,
-            validation,
             entitlements: {
-              canUseAnimatedAvatar: true,
-              canUseUploadedBanner: true,
-              canUseAnimatedBanner: true,
               animatedAvatarRequiredTier: "level3",
-              uploadedBannerRequiredTier: "level5",
               animatedBannerRequiredTier: "level8",
+              canUseAnimatedAvatar: true,
+              canUseAnimatedBanner: true,
+              canUseUploadedBanner: true,
               overrideSource: "staff",
+              uploadedBannerRequiredTier: "level5",
             },
+            slot: input.slot,
+            validation,
           });
         } catch (error) {
           throw errors.BAD_REQUEST({
@@ -183,83 +283,78 @@ export default {
         const [asset] = await db
           .insert(profileMediaAsset)
           .values({
-            ownerUserId: session.user.id,
-            slot: input.slot,
+            durationMs: validation.durationMs,
+            fileSizeBytes: validation.fileSizeBytes,
+            height: validation.height,
+            isAnimated: validation.isAnimated,
             mimeType: input.contentType,
             objectKey: input.objectKey,
-            fileSizeBytes: validation.fileSizeBytes,
-            width: validation.width,
-            height: validation.height,
-            durationMs: validation.durationMs,
-            isAnimated: validation.isAnimated,
+            ownerUserId: session.user.id,
+            slot: input.slot,
             validationStatus: "ready",
+            width: validation.width,
           })
           .returning();
 
         return asset;
       }),
+
+    getUploadPolicy: ownerProcedure
+      .input(
+        z.object({
+          contentLength: z.number().int().positive(),
+          contentType: uploadContentTypeSchema,
+          slot: ownerSlotsSchema,
+        })
+      )
+      .handler(async ({ context: { session, ...ctx }, input }) => {
+        const logger = getLogger(ctx);
+        logger?.info(`Generating owner upload policy for ${input.slot}`);
+        const objectKey = getOwnerUploadObjectKey(
+          input.slot,
+          session.user.id,
+          input.contentType
+        );
+        const presignedUrl = await getSignedUrl(
+          getS3Client(),
+          new PutObjectCommand({
+            Bucket: env.R2_ASSETS_BUCKET_NAME,
+            ContentLength: input.contentLength,
+            ContentType: input.contentType,
+            Key: objectKey,
+          }),
+          { expiresIn: 3600 }
+        );
+
+        return { objectKey, presignedUrl };
+      }),
   },
 
   roles: {
-    list: ownerProcedure.handler(async ({ context: { db } }) => {
-      const rows = await db.query.profileRoleDefinition.findMany({
-        orderBy: (table, { desc }) => [desc(table.priority)],
-      });
-      return enrichDefinitionsWithAssets(db, rows);
-    }),
-
     create: ownerProcedure
       .input(roleDefinitionSchema)
       .handler(async ({ context: { db }, input }) => {
         const [created] = await db
           .insert(profileRoleDefinition)
           .values({
-            slug: input.slug,
-            name: input.name,
             description: input.description,
             iconAssetId: input.iconAssetId ?? null,
+            isExclusive: input.isExclusive,
+            isVisible: input.isVisible,
+            name: input.name,
             overlayAssetId: input.overlayAssetId ?? null,
             priority: input.priority,
-            isVisible: input.isVisible,
-            isExclusive: input.isExclusive,
+            slug: input.slug,
             visualConfig: {
-              baseColor: input.baseColor,
               accentColor: input.accentColor,
-              textColor: input.textColor,
+              baseColor: input.baseColor,
               glowColor: input.glowColor,
+              textColor: input.textColor,
             },
           })
           .returning();
 
         return created;
-      }),
-
-    update: ownerProcedure
-      .input(roleDefinitionSchema.extend({ id: z.string() }))
-      .handler(async ({ context: { db }, input }) => {
-        const { id, ...rest } = input;
-        const [updated] = await db
-          .update(profileRoleDefinition)
-          .set({
-            slug: rest.slug,
-            name: rest.name,
-            description: rest.description,
-            iconAssetId: rest.iconAssetId ?? null,
-            overlayAssetId: rest.overlayAssetId ?? null,
-            priority: rest.priority,
-            isVisible: rest.isVisible,
-            isExclusive: rest.isExclusive,
-            visualConfig: {
-              baseColor: rest.baseColor,
-              accentColor: rest.accentColor,
-              textColor: rest.textColor,
-              glowColor: rest.glowColor,
-            },
-          })
-          .where(eq(profileRoleDefinition.id, id))
-          .returning();
-
-        return updated;
       }),
 
     delete: ownerProcedure
@@ -271,140 +366,47 @@ export default {
           .where(eq(profileRoleDefinition.id, input.id));
         return { success: true };
       }),
-  },
 
-  emblems: {
     list: ownerProcedure.handler(async ({ context: { db } }) => {
-      const rows = await db.query.profileEmblemDefinition.findMany({
+      const rows = await db.query.profileRoleDefinition.findMany({
         orderBy: (table, { desc }) => [desc(table.priority)],
       });
       return enrichDefinitionsWithAssets(db, rows);
     }),
 
-    create: ownerProcedure
-      .input(emblemDefinitionSchema)
-      .handler(async ({ context: { db }, input }) => {
-        const [created] = await db
-          .insert(profileEmblemDefinition)
-          .values({
-            slug: input.slug,
-            name: input.name,
-            tooltip: input.tooltip,
-            iconAssetId: input.iconAssetId ?? null,
-            priority: input.priority,
-            isVisible: input.isVisible,
-            visualConfig: {
-              glowColor: input.glowColor,
-              backgroundColor: input.backgroundColor,
-            },
-          })
-          .returning();
-
-        return created;
-      }),
-
     update: ownerProcedure
-      .input(emblemDefinitionSchema.extend({ id: z.string() }))
+      .input(roleDefinitionSchema.extend({ id: z.string() }))
       .handler(async ({ context: { db }, input }) => {
         const { id, ...rest } = input;
         const [updated] = await db
-          .update(profileEmblemDefinition)
+          .update(profileRoleDefinition)
           .set({
-            slug: rest.slug,
-            name: rest.name,
-            tooltip: rest.tooltip,
+            description: rest.description,
             iconAssetId: rest.iconAssetId ?? null,
-            priority: rest.priority,
+            isExclusive: rest.isExclusive,
             isVisible: rest.isVisible,
+            name: rest.name,
+            overlayAssetId: rest.overlayAssetId ?? null,
+            priority: rest.priority,
+            slug: rest.slug,
             visualConfig: {
+              accentColor: rest.accentColor,
+              baseColor: rest.baseColor,
               glowColor: rest.glowColor,
-              backgroundColor: rest.backgroundColor,
+              textColor: rest.textColor,
             },
           })
-          .where(eq(profileEmblemDefinition.id, id))
+          .where(eq(profileRoleDefinition.id, id))
           .returning();
 
         return updated;
       }),
-
-    delete: ownerProcedure
-      .input(z.object({ id: z.string() }))
-      .handler(async ({ context: { db }, input }) => {
-        await db
-          .update(profileEmblemDefinition)
-          .set({ isActive: false })
-          .where(eq(profileEmblemDefinition.id, input.id));
-        return { success: true };
-      }),
-  },
-
-  assignments: {
-    getUserAssignments: ownerProcedure
-      .input(z.object({ userId: z.string() }))
-      .handler(async ({ context: { db }, input }) => {
-        const [roles, emblems] = await Promise.all([
-          db.query.profileRoleAssignment.findMany({
-            where: eq(profileRoleAssignment.userId, input.userId),
-            columns: { roleDefinitionId: true },
-          }),
-          db.query.profileEmblemAssignment.findMany({
-            where: eq(profileEmblemAssignment.userId, input.userId),
-            columns: { emblemDefinitionId: true },
-          }),
-        ]);
-
-        return {
-          roleIds: roles.map((item) => item.roleDefinitionId),
-          emblemIds: emblems.map((item) => item.emblemDefinitionId),
-        };
-      }),
-
-    setUserAssignments: ownerProcedure
-      .input(
-        z.object({
-          userId: z.string(),
-          roleIds: z.array(z.string()).default([]),
-          emblemIds: z.array(z.string()).default([]),
-        })
-      )
-      .handler(async ({ context: { db }, input }) => {
-        await db.transaction(async (tx) => {
-          await tx
-            .delete(profileRoleAssignment)
-            .where(eq(profileRoleAssignment.userId, input.userId));
-          await tx
-            .delete(profileEmblemAssignment)
-            .where(eq(profileEmblemAssignment.userId, input.userId));
-
-          if (input.roleIds.length > 0) {
-            await tx.insert(profileRoleAssignment).values(
-              input.roleIds.map((roleId) => ({
-                userId: input.userId,
-                roleDefinitionId: roleId,
-                sourceType: "manual" as const,
-              }))
-            );
-          }
-
-          if (input.emblemIds.length > 0) {
-            await tx.insert(profileEmblemAssignment).values(
-              input.emblemIds.map((emblemId) => ({
-                userId: input.userId,
-                emblemDefinitionId: emblemId,
-                sourceType: "manual" as const,
-              }))
-            );
-          }
-        });
-
-        return { success: true };
-      }),
   },
 
   systemConfig: {
-    get: ownerProcedure.handler(({ context: { db } }) => {
-      return getOrCreateProfileSystemConfig(db);
-    }),
+    get: ownerProcedure.handler(({ context: { db } }) =>
+      getOrCreateProfileSystemConfig(db)
+    ),
 
     update: ownerProcedure
       .input(

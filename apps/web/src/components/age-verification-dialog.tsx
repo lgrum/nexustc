@@ -2,7 +2,9 @@ import { Dialog } from "@base-ui/react/dialog";
 import { SquareLock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
+
 import { getCookie } from "@/lib/utils";
+
 import { Button } from "./ui/button";
 import {
   Card,
@@ -92,10 +94,14 @@ export function AgeVerificationDialog() {
             <CardFooter className="flex flex-col gap-2">
               <button
                 className="w-full max-w-md cursor-pointer rounded-full bg-primary text-primary-foreground"
-                onClick={() => {
-                  // biome-ignore lint/suspicious/noDocumentCookie: CookieStore is not yet widely supported
-                  document.cookie =
-                    "age_verified=true; path=/; expires=Fri, 31 Dec 9999 23:59:59 GMT; SameSite=Lax";
+                onClick={async () => {
+                  await cookieStore.set({
+                    name: "age_verified",
+                    value: "true",
+                    path: "/",
+                    expires: new Date("9999-12-31T23:59:59Z").getTime(),
+                    sameSite: "lax",
+                  });
                   setOpen(false);
                 }}
                 type="button"

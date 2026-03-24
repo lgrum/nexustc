@@ -1,4 +1,4 @@
-﻿import { DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq } from "@repo/db";
 import {
@@ -13,6 +13,7 @@ import type {
   contentEditImagesSchema,
 } from "@repo/shared/schemas";
 import type { z } from "zod";
+
 import type { Context } from "../context";
 import { optimizeImageToWebp } from "../utils/images";
 import { getS3Client } from "../utils/s3";
@@ -31,10 +32,10 @@ type HandlerParams<T> = {
 
 function buildEngagementOverrideRows(postId: string, prompts: string[]) {
   return prompts.map((text, index) => ({
-    postId,
-    text,
-    sortOrder: index,
     isActive: true,
+    postId,
+    sortOrder: index,
+    text,
   }));
 }
 export async function createContent({
@@ -86,11 +87,11 @@ export async function createContent({
         const objectKey = `images/${contentType}/${generateId()}.webp`;
         await getS3Client().send(
           new PutObjectCommand({
-            Bucket: env.R2_ASSETS_BUCKET_NAME,
-            Key: objectKey,
             Body: buffer,
-            ContentType: "image/webp",
+            Bucket: env.R2_ASSETS_BUCKET_NAME,
             ContentLength: buffer.byteLength,
+            ContentType: "image/webp",
+            Key: objectKey,
           })
         );
         return objectKey;
@@ -125,27 +126,27 @@ export async function createContent({
       const [postData] = await tx
         .insert(post)
         .values({
-          title: input.title,
-          type: input.type,
-          content:
-            input.type === "post" ? input.content : (input.content ?? ""),
           adsLinks:
             input.type === "post" ? input.adsLinks : (input.adsLinks ?? ""),
+          authorId: session.user?.id,
+          changelog:
+            input.type === "post" ? input.changelog : (input.changelog ?? ""),
+          content:
+            input.type === "post" ? input.content : (input.content ?? ""),
+          creatorLink: input.creatorLink ?? "",
+          creatorName: input.creatorName ?? "",
+          imageObjectKeys: successfulImageUploads,
+          isWeekly: false,
           premiumLinks:
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
-          changelog:
-            input.type === "post" ? input.changelog : (input.changelog ?? ""),
+          status: input.documentStatus,
+          title: input.title,
+          type: input.type,
           version:
             input.type === "post" ? input.version : (input.version ?? ""),
-          authorId: session.user?.id,
-          creatorName: input.creatorName ?? "",
-          creatorLink: input.creatorLink ?? "",
-          status: input.documentStatus,
-          imageObjectKeys: successfulImageUploads,
           views: 0,
-          isWeekly: false,
         })
         .returning({ postId: post.id });
 
@@ -159,15 +160,15 @@ export async function createContent({
       createdPostId = postData.postId;
       logger?.debug(`Created ${contentType} with ID: ${postData.postId}`);
 
-      const termIds = (
-        input.type === "post" ? input.platforms : (input.platforms ?? [])
-      )
-        .concat(input.tags, input.languages ?? [], [
-          input.censorship,
-          input.type === "post" ? input.engine : (input.engine ?? ""),
-          input.type === "post" ? input.status : (input.status ?? ""),
-          input.type === "post" ? input.graphics : (input.graphics ?? ""),
-        ])
+      const termIds = [
+        ...(input.type === "post" ? input.platforms : (input.platforms ?? [])),
+        ...input.tags,
+        ...(input.languages ?? []),
+        input.censorship,
+        input.type === "post" ? input.engine : (input.engine ?? ""),
+        input.type === "post" ? input.status : (input.status ?? ""),
+        input.type === "post" ? input.graphics : (input.graphics ?? ""),
+      ]
         .filter((term) => term !== "")
         .map((termId) => ({
           postId: postData.postId,
@@ -225,20 +226,20 @@ export async function editContent({
     const [postData] = await tx
       .update(post)
       .set({
-        title: input.title,
-        content: input.type === "post" ? input.content : (input.content ?? ""),
-        status: input.documentStatus,
-        version: input.type === "post" ? input.version : (input.version ?? ""),
         adsLinks:
           input.type === "post" ? input.adsLinks : (input.adsLinks ?? ""),
+        changelog:
+          input.type === "post" ? input.changelog : (input.changelog ?? ""),
+        content: input.type === "post" ? input.content : (input.content ?? ""),
+        creatorLink: input.creatorLink ?? "",
+        creatorName: input.creatorName ?? "",
         premiumLinks:
           input.type === "post"
             ? input.premiumLinks
             : (input.premiumLinks ?? ""),
-        changelog:
-          input.type === "post" ? input.changelog : (input.changelog ?? ""),
-        creatorName: input.creatorName ?? "",
-        creatorLink: input.creatorLink ?? "",
+        status: input.documentStatus,
+        title: input.title,
+        version: input.type === "post" ? input.version : (input.version ?? ""),
       })
       .where(eq(post.id, input.id))
       .returning({ postId: post.id });
@@ -252,15 +253,15 @@ export async function editContent({
       .delete(termPostRelation)
       .where(eq(termPostRelation.postId, postData.postId));
 
-    const termIds = (
-      input.type === "post" ? input.platforms : (input.platforms ?? [])
-    )
-      .concat(input.tags, input.languages ?? [], [
-        input.censorship,
-        input.type === "post" ? input.engine : (input.engine ?? ""),
-        input.type === "post" ? input.status : (input.status ?? ""),
-        input.type === "post" ? input.graphics : (input.graphics ?? ""),
-      ])
+    const termIds = [
+      ...(input.type === "post" ? input.platforms : (input.platforms ?? [])),
+      ...input.tags,
+      ...(input.languages ?? []),
+      input.censorship,
+      input.type === "post" ? input.engine : (input.engine ?? ""),
+      input.type === "post" ? input.status : (input.status ?? ""),
+      input.type === "post" ? input.graphics : (input.graphics ?? ""),
+    ]
       .filter((term) => term !== "")
       .map((termId) => ({
         postId: postData.postId,
@@ -347,8 +348,8 @@ export async function editContentImages({
   logger?.info(`Editing images for ${input.type}: ${input.postId}`);
 
   const currentPost = await db.query.post.findFirst({
-    where: (p, { eq: equals }) => equals(p.id, input.postId),
     columns: { imageObjectKeys: true, type: true },
+    where: (p, { eq: equals }) => equals(p.id, input.postId),
   });
 
   if (!currentPost) {
@@ -411,11 +412,11 @@ export async function editContentImages({
           const objectKey = `images/${input.type}/${generateId()}.webp`;
           await getS3Client().send(
             new PutObjectCommand({
-              Bucket: env.R2_ASSETS_BUCKET_NAME,
-              Key: objectKey,
               Body: buffer,
-              ContentType: "image/webp",
+              Bucket: env.R2_ASSETS_BUCKET_NAME,
               ContentLength: buffer.byteLength,
+              ContentType: "image/webp",
+              Key: objectKey,
             })
           );
           return { index, objectKey };

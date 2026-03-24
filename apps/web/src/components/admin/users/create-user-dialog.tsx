@@ -2,6 +2,7 @@ import { ROLE_LABELS } from "@repo/shared/constants";
 import type { Role } from "@repo/shared/permissions";
 import { getAllowedRoles } from "@repo/shared/permissions";
 import { toast } from "sonner";
+
 import {
   Dialog,
   DialogContent,
@@ -25,14 +26,14 @@ export function CreateUserDialog({
   const session = authClient.useSession();
   const currentRole = (session.data?.user?.role ?? "user") as Role;
   const roleOptions = getAllowedRoles(currentRole).map((role) => ({
-    value: role,
     label: ROLE_LABELS[role] ?? role,
+    value: role,
   }));
 
   const form = useAppForm({
     defaultValues: {
-      name: "",
       email: "",
+      name: "",
       password: "",
       role: "user" as Role,
     },
@@ -40,15 +41,15 @@ export function CreateUserDialog({
       await toast
         .promise(
           orpcClient.user.admin.createUser({
-            name: value.name,
             email: value.email,
+            name: value.name,
             password: value.password,
             role: value.role,
           }),
           {
+            error: "Error al crear usuario.",
             loading: "Creando usuario...",
             success: "Usuario creado.",
-            error: "Error al crear usuario.",
           }
         )
         .unwrap();

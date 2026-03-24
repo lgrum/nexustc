@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+
 import {
   Dialog,
   DialogContent,
@@ -8,14 +9,15 @@ import {
 } from "@/components/ui/dialog";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient } from "@/lib/auth-client";
+
 import type { AdminUser } from "./types";
 
 const expiresOptions = [
-  { value: "permanent", label: "Permanente" },
-  { value: "3600", label: "1 hora" },
-  { value: "86400", label: "1 día" },
-  { value: "604800", label: "7 días" },
-  { value: "2592000", label: "30 días" },
+  { label: "Permanente", value: "permanent" },
+  { label: "1 hora", value: "3600" },
+  { label: "1 día", value: "86400" },
+  { label: "7 días", value: "604800" },
+  { label: "30 días", value: "2592000" },
 ];
 
 export function BanUserDialog({
@@ -31,8 +33,8 @@ export function BanUserDialog({
 }) {
   const form = useAppForm({
     defaultValues: {
-      banReason: "",
       banExpiresIn: "permanent",
+      banReason: "",
     },
     onSubmit: async ({ value }) => {
       const expiresIn =
@@ -43,14 +45,14 @@ export function BanUserDialog({
       await toast
         .promise(
           authClient.admin.banUser({
-            userId: user.id,
-            banReason: value.banReason || undefined,
             banExpiresIn: expiresIn,
+            banReason: value.banReason || undefined,
+            userId: user.id,
           }),
           {
+            error: "Error al banear usuario.",
             loading: "Baneando usuario...",
             success: "Usuario baneado.",
-            error: "Error al banear usuario.",
           }
         )
         .unwrap();

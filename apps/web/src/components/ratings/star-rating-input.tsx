@@ -1,4 +1,5 @@
 import { useState } from "react";
+
 import { cn } from "@/lib/utils";
 
 type StarRatingInputProps = {
@@ -23,9 +24,9 @@ export function StarRatingInput({
   const displayValue = hoverValue ?? value;
 
   const sizeClasses = {
-    sm: "size-4",
-    md: "size-6",
     lg: "size-8",
+    md: "size-6",
+    sm: "size-4",
   };
 
   const handleKeyDown = (index: number, event: React.KeyboardEvent) => {
@@ -34,25 +35,29 @@ export function StarRatingInput({
     }
 
     switch (event.key) {
-      case "ArrowLeft":
+      case "ArrowLeft": {
         event.preventDefault();
         if (value > 1) {
           onChange(value - 1);
         }
         break;
-      case "ArrowRight":
+      }
+      case "ArrowRight": {
         event.preventDefault();
         if (value < max) {
           onChange(value + 1);
         }
         break;
+      }
       case "Enter":
-      case " ":
+      case " ": {
         event.preventDefault();
         onChange(index + 1);
         break;
-      default:
+      }
+      default: {
         break;
+      }
     }
   };
 
@@ -70,7 +75,7 @@ export function StarRatingInput({
         return (
           <button
             aria-checked={starValue === value}
-            aria-label={`${starValue} star${starValue !== 1 ? "s" : ""}`}
+            aria-label={`${starValue} star${starValue === 1 ? "" : "s"}`}
             className={cn(
               "transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               !disabled && "cursor-pointer hover:scale-110",

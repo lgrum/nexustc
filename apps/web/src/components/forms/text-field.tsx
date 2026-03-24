@@ -1,9 +1,11 @@
 import type React from "react";
-import { useFieldContext } from "@/hooks/use-app-form";
+
 import { cn } from "@/lib/utils";
+
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { ErrorField } from "./error-field";
+import { useFieldContext } from "./form-context";
 
 export function TextField(
   props: {
@@ -28,7 +30,7 @@ export function TextField(
           type="text"
           value={field.state.value}
           {...props}
-          // biome-ignore lint/correctness/noChildrenProp: override the children prop as this is an input element
+          // oxlint-disable-next-line react/no-children-prop: override the children prop as this is an input element
           children={undefined}
         />
         {props.children}

@@ -2,11 +2,8 @@ import { verifyWebhookSignature } from "@repo/api/utils/patreon";
 import { db, eq } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
-import {
-  PATREON_TIER_MAPPING,
-  PATRON_TIERS,
-  type PatronTier,
-} from "@repo/shared/constants";
+import { PATREON_TIER_MAPPING, PATRON_TIERS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 import { createFileRoute } from "@tanstack/react-router";
 
 type PatreonWebhookPayload = {
@@ -21,7 +18,7 @@ type PatreonWebhookPayload = {
     relationships: {
       user: { data: { id: string; type: "user" } };
       campaign: { data: { id: string; type: "campaign" } };
-      currently_entitled_tiers?: { data: Array<{ id: string; type: "tier" }> };
+      currently_entitled_tiers?: { data: { id: string; type: "tier" }[] };
     };
   };
 };
@@ -82,23 +79,23 @@ async function handleMemberUpdate(data: PatreonWebhookPayload) {
   await db
     .insert(patron)
     .values({
-      userId: patreonAccount.userId,
-      patreonUserId,
-      tier,
-      pledgeAmountCents,
       isActivePatron: isActive,
-      patronSince: patronSince ? new Date(patronSince) : null,
       lastSyncAt: new Date(),
       lastWebhookAt: new Date(),
+      patreonUserId,
+      patronSince: patronSince ? new Date(patronSince) : null,
+      pledgeAmountCents,
+      tier,
+      userId: patreonAccount.userId,
     })
     .onConflictDoUpdate({
-      target: patron.userId,
       set: {
-        tier,
-        pledgeAmountCents,
         isActivePatron: isActive,
         lastWebhookAt: new Date(),
+        pledgeAmountCents,
+        tier,
       },
+      target: patron.userId,
     });
 
   console.log(
@@ -112,9 +109,9 @@ async function handleMemberDelete(data: PatreonWebhookPayload) {
   await db
     .update(patron)
     .set({
-      tier: "none",
       isActivePatron: false,
       lastWebhookAt: new Date(),
+      tier: "none",
     })
     .where(eq(patron.patreonUserId, patreonUserId));
 
@@ -148,14 +145,17 @@ async function handleWebhook(request: Request): Promise<Response> {
   try {
     switch (event) {
       case "members:pledge:create":
-      case "members:pledge:update":
+      case "members:pledge:update": {
         await handleMemberUpdate(data);
         break;
-      case "members:pledge:delete":
+      }
+      case "members:pledge:delete": {
         await handleMemberDelete(data);
         break;
-      default:
+      }
+      default: {
         console.log(`Unhandled Patreon webhook event: ${event}`);
+      }
     }
 
     return new Response("OK", { status: 200 });

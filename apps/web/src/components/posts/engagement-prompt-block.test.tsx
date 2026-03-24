@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { EngagementPromptBlock } from "./engagement-prompt-block";
 
 class MockIntersectionObserver {
@@ -11,12 +11,15 @@ class MockIntersectionObserver {
     MockIntersectionObserver.instances.push(this);
   }
 
+  // oxlint-disable-next-line class-methods-use-this
   observe() {
     // Intentionally empty for tests.
   }
+  // oxlint-disable-next-line class-methods-use-this
   disconnect() {
     // Intentionally empty for tests.
   }
+  // oxlint-disable-next-line class-methods-use-this
   unobserve() {
     // Intentionally empty for tests.
   }
@@ -39,31 +42,31 @@ function setDocumentVisibility(state: DocumentVisibilityState) {
 const prompts = [
   {
     id: "prompt-1",
-    text: "Seamos honestos… este conflicto vende más de lo que parece.",
     source: "tag" as const,
     tagTermId: "tag-1",
+    text: "Seamos honestos… este conflicto vende más de lo que parece.",
   },
   {
     id: "prompt-2",
-    text: "Nadie lo dice, pero… sin este giro el post cae bastante.",
     source: "tag" as const,
     tagTermId: "tag-2",
+    text: "Nadie lo dice, pero… sin este giro el post cae bastante.",
   },
 ];
 
-describe("EngagementPromptBlock", () => {
+describe(EngagementPromptBlock, () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.spyOn(Math, "random").mockReturnValue(0);
     setDocumentVisibility("visible");
 
     Object.defineProperty(window, "matchMedia", {
-      writable: true,
       value: vi.fn().mockImplementation(() => ({
-        matches: false,
         addEventListener: vi.fn(),
+        matches: false,
         removeEventListener: vi.fn(),
       })),
+      writable: true,
     });
 
     vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import AutoScroll from "embla-carousel-auto-scroll";
 import ReactMarkdown from "react-markdown";
+
 import {
   Carousel,
   CarouselContent,
@@ -11,7 +12,6 @@ import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/chronos")({
   component: RouteComponent,
-  loader: async () => await orpcClient.chronos.getCurrent(),
   head: () => ({
     meta: [
       {
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/_main/chronos")({
       },
     ],
   }),
+  loader: async () => await orpcClient.chronos.getCurrent(),
 });
 
 function RouteComponent() {
@@ -56,9 +57,9 @@ function RouteComponent() {
               }}
               plugins={[
                 AutoScroll({
+                  speed: 1,
                   startDelay: 0,
                   stopOnInteraction: false,
-                  speed: 1,
                 }),
               ]}
             >
@@ -89,15 +90,15 @@ function RouteComponent() {
             className="h-full"
             opts={{
               align: "start",
-              loop: true,
               dragFree: false,
+              loop: true,
             }}
             orientation="vertical"
             plugins={[
               AutoScroll({
+                speed: 1,
                 startDelay: 0,
                 stopOnInteraction: false,
-                speed: 1,
               }),
             ]}
           >

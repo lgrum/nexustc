@@ -29,6 +29,7 @@ export function TutorialCard({
           referrerPolicy="strict-origin-when-cross-origin"
           src={tutorial.embedUrl}
           title="YouTube video player"
+          sandbox="allow-scripts"
         />
       </CardContent>
     </Card>

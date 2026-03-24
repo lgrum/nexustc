@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,7 +58,7 @@ export const Route = createFileRoute("/admin/extras/featured")({
 
     if (isDefined) {
       return {
-        error: { code: error.code, name: error.name, message: error.message },
+        error: { code: error.code, message: error.message, name: error.name },
         initialSelection: {
           mainPostId: null,
           secondaryPostIds: [null, null] as [null, null],
@@ -72,7 +73,7 @@ export const Route = createFileRoute("/admin/extras/featured")({
     const main = featuredPosts.find((p) => p.position === "main");
     const secondary = featuredPosts
       .filter((p) => p.position === "secondary")
-      .sort((a, b) => a.order - b.order);
+      .toSorted((a, b) => a.order - b.order);
 
     return {
       error: null,
@@ -99,18 +100,18 @@ function RouteComponent() {
   const [blockerDialogOpen, setBlockerDialogOpen] = useState(false);
   const router = useRouter();
 
-  const hasChanges = useMemo(() => {
-    return (
+  const hasChanges = useMemo(
+    () =>
       selectedPosts.mainPostId !== savedSelectedPosts.mainPostId ||
       selectedPosts.secondaryPostIds[0] !==
         savedSelectedPosts.secondaryPostIds[0] ||
       selectedPosts.secondaryPostIds[1] !==
-        savedSelectedPosts.secondaryPostIds[1]
-    );
-  }, [selectedPosts, savedSelectedPosts]);
+        savedSelectedPosts.secondaryPostIds[1],
+    [selectedPosts, savedSelectedPosts]
+  );
 
-  const isValid = useMemo(() => {
-    return (
+  const isValid = useMemo(
+    () =>
       selectedPosts.mainPostId !== null &&
       selectedPosts.secondaryPostIds[0] !== null &&
       selectedPosts.secondaryPostIds[1] !== null &&
@@ -118,13 +119,13 @@ function RouteComponent() {
         selectedPosts.mainPostId,
         selectedPosts.secondaryPostIds[0],
         selectedPosts.secondaryPostIds[1],
-      ]).size === 3
-    );
-  }, [selectedPosts]);
+      ]).size === 3,
+    [selectedPosts]
+  );
 
   const blocker = useBlocker({
-    shouldBlockFn: () => hasChanges,
     enableBeforeUnload: true,
+    shouldBlockFn: () => hasChanges,
     withResolver: true,
   });
 
@@ -170,10 +171,16 @@ function RouteComponent() {
 
   const featuredMutation = useMutation({
     ...orpc.post.admin.uploadFeaturedPosts.mutationOptions(),
+    onError: (error) => {
+      toast.error(
+        `Error al actualizar posts destacados: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        { duration: 5000 }
+      );
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         predicate: (query) => {
-          const key = query.queryKey[0];
+          const [key] = query.queryKey;
           return (
             typeof key === "string" &&
             (key.includes("getFeaturedSelectionPosts") ||
@@ -189,12 +196,6 @@ function RouteComponent() {
       toast.success("Posts destacados actualizados correctamente", {
         duration: 3000,
       });
-    },
-    onError: (error) => {
-      toast.error(
-        `Error al actualizar posts destacados: ${error instanceof Error ? error.message : "Error desconocido"}`,
-        { duration: 5000 }
-      );
     },
   });
 

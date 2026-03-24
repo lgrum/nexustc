@@ -1,4 +1,3 @@
-import { describe, expect, it } from "vitest";
 import {
   resolveEngagementPrompts,
   selectAutomaticEngagementPrompts,
@@ -14,7 +13,7 @@ function createDeterministicRandom(...values: number[]) {
   };
 }
 
-describe("resolveEngagementPrompts", () => {
+describe(resolveEngagementPrompts, () => {
   it("prioritizes manual overrides over automatic prompts", () => {
     const prompts = resolveEngagementPrompts(
       [
@@ -26,43 +25,43 @@ describe("resolveEngagementPrompts", () => {
       [
         {
           id: "auto-1",
-          text: "Nadie lo dice, pero... este tag ya no sorprende.",
           tagTermId: "tag-1",
+          text: "Nadie lo dice, pero... este tag ya no sorprende.",
         },
       ]
     );
 
-    expect(prompts).toEqual([
+    expect(prompts).toStrictEqual([
       {
         id: "manual-1",
-        text: "Seamos honestos... que sostiene de verdad este post?",
         source: "manual",
         tagTermId: null,
+        text: "Seamos honestos... que sostiene de verdad este post?",
       },
     ]);
   });
 
   it("returns an empty array when there are no eligible prompts", () => {
-    expect(resolveEngagementPrompts([], [])).toEqual([]);
+    expect(resolveEngagementPrompts([], [])).toStrictEqual([]);
   });
 });
 
-describe("selectAutomaticEngagementPrompts", () => {
+describe(selectAutomaticEngagementPrompts, () => {
   it("returns a single prompt without rotation when only one is eligible", () => {
     const prompts = selectAutomaticEngagementPrompts([
       {
         id: "auto-1",
-        text: "Quitando el morbo... que vende mejor este tag: tension o fantasia?",
         tagTermId: "tag-1",
+        text: "Quitando el morbo... que vende mejor este tag: tension o fantasia?",
       },
     ]);
 
-    expect(prompts).toEqual([
+    expect(prompts).toStrictEqual([
       {
         id: "auto-1",
-        text: "Quitando el morbo... que vende mejor este tag: tension o fantasia?",
         source: "tag",
         tagTermId: "tag-1",
+        text: "Quitando el morbo... que vende mejor este tag: tension o fantasia?",
       },
     ]);
   });
@@ -72,18 +71,18 @@ describe("selectAutomaticEngagementPrompts", () => {
       [
         {
           id: "auto-1",
-          text: "Seamos honestos... el diseno aca pesa mas que el guion.",
           tagTermId: "tag-1",
+          text: "Seamos honestos... el diseno aca pesa mas que el guion.",
         },
         {
           id: "auto-2",
-          text: "Nadie lo dice, pero... este protagonista estorba mas de lo que suma.",
           tagTermId: null,
+          text: "Nadie lo dice, pero... este protagonista estorba mas de lo que suma.",
         },
         {
           id: "auto-3",
-          text: "Quitando el morbo... el conflicto acompana al tag o solo lo decora?",
           tagTermId: "tag-2",
+          text: "Quitando el morbo... el conflicto acompana al tag o solo lo decora?",
         },
       ],
       createDeterministicRandom(0, 0, 0, 0)
@@ -100,19 +99,19 @@ describe("selectAutomaticEngagementPrompts", () => {
       [
         {
           id: "auto-1",
-          text: "Seamos honestos... este post vive o muere por la primera impresion.",
           tagTermId: null,
+          text: "Seamos honestos... este post vive o muere por la primera impresion.",
         },
       ],
       createDeterministicRandom(0)
     );
 
-    expect(prompts).toEqual([
+    expect(prompts).toStrictEqual([
       {
         id: "auto-1",
-        text: "Seamos honestos... este post vive o muere por la primera impresion.",
         source: "tag",
         tagTermId: null,
+        text: "Seamos honestos... este post vive o muere por la primera impresion.",
       },
     ]);
   });
@@ -122,20 +121,22 @@ describe("selectAutomaticEngagementPrompts", () => {
       [
         {
           id: "auto-1",
-          text: "Seamos honestos... este tag ya hace la mitad del trabajo solo.",
           tagTermId: "tag-1",
+          text: "Seamos honestos... este tag ya hace la mitad del trabajo solo.",
         },
         {
           id: "auto-2",
-          text: "Nadie lo dice, pero... si quitas este detalle, el post pierde casi todo.",
           tagTermId: "tag-1",
+          text: "Nadie lo dice, pero... si quitas este detalle, el post pierde casi todo.",
         },
       ],
       createDeterministicRandom(0, 0, 0)
     );
 
     expect(prompts).toHaveLength(2);
-    expect(prompts.every((prompt) => prompt.tagTermId === "tag-1")).toBe(true);
+    expect(
+      prompts.every((prompt) => prompt.tagTermId === "tag-1")
+    ).toBeTruthy();
   });
 
   it("deduplicates prompts by normalized text before selecting", () => {
@@ -143,13 +144,13 @@ describe("selectAutomaticEngagementPrompts", () => {
       [
         {
           id: "auto-1",
-          text: "  Seamos honestos... este tag define todo.  ",
           tagTermId: "tag-1",
+          text: "  Seamos honestos... este tag define todo.  ",
         },
         {
           id: "auto-2",
-          text: "seamos honestos... este tag define todo.",
           tagTermId: null,
+          text: "seamos honestos... este tag define todo.",
         },
       ],
       createDeterministicRandom(0)

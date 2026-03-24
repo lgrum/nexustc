@@ -1,4 +1,4 @@
-﻿import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import {
   ArrowLeft01Icon,
   ArrowLeftDoubleIcon,
@@ -18,16 +18,12 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { getRouteApi, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import {
-  type TouchEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { TouchEvent } from "react";
+
 import type { PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
+
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
@@ -56,13 +52,13 @@ export function ComicPage({ comic }: { comic: PostType }) {
   const navigate = postPageApi.useNavigate();
 
   const setPage = useMemo(
-    () => (page: number) => {
-      if (page < 0) {
+    () => (newPage: number) => {
+      if (newPage < 0) {
         navigate({});
         return;
       }
 
-      navigate({ search: () => ({ page }) });
+      navigate({ search: () => ({ page: newPage }) });
     },
     [navigate]
   );
@@ -353,27 +349,31 @@ function ComicReader({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
-        case "ArrowLeft":
+        case "ArrowLeft": {
           e.preventDefault();
           goToPrevious();
           showControlsTemporarily();
           break;
-        case "ArrowRight":
+        }
+        case "ArrowRight": {
           e.preventDefault();
           goToNext();
           showControlsTemporarily();
           break;
-        case "Home":
+        }
+        case "Home": {
           e.preventDefault();
           goToFirst();
           showControlsTemporarily();
           break;
-        case "End":
+        }
+        case "End": {
           e.preventDefault();
           goToLast();
           showControlsTemporarily();
           break;
-        case "Escape":
+        }
+        case "Escape": {
           if (scale > 1) {
             resetZoom();
           } else if (showThumbnails) {
@@ -382,21 +382,26 @@ function ComicReader({
             goToInfo();
           }
           break;
+        }
         case "+":
-        case "=":
+        case "=": {
           e.preventDefault();
           zoomIn();
           break;
-        case "-":
+        }
+        case "-": {
           e.preventDefault();
           zoomOut();
           break;
-        case "f":
+        }
+        case "f": {
           e.preventDefault();
           toggleFullscreen();
           break;
-        default:
+        }
+        default: {
           break;
+        }
       }
     };
 
@@ -438,9 +443,9 @@ function ComicReader({
   const handleTouchStart = (e: TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 1) {
       touchStartRef.current = {
+        time: Date.now(),
         x: e.touches[0].clientX,
         y: e.touches[0].clientY,
-        time: Date.now(),
       };
       if (scale > 1) {
         setIsDragging(true);
@@ -549,8 +554,8 @@ function ComicReader({
   };
 
   return (
-    /* biome-ignore lint/a11y/noStaticElementInteractions: comic reader container needs mouse events for drag/zoom */
-    /* biome-ignore lint/a11y/noNoninteractiveElementInteractions: comic reader container needs mouse events for drag/zoom */
+    // image area needs touch/mouse events for zoom/pan
+    // oxlint-disable-next-line jsx_a11y/no-static-element-interactions
     <div
       className={cn(
         "fixed inset-0 z-50 flex flex-col bg-background",
@@ -638,9 +643,7 @@ function ComicReader({
         </div>
       </div>
 
-      {/* Main Image Area */}
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: image area needs touch/mouse events for zoom/pan */}
-      {/* biome-ignore lint/a11y/noNoninteractiveElementInteractions: image area needs touch/mouse events for zoom/pan */}
+      {/* oxlint-disable-next-line jsx_a11y/no-static-element-interactions */}
       <div
         className="relative flex flex-1 items-center justify-center overflow-hidden"
         onDoubleClick={handleDoubleClick}
@@ -700,7 +703,6 @@ function ComicReader({
 
         {/* Main Image */}
         {currentImage && (
-          // biome-ignore lint/a11y/noNoninteractiveElementInteractions: image needs onLoad for loading state
           <img
             alt={`Página ${page + 1}`}
             className={cn(

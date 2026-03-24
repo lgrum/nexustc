@@ -2,6 +2,7 @@ import { ROLE_LABELS } from "@repo/shared/constants";
 import type { Role } from "@repo/shared/permissions";
 import { getAllowedRoles } from "@repo/shared/permissions";
 import { toast } from "sonner";
+
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ import {
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient } from "@/lib/orpc";
+
 import type { AdminUser } from "./types";
 
 export function SetRoleDialog({
@@ -28,8 +30,8 @@ export function SetRoleDialog({
   const session = authClient.useSession();
   const currentRole = (session.data?.user?.role ?? "user") as Role;
   const roleOptions = getAllowedRoles(currentRole).map((role) => ({
-    value: role,
     label: ROLE_LABELS[role] ?? role,
+    value: role,
   }));
 
   const form = useAppForm({
@@ -40,13 +42,13 @@ export function SetRoleDialog({
       await toast
         .promise(
           orpcClient.user.admin.setRole({
-            userId: user.id,
             role: value.role,
+            userId: user.id,
           }),
           {
+            error: "Error al cambiar rol.",
             loading: "Cambiando rol...",
             success: "Rol actualizado.",
-            error: "Error al cambiar rol.",
           }
         )
         .unwrap();

@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import { useState } from "react";
+
 import {
   Sidebar,
   SidebarContent,
@@ -26,30 +27,31 @@ import {
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
+
 import { AuthDialog, AuthDialogContent } from "./auth/auth-dialog";
 import { Button } from "./ui/button";
 
 const navItems = [
-  { href: "/", label: "Inicio", search: {}, icon: Home01Icon },
+  { href: "/", icon: Home01Icon, label: "Inicio", search: {} },
   {
     href: "/search",
+    icon: GameController03Icon,
     label: "Juegos",
     search: { type: "juegos" },
-    icon: GameController03Icon,
   },
   {
     href: "/search",
+    icon: Book03Icon,
     label: "Comics",
     search: { type: "comics" },
-    icon: Book03Icon,
   },
   {
     href: "/tutorials",
+    icon: BubbleChatQuestionIcon,
     label: "Tutoriales",
     search: {},
-    icon: BubbleChatQuestionIcon,
   },
-  { href: "/chronos", label: "Chronos", search: {}, icon: Clock01Icon },
+  { href: "/chronos", icon: Clock01Icon, label: "Chronos", search: {} },
 ] as const;
 
 export function AppSidebar() {

@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
+
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { ProfileBanner } from "@/components/profile/profile-banner";
 import { ProfileNameplate } from "@/components/profile/profile-nameplate";
@@ -15,12 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
-import {
-  convertImage,
-  cropImage,
-  type ImagePercentCrop,
-  uploadBlobWithProgress,
-} from "@/lib/utils";
+import { convertImage, cropImage, uploadBlobWithProgress } from "@/lib/utils";
+import type { ImagePercentCrop } from "@/lib/utils";
 
 const MediaCropDialog = lazy(
   () => import("@/components/profile/media-crop-dialog")
@@ -66,24 +63,24 @@ export function AppearanceSection() {
       orpcClient.profile.updateAppearance({
         avatarFallbackColor:
           draft.avatarFallbackColor ?? PROFILE_DEFAULTS.avatarFallbackColor,
-        bannerColor: draft.bannerColor ?? PROFILE_DEFAULTS.bannerColor,
-        bannerMode: draft.bannerMode,
         bannerAssetId:
           draft.bannerMode === "image"
             ? (data.settings.bannerAsset?.id ?? null)
             : null,
+        bannerColor: draft.bannerColor ?? PROFILE_DEFAULTS.bannerColor,
+        bannerMode: draft.bannerMode,
       }),
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo guardar."
+      );
+    },
     onSuccess: async () => {
       await queryClient.invalidateQueries(
         orpc.profile.getMySettings.queryOptions()
       );
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       toast.success("Apariencia actualizada");
-    },
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo guardar."
-      );
     },
   });
 
@@ -148,9 +145,9 @@ export function AppearanceSection() {
     }
 
     setPendingUpload({
-      slot,
       file: uploadFile,
       previewUrl: URL.createObjectURL(uploadFile),
+      slot,
     });
   };
 
@@ -164,7 +161,6 @@ export function AppearanceSection() {
     }) => {
       const { objectKey, presignedUrl } =
         await orpcClient.profile.getUploadPolicy({
-          slot,
           contentLength: file.size,
           contentType: file.type as
             | "image/avif"
@@ -172,11 +168,10 @@ export function AppearanceSection() {
             | "image/jpeg"
             | "image/png"
             | "image/webp",
+          slot,
         });
       await uploadBlobWithProgress(file, presignedUrl, setUploadProgress);
       return orpcClient.profile.finalizeUpload({
-        slot,
-        objectKey,
         contentLength: file.size,
         contentType: file.type as
           | "image/avif"
@@ -184,7 +179,15 @@ export function AppearanceSection() {
           | "image/jpeg"
           | "image/png"
           | "image/webp",
+        objectKey,
+        slot,
       });
+    },
+    onError: (error) => {
+      setUploadProgress(0);
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo subir el archivo."
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(
@@ -201,50 +204,48 @@ export function AppearanceSection() {
         return null;
       });
     },
-    onError: (error) => {
-      setUploadProgress(0);
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo subir el archivo."
-      );
-    },
   });
 
   const previewUser = {
     ...(data.summary ?? {
-      id: "me",
-      href: "/profile",
-      image: null,
       avatar: null,
-      name: session?.user.name ?? "Tu perfil",
       avatarFallbackColor: draft.avatarFallbackColor,
-      profileRoles: [],
+      href: "/profile",
+      id: "me",
+      image: null,
+      name: session?.user.name ?? "Tu perfil",
       profileEmblems: [],
+      profileRoles: [],
     }),
     avatarFallbackColor: draft.avatarFallbackColor,
   };
 
-  const handleAvatarInputChange = (
+  const handleAvatarInputChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    handleFileSelection(event, "avatar").catch((error) => {
+    try {
+      await handleFileSelection(event, "avatar");
+    } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "No se pudo preparar el avatar."
       );
-    });
+    }
   };
 
-  const handleBannerInputChange = (
+  const handleBannerInputChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    handleFileSelection(event, "banner").catch((error) => {
+    try {
+      await handleFileSelection(event, "banner");
+    } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "No se pudo preparar el banner."
       );
-    });
+    }
   };
 
   return (
@@ -252,14 +253,14 @@ export function AppearanceSection() {
       <section className="overflow-hidden rounded-4xl border border-border bg-card">
         <ProfileBanner
           banner={{
-            mode: draft.bannerMode,
-            color: draft.bannerColor,
             asset:
               draft.bannerMode === "image" && data.settings.bannerAsset
                 ? {
                     objectKey: data.settings.bannerAsset.objectKey,
                   }
                 : null,
+            color: draft.bannerColor,
+            mode: draft.bannerMode,
           }}
           className="rounded-none border-0"
         />

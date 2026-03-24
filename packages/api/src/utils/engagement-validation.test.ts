@@ -1,7 +1,6 @@
 import { manualEngagementQuestionsSchema } from "@repo/shared/schemas";
-import { describe, expect, it } from "vitest";
 
-describe("manualEngagementQuestionsSchema", () => {
+describe("manual engagement questions schema", () => {
   it("allows up to two normalized prompts", () => {
     const result = manualEngagementQuestionsSchema.safeParse([
       " Seamos honestos... este conflicto sostiene todo. ",
@@ -9,7 +8,7 @@ describe("manualEngagementQuestionsSchema", () => {
     ]);
 
     expect(result.success).toBe(true);
-    expect(result.success && result.data).toEqual([
+    expect(result.success && result.data).toStrictEqual([
       "Seamos honestos... este conflicto sostiene todo.",
       "Nadie lo dice, pero... este giro define el post.",
     ]);
@@ -22,6 +21,7 @@ describe("manualEngagementQuestionsSchema", () => {
       "Tres",
     ]);
 
+    console.log(result);
     expect(result.success).toBe(false);
     expect(result.success ? [] : result.error.issues[0]?.message).toBe(
       "Solo se permiten hasta 2 preguntas manuales."

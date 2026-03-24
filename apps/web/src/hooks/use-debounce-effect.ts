@@ -1,4 +1,5 @@
-import { type DependencyList, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import type { DependencyList } from "react";
 
 export function useDebounceEffect(
   fn: () => void,
@@ -22,6 +23,6 @@ export function useDebounceEffect(
     return () => {
       clearTimeout(t);
     };
-    // biome-ignore lint/correctness/useExhaustiveDependencies: We intentionally defer dependency management to the user
+    // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps: We intentionally defer dependency management to the user
   }, deps);
 }

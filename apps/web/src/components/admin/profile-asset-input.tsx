@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
+
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { orpcClient } from "@/lib/orpc";
@@ -20,7 +21,7 @@ export function ProfileAssetInput({
   currentObjectKey?: string | null;
   onUploaded: (assetId: string, objectKey: string) => void;
 }) {
-  const inputId = `${slot}-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+  const inputId = `${slot}-${label.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-")}`;
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       let uploadFile = file;
@@ -31,7 +32,6 @@ export function ProfileAssetInput({
 
       const { objectKey, presignedUrl } =
         await orpcClient.profileAdmin.media.getUploadPolicy({
-          slot,
           contentLength: uploadFile.size,
           contentType: uploadFile.type as
             | "image/avif"
@@ -39,12 +39,11 @@ export function ProfileAssetInput({
             | "image/jpeg"
             | "image/png"
             | "image/webp",
+          slot,
         });
 
-      await uploadBlobWithProgress(uploadFile, presignedUrl, () => undefined);
+      await uploadBlobWithProgress(uploadFile, presignedUrl);
       return orpcClient.profileAdmin.media.finalizeUpload({
-        slot,
-        objectKey,
         contentLength: uploadFile.size,
         contentType: uploadFile.type as
           | "image/avif"
@@ -52,16 +51,18 @@ export function ProfileAssetInput({
           | "image/jpeg"
           | "image/png"
           | "image/webp",
+        objectKey,
+        slot,
       });
-    },
-    onSuccess: (asset) => {
-      onUploaded(asset.id, asset.objectKey);
-      toast.success("Asset subido");
     },
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "No se pudo subir el asset."
       );
+    },
+    onSuccess: (asset) => {
+      onUploaded(asset.id, asset.objectKey);
+      toast.success("Asset subido");
     },
   });
 

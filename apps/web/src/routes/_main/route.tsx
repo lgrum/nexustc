@@ -1,11 +1,9 @@
 import { AlertCircleIcon, Clock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  createFileRoute,
-  type ErrorComponentProps,
-  Outlet,
-} from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
+import type { ErrorComponentProps } from "@tanstack/react-router";
 import { Suspense } from "react";
+
 import { AdblockBlockerDialog } from "@/components/adblock-blocker-dialog";
 import { AppSidebar } from "@/components/app-sidebar";
 import { BottomNav } from "@/components/bottom-nav";
@@ -36,6 +34,11 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main")({
   component: MainLayout,
+  errorComponent: ({ error, reset }) => (
+    <Wrapper>
+      <ErrorComponent error={error} reset={reset} />
+    </Wrapper>
+  ),
   head: () => ({
     meta: [
       {
@@ -43,11 +46,6 @@ export const Route = createFileRoute("/_main")({
       },
     ],
   }),
-  errorComponent: ({ error, reset }) => (
-    <Wrapper>
-      <ErrorComponent error={error} reset={reset} />
-    </Wrapper>
-  ),
 });
 
 function MainLayout() {
@@ -94,12 +92,12 @@ function isRateLimitError(error: unknown) {
   return error instanceof Error && error.message === "RATE_LIMITED";
 }
 
+function reload() {
+  window.location.reload();
+}
+
 function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const rateLimited = isRateLimitError(error);
-
-  const reload = () => {
-    window.location.reload();
-  };
 
   if (rateLimited) {
     return (

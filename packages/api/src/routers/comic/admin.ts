@@ -5,6 +5,7 @@ import {
   contentEditImagesSchema,
 } from "@repo/shared/schemas";
 import z from "zod";
+
 import { permissionProcedure } from "../../index";
 import {
   createContent,
@@ -15,52 +16,11 @@ import {
 } from "../../utils/content-handlers";
 
 export default {
-  getDashboardList: permissionProcedure({
-    comics: ["list"],
-  }).handler(({ context: { db, ...ctx } }) => {
-    const logger = getLogger(ctx);
-    logger?.info("Fetching comic dashboard list");
-
-    return db.query.post.findMany({
-      columns: {
-        id: true,
-        title: true,
-        status: true,
-      },
-      where: (p, { eq: equals }) => equals(p.type, "comic"),
-      with: {
-        terms: {
-          with: {
-            term: true,
-          },
-        },
-      },
-      orderBy: (p, { desc }) => [desc(p.createdAt)],
-    });
-  }),
-
-  getEdit: permissionProcedure({
-    comics: ["update"],
+  create: permissionProcedure({
+    comics: ["create"],
   })
-    .input(z.string())
-    .handler(({ context: { db, ...ctx }, input }) => {
-      const logger = getLogger(ctx);
-      logger?.info(`Fetching comic for editing: ${input}`);
-
-      return db.query.post.findFirst({
-        where: (p, { eq: equals }) => equals(p.id, input),
-        with: {
-          terms: {
-            with: {
-              term: true,
-            },
-          },
-          engagementOverrides: {
-            orderBy: (table, { asc: ascOrder }) => [ascOrder(table.sortOrder)],
-          },
-        },
-      });
-    }),
+    .input(comicCreateSchema)
+    .handler(createContent),
 
   createComicPrerequisites: permissionProcedure({
     comics: ["create"],
@@ -76,11 +36,11 @@ export default {
     };
   }),
 
-  create: permissionProcedure({
-    comics: ["create"],
+  delete: permissionProcedure({
+    comics: ["delete"],
   })
-    .input(comicCreateSchema)
-    .handler(createContent),
+    .input(z.string())
+    .handler(deleteContent),
 
   edit: permissionProcedure({
     comics: ["update"],
@@ -94,19 +54,60 @@ export default {
     .input(contentEditImagesSchema)
     .handler(editContentImages),
 
-  delete: permissionProcedure({
-    comics: ["delete"],
+  getDashboardList: permissionProcedure({
+    comics: ["list"],
+  }).handler(({ context: { db, ...ctx } }) => {
+    const logger = getLogger(ctx);
+    logger?.info("Fetching comic dashboard list");
+
+    return db.query.post.findMany({
+      columns: {
+        id: true,
+        status: true,
+        title: true,
+      },
+      orderBy: (p, { desc }) => [desc(p.createdAt)],
+      where: (p, { eq: equals }) => equals(p.type, "comic"),
+      with: {
+        terms: {
+          with: {
+            term: true,
+          },
+        },
+      },
+    });
+  }),
+
+  getEdit: permissionProcedure({
+    comics: ["update"],
   })
     .input(z.string())
-    .handler(deleteContent),
+    .handler(({ context: { db, ...ctx }, input }) => {
+      const logger = getLogger(ctx);
+      logger?.info(`Fetching comic for editing: ${input}`);
+
+      return db.query.post.findFirst({
+        where: (p, { eq: equals }) => equals(p.id, input),
+        with: {
+          engagementOverrides: {
+            orderBy: (table, { asc: ascOrder }) => [ascOrder(table.sortOrder)],
+          },
+          terms: {
+            with: {
+              term: true,
+            },
+          },
+        },
+      });
+    }),
 
   insertImages: permissionProcedure({
     comics: ["create"],
   })
     .input(
       z.object({
-        postId: z.string(),
         images: z.array(z.string()),
+        postId: z.string(),
       })
     )
     .handler(insertContentImages),
