@@ -34,7 +34,7 @@ export function PostCard({ post }: PostCardProps) {
       to="/post/$id"
     >
       <Card
-        className="relative rounded-t-xl"
+        className="relative rounded-t-xl h-full"
         style={{
           paddingBlock: "0px", // pt-0 gets overridden for some reason
         }}
@@ -125,7 +125,7 @@ export function PostCard({ post }: PostCardProps) {
           className={`absolute inset-0 top-0 h-0.75 w-full ${getTierColor(post.favorites)}`}
         />
 
-        <CardHeader>
+        <CardHeader className="grow">
           <CardTitle className="text-center">{post.title}</CardTitle>
         </CardHeader>
 
