@@ -72,7 +72,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 
         <SidebarInset>
           <div
-            className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] overflow-x-clip pb-[calc(theme(spacing.16)+env(safe-area-inset-bottom))] md:pb-0"
+            className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] overflow-x-clip pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] md:pb-0"
             id="main-scrollable-area"
           >
             <div className="flex w-full min-w-0 max-w-full flex-col items-center overflow-x-clip">

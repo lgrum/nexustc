@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import type { EngagementPromptType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { Card } from "../ui/card";
+
 type EngagementPromptBlockProps = {
   prompts: EngagementPromptType[];
 };
@@ -125,12 +127,8 @@ export function EngagementPromptBlock({ prompts }: EngagementPromptBlockProps) {
   const currentPrompt = prompts[currentIndex] ?? prompts[0];
 
   return (
-    <section
-      aria-label="Disparador de debate"
-      className="overflow-hidden border border-border/70 bg-linear-to-br from-muted/60 via-card to-muted/20"
-      ref={containerRef}
-    >
-      <div className="flex min-h-28 flex-col justify-center gap-3 px-5 py-4 md:px-6">
+    <section aria-label="Disparador de debate" ref={containerRef}>
+      <Card className="flex min-h-28 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-muted/60 via-card to-muted/20">
         <div className="font-semibold text-[11px] text-muted-foreground/80 uppercase tracking-[0.22em]">
           Debate del post
         </div>
@@ -143,7 +141,7 @@ export function EngagementPromptBlock({ prompts }: EngagementPromptBlockProps) {
         >
           {currentPrompt?.text}
         </p>
-      </div>
+      </Card>
     </section>
   );
 }

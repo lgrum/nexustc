@@ -30,7 +30,7 @@ import { Markdown } from "../markdown";
 import { RatingDisplay } from "../ratings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardFooter } from "../ui/card";
+import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import type { CarouselApi } from "../ui/carousel";
 import { ImageViewer } from "../ui/image-viewer";
@@ -449,9 +449,11 @@ export function PostInfo() {
     hasContent && (
       <div className="flex flex-col gap-3">
         <div className="section-title">Sinopsis</div>
-        <div className="border border-border bg-card p-4">
-          <Markdown>{post.content}</Markdown>
-        </div>
+        <Card>
+          <CardContent>
+            <Markdown>{post.content}</Markdown>
+          </CardContent>
+        </Card>
       </div>
     )
   );
@@ -479,36 +481,38 @@ export function PostContent() {
   return (
     <div className="flex flex-col gap-3">
       <div className="section-title">Descargas</div>
-      <div className="border border-border bg-card p-4">
+      <Card>
         <Tabs className="w-full" defaultValue={defaultTab}>
-          <TabsList className="w-full justify-start">
+          <CardHeader>
+            <TabsList className="w-full justify-start">
+              {hasDownloadLinks && (
+                <TabsTrigger className="gap-2" value="downloads">
+                  <HugeiconsIcon className="size-4" icon={Download04Icon} />
+                  Anuncios
+                </TabsTrigger>
+              )}
+              {hasPremium && (
+                <TabsTrigger className="gap-2" value="premium">
+                  <HugeiconsIcon className="size-4" icon={StarIcon} />
+                  Premium
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </CardHeader>
+          <CardContent className="px-6">
             {hasDownloadLinks && (
-              <TabsTrigger className="gap-2" value="downloads">
-                <HugeiconsIcon className="size-4" icon={Download04Icon} />
-                Anuncios
-              </TabsTrigger>
+              <TabsContent value="downloads">
+                <Markdown>{post.adsLinks ?? ""}</Markdown>
+              </TabsContent>
             )}
             {hasPremium && (
-              <TabsTrigger className="gap-2" value="premium">
-                <HugeiconsIcon className="size-4" icon={StarIcon} />
-                Premium
-              </TabsTrigger>
+              <TabsContent value="premium">
+                <PremiumLinksContent descriptor={post.premiumLinksAccess} />
+              </TabsContent>
             )}
-          </TabsList>
-
-          {hasDownloadLinks && (
-            <TabsContent value="downloads">
-              <Markdown>{post.adsLinks ?? ""}</Markdown>
-            </TabsContent>
-          )}
-
-          {hasPremium && (
-            <TabsContent value="premium">
-              <PremiumLinksContent descriptor={post.premiumLinksAccess} />
-            </TabsContent>
-          )}
+          </CardContent>
         </Tabs>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -703,7 +707,7 @@ function TagCategory({
   }
 
   return (
-    <div className="flex flex-row gap-2 bg-muted/30 p-2">
+    <div className="flex flex-row gap-2 bg-card border border-border p-2">
       <div className="h-full w-1 bg-accent" />
       <div className="flex flex-col gap-1.5">
         <span className="font-medium text-accent text-xs uppercase tracking-wider">

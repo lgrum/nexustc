@@ -28,6 +28,7 @@ import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
 import { ErrorField } from "../forms/error-field";
 import { Button } from "../ui/button";
+import { Card } from "../ui/card";
 import {
   InputGroup,
   InputGroupAddon,
@@ -123,11 +124,14 @@ export function CommentSection() {
 
   if (!commentsQuery.data) {
     return (
-      <div
-        className="flex min-h-100 items-center justify-center border border-border bg-card p-6"
-        ref={ref}
-      >
-        <Spinner />
+      <div className="flex flex-col gap-3" ref={ref}>
+        <div className="section-title">Comentarios</div>
+        <Card
+          className="flex min-h-100 items-center justify-center border border-border bg-card p-6"
+          ref={ref}
+        >
+          <Spinner />
+        </Card>
       </div>
     );
   }
@@ -139,7 +143,7 @@ export function CommentSection() {
       <div className="section-title">
         Comentarios{commentCount > 0 && ` (${commentCount})`}
       </div>
-      <div className="flex flex-col gap-4 border border-border bg-card p-4">
+      <Card className="flex flex-col gap-4 border border-border bg-card p-4">
         {/* Comment Form */}
         <SignedIn>
           <form
@@ -209,7 +213,7 @@ export function CommentSection() {
         </SignedIn>
         {/* Sign in prompt for logged out users */}
         <SignedOut>
-          <div className="flex flex-col items-center gap-3 bg-muted/30 p-6 text-center">
+          <div className="flex flex-col items-center gap-3 bg-muted/30 p-6 text-center rounded-lg">
             <p className="text-muted-foreground">
               ¿Quieres dejar un comentario?
             </p>
@@ -221,7 +225,7 @@ export function CommentSection() {
           </div>
         </SignedOut>
         {/* Comments List */}
-        <ScrollArea className="max-h-150">
+        <ScrollArea className="max-h-150 overflow-hidden">
           <div className="flex flex-col">
             {commentCount === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
@@ -282,7 +286,7 @@ export function CommentSection() {
             )}
           </div>
         </ScrollArea>
-      </div>
+      </Card>
     </div>
   );
 }
