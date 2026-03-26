@@ -68,13 +68,7 @@ const comicSearchSchema = z.object({
 
 export const Route = createFileRoute("/_main/search")({
   component: RouteComponent,
-  head: () => ({
-    meta: [
-      {
-        title: "NeXusTC - Buscar",
-      },
-    ],
-  }),
+  loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const isComic = deps.type === "comics";
     const termIds = isComic
@@ -95,8 +89,14 @@ export const Route = createFileRoute("/_main/search")({
 
     return { filteredPosts };
   },
-  loaderDeps: ({ search }) => search,
   validateSearch: searchParamsSchema,
+  head: () => ({
+    meta: [
+      {
+        title: "NeXusTC - Buscar",
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {

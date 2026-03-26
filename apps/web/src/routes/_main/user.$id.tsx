@@ -17,13 +17,6 @@ import { orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/_main/user/$id")({
   component: RouteComponent,
-  head: ({ loaderData }) => ({
-    meta: [
-      {
-        title: `NeXusTC - Usuario${loaderData ? `: ${loaderData.profile.name}` : ""}`,
-      },
-    ],
-  }),
   loader: async ({ params }) => {
     const profile = await orpcClient.profile.getPublic({ userId: params.id });
 
@@ -33,6 +26,13 @@ export const Route = createFileRoute("/_main/user/$id")({
 
     return { profile };
   },
+  head: ({ loaderData }) => ({
+    meta: [
+      {
+        title: `NeXusTC - Usuario${loaderData ? `: ${loaderData.profile.name}` : ""}`,
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {

@@ -225,7 +225,7 @@ export function CommentSection() {
           </div>
         </SignedOut>
         {/* Comments List */}
-        <ScrollArea className="max-h-150 overflow-hidden">
+        <ScrollArea className="h-150">
           <div className="flex flex-col">
             {commentCount === 0 ? (
               <div className="flex flex-col items-center gap-2 py-8 text-center">
