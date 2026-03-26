@@ -615,7 +615,6 @@ export function TutorialsSection() {
                 referrerPolicy="strict-origin-when-cross-origin"
                 src={tutorial.embedUrl}
                 title="YouTube video player"
-                sandbox="allow-scripts"
               />
             </CarouselItem>
           ))}
