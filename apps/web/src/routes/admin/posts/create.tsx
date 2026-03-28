@@ -7,6 +7,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type React from "react";
 import { Activity, useState } from "react";
 import { toast } from "sonner";
+import { URLShortenerDialog } from "src/components/admin/url-shortener-dialog";
 
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
@@ -254,7 +255,8 @@ function RouteComponent() {
             </div>
           </div>
 
-          <div className="col-span-2">
+          <div className="col-span-2 space-x-2">
+            <URLShortenerDialog />
             <GenerateMarkdownLinkDialog />
           </div>
 

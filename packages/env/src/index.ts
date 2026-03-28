@@ -11,6 +11,7 @@ export const env = createEnv({
     BETTER_AUTH_URL: z.url(),
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     DATABASE_URL: z.string(),
+    EXE_TOKEN: z.string(),
     PATREON_CAMPAIGN_ID: z.string(),
     PATREON_CLIENT_ID: z.string(),
     PATREON_CLIENT_SECRET: z.string(),
@@ -20,7 +21,9 @@ export const env = createEnv({
     R2_SECRET_ACCESS_KEY: z.string(),
     REDIS_URL: z.string(),
     RESEND_API_KEY: z.string(),
+    SHRINKEARN_TOKEN: z.string(),
     TURNSTILE_SECRET_KEY: z.string(),
+    UII_TOKEN: z.string(),
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });
