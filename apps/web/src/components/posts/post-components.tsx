@@ -706,18 +706,20 @@ function TagCategory({
   }
 
   return (
-    <div className="flex flex-row gap-2 bg-card border border-border p-2">
-      <div className="h-full w-1 bg-accent" />
-      <div className="flex flex-col gap-1.5">
-        <span className="font-medium text-accent text-xs uppercase tracking-wider">
-          {label}
-        </span>
-        <div className="flex flex-wrap gap-1.5">
-          {terms.map((term) => (
-            <TermBadge className="text-xs" key={term.id} tag={term} />
-          ))}
+    <Card className="p-2">
+      <CardContent className="flex flex-row gap-2 p-1">
+        <div className="h-full w-1 bg-accent rounded-xl" />
+        <div className="flex flex-col gap-1.5">
+          <span className="font-medium text-accent text-xs uppercase tracking-wider">
+            {label}
+          </span>
+          <div className="flex flex-wrap gap-1.5">
+            {terms.map((term) => (
+              <TermBadge className="text-xs" key={term.id} tag={term} />
+            ))}
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
