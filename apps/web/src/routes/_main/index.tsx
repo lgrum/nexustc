@@ -1,17 +1,30 @@
-import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
+import {
+  FavouriteIcon,
+  Login03Icon,
+  StarIcon,
+  ViewIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 
+import {
+  AuthDialog,
+  AuthDialogContent,
+  AuthDialogTrigger,
+} from "@/components/auth/auth-dialog";
 import { GamesCarousel } from "@/components/landing/games-carousel";
 import { PostCard } from "@/components/landing/post-card";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { TermBadge } from "@/components/term-badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
 import { useTerms } from "@/hooks/use-terms";
+import { authClient } from "@/lib/auth-client";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
-import { getBucketUrl } from "@/lib/utils";
+import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
 const RECENT_POSTS_LIMIT = 12;
 
@@ -63,12 +76,12 @@ function HomeComponent() {
   const { weeklyGames } = Route.useLoaderData();
 
   return (
-    <main className="flex w-full gap-6 pb-4">
+    <main className="flex w-full gap-6 py-4">
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <HeroSection />
 
-        <section className="px-4 py-5">
+        <section className="py-5">
           <div className="section-title mb-3.5">Juegos de la Semana</div>
           <GamesCarousel games={weeklyGames.data ?? []} />
         </section>
@@ -87,11 +100,13 @@ function HomeComponent() {
       </div>
 
       {/* Sidebar — desktop only */}
-      <aside className="hidden w-72 shrink-0 pt-2 pr-4 md:block">
-        <div className="sticky top-16 flex flex-col gap-1">
-          <TagsSection />
+      <aside className="hidden w-72 shrink-0 md:block">
+        <div className="sticky top-16 flex flex-col gap-4">
+          <AuthAction />
           <div className="glow-line" />
           <ActiveUsersSection />
+          <div className="glow-line" />
+          <TagsSection />
         </div>
       </aside>
     </main>
@@ -116,11 +131,11 @@ function HeroSection() {
     .toSorted((a, b) => a.order - b.order);
 
   return (
-    <div>
+    <div className="flex flex-col md:flex-row gap-4 min-h-0 md:max-h-150">
       {/* Main hero card */}
       {main && (
         <Link
-          className="group relative block h-105 overflow-hidden"
+          className="group relative block overflow-hidden rounded-xl border border-border flex-1 min-h-105"
           params={{ id: main.id }}
           preload={false}
           to="/post/$id"
@@ -171,7 +186,7 @@ function HeroSection() {
 
       {/* Secondary hero cards */}
       {secondary.length > 0 && (
-        <div className="grid grid-cols-2 gap-2.5 p-3">
+        <div className="grid grid-cols-2 md:grid-cols-none md:grid-rows-2 gap-4 md:aspect-1/2">
           {secondary.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
@@ -204,7 +219,7 @@ function ActiveUsersSection() {
   const { recentUsers } = Route.useLoaderData();
 
   return (
-    <section className="py-5">
+    <section>
       <div className="section-title mb-3.5">Usuarios Activos</div>
       {!!recentUsers.error && (
         <p className="text-red-500 text-sm">Error: {recentUsers.error.code}</p>
@@ -212,7 +227,7 @@ function ActiveUsersSection() {
       <div className="flex flex-wrap gap-2">
         {recentUsers.data?.map((user) => (
           <Link
-            className="flex items-center gap-1.5 border border-border bg-card px-2.5 py-1.5"
+            className="flex items-center gap-1.5 border rounded-xl border-border bg-card px-2.5 py-1.5"
             key={user.id}
             params={{ id: user.id }}
             to="/user/$id"
@@ -226,12 +241,101 @@ function ActiveUsersSection() {
   );
 }
 
+function AuthAction() {
+  const auth = authClient.useSession();
+  const user = auth.data?.user;
+  const imageSrc = user?.image ? getBucketUrl(user.image) : undefined;
+
+  if (auth.isPending) {
+    return (
+      <Button
+        className="min-h-14 cursor-default rounded-xl border border-sidebar-border/70 bg-sidebar-accent/50 px-3 py-3 shadow-[0_10px_30px_-20px_hsl(var(--sidebar-accent-foreground))]"
+        size="lg"
+        variant="ghost"
+      >
+        <div className="size-10 animate-pulse rounded-full bg-sidebar-border" />
+        <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+          <span className="w-24 animate-pulse rounded bg-sidebar-border text-transparent">
+            Cargando
+          </span>
+          <span className="w-16 animate-pulse rounded bg-sidebar-border text-transparent text-xs">
+            Estado
+          </span>
+        </span>
+      </Button>
+    );
+  }
+
+  if (user) {
+    return (
+      <Button
+        className={cn(
+          "min-h-16 cursor-pointer rounded-xl border border-primary/25 bg-linear-to-r from-primary/18 via-accent/10 to-sidebar-accent/80 px-3 py-3 shadow-[0_14px_35px_-24px_hsl(var(--primary))] transition-all duration-200 hover:border-primary/40 hover:from-primary/24 hover:to-sidebar-accent",
+          "group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:p-0!"
+        )}
+        render={<Link to="/profile" />}
+        size="lg"
+        variant="ghost"
+      >
+        <Avatar className="size-12 rounded-full border border-primary/25">
+          <AvatarImage src={imageSrc} />
+          <AvatarFallback
+            className="rounded-full"
+            facehashProps={defaultFacehashProps}
+            name={user.name}
+          />
+        </Avatar>
+        <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
+          <span className="truncate font-semibold text-base">{user.name}</span>
+          <span className="truncate text-sidebar-foreground/70 text-sm">
+            Ver perfil
+          </span>
+        </span>
+      </Button>
+    );
+  }
+
+  return (
+    <AuthDialog>
+      <AuthDialogTrigger
+        render={
+          <Button
+            className={cn(
+              "min-h-14 cursor-pointer rounded-xl border border-primary/30 bg-linear-to-r from-primary/20 via-accent/15 to-primary/5 px-3 py-3 shadow-[0_14px_35px_-24px_hsl(var(--primary))] transition-all duration-200 hover:border-primary/50 hover:from-primary/30 hover:via-accent/20 hover:to-primary/10",
+              "group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:p-0!"
+            )}
+            size="lg"
+            variant="ghost"
+          />
+        }
+      >
+        <Facehash
+          className="size-12 rounded-full border border-primary/25"
+          name=""
+          {...defaultFacehashProps}
+        />
+        <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
+          <span className="font-semibold text-sm">Iniciar sesión</span>
+          <span className="truncate text-sidebar-foreground/70 text-xs">
+            Accede a tu perfil
+          </span>
+        </span>
+        <HugeiconsIcon
+          className="ml-auto size-4 text-primary group-data-[collapsible=icon]:hidden"
+          icon={Login03Icon}
+        />
+      </AuthDialogTrigger>
+      <AuthDialogContent />
+    </AuthDialog>
+  );
+}
+
 function TagsSection() {
   const { data: terms } = useTerms();
   const tags = terms?.filter((term) => term.taxonomy === "tag") ?? [];
 
   return (
-    <section className="py-5">
+    <section>
       <div className="section-title mb-3.5">Tags Populares</div>
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => (

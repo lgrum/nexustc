@@ -126,7 +126,9 @@ export function PostCard({ post }: PostCardProps) {
         />
 
         <CardHeader className="grow">
-          <CardTitle className="text-center">{post.title}</CardTitle>
+          <CardTitle className="text-center text-pretty">
+            {post.title}
+          </CardTitle>
         </CardHeader>
 
         {/* Body */}

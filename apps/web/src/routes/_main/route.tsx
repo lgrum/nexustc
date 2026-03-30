@@ -5,7 +5,6 @@ import type { ErrorComponentProps } from "@tanstack/react-router";
 import { Suspense } from "react";
 
 import { AdblockBlockerDialog } from "@/components/adblock-blocker-dialog";
-import { AppSidebar } from "@/components/app-sidebar";
 import { BottomNav } from "@/components/bottom-nav";
 import { Footer } from "@/components/landing/footer";
 import { Header } from "@/components/landing/header";
@@ -28,7 +27,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useAdblockDetector } from "@/hooks/use-adblock-detector";
 import { cn } from "@/lib/utils";
 
@@ -63,28 +61,26 @@ function MainLayout() {
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <AppSidebar />
+    <>
       <div
         className={cn("relative min-h-screen w-full min-w-0 overflow-x-clip")}
       >
         <div className="fixed inset-0 z-0 h-screen" />
-
-        <SidebarInset>
-          <div
-            className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] overflow-x-clip pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] md:pb-0"
-            id="main-scrollable-area"
-          >
-            <div className="flex w-full min-w-0 max-w-full flex-col items-center overflow-x-clip">
+        <div
+          className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] overflow-x-clip pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] md:pb-0"
+          id="main-scrollable-area"
+        >
+          <div className="relative flex w-full min-w-0 max-w-full flex-col items-center overflow-x-clip">
+            <div className="container">
               <Header />
-              {children}
+              <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>
             </div>
-            <Footer />
           </div>
-        </SidebarInset>
+          <Footer />
+        </div>
       </div>
       <BottomNav />
-    </SidebarProvider>
+    </>
   );
 }
 
