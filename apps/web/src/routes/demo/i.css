@@ -1,0 +1,188 @@
+/* ═══════════════════════════════════════════════
+   VAULT THEME — MIDNIGHT EDITORIAL
+   ═══════════════════════════════════════════════ */
+
+.vault-theme {
+  --v-bg: #08090e;
+  --v-surface: #11131c;
+  --v-surface-2: #181b28;
+  --v-surface-3: #1f2236;
+  --v-border: #252840;
+  --v-border-light: #353860;
+  --v-amber: #f0a030;
+  --v-amber-deep: #d48820;
+  --v-amber-muted: rgba(240, 160, 48, 0.12);
+  --v-violet: #9580ff;
+  --v-violet-muted: rgba(149, 128, 255, 0.12);
+  --v-mint: #30d0a0;
+  --v-text: #eaeaf2;
+  --v-text-secondary: #a8a8c0;
+  --v-text-muted: #6a6a82;
+  --v-text-dim: #3e3e56;
+  --v-glass: rgba(11, 12, 18, 0.85);
+
+  font-family: "DM Sans", sans-serif;
+  background-color: var(--v-bg);
+  color: var(--v-text);
+  min-height: 100vh;
+}
+
+.vault-theme a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Layout */
+.vault-container {
+  width: min(1120px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+/* Header glass bar */
+.vault-header {
+  background: var(--v-glass);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--v-border);
+}
+
+/* Display font */
+.vault-theme .font-display {
+  font-family: "Oxanium", sans-serif;
+}
+
+/* Mono */
+.vault-theme .font-mono {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+/* Section kicker label */
+.vault-kicker {
+  font-family: "Oxanium", sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: var(--v-amber);
+  position: relative;
+  padding-left: 14px;
+}
+.vault-kicker::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: var(--v-amber);
+  border-radius: 1px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+/* Cards */
+.vault-card {
+  background: linear-gradient(165deg, var(--v-surface-2), var(--v-surface));
+  border: 1px solid var(--v-border);
+  transition:
+    border-color 200ms ease,
+    transform 200ms ease,
+    box-shadow 200ms ease;
+}
+.vault-card:hover {
+  border-color: var(--v-border-light);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(240, 160, 48, 0.04);
+}
+
+.vault-card-main {
+  background: linear-gradient(165deg, var(--v-surface-2), var(--v-surface));
+  border: 1px solid var(--v-border);
+  transition:
+    border-color 300ms ease,
+    box-shadow 300ms ease;
+}
+.vault-card-main:hover {
+  border-color: var(--v-border-light);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.4),
+    0 0 60px rgba(240, 160, 48, 0.06);
+}
+
+/* Noise texture */
+.vault-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+
+/* Background atmosphere */
+.vault-theme::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(
+      900px 500px at 15% 0%,
+      rgba(240, 160, 48, 0.04),
+      transparent 60%
+    ),
+    radial-gradient(
+      800px 400px at 85% 5%,
+      rgba(149, 128, 255, 0.04),
+      transparent 55%
+    ),
+    radial-gradient(
+      600px 300px at 50% 100%,
+      rgba(48, 208, 160, 0.03),
+      transparent 50%
+    );
+}
+
+/* Subtle grid */
+.vault-theme::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.06;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 70%);
+}
+
+/* Stagger animation for sections */
+.vault-stagger {
+  animation: vault-fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes vault-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar for vault */
+.vault-theme ::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.vault-theme ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.vault-theme ::-webkit-scrollbar-thumb {
+  background: var(--v-border);
+  border-radius: 2px;
+}
+.vault-theme ::-webkit-scrollbar-thumb:hover {
+  background: var(--v-border-light);
+}

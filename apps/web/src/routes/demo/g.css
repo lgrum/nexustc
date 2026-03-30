@@ -1,0 +1,174 @@
+/* ═══════════════════════════════════════════════
+   ARCADE THEME — PIXEL ZINE
+   ═══════════════════════════════════════════════ */
+
+.arcade-theme {
+  --a-bg: #07070d;
+  --a-surface: #0f0f18;
+  --a-surface-2: #161622;
+  --a-surface-3: #1e1e2e;
+  --a-border: #262638;
+  --a-border-light: #32324a;
+  --a-primary: #ff3366;
+  --a-primary-muted: rgba(255, 51, 102, 0.15);
+  --a-secondary: #00ccff;
+  --a-secondary-muted: rgba(0, 204, 255, 0.12);
+  --a-accent: #c8ff00;
+  --a-accent-muted: rgba(200, 255, 0, 0.1);
+  --a-warning: #ff9900;
+  --a-text: #eaeaf0;
+  --a-text-secondary: #a0a0b8;
+  --a-text-muted: #5a5a72;
+  --a-text-dim: #3a3a4e;
+  --a-glass: rgba(15, 15, 24, 0.82);
+
+  font-family: "Plus Jakarta Sans", sans-serif;
+  background-color: var(--a-bg);
+  color: var(--a-text);
+}
+
+/* Reset link styles inside arcade theme */
+.arcade-theme a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Halftone dot pattern */
+.arcade-dots {
+  background-image: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.08) 0.7px,
+    transparent 0.7px
+  );
+  background-size: 14px 14px;
+}
+
+/* Diagonal scan-lines */
+.arcade-scanlines {
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.015) 2px,
+    rgba(255, 255, 255, 0.015) 4px
+  );
+}
+
+/* Neon glow effects */
+.glow-pink {
+  box-shadow:
+    0 0 20px rgba(255, 51, 102, 0.25),
+    0 0 60px rgba(255, 51, 102, 0.08);
+}
+.glow-cyan {
+  box-shadow:
+    0 0 20px rgba(0, 204, 255, 0.25),
+    0 0 60px rgba(0, 204, 255, 0.08);
+}
+.glow-lime {
+  box-shadow:
+    0 0 20px rgba(200, 255, 0, 0.2),
+    0 0 60px rgba(200, 255, 0, 0.06);
+}
+
+/* Scrollbar styling */
+.arcade-theme ::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+.arcade-theme ::-webkit-scrollbar-track {
+  background: var(--a-surface);
+}
+.arcade-theme ::-webkit-scrollbar-thumb {
+  background: var(--a-border-light);
+  border-radius: 3px;
+}
+.arcade-theme ::-webkit-scrollbar-thumb:hover {
+  background: var(--a-text-muted);
+}
+
+/* Hide scrollbar but keep scroll */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Arcade animations */
+@keyframes arcade-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes arcade-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-online {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(52, 211, 153, 0);
+  }
+}
+
+@keyframes shimmer-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.arcade-fade-up {
+  animation: arcade-fade-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.arcade-scale-in {
+  animation: arcade-scale-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Gradient text utilities */
+.text-gradient-pink {
+  background: linear-gradient(135deg, #ff3366, #ff6b9d);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.text-gradient-cyan {
+  background: linear-gradient(135deg, #00ccff, #5ce1ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Comic panel inner border */
+.comic-panel {
+  position: relative;
+}
+.comic-panel::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: inherit;
+  pointer-events: none;
+}

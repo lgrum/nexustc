@@ -1,0 +1,335 @@
+/* ═══════════════════════════════════════════════
+   BRUTALIST THEME — TECH BRUTALISM
+   ═══════════════════════════════════════════════ */
+
+.brut-theme {
+  --b-bg: #050505;
+  --b-surface: #0a0a0a;
+  --b-surface-2: #111111;
+  --b-surface-3: #1a1a1a;
+  --b-border: #2a2a2a;
+  --b-border-harsh: #444;
+  --b-neon-green: #00ff41;
+  --b-neon-red: #ff003c;
+  --b-neon-cyan: #00e5ff;
+  --b-neon-yellow: #ffe600;
+  --b-neon-magenta: #ff00aa;
+  --b-text: #e8e8e8;
+  --b-text-dim: #777;
+  --b-text-muted: #444;
+
+  font-family: "Space Mono", "IBM Plex Mono", monospace;
+  background: var(--b-bg);
+  color: var(--b-text);
+  min-height: 100vh;
+}
+
+.brut-theme a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Container */
+.brut-container {
+  width: min(1200px, calc(100% - 1.5rem));
+  margin-inline: auto;
+}
+
+/* Display font */
+.brut-theme .font-display {
+  font-family: "Orbitron", sans-serif;
+}
+
+/* Mono font */
+.brut-theme .font-mono {
+  font-family: "Space Mono", "IBM Plex Mono", monospace;
+}
+
+/* Background grid */
+.brut-theme::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.07;
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Scanline overlay */
+.brut-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.15) 2px,
+    rgba(0, 0, 0, 0.15) 4px
+  );
+  z-index: 1;
+}
+
+/* Glitch text effect */
+@keyframes brut-glitch {
+  0%,
+  100% {
+    text-shadow:
+      -2px 0 var(--b-neon-red),
+      2px 0 var(--b-neon-cyan);
+  }
+  20% {
+    text-shadow:
+      2px 0 var(--b-neon-red),
+      -2px 0 var(--b-neon-cyan);
+  }
+  40% {
+    text-shadow:
+      -1px -1px var(--b-neon-red),
+      1px 1px var(--b-neon-cyan);
+  }
+  60% {
+    text-shadow:
+      1px 0 var(--b-neon-red),
+      -1px 0 var(--b-neon-cyan);
+  }
+  80% {
+    text-shadow:
+      -2px 1px var(--b-neon-red),
+      2px -1px var(--b-neon-cyan);
+  }
+}
+
+@keyframes brut-glitch-intense {
+  0%,
+  93%,
+  100% {
+    transform: translate(0);
+    opacity: 1;
+  }
+  94% {
+    transform: translate(-3px, 1px);
+    opacity: 0.8;
+  }
+  95% {
+    transform: translate(2px, -1px);
+    opacity: 0.9;
+  }
+  96% {
+    transform: translate(-1px, 2px);
+    opacity: 0.7;
+  }
+  97% {
+    transform: translate(3px, 0);
+    opacity: 1;
+  }
+}
+
+.brut-glitch {
+  animation:
+    brut-glitch 3s infinite alternate,
+    brut-glitch-intense 8s infinite;
+}
+
+.brut-glitch-hover:hover {
+  animation: brut-glitch 0.3s infinite alternate;
+}
+
+/* Neon glow utilities */
+.brut-glow-green {
+  box-shadow:
+    0 0 12px rgba(0, 255, 65, 0.3),
+    0 0 40px rgba(0, 255, 65, 0.08),
+    inset 0 0 12px rgba(0, 255, 65, 0.05);
+}
+.brut-glow-red {
+  box-shadow:
+    0 0 12px rgba(255, 0, 60, 0.3),
+    0 0 40px rgba(255, 0, 60, 0.08);
+}
+.brut-glow-cyan {
+  box-shadow:
+    0 0 12px rgba(0, 229, 255, 0.3),
+    0 0 40px rgba(0, 229, 255, 0.08);
+}
+
+/* Section label */
+.brut-section-label {
+  font-family: "Orbitron", sans-serif;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--b-neon-green);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brut-section-label::before {
+  content: ">";
+  color: var(--b-neon-green);
+  font-weight: 400;
+}
+
+/* Card base */
+.brut-card {
+  background: var(--b-surface-2);
+  border: 2px solid var(--b-border);
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+  position: relative;
+}
+
+.brut-card:hover {
+  border-color: var(--b-border-harsh);
+}
+
+/* Neon border on hover */
+.brut-card-neon:hover {
+  border-color: var(--b-neon-green);
+  box-shadow:
+    0 0 20px rgba(0, 255, 65, 0.1),
+    inset 0 0 20px rgba(0, 255, 65, 0.02);
+}
+
+/* Tag/chip */
+.brut-tag {
+  font-family: "Space Mono", monospace;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border: 1px solid;
+  display: inline-block;
+}
+
+/* Pulse indicator */
+@keyframes brut-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(0, 255, 65, 0.6);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px rgba(0, 255, 65, 0);
+  }
+}
+
+.brut-pulse {
+  animation: brut-pulse 2s ease-in-out infinite;
+}
+
+/* Typing cursor blink */
+@keyframes brut-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.brut-cursor::after {
+  content: "_";
+  animation: brut-blink 1s step-end infinite;
+  color: var(--b-neon-green);
+}
+
+/* Staggered entrance */
+@keyframes brut-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.brut-enter {
+  animation: brut-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Scrollbar */
+.brut-theme ::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.brut-theme ::-webkit-scrollbar-track {
+  background: var(--b-surface);
+}
+.brut-theme ::-webkit-scrollbar-thumb {
+  background: var(--b-border-harsh);
+}
+.brut-theme ::-webkit-scrollbar-thumb:hover {
+  background: var(--b-neon-green);
+}
+
+/* Horizontal scroll container */
+.brut-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.brut-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Noise texture for cards */
+.brut-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  background-size: 128px 128px;
+}
+
+/* Corner markers */
+.brut-corner-marks::before,
+.brut-corner-marks::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--b-neon-green);
+  border-style: solid;
+  opacity: 0.4;
+}
+.brut-corner-marks::before {
+  top: -1px;
+  left: -1px;
+  border-width: 2px 0 0 2px;
+}
+.brut-corner-marks::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 2px 2px 0;
+}
+
+/* Marquee for status bar */
+@keyframes brut-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.brut-marquee {
+  animation: brut-marquee 30s linear infinite;
+}
+
+/* Responsive overrides */
+@media (max-width: 768px) {
+  .brut-container {
+    width: calc(100% - 1rem);
+  }
+}
