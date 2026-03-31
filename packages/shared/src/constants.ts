@@ -59,6 +59,7 @@ export type PremiumLinksDescriptor =
   | { status: "denied_need_upgrade"; requiredTierLabel: string };
 
 export const ROLE_LABELS: Record<string, string> = {
+  shortener: "Acortador",
   admin: "Alpha⁺¹⁸",
   moderator: "BetaTC⁺¹⁸",
   owner: "AlphaNeXusTC⁺¹⁸",

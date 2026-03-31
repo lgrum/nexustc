@@ -10,6 +10,8 @@ import { toast } from "sonner";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
+import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
+import { HasPermissions } from "@/components/auth/has-role";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -198,7 +200,10 @@ function RouteComponent() {
             </div>
           </div>
 
-          <div className="col-span-2">
+          <div className="col-span-2 space-x-2">
+            <HasPermissions permissions={{ shortener: ["use"] }}>
+              <URLShortenerDialog />
+            </HasPermissions>
             <GenerateMarkdownLinkDialog />
           </div>
 

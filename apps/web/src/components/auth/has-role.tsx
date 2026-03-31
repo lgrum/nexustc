@@ -26,10 +26,13 @@ export function HasPermissions({
   return null;
 }
 
-export function HasOwner({ children }: React.PropsWithChildren) {
+export function HasRole({
+  authRole,
+  children,
+}: React.PropsWithChildren<{ authRole: Role }>) {
   const { data: auth } = authClient.useSession();
 
-  if (auth?.user.role !== "owner") {
+  if (auth?.user.role !== authRole) {
     return null;
   }
 

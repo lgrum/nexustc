@@ -20,6 +20,7 @@ const roleBadgeVariant: Record<string, "default" | "accent" | "outline"> = {
   admin: "accent",
   moderator: "default",
   owner: "accent",
+  shortener: "default",
   uploader: "default",
   user: "outline",
 };

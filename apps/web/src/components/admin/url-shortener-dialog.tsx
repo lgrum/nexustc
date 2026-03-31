@@ -22,8 +22,13 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
+import { cn } from "@/lib/utils";
 
-export function URLShortenerDialog() {
+export function URLShortenerDialog({
+  triggerClassName,
+}: {
+  triggerClassName?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [shortenedUrl, setShortenedUrl] = useState("");
@@ -66,7 +71,15 @@ export function URLShortenerDialog() {
 
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
-      <DialogTrigger render={<Button type="button" variant="outline" />}>
+      <DialogTrigger
+        render={
+          <Button
+            className={cn(triggerClassName)}
+            type="button"
+            variant="outline"
+          />
+        }
+      >
         Acortar URL
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">

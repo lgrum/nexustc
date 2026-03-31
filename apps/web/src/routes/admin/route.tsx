@@ -5,8 +5,9 @@ import type { AtLeastOne } from "@repo/shared/types";
 import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
 import { Suspense } from "react";
 
+import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { ImpersonationBanner } from "@/components/admin/users/impersonation-banner";
-import { HasOwner, HasPermissions } from "@/components/auth/has-role";
+import { HasPermissions, HasRole } from "@/components/auth/has-role";
 import Loader from "@/components/loader";
 import {
   Collapsible,
@@ -16,6 +17,7 @@ import {
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
@@ -232,12 +234,17 @@ function AdminLayout() {
               <HasPermissions permissions={{ staticPages: ["update"] }}>
                 <SidebarLinks item={nav.staticPages} />
               </HasPermissions>
-              <HasOwner>
+              <HasRole authRole="owner">
                 <SidebarLinks item={nav.profile} />
-              </HasOwner>
+              </HasRole>
             </SidebarMenu>
           </SidebarGroup>
         </SidebarContent>
+        <SidebarFooter>
+          <HasPermissions permissions={{ shortener: ["use"] }}>
+            <URLShortenerDialog triggerClassName="w-full justify-center" />
+          </HasPermissions>
+        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
       <main className="container w-full p-4">

@@ -11,6 +11,7 @@ export const statement = {
   files: ["upload"],
   posts: ["create", "update", "delete", "list"],
   ratings: ["create", "self-update", "self-delete", "delete"],
+  shortener: ["use"],
   staticPages: ["update"],
   stickers: ["create", "update", "delete", "list"],
   terms: ["create", "update", "delete", "list"],
@@ -23,6 +24,11 @@ const user = ac.newRole({
   ratings: ["create", "self-update", "self-delete"],
 });
 
+const shortener = ac.newRole({
+  dashboard: ["view"],
+  shortener: ["use"],
+});
+
 const uploader = ac.newRole({
   comics: ["create", "list"],
   comments: ["create", "self-update", "self-delete"],
@@ -30,6 +36,7 @@ const uploader = ac.newRole({
   files: ["upload"],
   posts: ["create", "list"],
   ratings: ["create", "self-update", "self-delete"],
+  shortener: ["use"],
 });
 
 const moderator = ac.newRole({
@@ -47,6 +54,7 @@ const admin = ac.newRole({
   files: ["upload"],
   posts: ["create", "list", "update", "delete"],
   ratings: ["create", "self-update", "self-delete", "delete"],
+  shortener: ["use"],
   stickers: ["create", "update", "delete", "list"],
   terms: ["create", "list", "update", "delete"],
   user: ["create", "set-role"],
@@ -61,6 +69,7 @@ const owner = ac.newRole({
   files: ["upload"],
   posts: ["create", "list", "update", "delete"],
   ratings: ["create", "self-update", "self-delete", "delete"],
+  shortener: ["use"],
   staticPages: ["update"],
   stickers: ["create", "update", "delete", "list"],
   terms: ["create", "list", "update", "delete"],
@@ -70,6 +79,7 @@ export const roles = {
   admin,
   moderator,
   owner,
+  shortener,
   uploader,
   user,
 };
@@ -88,6 +98,7 @@ export type Role = keyof typeof roles;
 
 export const ROLE_HIERARCHY: Role[] = [
   "user",
+  "shortener",
   "uploader",
   "moderator",
   "admin",

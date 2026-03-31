@@ -209,7 +209,7 @@ export default {
     }),
 
   shortenUrl: permissionProcedure({
-    posts: ["create"],
+    shortener: ["use"],
   })
     .use(fixedWindowRatelimitMiddleware({ limit: 5, windowSeconds: 60 }))
     .input(

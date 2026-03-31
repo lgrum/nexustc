@@ -12,6 +12,7 @@ import { URLShortenerDialog } from "src/components/admin/url-shortener-dialog";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
+import { HasPermissions } from "@/components/auth/has-role";
 import { Markdown } from "@/components/markdown";
 import type { PostProps } from "@/components/posts/post-components";
 import { PostPage } from "@/components/posts/post-components";
@@ -256,7 +257,9 @@ function RouteComponent() {
           </div>
 
           <div className="col-span-2 space-x-2">
-            <URLShortenerDialog />
+            <HasPermissions permissions={{ shortener: ["use"] }}>
+              <URLShortenerDialog />
+            </HasPermissions>
             <GenerateMarkdownLinkDialog />
           </div>
 

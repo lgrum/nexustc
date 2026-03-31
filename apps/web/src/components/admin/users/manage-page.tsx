@@ -26,6 +26,7 @@ const filterOptions = [
   { label: "Rol: Alpha⁺¹⁸", value: "role:admin" },
   { label: "Rol: BetaTC⁺¹⁸", value: "role:moderator" },
   { label: "Rol: DEALER⁺¹⁸", value: "role:uploader" },
+  { label: "Rol: Acortador", value: "role:shortener" },
   { label: "Rol: Sobrino⁺¹⁸", value: "role:user" },
 ];
 
