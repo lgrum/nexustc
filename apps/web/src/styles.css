@@ -198,10 +198,10 @@
     @apply border-border outline-ring/50;
   }
   html {
-    @apply overflow-x-hidden font-sans;
+    @apply overflow-x-clip font-sans;
   }
   body {
-    @apply font-sans overflow-x-hidden bg-background text-foreground;
+    @apply font-sans overflow-x-clip bg-background text-foreground;
   }
 }
 

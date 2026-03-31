@@ -45,7 +45,7 @@ export function Header() {
   const user = auth.data?.user;
 
   return (
-    <header className="sticky top-0 z-50 w-full">
+    <header className="relative z-50 w-full">
       <div className="grid w-full grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_1fr] items-center px-4 py-3">
         <Link to="/">
           <Logo />

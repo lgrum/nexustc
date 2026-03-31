@@ -29,12 +29,15 @@ function RouteComponent() {
     <main className="relative grid w-full md:grid-cols-4">
       {/* Left sticky image */}
       {data.stickyImageKey && (
-        <div
-          className="sticky top-0 col-span-1 hidden h-screen bg-center bg-cover md:block"
-          style={{
-            backgroundImage: `url(${getBucketUrl(data.stickyImageKey)})`,
-          }}
-        />
+        <aside className="col-span-1 hidden md:block">
+          <div className="sticky top-0 h-dvh overflow-hidden">
+            <img
+              src={getBucketUrl(data.stickyImageKey)}
+              alt="Sticky"
+              className="h-full w-full object-cover"
+            />
+          </div>
+        </aside>
       )}
 
       {/* Central scrollable content */}
@@ -85,36 +88,38 @@ function RouteComponent() {
 
       {/* Right sticky vertical carousel */}
       {data.carouselImageKeys && data.carouselImageKeys.length > 0 && (
-        <div className="sticky top-0 col-span-1 hidden h-dvh overflow-hidden md:block">
-          <Carousel
-            className="h-full"
-            opts={{
-              align: "start",
-              dragFree: false,
-              loop: true,
-            }}
-            orientation="vertical"
-            plugins={[
-              AutoScroll({
-                speed: 1,
-                startDelay: 0,
-                stopOnInteraction: false,
-              }),
-            ]}
-          >
-            <CarouselContent className="h-[102dvh]">
-              {data.carouselImageKeys.map((key, i) => (
-                <CarouselItem className="basis-auto" key={key}>
-                  <img
-                    alt={`Carousel ${i + 1}`}
-                    className="aspect-video w-full overflow-hidden rounded-md border object-cover"
-                    src={getBucketUrl(key)}
-                  />
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-          </Carousel>
-        </div>
+        <aside className="col-span-1 hidden md:block">
+          <div className="sticky top-0 h-dvh overflow-hidden">
+            <Carousel
+              className="h-full"
+              opts={{
+                align: "start",
+                dragFree: false,
+                loop: true,
+              }}
+              orientation="vertical"
+              plugins={[
+                AutoScroll({
+                  speed: 1,
+                  startDelay: 0,
+                  stopOnInteraction: false,
+                }),
+              ]}
+            >
+              <CarouselContent className="h-[102dvh]">
+                {data.carouselImageKeys.map((key, i) => (
+                  <CarouselItem className="basis-auto" key={key}>
+                    <img
+                      alt={`Carousel ${i + 1}`}
+                      className="aspect-video w-full overflow-hidden rounded-md border object-cover"
+                      src={getBucketUrl(key)}
+                    />
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+          </div>
+        </aside>
       )}
     </main>
   );
