@@ -109,7 +109,7 @@ function UserBookmarksSection({ userId }: { userId: string }) {
       defaultValue="posts"
     >
       <TabsList className="w-full">
-        <TabsTrigger value="posts">Posts</TabsTrigger>
+        <TabsTrigger value="posts">Juegos</TabsTrigger>
         <TabsTrigger value="comics">Comics</TabsTrigger>
       </TabsList>
       <TabsContent value="posts">
