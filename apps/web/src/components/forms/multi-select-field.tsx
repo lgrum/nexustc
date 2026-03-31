@@ -46,6 +46,7 @@ export function MultiSelectField(
         >
           <MultiSelectTrigger className="w-full" id={field.name}>
             <MultiSelectValue
+              overflowBehavior="wrap"
               placeholder={`Seleccionar ${props.label.toLowerCase()}`}
             />
           </MultiSelectTrigger>
