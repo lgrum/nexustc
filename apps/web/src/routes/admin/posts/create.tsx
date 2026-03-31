@@ -1,3 +1,4 @@
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
@@ -5,7 +6,7 @@ import { postCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type React from "react";
-import { Activity, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { URLShortenerDialog } from "src/components/admin/url-shortener-dialog";
 
@@ -53,7 +54,6 @@ function RouteComponent() {
     useMultipleFileUpload();
   const groupedTerms = Object.groupBy(data.terms, (item) => item.taxonomy);
   const navigate = useNavigate();
-  const [previewVisible, setPreviewVisible] = useState(false);
   const [tagsContent, setTagsContent] = useState("");
   const [tagsDialogVisible, setTagsDialogVisible] = useState(false);
 
@@ -526,77 +526,58 @@ function RouteComponent() {
           <form.AppForm>
             <form.SubmitButton className="flex-1">Crear</form.SubmitButton>
           </form.AppForm>
-          <Button
-            className="flex-1"
-            onClick={() => setPreviewVisible(true)}
-            type="button"
-            variant="secondary"
-          >
-            Vista Previa
-          </Button>
+          <Preview
+            post={{
+              ...post,
+              createdAt: new Date(),
+              engagementPrompts: post.manualEngagementQuestions.map(
+                (text, index) => ({
+                  id: `preview-${index}`,
+                  source: "manual" as const,
+                  tagTermId: null,
+                  text,
+                })
+              ),
+              id: "0",
+              imageObjectKeys: selectedFiles.map(URL.createObjectURL),
+              likes: 0,
+              premiumLinksAccess: { status: "no_premium_links" as const },
+              terms: [
+                ...post.platforms,
+                ...post.tags,
+                ...post.languages,
+                post.censorship,
+                post.engine,
+                post.status,
+                post.graphics,
+              ]
+                .map((term) => data.terms.find((t) => t.id === term))
+                .filter((term) => term !== undefined),
+              updatedAt: new Date(),
+              views: 0,
+            }}
+          />
         </CardFooter>
       </Card>
-      <Activity mode={previewVisible ? "visible" : "hidden"}>
-        <Preview
-          post={{
-            ...post,
-            createdAt: new Date(),
-            engagementPrompts: post.manualEngagementQuestions.map(
-              (text, index) => ({
-                id: `preview-${index}`,
-                source: "manual" as const,
-                tagTermId: null,
-                text,
-              })
-            ),
-            id: "0",
-            imageObjectKeys: selectedFiles.map(URL.createObjectURL),
-            likes: 0,
-            premiumLinksAccess: { status: "no_premium_links" as const },
-            terms: [
-              ...post.platforms,
-              ...post.tags,
-              ...post.languages,
-              post.censorship,
-              post.engine,
-              post.status,
-              post.graphics,
-            ]
-              .map((term) => data.terms.find((t) => t.id === term))
-              .filter((term) => term !== undefined),
-            updatedAt: new Date(),
-            views: 0,
-          }}
-          setVisible={setPreviewVisible}
-          visible={previewVisible}
-        />
-      </Activity>
     </form>
   );
 }
 
-function Preview({
-  post,
-  visible,
-  setVisible,
-}: {
-  post: PostProps;
-  visible: boolean;
-  setVisible: React.Dispatch<React.SetStateAction<boolean>>;
-}) {
-  if (!visible) {
-    return;
-  }
-
+function Preview({ post }: { post: PostProps }) {
   return (
-    <div className="absolute top-0 z-999999 flex h-full w-full items-center bg-black/80">
-      <section className="w-[50%] translate-x-[50%] space-y-4">
-        <Button onClick={() => setVisible(false)} size="icon" type="button">
-          <HugeiconsIcon className="size-8" icon={Cancel01Icon} />
-        </Button>
-        <PostPage post={post} />
-      </section>
-    </div>
+    <DialogPrimitive.Root>
+      <DialogPrimitive.Trigger
+        render={<Button className="flex-1" type="button" variant="secondary" />}
+      >
+        Vista Previa
+      </DialogPrimitive.Trigger>
+      <DialogPrimitive.Backdrop className="data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/10 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-xs" />
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Popup className="data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-background p-4 text-sm outline-none ring-1 ring-foreground/10 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-300 max-h-[90dvh] overflow-scroll">
+          <PostPage post={post} />
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 
