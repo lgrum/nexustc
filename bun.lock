@@ -127,6 +127,7 @@
         "@upstash/redis": "^1.36.0",
         "dotenv": "catalog:",
         "drizzle-orm": "catalog:",
+        "nanoid": "^5.1.7",
         "pino": "catalog:",
         "sharp": "catalog:",
         "zod": "catalog:",
@@ -2134,7 +2135,7 @@
 
     "mute-stream": ["mute-stream@2.0.0", "", {}, "sha512-WWdIxpyjEn+FhQJQQv9aQAYlHoNVdzIzUySNV1gHUPDSdZJ3yZn7pAAbQcV7B56Mvu881q9FZV+0Vx2xC44VWA=="],
 
-    "nanoid": ["nanoid@5.1.6", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-c7+7RQ+dMB5dPwwCp4ee1/iV/q2P6aK1mTZcfr1BTuVlyW9hJYiMPybJCcnBlQtuSmTIWNeazm/zqNoZSSElBg=="],
+    "nanoid": ["nanoid@5.1.7", "", { "bin": { "nanoid": "bin/nanoid.js" } }, "sha512-ua3NDgISf6jdwezAheMOk4mbE1LXjm1DfMUDMuJf4AqxLFK3ccGpgWizwa5YV7Yz9EpXwEaWoRXSb/BnV0t5dQ=="],
 
     "nanostores": ["nanostores@1.2.0", "", {}, "sha512-F0wCzbsH80G7XXo0Jd9/AVQC7ouWY6idUCTnMwW5t/Rv9W8qmO6endavDwg7TNp5GbugwSukFMVZqzPSrSMndg=="],
 

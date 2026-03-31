@@ -29,6 +29,7 @@
     "@upstash/redis": "^1.36.0",
     "dotenv": "catalog:",
     "drizzle-orm": "catalog:",
+    "nanoid": "^5.1.7",
     "pino": "catalog:",
     "sharp": "catalog:",
     "zod": "catalog:"

@@ -3,6 +3,7 @@ import { eq } from "@repo/db";
 import type { tutorials as TutorialTable } from "@repo/db/schema/app";
 import { tutorials } from "@repo/db/schema/app";
 import { env } from "@repo/env";
+import { customAlphabet } from "nanoid/non-secure";
 import z from "zod";
 
 import {
@@ -10,6 +11,11 @@ import {
   permissionProcedure,
   publicProcedure,
 } from "../index";
+
+const nanoid = customAlphabet(
+  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+  9
+);
 
 type Tutorial = typeof TutorialTable.$inferSelect;
 
@@ -65,7 +71,7 @@ const normalizeAlias = (value: string | null): string | undefined => {
     .replaceAll(/\s+/g, "-")
     .replaceAll(/-+/g, "-")
     .toLowerCase()
-    .slice(0, 30);
+    .slice(0, 20);
 
   return normalized.length > 0 ? normalized : undefined;
 };
@@ -97,7 +103,7 @@ const getAliasFromUrl = async (url: string): Promise<string | undefined> => {
     }
 
     const html = await response.text();
-    return normalizeAlias(getTitleMatch(html));
+    return `${normalizeAlias(getTitleMatch(html))}-${nanoid()}`;
   } catch {
     return undefined;
   }
