@@ -12,6 +12,14 @@ import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
+type LikeRecord = {
+  postId: string;
+};
+
+type LikeMutationContext = {
+  previousLikes: LikeRecord[] | undefined;
+};
+
 function LikeButtonUI({
   isLiked,
   isLoading,
@@ -70,13 +78,13 @@ export function LikeButton({ postId }: { postId: string }) {
 
   // Mutation with optimistic updates
   const likeMutation = useMutation(
-    orpc.user.toggleLike.mutationOptions({
-      onError: (error, variables, context) => {
+    orpc.user.toggleLike.mutationOptions<LikeMutationContext>({
+      onError: (error, variables, onMutateResult) => {
         // Rollback on error
-        if (context?.previousLikes !== undefined) {
+        if (onMutateResult?.previousLikes !== undefined) {
           queryClient.setQueryData(
             likesQueryOptions.queryKey,
-            context.previousLikes
+            onMutateResult.previousLikes
           );
         }
 
@@ -93,14 +101,14 @@ export function LikeButton({ postId }: { postId: string }) {
         await queryClient.cancelQueries(likesQueryOptions);
 
         // Snapshot current value
-        const previousLikes = queryClient.getQueryData(
+        const previousLikes = queryClient.getQueryData<LikeRecord[]>(
           likesQueryOptions.queryKey
         );
 
         // Optimistically update cache
         queryClient.setQueryData(
           likesQueryOptions.queryKey,
-          (old: { postId: string }[] | undefined) => {
+          (old: LikeRecord[] | undefined) => {
             if (!old) {
               return old;
             }

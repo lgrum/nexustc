@@ -12,6 +12,14 @@ import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
+type BookmarkRecord = {
+  postId: string;
+};
+
+type BookmarkMutationContext = {
+  previousBookmarks: BookmarkRecord[] | undefined;
+};
+
 function BookmarkButtonUI({
   isBookmarked,
   isLoading,
@@ -73,13 +81,13 @@ export function BookmarkButton({ postId }: { postId: string }) {
 
   // Mutation with optimistic updates
   const bookmarkMutation = useMutation(
-    orpc.user.toggleBookmark.mutationOptions({
-      onError: (error, variables, context) => {
+    orpc.user.toggleBookmark.mutationOptions<BookmarkMutationContext>({
+      onError: (error, variables, onMutateResult) => {
         // Rollback on error
-        if (context?.previousBookmarks !== undefined) {
+        if (onMutateResult?.previousBookmarks !== undefined) {
           queryClient.setQueryData(
             bookmarksQueryOptions.queryKey,
-            context.previousBookmarks
+            onMutateResult.previousBookmarks
           );
         }
 
@@ -96,14 +104,14 @@ export function BookmarkButton({ postId }: { postId: string }) {
         await queryClient.cancelQueries(bookmarksQueryOptions);
 
         // Snapshot current value
-        const previousBookmarks = queryClient.getQueryData(
+        const previousBookmarks = queryClient.getQueryData<BookmarkRecord[]>(
           bookmarksQueryOptions.queryKey
         );
 
         // Optimistically update cache
         queryClient.setQueryData(
           bookmarksQueryOptions.queryKey,
-          (old: { postId: string }[] | undefined) => {
+          (old: BookmarkRecord[] | undefined) => {
             if (!old) {
               return old;
             }
