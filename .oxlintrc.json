@@ -30,6 +30,7 @@
     "typescript/consistent-type-definitions": ["warn", "type"],
     "typescript/no-non-null-assertion": "off",
 
+    "unicorn/no-abusive-eslint-disable": "warn",
     "unicorn/no-nested-ternary": "off"
   }
 }

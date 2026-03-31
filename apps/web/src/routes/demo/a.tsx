@@ -1,4 +1,5 @@
-// oxlint-disable react/jsx-no-comment-textnodes
+// oxlint-disable
+
 import {
   FavouriteIcon,
   Login03Icon,

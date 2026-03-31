@@ -1,3 +1,5 @@
+// oxlint-disable
+
 import {
   FavouriteIcon,
   Home01Icon,

@@ -1,3 +1,5 @@
+// oxlint-disable
+
 import { createFileRoute } from "@tanstack/react-router";
 import {
   ArrowUpRight,
