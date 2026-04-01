@@ -291,3 +291,9 @@ export function pickTextColorFromHex(
 
   return pickTextColor(rgb);
 }
+
+const urlRegex = /https?:\/\/[^\s)\]]+|www\.[^\s)\]]+/gi;
+
+export function removeUrls(links: string) {
+  return links.replace(urlRegex, "");
+}

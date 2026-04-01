@@ -1,5 +1,5 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { ArrowLeftDoubleIcon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
 import { postCreateSchema } from "@repo/shared/schemas";
@@ -8,11 +8,11 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import type React from "react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { URLShortenerDialog } from "src/components/admin/url-shortener-dialog";
 
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SortableGrid } from "@/components/admin/sortable-grid";
+import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { HasPermissions } from "@/components/auth/has-role";
 import { Markdown } from "@/components/markdown";
 import type { PostProps } from "@/components/posts/post-components";
@@ -37,11 +37,16 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useAppForm } from "@/hooks/use-app-form";
 import { useMultipleFileUpload } from "@/hooks/use-multiple-file-upload";
 import { orpcClient } from "@/lib/orpc";
+import { removeUrls } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/posts/create")({
   component: RouteComponent,
@@ -233,7 +238,31 @@ function RouteComponent() {
                 )}
               </form.AppField>
             </div>
-            <Separator orientation="vertical" />
+            <div className="flex flex-col gap-2 items-center">
+              <div className="w-px flex-1 bg-border" />
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      onClick={() => {
+                        form.setFieldValue(
+                          "adsLinks",
+                          removeUrls(premiumLinks)
+                        );
+                      }}
+                    />
+                  }
+                >
+                  <HugeiconsIcon icon={ArrowLeftDoubleIcon} />
+                </TooltipTrigger>
+                <TooltipContent>
+                  Copia Links Premium a Links con Anuncios, eliminando URLs
+                </TooltipContent>
+              </Tooltip>
+              <div className="w-px flex-1 bg-border" />
+            </div>
             <div className="flex flex-1 flex-col gap-4">
               <form.AppField name="premiumLinks">
                 {(field) => (
@@ -250,7 +279,6 @@ function RouteComponent() {
             <div className="flex-1 space-y-4 rounded-md bg-background p-4 [&_a]:text-primary">
               <Markdown>{adsLinks}</Markdown>
             </div>
-            <Separator orientation="vertical" />
             <div className="flex-1 space-y-4 rounded-md bg-background p-4 [&_a]:text-primary">
               <Markdown>{premiumLinks}</Markdown>
             </div>
