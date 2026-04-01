@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
-import { cn } from "src/lib/utils";
+
+import { cn } from "@/lib/utils";
 
 export function ShinyButton({ className, ...props }: ButtonPrimitive.Props) {
   return (
