@@ -7,7 +7,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { TextField } from "@/components/forms/text-field";
 import { TextareaField } from "@/components/forms/textarea-field";
 
-export const { useAppForm } = createFormHook({
+export const { useAppForm, useTypedAppFormContext, withForm } = createFormHook({
   fieldComponents: {
     MultiSelectField,
     SelectField,
