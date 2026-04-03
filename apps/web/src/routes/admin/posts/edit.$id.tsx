@@ -1,11 +1,8 @@
 import { postEditSchema } from "@repo/shared/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
 import { toast } from "sonner";
 
-import { ImageEditor } from "@/components/admin/image-editor";
-import type { ImageEditorRef } from "@/components/admin/image-editor";
 import { PostFormFields } from "@/components/admin/posts/post-form-fields";
 import { useAppForm } from "@/hooks/use-app-form";
 import { orpc, orpcClient } from "@/lib/orpc";
@@ -22,13 +19,9 @@ export const Route = createFileRoute("/admin/posts/edit/$id")({
 function RouteComponent() {
   const data = Route.useLoaderData();
   const mutation = useMutation(orpc.post.admin.edit.mutationOptions());
-  const imagesMutation = useMutation(
-    orpc.post.admin.editImages.mutationOptions()
-  );
   const prerequisiteTerms = data.prerequisites.terms;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const imageEditorRef = useRef<ImageEditorRef>(null);
 
   const oldPost = data.oldPost!;
   const terms = Object.groupBy(oldPost.terms, (item) => item.term.taxonomy);
@@ -48,6 +41,7 @@ function RouteComponent() {
       languages: terms.language?.map((term) => term.term.id) ?? [],
       manualEngagementQuestions:
         oldPost.engagementOverrides?.map((item) => item.text) ?? [],
+      mediaIds: oldPost.media?.map((item) => item.id) ?? [],
       platforms: terms.platform?.map((term) => term.term.id) ?? [],
       premiumLinks: oldPost.premiumLinks ?? "",
       status: terms.status?.[0]?.term.id ?? "",
@@ -57,34 +51,17 @@ function RouteComponent() {
       version: oldPost.version ?? "",
     },
     onSubmit: async (formData) => {
-      const imagePayload = imageEditorRef.current?.getPayload();
-
       await toast
-        .promise(
-          (async () => {
-            await mutation.mutateAsync(formData.value);
-            if (imagePayload) {
-              await imagesMutation.mutateAsync({
-                newFiles:
-                  imagePayload.newFiles.length > 0
-                    ? imagePayload.newFiles
-                    : undefined,
-                order: imagePayload.order,
-                postId: oldPost.id,
-                type: "post",
-              });
-            }
-          })(),
-          {
-            error: (error) => ({
-              duration: 10_000,
-              message: `Error al editar post: ${error}`,
-            }),
-            loading: "Editando post...",
-            success: "Post editado!",
-          }
-        )
+        .promise(mutation.mutateAsync(formData.value), {
+          error: (error) => ({
+            duration: 10_000,
+            message: `Error al editar post: ${error}`,
+          }),
+          loading: "Editando post...",
+          success: "Post editado!",
+        })
         .unwrap();
+
       await queryClient.invalidateQueries(
         orpc.post.admin.getDashboardList.queryOptions()
       );
@@ -98,24 +75,16 @@ function RouteComponent() {
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         form.handleSubmit();
       }}
     >
       <h1 className="font-semibold text-2xl">Editar Post</h1>
       <div className="space-y-4">
         <form.AppForm>
-          <PostFormFields
-            terms={prerequisiteTerms}
-            mediaSection={
-              <ImageEditor
-                initialImageKeys={oldPost.imageObjectKeys ?? []}
-                ref={imageEditorRef}
-              />
-            }
-          />
+          <PostFormFields terms={prerequisiteTerms} />
           <div>
             <form.SubmitButton className="w-full">Editar</form.SubmitButton>
           </div>

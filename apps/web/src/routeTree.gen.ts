@@ -45,6 +45,7 @@ import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
 import { Route as AdminTermsIndexRouteImport } from './routes/admin/terms/index'
 import { Route as AdminStickersIndexRouteImport } from './routes/admin/stickers/index'
 import { Route as AdminPostsIndexRouteImport } from './routes/admin/posts/index'
+import { Route as AdminMediaIndexRouteImport } from './routes/admin/media/index'
 import { Route as AdminEmojisIndexRouteImport } from './routes/admin/emojis/index'
 import { Route as AdminComicsIndexRouteImport } from './routes/admin/comics/index'
 import { Route as ApiRpcSplatRouteImport } from './routes/api/rpc.$'
@@ -249,6 +250,11 @@ const AdminPostsIndexRoute = AdminPostsIndexRouteImport.update({
   path: '/posts/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminMediaIndexRoute = AdminMediaIndexRouteImport.update({
+  id: '/media/',
+  path: '/media/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminEmojisIndexRoute = AdminEmojisIndexRouteImport.update({
   id: '/emojis/',
   path: '/emojis/',
@@ -421,6 +427,7 @@ export interface FileRoutesByFullPath {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
   '/admin/emojis/': typeof AdminEmojisIndexRoute
+  '/admin/media/': typeof AdminMediaIndexRoute
   '/admin/posts/': typeof AdminPostsIndexRoute
   '/admin/stickers/': typeof AdminStickersIndexRoute
   '/admin/terms/': typeof AdminTermsIndexRoute
@@ -481,6 +488,7 @@ export interface FileRoutesByTo {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/admin/comics': typeof AdminComicsIndexRoute
   '/admin/emojis': typeof AdminEmojisIndexRoute
+  '/admin/media': typeof AdminMediaIndexRoute
   '/admin/posts': typeof AdminPostsIndexRoute
   '/admin/stickers': typeof AdminStickersIndexRoute
   '/admin/terms': typeof AdminTermsIndexRoute
@@ -544,6 +552,7 @@ export interface FileRoutesById {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
   '/admin/emojis/': typeof AdminEmojisIndexRoute
+  '/admin/media/': typeof AdminMediaIndexRoute
   '/admin/posts/': typeof AdminPostsIndexRoute
   '/admin/stickers/': typeof AdminStickersIndexRoute
   '/admin/terms/': typeof AdminTermsIndexRoute
@@ -607,6 +616,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/admin/comics/'
     | '/admin/emojis/'
+    | '/admin/media/'
     | '/admin/posts/'
     | '/admin/stickers/'
     | '/admin/terms/'
@@ -667,6 +677,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/admin/comics'
     | '/admin/emojis'
+    | '/admin/media'
     | '/admin/posts'
     | '/admin/stickers'
     | '/admin/terms'
@@ -729,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/admin/comics/'
     | '/admin/emojis/'
+    | '/admin/media/'
     | '/admin/posts/'
     | '/admin/stickers/'
     | '/admin/terms/'
@@ -1019,6 +1031,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/media/': {
+      id: '/admin/media/'
+      path: '/media'
+      fullPath: '/admin/media/'
+      preLoaderRoute: typeof AdminMediaIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/emojis/': {
       id: '/admin/emojis/'
       path: '/emojis'
@@ -1245,6 +1264,7 @@ interface AdminRouteRouteChildren {
   AdminUsersManageRoute: typeof AdminUsersManageRoute
   AdminComicsIndexRoute: typeof AdminComicsIndexRoute
   AdminEmojisIndexRoute: typeof AdminEmojisIndexRoute
+  AdminMediaIndexRoute: typeof AdminMediaIndexRoute
   AdminPostsIndexRoute: typeof AdminPostsIndexRoute
   AdminStickersIndexRoute: typeof AdminStickersIndexRoute
   AdminTermsIndexRoute: typeof AdminTermsIndexRoute
@@ -1272,6 +1292,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminUsersManageRoute: AdminUsersManageRoute,
   AdminComicsIndexRoute: AdminComicsIndexRoute,
   AdminEmojisIndexRoute: AdminEmojisIndexRoute,
+  AdminMediaIndexRoute: AdminMediaIndexRoute,
   AdminPostsIndexRoute: AdminPostsIndexRoute,
   AdminStickersIndexRoute: AdminStickersIndexRoute,
   AdminTermsIndexRoute: AdminTermsIndexRoute,

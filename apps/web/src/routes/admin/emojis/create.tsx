@@ -1,8 +1,12 @@
 import { PATRON_TIER_KEYS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "@tanstack/react-form";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -14,8 +18,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
-import { orpc, orpcClient } from "@/lib/orpc";
-import { convertImage, uploadBlobWithProgress } from "@/lib/utils";
+import { orpc } from "@/lib/orpc";
+import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/emojis/create")({
   component: RouteComponent,
@@ -24,6 +28,7 @@ export const Route = createFileRoute("/admin/emojis/create")({
 const emojiCreateSchema = z.object({
   displayName: z.string().min(1).max(128),
   isActive: z.boolean(),
+  mediaId: z.string().min(1, "Debes seleccionar una imagen."),
   name: z
     .string()
     .min(1)
@@ -38,171 +43,143 @@ function RouteComponent() {
   const mutation = useMutation(orpc.emoji.admin.create.mutationOptions());
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
+  const { data: mediaLibrary } = useSuspenseQuery(
+    orpc.media.admin.list.queryOptions()
+  );
 
   const form = useAppForm({
     defaultValues: {
       displayName: "",
       isActive: true,
+      mediaId: "",
       name: "",
       order: 0,
       requiredTier: "level1" as PatronTier,
       type: "static" as "static" | "animated",
     },
     onSubmit: async (formData) => {
-      if (!file) {
-        toast.error("Debes seleccionar un archivo de imagen.");
-        return;
-      }
-
-      const values = formData.value;
-      const isAnimated = values.type === "animated";
-      const uploadFile = isAnimated
-        ? file
-        : await convertImage(file, "webp", 0.8);
-
-      const extension = isAnimated
-        ? file.name.split(".").pop()?.toLowerCase() === "gif"
-          ? "gif"
-          : "webp"
-        : "webp";
-      const assetKey = `emojis/${values.name}.${extension}`;
-
-      const { presignedUrl } = await orpcClient.emoji.admin.getUploadUrl({
-        contentLength: uploadFile.size,
-        extension: extension as "webp" | "gif",
-        name: values.name,
-      });
-
-      await uploadBlobWithProgress(uploadFile, presignedUrl);
-
       await toast
-        .promise(
-          mutation.mutateAsync({
-            ...values,
-            assetFormat: extension,
-            assetKey,
+        .promise(mutation.mutateAsync(formData.value), {
+          error: (error) => ({
+            duration: 10_000,
+            message: `Error al crear emoji: ${error}`,
           }),
-          {
-            error: (error) => ({
-              duration: 10_000,
-              message: `Error al crear emoji: ${error}`,
-            }),
-            loading: "Creando emoji...",
-            success: "Emoji creado!",
-          }
-        )
+          loading: "Creando emoji...",
+          success: "Emoji creado!",
+        })
         .unwrap();
+
       await queryClient.invalidateQueries(orpc.emoji.admin.list.queryOptions());
+      await queryClient.invalidateQueries(orpc.media.admin.list.queryOptions());
       navigate({ to: "/admin/emojis" });
     },
     validators: { onSubmit: emojiCreateSchema },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (!selected) {
-      return;
-    }
-    setFile(selected);
-    const url = URL.createObjectURL(selected);
-    setPreview(url);
-  };
+  const selectedMediaId = useStore(form.store, (state) => state.values.mediaId);
+  const selectedMedia = mediaLibrary.find(
+    (item) => item.id === selectedMediaId
+  );
 
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         form.handleSubmit();
       }}
     >
-      <Card>
-        <CardHeader>
-          <CardTitle>Crear Emoji</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <form.AppField name="name">
-            {(field) => (
-              <field.TextField
-                label="Nombre (token)"
-                placeholder="heart"
-                required
-              />
-            )}
-          </form.AppField>
+      <form.AppForm>
+        <Card>
+          <CardHeader>
+            <CardTitle>Crear Emoji</CardTitle>
+          </CardHeader>
 
-          <form.AppField name="displayName">
-            {(field) => (
-              <field.TextField
-                label="Nombre visible"
-                placeholder="Corazón"
-                required
-              />
-            )}
-          </form.AppField>
-
-          <form.AppField name="type">
-            {(field) => (
-              <field.SelectField
-                label="Tipo"
-                options={[
-                  { label: "Estático", value: "static" },
-                  { label: "Animado", value: "animated" },
-                ]}
-              />
-            )}
-          </form.AppField>
-
-          <div className="col-span-2 flex flex-col gap-2">
-            <label className="font-medium text-sm" htmlFor="emoji-file">
-              Imagen *
-            </label>
-            <input
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-              id="emoji-file"
-              onChange={handleFileChange}
-              required
-              type="file"
-            />
-            {preview && (
-              <div className="flex justify-center pt-2">
-                <img
-                  alt="Vista previa"
-                  className="size-16 object-contain"
-                  src={preview}
-                />
+          <CardContent className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 flex justify-center">
+              <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-muted/30">
+                {selectedMedia ? (
+                  <img
+                    alt="Vista previa"
+                    className="size-16 object-contain"
+                    src={getBucketUrl(selectedMedia.objectKey)}
+                  />
+                ) : (
+                  <span className="text-muted-foreground text-xs">
+                    Sin imagen
+                  </span>
+                )}
               </div>
-            )}
-          </div>
+            </div>
 
-          <form.AppField name="requiredTier">
-            {(field) => (
-              <field.SelectField
-                label="Tier requerido"
-                options={PATRON_TIER_KEYS.map((tier) => ({
-                  label: tier,
-                  value: tier,
-                }))}
-              />
-            )}
-          </form.AppField>
+            <form.AppField name="name">
+              {(field) => (
+                <field.TextField
+                  label="Nombre (token)"
+                  placeholder="heart"
+                  required
+                />
+              )}
+            </form.AppField>
 
-          <form.AppField name="order">
-            {(field) => (
-              <field.TextField label="Orden" placeholder="0" type="number" />
-            )}
-          </form.AppField>
-        </CardContent>
-        <CardFooter>
-          <form.AppForm>
+            <form.AppField name="displayName">
+              {(field) => (
+                <field.TextField
+                  label="Nombre visible"
+                  placeholder="Corazon"
+                  required
+                />
+              )}
+            </form.AppField>
+
+            <form.AppField name="type">
+              {(field) => (
+                <field.SelectField
+                  label="Tipo"
+                  options={[
+                    { label: "Estatico", value: "static" },
+                    { label: "Animado", value: "animated" },
+                  ]}
+                />
+              )}
+            </form.AppField>
+
+            <form.AppField name="requiredTier">
+              {(field) => (
+                <field.SelectField
+                  label="Tier requerido"
+                  options={PATRON_TIER_KEYS.map((tier) => ({
+                    label: tier,
+                    value: tier,
+                  }))}
+                />
+              )}
+            </form.AppField>
+
+            <form.AppField name="order">
+              {(field) => (
+                <field.TextField label="Orden" placeholder="0" type="number" />
+              )}
+            </form.AppField>
+
+            <form.AppField name="mediaId">
+              {(field) => (
+                <field.MediaField
+                  description="Selecciona o sube un archivo desde la biblioteca de media."
+                  label="Imagen"
+                  maxItems={1}
+                  required
+                />
+              )}
+            </form.AppField>
+          </CardContent>
+
+          <CardFooter>
             <form.SubmitButton className="w-full">Crear</form.SubmitButton>
-          </form.AppForm>
-        </CardFooter>
-      </Card>
+          </CardFooter>
+        </Card>
+      </form.AppForm>
     </form>
   );
 }

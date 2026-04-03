@@ -1,12 +1,9 @@
 import { comicEditSchema } from "@repo/shared/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useRef } from "react";
 import { toast } from "sonner";
 
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
-import { ImageEditor } from "@/components/admin/image-editor";
-import type { ImageEditorRef } from "@/components/admin/image-editor";
 import { useAppForm } from "@/hooks/use-app-form";
 import { orpc, orpcClient } from "@/lib/orpc";
 
@@ -22,13 +19,9 @@ export const Route = createFileRoute("/admin/comics/edit/$id")({
 function RouteComponent() {
   const data = Route.useLoaderData();
   const mutation = useMutation(orpc.comic.admin.edit.mutationOptions());
-  const imagesMutation = useMutation(
-    orpc.comic.admin.editImages.mutationOptions()
-  );
   const { terms: prerequisiteTerms } = data.prerequisites;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const imageEditorRef = useRef<ImageEditorRef>(null);
 
   const oldComic = data.oldComic!;
   const terms = Object.groupBy(oldComic.terms, (item) => item.term.taxonomy);
@@ -41,6 +34,7 @@ function RouteComponent() {
       id: oldComic.id,
       manualEngagementQuestions:
         oldComic.engagementOverrides?.map((item) => item.text) ?? [],
+      mediaIds: oldComic.media?.map((item) => item.id) ?? [],
       premiumLinks: oldComic.premiumLinks ?? "",
       status: terms.status?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],
@@ -48,34 +42,17 @@ function RouteComponent() {
       type: "comic" as const,
     },
     onSubmit: async (formData) => {
-      const imagePayload = imageEditorRef.current?.getPayload();
-
       await toast
-        .promise(
-          (async () => {
-            await mutation.mutateAsync(formData.value);
-            if (imagePayload) {
-              await imagesMutation.mutateAsync({
-                newFiles:
-                  imagePayload.newFiles.length > 0
-                    ? imagePayload.newFiles
-                    : undefined,
-                order: imagePayload.order,
-                postId: oldComic.id,
-                type: "comic",
-              });
-            }
-          })(),
-          {
-            error: (error) => ({
-              duration: 10_000,
-              message: `Error al editar cómic: ${error}`,
-            }),
-            loading: "Editando cómic...",
-            success: "Cómic editado!",
-          }
-        )
+        .promise(mutation.mutateAsync(formData.value), {
+          error: (error) => ({
+            duration: 10_000,
+            message: `Error al editar cÃ³mic: ${error}`,
+          }),
+          loading: "Editando cÃ³mic...",
+          success: "CÃ³mic editado!",
+        })
         .unwrap();
+
       await queryClient.invalidateQueries(
         orpc.comic.admin.getDashboardList.queryOptions()
       );
@@ -89,24 +66,16 @@ function RouteComponent() {
   return (
     <form
       className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         form.handleSubmit();
       }}
     >
-      <h1 className="font-semibold text-2xl">Editar Cómic</h1>
+      <h1 className="font-semibold text-2xl">Editar CÃ³mic</h1>
       <div className="space-y-4">
         <form.AppForm>
-          <ComicFormFields
-            mediaSection={
-              <ImageEditor
-                initialImageKeys={oldComic.imageObjectKeys ?? []}
-                ref={imageEditorRef}
-              />
-            }
-            terms={prerequisiteTerms}
-          />
+          <ComicFormFields terms={prerequisiteTerms} />
           <div>
             <form.SubmitButton className="w-full">Editar</form.SubmitButton>
           </div>

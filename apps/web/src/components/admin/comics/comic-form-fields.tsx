@@ -3,7 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
 import type { comicCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
-import type { ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
@@ -45,7 +44,6 @@ type SharedComicFormValues = z.input<typeof comicCreateSchema>;
 
 type ComicFormFieldsProps = {
   terms: ComicTermOption[];
-  mediaSection?: ReactNode;
 };
 
 const DOCUMENT_STATUS_OPTIONS = [
@@ -61,7 +59,7 @@ const mapTermOptions = (terms?: ComicTermOption[]) =>
     value: term.id,
   })) ?? [];
 
-export function ComicFormFields({ terms, mediaSection }: ComicFormFieldsProps) {
+export function ComicFormFields({ terms }: ComicFormFieldsProps) {
   const form = useTypedAppFormContext({
     defaultValues: {} as SharedComicFormValues,
   });
@@ -257,7 +255,14 @@ export function ComicFormFields({ terms, mediaSection }: ComicFormFieldsProps) {
         </form.AppField>
       </section>
 
-      {mediaSection}
+      <form.AppField name="mediaIds">
+        {(field) => (
+          <field.MediaField
+            description="Selecciona y ordena las paginas del comic desde la biblioteca central."
+            label="Media"
+          />
+        )}
+      </form.AppField>
     </div>
   );
 }

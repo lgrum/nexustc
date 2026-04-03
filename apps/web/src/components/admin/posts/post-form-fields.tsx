@@ -3,7 +3,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
 import type { postCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
-import type { ReactNode } from "react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
@@ -48,7 +47,6 @@ type SharedPostFormValues = z.input<typeof postCreateSchema>;
 
 type PostFormFieldsProps = {
   terms: PostFormTerm[];
-  mediaSection?: ReactNode;
 };
 
 const DOCUMENT_STATUS_OPTIONS = [
@@ -64,7 +62,7 @@ const mapTermOptions = (terms?: PostTermOption[]) =>
     value: term.id,
   })) ?? [];
 
-export function PostFormFields({ terms, mediaSection }: PostFormFieldsProps) {
+export function PostFormFields({ terms }: PostFormFieldsProps) {
   const form = useTypedAppFormContext({
     defaultValues: {} as SharedPostFormValues,
   });
@@ -322,7 +320,14 @@ export function PostFormFields({ terms, mediaSection }: PostFormFieldsProps) {
         </form.AppField>
       </section>
 
-      {mediaSection}
+      <form.AppField name="mediaIds">
+        {(field) => (
+          <field.MediaField
+            description="Selecciona y ordena la media del post desde la biblioteca central."
+            label="Media"
+          />
+        )}
+      </form.AppField>
     </div>
   );
 }

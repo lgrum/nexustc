@@ -1,11 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, eq, inArray, sql } from "@repo/db";
 import { featuredPost, post } from "@repo/db/schema/app";
-import {
-  contentCreateSchema,
-  contentEditImagesSchema,
-  contentEditSchema,
-} from "@repo/shared/schemas";
+import { contentCreateSchema, contentEditSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure } from "../../index";
@@ -13,9 +9,8 @@ import {
   createContent,
   deleteContent,
   editContent,
-  editContentImages,
-  insertContentImages,
 } from "../../utils/content-handlers";
+import { mapPostWithMedia } from "../../utils/post-media";
 
 export default {
   create: permissionProcedure({
@@ -50,12 +45,6 @@ export default {
     .input(contentEditSchema)
     .handler(editContent),
 
-  editImages: permissionProcedure({
-    posts: ["update"],
-  })
-    .input(contentEditImagesSchema)
-    .handler(editContentImages),
-
   getDashboardList: permissionProcedure({
     posts: ["list"],
   }).handler(({ context: { db, ...ctx } }) => {
@@ -88,19 +77,27 @@ export default {
       const logger = getLogger(ctx);
       logger?.info(`Fetching post for editing: ${input}`);
 
-      return db.query.post.findFirst({
-        where: eq(post.id, input),
-        with: {
-          engagementOverrides: {
-            orderBy: (table, { asc }) => [asc(table.sortOrder)],
-          },
-          terms: {
-            with: {
-              term: true,
+      return db.query.post
+        .findFirst({
+          where: eq(post.id, input),
+          with: {
+            engagementOverrides: {
+              orderBy: (table, { asc }) => [asc(table.sortOrder)],
+            },
+            mediaRelations: {
+              orderBy: (table, { asc }) => [asc(table.sortOrder)],
+              with: {
+                media: true,
+              },
+            },
+            terms: {
+              with: {
+                term: true,
+              },
             },
           },
-        },
-      });
+        })
+        .then((result) => (result ? mapPostWithMedia(result) : null));
     }),
 
   getFeaturedPosts: permissionProcedure({
@@ -218,18 +215,6 @@ export default {
 
       return result;
     }),
-
-  insertImages: permissionProcedure({
-    posts: ["create"],
-  })
-    .input(
-      z.object({
-        images: z.array(z.string()),
-        postId: z.string(),
-      })
-    )
-    .handler(insertContentImages),
-
   uploadFeaturedPosts: permissionProcedure({
     posts: ["create"],
   })

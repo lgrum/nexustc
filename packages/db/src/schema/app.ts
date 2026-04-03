@@ -220,6 +220,39 @@ export const post = pgTable(
   ]
 );
 
+export const media = pgTable(
+  "media",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    objectKey: text("object_key").notNull().unique(),
+  },
+  (table) => [index("media_created_at_idx").on(table.createdAt)]
+);
+
+export const postMedia = pgTable(
+  "post_media",
+  {
+    mediaId: text("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "cascade" }),
+    postId: text("post_id")
+      .notNull()
+      .references(() => post.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({ columns: [table.postId, table.mediaId] }),
+    index("post_media_post_id_sort_order_idx").on(
+      table.postId,
+      table.sortOrder
+    ),
+    index("post_media_media_id_idx").on(table.mediaId),
+  ]
+);
+
 export const featuredPost = pgTable(
   "featured_post",
   {
@@ -700,6 +733,9 @@ export const emoji = pgTable(
     displayName: text("display_name").notNull(),
     id: text("id").primaryKey().$defaultFn(generateId),
     isActive: boolean("is_active").notNull().default(true),
+    mediaId: text("media_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull().unique(),
     order: integer("order").notNull().default(0),
     requiredTier: text("required_tier", { enum: PATRON_TIER_KEYS })
@@ -709,6 +745,7 @@ export const emoji = pgTable(
     ...timestamps,
   },
   (table) => [
+    index("emoji_media_id_idx").on(table.mediaId),
     index("emoji_name_idx").on(table.name),
     index("emoji_required_tier_idx").on(table.requiredTier),
   ]
@@ -722,6 +759,9 @@ export const sticker = pgTable(
     displayName: text("display_name").notNull(),
     id: text("id").primaryKey().$defaultFn(generateId),
     isActive: boolean("is_active").notNull().default(true),
+    mediaId: text("media_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull().unique(),
     order: integer("order").notNull().default(0),
     requiredTier: text("required_tier", { enum: PATRON_TIER_KEYS })
@@ -731,14 +771,25 @@ export const sticker = pgTable(
     ...timestamps,
   },
   (table) => [
+    index("sticker_media_id_idx").on(table.mediaId),
     index("sticker_name_idx").on(table.name),
     index("sticker_required_tier_idx").on(table.requiredTier),
   ]
 );
 
-export const emojiRelations = relations(emoji, () => ({}));
+export const emojiRelations = relations(emoji, ({ one }) => ({
+  media: one(media, {
+    fields: [emoji.mediaId],
+    references: [media.id],
+  }),
+}));
 
-export const stickerRelations = relations(sticker, () => ({}));
+export const stickerRelations = relations(sticker, ({ one }) => ({
+  media: one(media, {
+    fields: [sticker.mediaId],
+    references: [media.id],
+  }),
+}));
 
 /** -------------------------------------------------------- */
 
@@ -748,8 +799,26 @@ export const postRelations = relations(post, ({ many }) => ({
   favorites: many(postBookmark),
   featured: many(featuredPost),
   likes: many(postLikes),
+  mediaRelations: many(postMedia),
   ratings: many(postRating),
   terms: many(termPostRelation),
+}));
+
+export const mediaRelations = relations(media, ({ many }) => ({
+  emojis: many(emoji),
+  postRelations: many(postMedia),
+  stickers: many(sticker),
+}));
+
+export const postMediaRelations = relations(postMedia, ({ one }) => ({
+  media: one(media, {
+    fields: [postMedia.mediaId],
+    references: [media.id],
+  }),
+  post: one(post, {
+    fields: [postMedia.postId],
+    references: [post.id],
+  }),
 }));
 
 export const featuredPostRelations = relations(featuredPost, ({ one }) => ({

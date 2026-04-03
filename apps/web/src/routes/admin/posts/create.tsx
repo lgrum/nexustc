@@ -1,23 +1,17 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
 import { postCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import type React from "react";
 import { toast } from "sonner";
 
 import { PostFormFields } from "@/components/admin/posts/post-form-fields";
-import { SortableGrid } from "@/components/admin/sortable-grid";
 import type { PostProps } from "@/components/posts/post-components";
 import { PostPage } from "@/components/posts/post-components";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
-import { useMultipleFileUpload } from "@/hooks/use-multiple-file-upload";
-import { orpcClient } from "@/lib/orpc";
+import { orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/posts/create")({
   component: RouteComponent,
@@ -27,9 +21,10 @@ export const Route = createFileRoute("/admin/posts/create")({
 function RouteComponent() {
   const data = Route.useLoaderData();
   const { terms } = data;
-  const { selectedFiles, setSelectedFiles, handleFileChange, removeFile } =
-    useMultipleFileUpload();
   const navigate = useNavigate();
+  const { data: mediaLibrary } = useSuspenseQuery(
+    orpc.media.admin.list.queryOptions()
+  );
 
   const form = useAppForm({
     defaultValues: {
@@ -44,6 +39,7 @@ function RouteComponent() {
       graphics: "",
       languages: [] as string[],
       manualEngagementQuestions: [] as string[],
+      mediaIds: [] as string[],
       platforms: [] as string[],
       premiumLinks: "",
       status: "",
@@ -55,19 +51,13 @@ function RouteComponent() {
     onSubmit: async (formData) => {
       try {
         await toast
-          .promise(
-            orpcClient.post.admin.create({
-              ...formData.value,
-              files: selectedFiles,
+          .promise(orpcClient.post.admin.create(formData.value), {
+            error: (error) => ({
+              message: `Error al crear post: ${error}`,
             }),
-            {
-              error: (error) => ({
-                message: `Error al crear post: ${error}`,
-              }),
-              loading: "Creando post...",
-              success: "Post creado!",
-            }
-          )
+            loading: "Creando post...",
+            success: "Post creado!",
+          })
           .unwrap();
 
         navigate({
@@ -81,7 +71,6 @@ function RouteComponent() {
           duration: 10_000,
         });
       } finally {
-        toast.dismiss("uploading");
         toast.dismiss("creating");
       }
     },
@@ -91,11 +80,15 @@ function RouteComponent() {
   });
 
   const post = useStore(form.store, (state) => state.values);
+  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
+  const selectedMediaKeys = post.mediaIds
+    .map((mediaId) => mediaMap.get(mediaId)?.objectKey)
+    .filter((objectKey): objectKey is string => objectKey !== undefined);
 
   const extractTemplate = async () => {
     try {
       const template = await navigator.clipboard.readText();
-      const { lore, tags, creatorBlock, linksBlock } = parseTemplate(template);
+      const { creatorBlock, linksBlock, lore, tags } = parseTemplate(template);
 
       const tagIds: string[] = [];
       for (const tagName of tags) {
@@ -128,9 +121,9 @@ function RouteComponent() {
   return (
     <form
       className="relative flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         form.handleSubmit();
       }}
     >
@@ -142,88 +135,7 @@ function RouteComponent() {
       </div>
       <div className="space-y-4">
         <form.AppForm>
-          <PostFormFields
-            terms={terms}
-            mediaSection={
-              <section className="col-span-2">
-                <Label htmlFor="file-upload">Subir imÃ¡genes</Label>
-                <Input
-                  accept="image/*"
-                  className="mt-1 w-full"
-                  id="file-upload"
-                  multiple
-                  name="file-upload"
-                  onChange={async (e) => {
-                    await toast.promise(handleFileChange(e), {
-                      error: (error) =>
-                        `Error al convertir imÃ¡genes: ${error}`,
-                      loading: "Convirtiendo imÃ¡genes...",
-                      success: "ImÃ¡genes convertidas!",
-                    });
-                  }}
-                  type="file"
-                />
-                {selectedFiles.length > 0 ? (
-                  <div className="mt-4 space-y-3">
-                    <h3 className="font-semibold text-md">
-                      Archivos seleccionados:
-                    </h3>
-                    <SortableGrid
-                      className="grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-6"
-                      getItemId={(file) => file.name}
-                      items={selectedFiles}
-                      setItems={setSelectedFiles}
-                    >
-                      {(
-                        file,
-                        _index,
-                        { ref, isDragging, isSelected, onSelect }
-                      ) => (
-                        <button
-                          className={`cursor-grab rounded-xl border bg-card p-4 ${isDragging ? "border-secondary" : ""} ${isSelected ? "ring-2 ring-primary" : ""}`}
-                          data-label={file.name}
-                          key={file.name}
-                          onClick={onSelect}
-                          ref={ref as React.Ref<HTMLButtonElement>}
-                          type="button"
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="space-y-1">
-                              <h3 className="text-sm text-wrap font-semibold">
-                                {file.name}
-                              </h3>
-                              <p className="text-muted-foreground text-sm">
-                                {(file.size / 1024).toFixed(2)} KB
-                              </p>
-                            </div>
-                            <Button
-                              disabled={form.state.isSubmitting}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeFile(file.name);
-                              }}
-                              size="icon"
-                              type="button"
-                              variant="ghost"
-                            >
-                              <HugeiconsIcon icon={Cancel01Icon} />
-                            </Button>
-                          </div>
-                          <div className="flex justify-center px-2 pt-4">
-                            <img
-                              alt={`Preview of ${file.name}`}
-                              className="max-h-32 rounded object-contain"
-                              src={URL.createObjectURL(file)}
-                            />
-                          </div>
-                        </button>
-                      )}
-                    </SortableGrid>
-                  </div>
-                ) : null}
-              </section>
-            }
-          />
+          <PostFormFields terms={terms} />
           <div className="flex flex-row gap-4">
             <form.SubmitButton className="flex-1">Crear</form.SubmitButton>
             <Preview
@@ -239,7 +151,7 @@ function RouteComponent() {
                   })
                 ),
                 id: "0",
-                imageObjectKeys: selectedFiles.map(URL.createObjectURL),
+                imageObjectKeys: selectedMediaKeys,
                 likes: 0,
                 premiumLinksAccess: { status: "no_premium_links" as const },
                 terms: [
@@ -274,7 +186,7 @@ function Preview({ post }: { post: PostProps }) {
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Backdrop className="data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/10 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-xs" />
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Popup className="data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-scroll rounded-xl bg-background p-4 text-sm outline-none ring-1 ring-foreground/10 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-300 max-h-[90dvh]">
+        <DialogPrimitive.Popup className="data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid max-h-[90dvh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-scroll rounded-xl bg-background p-4 text-sm outline-none ring-1 ring-foreground/10 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-300">
           <PostPage post={post} />
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
@@ -295,23 +207,14 @@ export function parseTemplate(md: string): ParsedTemplate {
     return match ? match[1].trim() : "";
   };
 
-  // 1. CREATOR BLOCK (as-is, no separators)
   const creatorBlock = extract(/(\*\*CREADOR:[\s\S]*?\)\s*)\n\s*\n/i);
-
-  // 2. TAGS
-  const tagsRaw = extract(/\*\*GÃ‰NEROS \/ TAGS:\*\*\s*([\s\S]*?)\n\s*\n/i);
-
-  // 3. LINKS BLOCK (PC + ANDROID, headers preserved)
+  const tagsRaw = extract(/\*\*GÃƒâ€°NEROS \/ TAGS:\*\*\s*([\s\S]*?)\n\s*\n/i);
   const linksBlock = extract(
-    /(â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•\*\*\[JUEGOS PC\]\*\*â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•[\s\S]*?)\n\s*\nâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•/i
+    /(Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â\*\*\[JUEGOS PC\]\*\*Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â[\s\S]*?)\n\s*\nÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â/i
   );
-
-  // Remove decorative separators inside links block
-  const cleanedLinksBlock = linksBlock.replaceAll(/â•{5,}/g, "").trim();
-
-  // 4. LORE (between header and closing separator)
+  const cleanedLinksBlock = linksBlock.replaceAll(/Ã¢â€¢Â{5,}/g, "").trim();
   const lore = extract(
-    /\*\*SINOPSIS \/ RESUMEN \/ LORE:\s*\*\*\s*\n\s*â•+\s*\n([\s\S]*?)\n\s*â•+/i
+    /\*\*SINOPSIS \/ RESUMEN \/ LORE:\s*\*\*\s*\n\s*Ã¢â€¢Â+\s*\n([\s\S]*?)\n\s*Ã¢â€¢Â+/i
   );
 
   return {

@@ -6,6 +6,7 @@ import emoji from "./emoji";
 import engagementQuestion from "./engagement-question";
 import extras from "./extras";
 import file from "./file";
+import media from "./media";
 import patreon from "./patreon";
 import post from "./post";
 import profile from "./profile";
@@ -23,6 +24,7 @@ export const appRouter = {
   engagementQuestion,
   extras,
   file,
+  media,
   patreon,
   post,
   profile,

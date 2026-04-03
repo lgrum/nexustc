@@ -95,13 +95,9 @@ export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
 const contentBaseFields = {
   censorship: z.string(),
   documentStatus: z.enum(DOCUMENT_STATUSES),
-  files: z
-    .array(
-      z.file().mime(["image/gif", "image/jpeg", "image/png", "image/webp"])
-    )
-    .optional(),
   languages: z.array(z.string()),
   manualEngagementQuestions: manualEngagementQuestionsSchema,
+  mediaIds: z.array(z.string()),
   tags: z.array(z.string()),
   title: z
     .string()
@@ -192,22 +188,6 @@ export const chronosUpdateSchema = z.object({
   markdownContent: z.string().max(65_535),
   markdownImageKeys: z.array(z.string()).optional(),
   stickyImageKey: z.string().optional(),
-});
-
-export const contentEditImagesSchema = z.object({
-  newFiles: z
-    .array(
-      z.file().mime(["image/gif", "image/jpeg", "image/png", "image/webp"])
-    )
-    .optional(),
-  order: z.array(
-    z.discriminatedUnion("type", [
-      z.object({ key: z.string(), type: z.literal("existing") }),
-      z.object({ index: z.number().int().min(0), type: z.literal("new") }),
-    ])
-  ),
-  postId: z.string(),
-  type: z.enum(["post", "comic"]),
 });
 
 export const staticPageUpdateSchema = z.object({

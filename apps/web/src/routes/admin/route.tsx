@@ -102,6 +102,15 @@ const nav = {
     ],
     name: "Extras",
   },
+  media: {
+    links: [
+      {
+        href: "/admin/media",
+        name: "Biblioteca",
+      },
+    ],
+    name: "Media",
+  },
   posts: {
     links: [
       {
@@ -221,6 +230,9 @@ function AdminLayout() {
               </HasPermissions>
               <HasPermissions permissions={{ posts: ["create"] }}>
                 <SidebarLinks item={nav.extras} />
+              </HasPermissions>
+              <HasPermissions permissions={{ media: ["list"] }}>
+                <SidebarLinks item={nav.media} />
               </HasPermissions>
               <HasPermissions permissions={{ chronos: ["update"] }}>
                 <SidebarLinks item={nav.chronos} />

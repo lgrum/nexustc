@@ -1,27 +1,21 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { asc, eq } from "@repo/db";
 import { emoji, patron } from "@repo/db/schema/app";
-import { env } from "@repo/env";
 import { PATRON_TIER_KEYS, userMeetsTierLevel } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import z from "zod";
 
 import { permissionProcedure, publicProcedure } from "../../index";
-import { getS3Client } from "../../utils/s3";
-
-const ASSET_MAX_SIZE_BYTES = 1024 * 1024 * 2; // 2MB
+import { getManagedMediaAsset } from "../../utils/managed-media";
 
 export default {
   admin: {
     create: permissionProcedure({ emojis: ["create"] })
       .input(
         z.object({
-          assetFormat: z.string().min(1),
-          assetKey: z.string().min(1),
           displayName: z.string().min(1).max(128),
           isActive: z.boolean().default(true),
+          mediaId: z.string().min(1),
           name: z
             .string()
             .min(1)
@@ -36,7 +30,16 @@ export default {
         const logger = getLogger(ctx);
         logger?.info(`Admin: Creating emoji "${input.name}"`);
 
-        const [created] = await db.insert(emoji).values(input).returning();
+        const mediaAsset = await getManagedMediaAsset(db, input.mediaId);
+
+        const [created] = await db
+          .insert(emoji)
+          .values({
+            ...input,
+            assetFormat: mediaAsset.assetFormat,
+            assetKey: mediaAsset.assetKey,
+          })
+          .returning();
         logger?.info(`Emoji created with id: ${created?.id}`);
         return created;
       }),
@@ -68,37 +71,6 @@ export default {
         return result;
       }),
 
-    getUploadUrl: permissionProcedure({ emojis: ["create"] })
-      .input(
-        z.object({
-          contentLength: z.number().max(ASSET_MAX_SIZE_BYTES),
-          extension: z.enum(["webp", "gif"]),
-          name: z
-            .string()
-            .min(1)
-            .max(64)
-            .regex(/^\w[\w-]*$/),
-        })
-      )
-      .handler(async ({ context: { ...ctx }, input }) => {
-        const logger = getLogger(ctx);
-        const objectKey = `emojis/${input.name}.${input.extension}`;
-        logger?.info(`Generating presigned URL for emoji asset: ${objectKey}`);
-
-        const presignedUrl = await getSignedUrl(
-          getS3Client(),
-          new PutObjectCommand({
-            Bucket: env.R2_ASSETS_BUCKET_NAME,
-            ContentLength: input.contentLength,
-            ContentType: `image/${input.extension}`,
-            Key: objectKey,
-          }),
-          { expiresIn: 3600 }
-        );
-
-        return { objectKey, presignedUrl };
-      }),
-
     list: permissionProcedure({ emojis: ["list"] }).handler(
       async ({ context: { db, ...ctx } }) => {
         const logger = getLogger(ctx);
@@ -114,11 +86,10 @@ export default {
     update: permissionProcedure({ emojis: ["update"] })
       .input(
         z.object({
-          assetFormat: z.string().min(1).optional(),
-          assetKey: z.string().min(1).optional(),
           displayName: z.string().min(1).max(128).optional(),
           id: z.string(),
           isActive: z.boolean().optional(),
+          mediaId: z.string().min(1).optional(),
           name: z
             .string()
             .min(1)
@@ -134,10 +105,23 @@ export default {
         const logger = getLogger(ctx);
         logger?.info(`Admin: Updating emoji ${input.id}`);
 
-        const { id, ...data } = input;
+        const { id, mediaId, ...data } = input;
+        const managedAsset = mediaId
+          ? await getManagedMediaAsset(db, mediaId)
+          : null;
+
         const [updated] = await db
           .update(emoji)
-          .set(data)
+          .set({
+            ...data,
+            ...(managedAsset
+              ? {
+                  assetFormat: managedAsset.assetFormat,
+                  assetKey: managedAsset.assetKey,
+                  mediaId: managedAsset.id,
+                }
+              : {}),
+          })
           .where(eq(emoji.id, id))
           .returning();
         return updated;

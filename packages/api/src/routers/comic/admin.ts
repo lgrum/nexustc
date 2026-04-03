@@ -1,9 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import {
-  comicCreateSchema,
-  comicEditSchema,
-  contentEditImagesSchema,
-} from "@repo/shared/schemas";
+import { comicCreateSchema, comicEditSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure } from "../../index";
@@ -11,9 +7,8 @@ import {
   createContent,
   deleteContent,
   editContent,
-  editContentImages,
-  insertContentImages,
 } from "../../utils/content-handlers";
+import { mapPostWithMedia } from "../../utils/post-media";
 
 export default {
   create: permissionProcedure({
@@ -48,12 +43,6 @@ export default {
     .input(comicEditSchema)
     .handler(editContent),
 
-  editImages: permissionProcedure({
-    comics: ["update"],
-  })
-    .input(contentEditImagesSchema)
-    .handler(editContentImages),
-
   getDashboardList: permissionProcedure({
     comics: ["list"],
   }).handler(({ context: { db, ...ctx } }) => {
@@ -86,29 +75,30 @@ export default {
       const logger = getLogger(ctx);
       logger?.info(`Fetching comic for editing: ${input}`);
 
-      return db.query.post.findFirst({
-        where: (p, { eq: equals }) => equals(p.id, input),
-        with: {
-          engagementOverrides: {
-            orderBy: (table, { asc: ascOrder }) => [ascOrder(table.sortOrder)],
-          },
-          terms: {
-            with: {
-              term: true,
+      return db.query.post
+        .findFirst({
+          where: (p, { eq: equals }) => equals(p.id, input),
+          with: {
+            engagementOverrides: {
+              orderBy: (table, { asc: ascOrder }) => [
+                ascOrder(table.sortOrder),
+              ],
+            },
+            mediaRelations: {
+              orderBy: (table, { asc: ascOrder }) => [
+                ascOrder(table.sortOrder),
+              ],
+              with: {
+                media: true,
+              },
+            },
+            terms: {
+              with: {
+                term: true,
+              },
             },
           },
-        },
-      });
+        })
+        .then((result) => (result ? mapPostWithMedia(result) : null));
     }),
-
-  insertImages: permissionProcedure({
-    comics: ["create"],
-  })
-    .input(
-      z.object({
-        images: z.array(z.string()),
-        postId: z.string(),
-      })
-    )
-    .handler(insertContentImages),
 };
