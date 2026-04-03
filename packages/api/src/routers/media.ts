@@ -10,14 +10,10 @@ import { permissionProcedure } from "../index";
 import { optimizeImageToWebp } from "../utils/images";
 import { getS3Client } from "../utils/s3";
 
-const MEDIA_FILE_MAX_SIZE_BYTES = 1024 * 1024 * 5;
 const mediaUploadSchema = z.object({
   files: z
     .array(
-      z
-        .file()
-        .mime(["image/gif", "image/jpeg", "image/png", "image/webp"])
-        .max(MEDIA_FILE_MAX_SIZE_BYTES)
+      z.file().mime(["image/gif", "image/jpeg", "image/png", "image/webp"])
     )
     .min(1)
     .max(12),
