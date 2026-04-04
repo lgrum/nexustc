@@ -134,6 +134,13 @@
       "when": 1775178611574,
       "tag": "0018_whole_blizzard",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1775189892431,
+      "tag": "0019_workable_genesis",
+      "breakpoints": true
     }
   ]
 }

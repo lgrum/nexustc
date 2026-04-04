@@ -31,6 +31,7 @@ import { Route as DemoBRouteImport } from './routes/demo/b'
 import { Route as DemoARouteImport } from './routes/demo/a'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AdminProfileRouteImport } from './routes/admin/profile'
+import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
 import { Route as MainTutorialsRouteImport } from './routes/_main/tutorials'
 import { Route as MainTermsRouteImport } from './routes/_main/terms'
 import { Route as MainSearchRouteImport } from './routes/_main/search'
@@ -178,6 +179,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
 const AdminProfileRoute = AdminProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => AdminRouteRoute,
 } as any)
 const MainTutorialsRoute = MainTutorialsRouteImport.update({
@@ -390,6 +396,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/api/health': typeof ApiHealthRoute
   '/demo/a': typeof DemoARoute
@@ -450,6 +457,7 @@ export interface FileRoutesByTo {
   '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/api/health': typeof ApiHealthRoute
   '/demo/a': typeof DemoARoute
@@ -514,6 +522,7 @@ export interface FileRoutesById {
   '/_main/search': typeof MainSearchRoute
   '/_main/terms': typeof MainTermsRoute
   '/_main/tutorials': typeof MainTutorialsRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/api/health': typeof ApiHealthRoute
   '/demo/a': typeof DemoARoute
@@ -579,6 +588,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/terms'
     | '/tutorials'
+    | '/admin/notifications'
     | '/admin/profile'
     | '/api/health'
     | '/demo/a'
@@ -639,6 +649,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/terms'
     | '/tutorials'
+    | '/admin/notifications'
     | '/admin/profile'
     | '/api/health'
     | '/demo/a'
@@ -702,6 +713,7 @@ export interface FileRouteTypes {
     | '/_main/search'
     | '/_main/terms'
     | '/_main/tutorials'
+    | '/admin/notifications'
     | '/admin/profile'
     | '/api/health'
     | '/demo/a'
@@ -931,6 +943,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/admin/profile'
       preLoaderRoute: typeof AdminProfileRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/notifications': {
+      id: '/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminNotificationsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/_main/tutorials': {
@@ -1248,6 +1267,7 @@ const MainRouteRouteWithChildren = MainRouteRoute._addFileChildren(
 )
 
 interface AdminRouteRouteChildren {
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminProfileRoute: typeof AdminProfileRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminChronosEditRoute: typeof AdminChronosEditRoute
@@ -1276,6 +1296,7 @@ interface AdminRouteRouteChildren {
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminNotificationsRoute: AdminNotificationsRoute,
   AdminProfileRoute: AdminProfileRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminChronosEditRoute: AdminChronosEditRoute,

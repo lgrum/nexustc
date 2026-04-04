@@ -3,7 +3,13 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
 
-import * as schema from "./schema/app";
+import * as appSchema from "./schema/app";
+import * as notificationSchema from "./schema/notification";
+
+const schema = {
+  ...appSchema,
+  ...notificationSchema,
+};
 
 export const db = drizzle(env.DATABASE_URL, {
   schema,
@@ -33,10 +39,12 @@ export {
   asc,
   desc,
   eq,
+  exists,
   gt,
   gte,
   ilike,
   inArray,
+  isNull,
   like,
   lt,
   lte,
@@ -49,3 +57,5 @@ export {
 // Re-export schema
 // oxlint-disable-next-line oxc/no-barrel-file
 export * from "./schema/app";
+// oxlint-disable-next-line oxc/no-barrel-file
+export * from "./schema/notification";

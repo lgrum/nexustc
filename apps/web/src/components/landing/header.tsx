@@ -21,6 +21,7 @@ import {
   AuthDialogTrigger,
 } from "../auth/auth-dialog";
 import { Logo } from "../logo";
+import { NotificationCenter } from "../notifications/notification-center";
 import { Button } from "../ui/button";
 
 const navItems = [
@@ -69,6 +70,7 @@ export function Header() {
               <span>Admin</span>
             </Button>
           )}
+          <NotificationCenter />
           <ProfileNavItem />
         </div>
       </div>

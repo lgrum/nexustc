@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { eq } from "@repo/db";
+import { eq, sql } from "@repo/db";
 import {
   post,
   postEngagementOverride,
@@ -10,6 +10,10 @@ import type { contentCreateSchema } from "@repo/shared/schemas";
 import type { z } from "zod";
 
 import type { Context } from "../context";
+import {
+  createOrCollapseContentUpdateNotification,
+  deriveContentUpdateEvent,
+} from "../services/notification";
 import { getOrderedMediaRecords } from "./post-media";
 
 type ContentInput = z.infer<typeof contentCreateSchema>;
@@ -167,6 +171,29 @@ export async function editContent({
   logger?.info(`Editing ${contentType}: ${input.id}`);
 
   const updatedPostId = await db.transaction(async (tx) => {
+    const existingPost = await tx.query.post.findFirst({
+      columns: {
+        id: true,
+        status: true,
+        title: true,
+        type: true,
+        version: true,
+      },
+      where: eq(post.id, input.id),
+    });
+
+    if (!existingPost) {
+      logger?.error(`${contentType} not found for edit: ${input.id}`);
+      throw errors.NOT_FOUND();
+    }
+
+    const [previousMediaCountResult] = await tx
+      .select({
+        mediaCount: sql<number>`COUNT(*)::integer`,
+      })
+      .from(postMedia)
+      .where(eq(postMedia.postId, input.id));
+
     const orderedMedia = await getOrderedMediaRecords(tx, input.mediaIds);
 
     const [postData] = await tx
@@ -192,7 +219,6 @@ export async function editContent({
       .returning({ postId: post.id });
 
     if (!postData) {
-      logger?.error(`${contentType} not found for edit: ${input.id}`);
       throw errors.NOT_FOUND();
     }
 
@@ -237,6 +263,35 @@ export async function editContent({
       await tx.insert(postEngagementOverride).values(engagementOverrides);
       logger?.debug(
         `Replaced ${engagementOverrides.length} engagement overrides for ${contentType} ${postData.postId}`
+      );
+    }
+
+    const contentUpdateCandidate = deriveContentUpdateEvent({
+      next: {
+        documentStatus: input.documentStatus,
+        mediaIds: input.mediaIds,
+        title: input.title,
+        type: input.type,
+        version:
+          input.type === "post" ? input.version : (input.version ?? null),
+      },
+      previous: {
+        id: existingPost.id,
+        mediaCount: previousMediaCountResult?.mediaCount ?? 0,
+        status: existingPost.status,
+        title: existingPost.title,
+        type: existingPost.type,
+        version: existingPost.version,
+      },
+    });
+
+    if (contentUpdateCandidate) {
+      await createOrCollapseContentUpdateNotification(
+        tx,
+        contentUpdateCandidate
+      );
+      logger?.info(
+        `Generated ${contentUpdateCandidate.updateType} notification for ${contentType} ${postData.postId}`
       );
     }
 

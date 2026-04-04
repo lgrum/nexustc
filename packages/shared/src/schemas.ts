@@ -158,6 +158,47 @@ export const contentEditSchema = z.discriminatedUnion("type", [
   comicEditSchema,
 ]);
 
+export const notificationFeedSchema = z.object({
+  cursor: z.coerce.date().optional(),
+  limit: z.number().int().min(1).max(50).default(20),
+  unreadOnly: z.boolean().default(false),
+});
+
+export const notificationReadSchema = z.object({
+  notificationIds: z.array(z.string()).min(1).max(100),
+});
+
+export const contentFollowSchema = z.object({
+  contentId: z.string().min(1),
+});
+
+export const globalAnnouncementSchema = z.object({
+  description: z.string().trim().max(4096).default(""),
+  expirationAt: z.coerce.date().optional(),
+  imageObjectKey: z.string().trim().min(1).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+  title: z.string().trim().min(1).max(255),
+});
+
+export const globalAnnouncementUpdateSchema = globalAnnouncementSchema.extend({
+  id: z.string(),
+});
+
+export const newsArticleCreateSchema = z.object({
+  bannerImageObjectKey: z.string().trim().min(1).optional(),
+  body: z.string().trim().min(1).max(65_535),
+  contentId: z.string().min(1),
+  expirationAt: z.coerce.date().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+  publishedAt: z.coerce.date().optional(),
+  summary: z.string().trim().max(1024).default(""),
+  title: z.string().trim().min(1).max(255),
+});
+
+export const notificationArchiveSchema = z.object({
+  id: z.string().min(1),
+});
+
 export const ratingCreateSchema = z.object({
   postId: z.string().min(1),
   rating: z.number().int().min(1).max(10),

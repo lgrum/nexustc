@@ -18,6 +18,7 @@ import z from "zod";
 import { DiscordLogo } from "@/components/icons/discord";
 import { PatreonLogo } from "@/components/icons/patreon";
 import { AppearanceSection } from "@/components/profile/appearance-section";
+import { FollowingSection } from "@/components/profile/following-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -76,11 +77,15 @@ function RouteComponent() {
       <Tabs className="w-full" defaultValue="appearance">
         <TabsList className="w-full">
           <TabsTrigger value="appearance">Apariencia</TabsTrigger>
+          <TabsTrigger value="following">Siguiendo</TabsTrigger>
           <TabsTrigger value="account">Cuenta</TabsTrigger>
           <TabsTrigger value="password">Contraseña</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance">
           <AppearanceSection />
+        </TabsContent>
+        <TabsContent value="following">
+          <FollowingSection />
         </TabsContent>
         <TabsContent value="account">
           <AccountsSection />

@@ -111,6 +111,15 @@ const nav = {
     ],
     name: "Media",
   },
+  notifications: {
+    links: [
+      {
+        href: "/admin/notifications",
+        name: "Centro editorial",
+      },
+    ],
+    name: "Notificaciones",
+  },
   posts: {
     links: [
       {
@@ -233,6 +242,9 @@ function AdminLayout() {
               </HasPermissions>
               <HasPermissions permissions={{ media: ["list"] }}>
                 <SidebarLinks item={nav.media} />
+              </HasPermissions>
+              <HasPermissions permissions={{ notifications: ["list"] }}>
+                <SidebarLinks item={nav.notifications} />
               </HasPermissions>
               <HasPermissions permissions={{ chronos: ["update"] }}>
                 <SidebarLinks item={nav.chronos} />

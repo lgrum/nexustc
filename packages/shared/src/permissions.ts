@@ -10,6 +10,7 @@ export const statement = {
   emojis: ["create", "update", "delete", "list"],
   files: ["upload"],
   media: ["list"],
+  notifications: ["create", "update", "delete", "list"],
   posts: ["create", "update", "delete", "list"],
   ratings: ["create", "self-update", "self-delete", "delete"],
   shortener: ["use"],
@@ -46,6 +47,7 @@ const moderator = ac.newRole({
   dashboard: ["view"],
   files: ["upload"],
   media: ["list"],
+  notifications: ["create", "update", "delete", "list"],
   ratings: ["create", "self-update", "self-delete", "delete"],
 });
 
@@ -56,6 +58,7 @@ const admin = ac.newRole({
   emojis: ["create", "update", "delete", "list"],
   files: ["upload"],
   media: ["list"],
+  notifications: ["create", "update", "delete", "list"],
   posts: ["create", "list", "update", "delete"],
   ratings: ["create", "self-update", "self-delete", "delete"],
   shortener: ["use"],
@@ -72,6 +75,7 @@ const owner = ac.newRole({
   emojis: ["create", "update", "delete", "list"],
   files: ["upload"],
   media: ["list"],
+  notifications: ["create", "update", "delete", "list"],
   posts: ["create", "list", "update", "delete"],
   ratings: ["create", "self-update", "self-delete", "delete"],
   shortener: ["use"],

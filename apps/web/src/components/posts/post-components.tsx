@@ -41,6 +41,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { BookmarkButton } from "./bookmark-button";
 import { CommentSection } from "./comment-section";
 import { EngagementPromptBlock } from "./engagement-prompt-block";
+import { FollowButton } from "./follow-button";
 import { LikeButton } from "./like-button";
 import { PostProvider, usePost } from "./post-context";
 
@@ -171,7 +172,8 @@ export function PostStatsBar() {
             value={updatedAt}
           />
         </CardContent>
-        <CardFooter className="flex items-center justify-around">
+        <CardFooter className="flex flex-wrap items-center justify-center gap-2">
+          <FollowButton contentId={post.id} />
           <BookmarkButton postId={post.id} />
           <LikeButton postId={post.id} />
           <Button
@@ -236,7 +238,8 @@ export function PostActionBar() {
 
   return (
     <Card>
-      <CardContent className="flex items-center justify-around gap-2">
+      <CardContent className="flex flex-wrap items-center justify-center gap-2">
+        <FollowButton contentId={post.id} />
         <BookmarkButton postId={post.id} />
         <LikeButton postId={post.id} />
         <Button
