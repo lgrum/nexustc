@@ -32,6 +32,7 @@ import { Route as DemoARouteImport } from './routes/demo/a'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AdminProfileRouteImport } from './routes/admin/profile'
 import { Route as AdminNotificationsRouteImport } from './routes/admin/notifications'
+import { Route as MainVipRouteImport } from './routes/_main/vip'
 import { Route as MainTutorialsRouteImport } from './routes/_main/tutorials'
 import { Route as MainTermsRouteImport } from './routes/_main/terms'
 import { Route as MainSearchRouteImport } from './routes/_main/search'
@@ -185,6 +186,11 @@ const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const MainVipRoute = MainVipRouteImport.update({
+  id: '/vip',
+  path: '/vip',
+  getParentRoute: () => MainRouteRoute,
 } as any)
 const MainTutorialsRoute = MainTutorialsRouteImport.update({
   id: '/tutorials',
@@ -396,6 +402,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
+  '/vip': typeof MainVipRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/api/health': typeof ApiHealthRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByTo {
   '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
+  '/vip': typeof MainVipRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/api/health': typeof ApiHealthRoute
@@ -522,6 +530,7 @@ export interface FileRoutesById {
   '/_main/search': typeof MainSearchRoute
   '/_main/terms': typeof MainTermsRoute
   '/_main/tutorials': typeof MainTutorialsRoute
+  '/_main/vip': typeof MainVipRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/profile': typeof AdminProfileRoute
   '/api/health': typeof ApiHealthRoute
@@ -588,6 +597,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/terms'
     | '/tutorials'
+    | '/vip'
     | '/admin/notifications'
     | '/admin/profile'
     | '/api/health'
@@ -649,6 +659,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/terms'
     | '/tutorials'
+    | '/vip'
     | '/admin/notifications'
     | '/admin/profile'
     | '/api/health'
@@ -713,6 +724,7 @@ export interface FileRouteTypes {
     | '/_main/search'
     | '/_main/terms'
     | '/_main/tutorials'
+    | '/_main/vip'
     | '/admin/notifications'
     | '/admin/profile'
     | '/api/health'
@@ -951,6 +963,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/notifications'
       preLoaderRoute: typeof AdminNotificationsRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/_main/vip': {
+      id: '/_main/vip'
+      path: '/vip'
+      fullPath: '/vip'
+      preLoaderRoute: typeof MainVipRouteImport
+      parentRoute: typeof MainRouteRoute
     }
     '/_main/tutorials': {
       id: '/_main/tutorials'
@@ -1239,6 +1258,7 @@ interface MainRouteRouteChildren {
   MainSearchRoute: typeof MainSearchRoute
   MainTermsRoute: typeof MainTermsRoute
   MainTutorialsRoute: typeof MainTutorialsRoute
+  MainVipRoute: typeof MainVipRoute
   MainIndexRoute: typeof MainIndexRoute
   MainPostIdRoute: typeof MainPostIdRoute
   MainUserIdRoute: typeof MainUserIdRoute
@@ -1256,6 +1276,7 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainSearchRoute: MainSearchRoute,
   MainTermsRoute: MainTermsRoute,
   MainTutorialsRoute: MainTutorialsRoute,
+  MainVipRoute: MainVipRoute,
   MainIndexRoute: MainIndexRoute,
   MainPostIdRoute: MainPostIdRoute,
   MainUserIdRoute: MainUserIdRoute,

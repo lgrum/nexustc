@@ -1,3 +1,4 @@
+import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { postEditSchema } from "@repo/shared/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -35,6 +36,8 @@ function RouteComponent() {
       creatorLink: oldPost.creatorLink,
       creatorName: oldPost.creatorName,
       documentStatus: oldPost.status,
+      earlyAccessEnabled:
+        oldPost.earlyAccessEnabled ?? EARLY_ACCESS_DEFAULTS.enabled,
       engine: terms.engine?.[0]?.term.id ?? "",
       graphics: terms.graphics?.[0]?.term.id ?? "",
       id: oldPost.id,
@@ -48,6 +51,10 @@ function RouteComponent() {
       tags: terms.tag?.map((term) => term.term.id) ?? [],
       title: oldPost.title,
       type: "post" as const,
+      vip12EarlyAccessHours:
+        oldPost.vip12EarlyAccessHours ?? EARLY_ACCESS_DEFAULTS.vip12Hours,
+      vip8EarlyAccessHours:
+        oldPost.vip8EarlyAccessHours ?? EARLY_ACCESS_DEFAULTS.vip8Hours,
       version: oldPost.version ?? "",
     },
     onSubmit: async (formData) => {

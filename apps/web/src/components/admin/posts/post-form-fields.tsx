@@ -11,6 +11,7 @@ import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { HasPermissions } from "@/components/auth/has-role";
+import { ErrorField } from "@/components/forms/error-field";
 import { Markdown } from "@/components/markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { FieldDescription } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -71,12 +76,26 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
     (term) => term.taxonomy
   );
   const adsLinks = useStore(form.store, (state) => state.values.adsLinks);
+  const earlyAccessEnabled = useStore(
+    form.store,
+    (state) => state.values.earlyAccessEnabled
+  );
   const premiumLinks = useStore(
     form.store,
     (state) => state.values.premiumLinks
   );
+  const vip12EarlyAccessHours = useStore(
+    form.store,
+    (state) => state.values.vip12EarlyAccessHours
+  );
+  const vip8EarlyAccessHours = useStore(
+    form.store,
+    (state) => state.values.vip8EarlyAccessHours
+  );
   const [tagsContent, setTagsContent] = useState("");
   const [tagsDialogVisible, setTagsDialogVisible] = useState(false);
+  const totalEarlyAccessHours =
+    (vip12EarlyAccessHours ?? 0) + (vip8EarlyAccessHours ?? 0);
 
   const extractTags = () => {
     if (tagsContent.trim() === "") {
@@ -125,6 +144,108 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
       <form.AppField name="version">
         {(field) => <field.TextField label="Versión" placeholder="Versión" />}
       </form.AppField>
+
+      <section className="col-span-2 rounded-[28px] border border-amber-500/25 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(251,191,36,0.18),transparent_40%),rgba(15,23,42,0.72)] p-5 shadow-[0_24px_80px_-52px_rgba(251,191,36,0.85)]">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <div className="inline-flex items-center rounded-full border border-amber-300/25 bg-black/20 px-3 py-1 font-semibold text-[11px] text-amber-200 uppercase tracking-[0.24em]">
+                VIP Early Access
+              </div>
+              <div className="space-y-1">
+                <h2 className="font-[Lexend] font-bold text-white text-xl">
+                  Estreno escalonado por defecto
+                </h2>
+                <p className="max-w-2xl text-amber-50/80 text-sm leading-relaxed">
+                  Cada juego nuevo pasa primero por VIP 12, luego VIP 8 y al
+                  final sale para todos. Si esta publicación necesita otra
+                  lógica, puedes ajustar la ventana sin tocar nada más.
+                </p>
+              </div>
+            </div>
+
+            <form.AppField name="earlyAccessEnabled">
+              {(field) => (
+                <div className="flex items-center justify-between gap-3 rounded-full border border-white/10 bg-white/8 px-4 py-2 backdrop-blur">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-sm text-white">
+                      Enable Early Access
+                    </span>
+                    <span className="text-[11px] text-amber-100/70">
+                      ON por defecto
+                    </span>
+                  </div>
+                  <Switch
+                    checked={field.state.value}
+                    onCheckedChange={(value) => field.handleChange(value)}
+                  />
+                </div>
+              )}
+            </form.AppField>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <form.AppField name="vip12EarlyAccessHours">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>Ventana VIP 12 (horas)</Label>
+                  <Input
+                    disabled={!earlyAccessEnabled}
+                    id={field.name}
+                    min={0}
+                    onChange={(event) =>
+                      field.handleChange(Number(event.target.value) || 0)
+                    }
+                    step={1}
+                    type="number"
+                    value={String(field.state.value ?? 0)}
+                  />
+                  <FieldDescription>
+                    Solo VIP 12 puede entrar primero cuando el post abre.
+                  </FieldDescription>
+                  <ErrorField field={field} />
+                </div>
+              )}
+            </form.AppField>
+
+            <form.AppField name="vip8EarlyAccessHours">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>Ventana VIP 8 (horas)</Label>
+                  <Input
+                    disabled={!earlyAccessEnabled}
+                    id={field.name}
+                    min={0}
+                    onChange={(event) =>
+                      field.handleChange(Number(event.target.value) || 0)
+                    }
+                    step={1}
+                    type="number"
+                    value={String(field.state.value ?? 0)}
+                  />
+                  <FieldDescription>
+                    Después de VIP 12, el acceso se amplía a VIP 8.
+                  </FieldDescription>
+                  <ErrorField field={field} />
+                </div>
+              )}
+            </form.AppField>
+
+            <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="font-medium text-[11px] text-amber-200 uppercase tracking-[0.22em]">
+                Salida pública
+              </div>
+              <div className="mt-2 font-[Lexend] font-bold text-3xl text-white">
+                {totalEarlyAccessHours}h
+              </div>
+              <p className="mt-2 max-w-48 text-amber-50/75 text-sm leading-relaxed">
+                Este contenido quedará libre para todos tras{" "}
+                {totalEarlyAccessHours} horas desde su primera publicación.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="col-span-2 flex flex-row gap-4">
         <div className="flex-1 space-y-4">

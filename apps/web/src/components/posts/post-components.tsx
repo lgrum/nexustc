@@ -2,6 +2,7 @@ import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
   Calendar03Icon,
+  Clock01Icon,
   Download04Icon,
   FavouriteCircleIcon,
   Share08Icon,
@@ -15,10 +16,11 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { TermBadge } from "@/components/term-badge";
+import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
 import type { PostType } from "@/lib/types";
 import { getBucketUrl } from "@/lib/utils";
@@ -33,6 +35,14 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import type { CarouselApi } from "../ui/carousel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 import { ImageViewer } from "../ui/image-viewer";
 import { ShinyButton } from "../ui/shiny-button";
 import { Skeleton } from "../ui/skeleton";
@@ -51,35 +61,50 @@ export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
 };
 
 export function PostPage({ post }: { post: PostProps }) {
+  const showRestrictedView = post.earlyAccess.isRestrictedView;
+  const showComments = !post.earlyAccess.hideComments;
+  const showCreatorSupport = !post.earlyAccess.hideCreatorSupport;
+
   return (
     <PostProvider post={post}>
       <div className="relative flex gap-6 pb-6">
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
           <PostHero />
+          <EarlyAccessStatusBanner />
           <PostStatsBar />
           <div className="flex flex-col gap-4 px-4 pt-4">
             <PostCarousel />
-            <PostContent />
             <PostInfo />
-            <PostTagsSection />
-            <PostChangelog />
-            <div className="md:hidden">
-              <CreatorSupportCard />
-            </div>
-            <EngagementPromptBlock prompts={post.engagementPrompts} />
-            <CommentSection />
+            <PostContent />
+            {!showRestrictedView && <PostTagsSection />}
+            {!showRestrictedView && <PostChangelog />}
+            {showCreatorSupport && (
+              <div className="md:hidden">
+                <CreatorSupportCard />
+              </div>
+            )}
+            {!showRestrictedView && (
+              <EngagementPromptBlock prompts={post.engagementPrompts} />
+            )}
+            {showComments && <CommentSection />}
             <TutorialsSection />
             <DiscordSection />
-            <div className="md:hidden">
-              <RelatedGamesSection />
-            </div>
+            {!showRestrictedView && (
+              <div className="md:hidden">
+                <RelatedGamesSection />
+              </div>
+            )}
           </div>
         </div>
         {/* Sidebar — desktop only */}
         <aside className="hidden w-72 shrink-0 pt-4 pr-4 md:block">
           <div className="sticky top-22 flex flex-col gap-4">
-            <PostSidebarContent />
+            {showRestrictedView ? (
+              <EarlyAccessSidebarCard />
+            ) : (
+              <PostSidebarContent />
+            )}
           </div>
         </aside>
       </div>
@@ -159,13 +184,15 @@ export function PostStatsBar() {
             label="Me gusta"
             value={String(post.likes)}
           />
-          {post.ratingCount !== undefined && post.ratingCount > 0 && (
-            <PostStat
-              color="text-primary"
-              label="Rating"
-              value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
-            />
-          )}
+          {!post.earlyAccess.isActive &&
+            post.ratingCount !== undefined &&
+            post.ratingCount > 0 && (
+              <PostStat
+                color="text-primary"
+                label="Rating"
+                value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
+              />
+            )}
           <PostStat
             color="text-secondary"
             label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
@@ -176,17 +203,19 @@ export function PostStatsBar() {
           <FollowButton contentId={post.id} />
           <BookmarkButton postId={post.id} />
           <LikeButton postId={post.id} />
-          <Button
-            className="border-yellow-600 bg-yellow-600/30 text-white"
-            nativeButton={false}
-            render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
-          >
-            <RatingDisplay
-              averageRating={post.averageRating ?? 0}
-              ratingCount={post.ratingCount}
-              variant="compact"
-            />
-          </Button>
+          {!post.earlyAccess.isActive && (
+            <Button
+              className="border-yellow-600 bg-yellow-600/30 text-white"
+              nativeButton={false}
+              render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
+            >
+              <RatingDisplay
+                averageRating={post.averageRating ?? 0}
+                ratingCount={post.ratingCount}
+                variant="compact"
+              />
+            </Button>
+          )}
           <Tooltip>
             <TooltipTrigger
               onClick={handleShare}
@@ -242,17 +271,19 @@ export function PostActionBar() {
         <FollowButton contentId={post.id} />
         <BookmarkButton postId={post.id} />
         <LikeButton postId={post.id} />
-        <Button
-          className="border-yellow-600 bg-yellow-600/30 text-white"
-          nativeButton={false}
-          render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
-        >
-          <RatingDisplay
-            averageRating={post.averageRating ?? 0}
-            ratingCount={post.ratingCount}
-            variant="compact"
-          />
-        </Button>
+        {!post.earlyAccess.isActive && (
+          <Button
+            className="border-yellow-600 bg-yellow-600/30 text-white"
+            nativeButton={false}
+            render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
+          >
+            <RatingDisplay
+              averageRating={post.averageRating ?? 0}
+              ratingCount={post.ratingCount}
+              variant="compact"
+            />
+          </Button>
+        )}
         <Tooltip>
           <TooltipTrigger
             className="border-green-600 bg-green-600/30 text-white"
@@ -271,6 +302,275 @@ export function PostActionBar() {
         </Tooltip>
       </CardContent>
     </Card>
+  );
+}
+
+function useCountdown(targetAt: Date | null) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!targetAt) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [targetAt]);
+
+  if (!targetAt) {
+    return null;
+  }
+
+  const remainingMs = Math.max(targetAt.getTime() - now, 0);
+  const totalSeconds = Math.floor(remainingMs / 1000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return { days, hours, minutes, seconds };
+}
+
+function CountdownCluster({
+  label,
+  targetAt,
+}: {
+  label: string;
+  targetAt: Date | null;
+}) {
+  const countdown = useCountdown(targetAt);
+
+  if (!countdown) {
+    return null;
+  }
+
+  const segments = [
+    { label: "D", value: countdown.days },
+    { label: "H", value: countdown.hours },
+    { label: "M", value: countdown.minutes },
+    { label: "S", value: countdown.seconds },
+  ];
+
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="mb-3 flex items-center gap-2 text-amber-100/80 text-xs uppercase tracking-[0.22em]">
+        <HugeiconsIcon className="size-3.5" icon={Clock01Icon} />
+        {label}
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {segments.map((segment) => (
+          <div
+            className="rounded-xl border border-white/8 bg-white/6 px-2 py-3 text-center"
+            key={segment.label}
+          >
+            <div className="font-[Lexend] font-bold text-2xl text-white">
+              {String(segment.value).padStart(2, "0")}
+            </div>
+            <div className="mt-1 text-[10px] text-white/55 uppercase tracking-[0.24em]">
+              {segment.label}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function formatVipPhaseLabel(post: PostProps): string {
+  if (post.earlyAccess.currentState === "VIP12_ONLY") {
+    return "VIP 12 exclusivo";
+  }
+
+  if (post.earlyAccess.currentState === "VIP8_ONLY") {
+    return "VIP 8 desbloqueado";
+  }
+
+  return "Publicado";
+}
+
+function EarlyAccessStatusBanner() {
+  const post = usePost();
+
+  if (!post.earlyAccess.isActive) {
+    return null;
+  }
+
+  return (
+    <section className="px-4 pt-4">
+      <div className="overflow-hidden rounded-[32px] border border-amber-400/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(33,14,45,0.92))] p-5 shadow-[0_32px_100px_-56px_rgba(251,191,36,0.95)]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="border-amber-300/20 bg-amber-300/10 text-amber-100 hover:bg-amber-300/10">
+                {formatVipPhaseLabel(post)}
+              </Badge>
+              <Badge className="border-white/10 bg-white/8 text-white/85 hover:bg-white/8">
+                Sale en abierto al terminar la cuenta
+              </Badge>
+            </div>
+
+            <div className="space-y-2">
+              <p className="font-[Lexend] font-bold text-2xl text-white leading-tight">
+                {post.earlyAccess.viewerCanAccess
+                  ? "Tu cuenta ya entra en esta fase temprana."
+                  : `Ahora mismo esta entrega pide ${post.earlyAccess.requiredTierLabel ?? "VIP"}.`}
+              </p>
+              <p className="max-w-2xl text-sm text-white/72 leading-relaxed">
+                Esto se vende como tiempo, no como bloqueo permanente: las
+                capturas y la sinopsis quedan visibles para generar deseo, y el
+                acceso completo se libera para todos al terminar el Early
+                Access.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <CountdownCluster
+              label="Cierra la fase actual"
+              targetAt={post.earlyAccess.currentPhaseEndsAt}
+            />
+            <CountdownCluster
+              label="Apertura pública"
+              targetAt={post.earlyAccess.publicReleaseAt}
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function EarlyAccessSidebarCard() {
+  const post = usePost();
+
+  if (!post.earlyAccess.isActive) {
+    return null;
+  }
+
+  return (
+    <Card className="overflow-hidden border-amber-400/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.14),rgba(17,24,39,0.92))] p-0">
+      <CardContent className="space-y-4 p-4">
+        <div className="space-y-2">
+          <div className="text-amber-100/75 text-xs uppercase tracking-[0.28em]">
+            VIP Window
+          </div>
+          <div className="font-[Lexend] font-bold text-xl text-white">
+            {post.earlyAccess.requiredTierLabel
+              ? `${post.earlyAccess.requiredTierLabel} primero`
+              : "Liberado"}
+          </div>
+          <p className="text-sm text-white/70 leading-relaxed">
+            El nombre completo, links y social proof se protegen durante esta
+            fase para mantener la curiosidad dentro de NeXusTC.
+          </p>
+        </div>
+
+        <CountdownCluster
+          label="Público en"
+          targetAt={post.earlyAccess.publicReleaseAt}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+function EarlyAccessDownloadGate() {
+  const post = usePost();
+  const { data: session } = authClient.useSession();
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  if (!post.earlyAccess.isActive) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="section-title">Descargas</div>
+      <Card className="overflow-hidden border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_42%),rgba(15,23,42,0.92)]">
+        <CardContent className="space-y-4 p-6">
+          <div className="space-y-2">
+            <Badge className="border-amber-300/20 bg-amber-300/10 text-amber-100 hover:bg-amber-300/10">
+              {post.earlyAccess.requiredTierLabel ?? "VIP"} requerido ahora
+            </Badge>
+            <h3 className="font-[Lexend] font-bold text-2xl text-white">
+              Puedes mirar todo lo que quieras. El archivo llega primero a VIP.
+            </h3>
+            <p className="max-w-2xl text-sm text-white/70 leading-relaxed">
+              Así la presión se siente temporal, no punitiva: pagas por jugar
+              antes, no por acceso permanente. Cuando la cuenta termine, este
+              mismo post quedará libre para todos.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <CountdownCluster
+              label="Fase actual"
+              targetAt={post.earlyAccess.currentPhaseEndsAt}
+            />
+            <CountdownCluster
+              label="Público en"
+              targetAt={post.earlyAccess.publicReleaseAt}
+            />
+          </div>
+
+          <Button
+            className="h-12 rounded-full bg-amber-400 text-slate-950 hover:bg-amber-300"
+            onClick={() => setDialogOpen(true)}
+            type="button"
+          >
+            <HugeiconsIcon className="size-4" icon={Download04Icon} />
+            Descargar en Early Access
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog onOpenChange={setDialogOpen} open={dialogOpen}>
+        <DialogContent className="max-w-xl overflow-hidden border border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_42%),rgba(15,23,42,0.98)] text-white">
+          <DialogHeader>
+            <DialogTitle className="font-[Lexend] text-2xl text-white">
+              Esta descarga abre primero para{" "}
+              {post.earlyAccess.requiredTierLabel ?? "VIP"}
+            </DialogTitle>
+            <DialogDescription className="text-white/72">
+              Puedes esperar al lanzamiento público o subir de nivel ahora
+              mismo. El contenido no desaparece: solo cambia cuándo se libera
+              para ti.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <CountdownCluster
+              label="Fase actual"
+              targetAt={post.earlyAccess.currentPhaseEndsAt}
+            />
+            <CountdownCluster
+              label="Se libera para todos"
+              targetAt={post.earlyAccess.publicReleaseAt}
+            />
+          </div>
+
+          <DialogFooter className="bg-white/5">
+            {session?.session ? (
+              <Button nativeButton={false} render={<Link to="/profile" />}>
+                Mejorar ahora
+              </Button>
+            ) : (
+              <Button nativeButton={false} render={<Link to="/auth" />}>
+                Mejorar ahora
+              </Button>
+            )}
+            <Button onClick={() => setDialogOpen(false)} variant="outline">
+              Esperar al lanzamiento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 
@@ -467,9 +767,14 @@ export function PostContent() {
   const hasDownloadLinks = !!post.adsLinks;
   const hasChangelog = !!post.changelog;
   const hasPremium = post.premiumLinksAccess.status !== "no_premium_links";
+  const hasAnyDownloadSurface = hasDownloadLinks || hasPremium;
 
   if (!(hasDownloadLinks || hasChangelog || hasPremium)) {
     return null;
+  }
+
+  if (post.earlyAccess.isActive && !post.earlyAccess.viewerCanAccess) {
+    return hasAnyDownloadSurface ? <EarlyAccessDownloadGate /> : null;
   }
 
   const defaultTab =
@@ -657,7 +962,7 @@ export function DiscordSection() {
 export function CreatorSupportCard() {
   const post = usePost();
   const hasCreator = !!post.creatorName || !!post.creatorLink;
-  if (!hasCreator) {
+  if (post.earlyAccess.hideCreatorSupport || !hasCreator) {
     return null;
   }
 

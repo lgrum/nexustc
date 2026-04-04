@@ -202,6 +202,18 @@ export const post = pgTable(
     content: text("content").notNull().default(""),
     creatorLink: text("creator_link").notNull().default(""),
     creatorName: text("creator_name").notNull().default(""),
+    earlyAccessEnabled: boolean("early_access_enabled")
+      .notNull()
+      .default(false),
+    earlyAccessPublicAt: timestamp("early_access_public_at", {
+      withTimezone: true,
+    }),
+    earlyAccessStartedAt: timestamp("early_access_started_at", {
+      withTimezone: true,
+    }),
+    earlyAccessVip12EndsAt: timestamp("early_access_vip12_ends_at", {
+      withTimezone: true,
+    }),
     id: text("id").primaryKey().$defaultFn(generateId),
     imageObjectKeys: jsonb("image_object_keys").$type<string[]>(),
     isWeekly: boolean("is_weekly").notNull().default(false),
@@ -209,11 +221,24 @@ export const post = pgTable(
     status: documentStatusEnum("status").notNull().default("draft"),
     title: text("title").notNull(),
     type: postTypeEnum("type").notNull().default("post"),
+    vip12EarlyAccessHours: integer("vip12_early_access_hours")
+      .notNull()
+      .default(24),
+    vip8EarlyAccessHours: integer("vip8_early_access_hours")
+      .notNull()
+      .default(48),
     version: text("version"),
     views: integer("views").notNull().default(0),
     ...timestamps,
   },
   (table) => [
+    index("post_status_type_early_access_idx").on(
+      table.status,
+      table.type,
+      table.earlyAccessPublicAt
+    ),
+    index("post_early_access_enabled_idx").on(table.earlyAccessEnabled),
+    index("post_early_access_public_at_idx").on(table.earlyAccessPublicAt),
     index("post_title_gin_idx").using("gin", table.title.op("gin_trgm_ops")),
     index("post_status_idx").on(table.status),
     index("post_created_at_idx").on(table.createdAt),

@@ -4,22 +4,69 @@ import { post, postRating } from "@repo/db/schema/app";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
 
+import type { Context } from "../context";
 import {
   permissionProcedure,
   protectedProcedure,
   publicProcedure,
 } from "../index";
 import { buildProfileSummaries } from "../services/profile";
+import {
+  getPostEarlyAccessView,
+  getViewerPatronTier,
+  publicCatalogVisibilityCondition,
+} from "../utils/early-access";
+
+async function assertRatingsAreOpen(params: {
+  db: Context["db"];
+  errors: {
+    FORBIDDEN: () => Error;
+    NOT_FOUND: () => Error;
+  };
+  postId: string;
+  session: Context["session"];
+}) {
+  const targetPost = await params.db.query.post.findFirst({
+    columns: {
+      earlyAccessEnabled: true,
+      earlyAccessStartedAt: true,
+      type: true,
+      vip12EarlyAccessHours: true,
+      vip8EarlyAccessHours: true,
+    },
+    where: eq(post.id, params.postId),
+  });
+
+  if (!targetPost) {
+    throw params.errors.NOT_FOUND();
+  }
+
+  const viewerTier = await getViewerPatronTier(params.db, params.session);
+  const earlyAccess = getPostEarlyAccessView(targetPost, {
+    role: params.session?.user.role,
+    tier: viewerTier,
+  });
+
+  if (earlyAccess.isActive) {
+    throw params.errors.FORBIDDEN();
+  }
+}
 
 export default {
   // Create or update a rating (upsert)
   create: protectedProcedure
     .input(ratingCreateSchema)
-    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `User ${session.user.id} creating/updating rating for post ${input.postId}: ${input.rating} stars`
       );
+      await assertRatingsAreOpen({
+        db,
+        errors,
+        postId: input.postId,
+        session,
+      });
 
       await db
         .insert(postRating)
@@ -47,11 +94,17 @@ export default {
   // Update own rating
   update: protectedProcedure
     .input(ratingUpdateSchema)
-    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `User ${session.user.id} updating rating for post ${input.postId}: ${input.rating} stars`
       );
+      await assertRatingsAreOpen({
+        db,
+        errors,
+        postId: input.postId,
+        session,
+      });
 
       await db
         .update(postRating)
@@ -76,11 +129,17 @@ export default {
   // Delete own rating
   delete: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `User ${session.user.id} deleting rating for post ${input.postId}`
       );
+      await assertRatingsAreOpen({
+        db,
+        errors,
+        postId: input.postId,
+        session,
+      });
 
       await db
         .delete(postRating)
@@ -124,9 +183,15 @@ export default {
   // Get all ratings for a post
   getByPostId: publicProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
       logger?.info(`Fetching all ratings for post: ${input.postId}`);
+      await assertRatingsAreOpen({
+        db,
+        errors,
+        postId: input.postId,
+        session,
+      });
 
       const ratings = await db
         .select({
@@ -176,7 +241,9 @@ export default {
         })
         .from(postRating)
         .innerJoin(post, eq(post.id, postRating.postId))
-        .where(eq(post.status, "publish"))
+        .where(
+          and(eq(post.status, "publish"), publicCatalogVisibilityCondition())
+        )
         .orderBy(desc(postRating.createdAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -235,7 +302,11 @@ export default {
         .from(postRating)
         .innerJoin(post, eq(post.id, postRating.postId))
         .where(
-          and(eq(postRating.userId, input.userId), eq(post.status, "publish"))
+          and(
+            eq(postRating.userId, input.userId),
+            eq(post.status, "publish"),
+            publicCatalogVisibilityCondition()
+          )
         )
         .orderBy(desc(postRating.createdAt))
         .limit(input.limit)
@@ -270,13 +341,19 @@ export default {
   // Get current user's rating for a post
   getUserRating: publicProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
 
       if (!session?.user) {
         logger?.debug("User not authenticated, cannot fetch user rating");
         return null;
       }
+      await assertRatingsAreOpen({
+        db,
+        errors,
+        postId: input.postId,
+        session,
+      });
 
       logger?.info(
         `Fetching user ${session.user.id} rating for post ${input.postId}`
@@ -316,9 +393,15 @@ export default {
   // Get rating stats for a post (average and count)
   getStats: publicProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
       logger?.info(`Fetching rating stats for post: ${input.postId}`);
+      await assertRatingsAreOpen({
+        db,
+        errors,
+        postId: input.postId,
+        session,
+      });
 
       const result = await db
         .select({

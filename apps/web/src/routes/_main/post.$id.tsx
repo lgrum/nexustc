@@ -1,10 +1,12 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
+import { useEffect } from "react";
 import z from "zod";
 
 import { ComicPage } from "@/components/posts/comic-page";
 import { PostPage } from "@/components/posts/post-components";
-import { safeOrpcClient } from "@/lib/orpc";
+import { orpcClient, safeOrpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
 const comicPageSchema = z.object({
@@ -42,7 +44,9 @@ export const Route = createFileRoute("/_main/post/$id")({
         media: loaderData?.imageObjectKeys?.[0]
           ? getBucketUrl(loaderData?.imageObjectKeys?.[0])
           : undefined,
-        title: `NeXusTC - ${loaderData ? loaderData.title : "Post"}`,
+        title: loaderData?.earlyAccess.isRestrictedView
+          ? "NeXusTC - VIP Early Access"
+          : `NeXusTC - ${loaderData ? loaderData.title : "Post"}`,
       },
     ],
   }),
@@ -50,7 +54,36 @@ export const Route = createFileRoute("/_main/post/$id")({
 });
 
 function RouteComponent() {
-  const post = Route.useLoaderData();
+  const initialPost = Route.useLoaderData();
+  const { id } = Route.useParams();
+  const { data: post = initialPost, refetch } = useQuery({
+    initialData: initialPost,
+    queryFn: () => orpcClient.post.getPostById(id),
+    queryKey: ["post", id],
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (!(post.earlyAccess.isActive && post.earlyAccess.currentPhaseEndsAt)) {
+      return;
+    }
+
+    const msUntilTransition = Math.max(
+      post.earlyAccess.currentPhaseEndsAt.getTime() - Date.now(),
+      0
+    );
+    const timer = window.setTimeout(async () => {
+      try {
+        await refetch();
+      } catch {
+        // Ignore transient refresh failures at phase boundaries.
+      }
+    }, msUntilTransition + 1000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [post.earlyAccess.currentPhaseEndsAt, post.earlyAccess.isActive, refetch]);
 
   return (
     <main className="w-full">

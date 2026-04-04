@@ -1,5 +1,10 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
+import {
+  buildEarlyAccessSchedule,
+  EARLY_ACCESS_DEFAULTS,
+  getEarlyAccessView,
+} from "@repo/shared/early-access";
 import { postCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -35,6 +40,7 @@ function RouteComponent() {
       creatorLink: "",
       creatorName: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
+      earlyAccessEnabled: Boolean(EARLY_ACCESS_DEFAULTS.enabled),
       engine: "",
       graphics: "",
       languages: [] as string[],
@@ -46,6 +52,8 @@ function RouteComponent() {
       tags: [] as string[],
       title: "",
       type: "post" as const,
+      vip12EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip12Hours),
+      vip8EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip8Hours),
       version: "",
     },
     onSubmit: async (formData) => {
@@ -84,6 +92,16 @@ function RouteComponent() {
   const selectedMediaKeys = post.mediaIds
     .map((mediaId) => mediaMap.get(mediaId)?.objectKey)
     .filter((objectKey): objectKey is string => objectKey !== undefined);
+  const previewEarlyAccess = getEarlyAccessView({
+    role: "admin",
+    schedule: buildEarlyAccessSchedule({
+      enabled: post.earlyAccessEnabled,
+      startedAt: post.documentStatus === "publish" ? new Date() : null,
+      vip12Hours: post.vip12EarlyAccessHours,
+      vip8Hours: post.vip8EarlyAccessHours,
+    }),
+    viewerTier: "level69",
+  });
 
   const extractTemplate = async () => {
     try {
@@ -142,6 +160,7 @@ function RouteComponent() {
               post={{
                 ...post,
                 createdAt: new Date(),
+                earlyAccess: previewEarlyAccess,
                 engagementPrompts: post.manualEngagementQuestions.map(
                   (text, index) => ({
                     id: `preview-${index}`,
@@ -201,20 +220,32 @@ type ParsedTemplate = {
   lore: string;
 };
 
+const TEMPLATE_SEPARATOR_PATTERN = String.raw`[^\S\r\n]*[^A-Za-z0-9\s]{5,}[^\S\r\n]*`;
+
 export function parseTemplate(md: string): ParsedTemplate {
   const extract = (regex: RegExp): string => {
     const match = md.match(regex);
     return match ? match[1].trim() : "";
   };
 
-  const creatorBlock = extract(/(\*\*CREADOR:[\s\S]*?\)\s*)\n\s*\n/i);
-  const tagsRaw = extract(/\*\*GÃƒâ€°NEROS \/ TAGS:\*\*\s*([\s\S]*?)\n\s*\n/i);
-  const linksBlock = extract(
-    /(Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â\*\*\[JUEGOS PC\]\*\*Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â[\s\S]*?)\n\s*\nÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â/i
+  const creatorBlock = extract(/(\*\*CREADOR:[\s\S]*?\)\s*)(?:\r?\n){2}/i);
+  const tagsRaw = extract(
+    /\*\*(?:GÉNEROS|GENEROS) \/ TAGS:\*\*\s*([\s\S]*?)(?=(?:\r?\n){2}|$)/i
   );
-  const cleanedLinksBlock = linksBlock.replaceAll(/Ã¢â€¢Â{5,}/g, "").trim();
+  const linksBlock = extract(
+    new RegExp(
+      String.raw`(?:${TEMPLATE_SEPARATOR_PATTERN}\r?\n)?(\*\*\[JUEGOS PC\]\*\*[\s\S]*?)(?=\r?\n${TEMPLATE_SEPARATOR_PATTERN}(?:\r?\n|$)|$)`,
+      "i"
+    )
+  );
+  const cleanedLinksBlock = linksBlock
+    .replaceAll(new RegExp(TEMPLATE_SEPARATOR_PATTERN, "g"), "")
+    .trim();
   const lore = extract(
-    /\*\*SINOPSIS \/ RESUMEN \/ LORE:\s*\*\*\s*\n\s*Ã¢â€¢Â+\s*\n([\s\S]*?)\n\s*Ã¢â€¢Â+/i
+    new RegExp(
+      String.raw`\*\*SINOPSIS \/ RESUMEN \/ LORE:\*\*\s*(?:\r?\n${TEMPLATE_SEPARATOR_PATTERN})?\r?\n([\s\S]*?)(?=\r?\n${TEMPLATE_SEPARATOR_PATTERN}(?:\r?\n|$)|(?:\r?\n){2}|$)`,
+      "i"
+    )
   );
 
   return {

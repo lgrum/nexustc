@@ -14,6 +14,7 @@ import {
   createOrCollapseContentUpdateNotification,
   deriveContentUpdateEvent,
 } from "../services/notification";
+import { resolveEarlyAccessStorageFields } from "./early-access";
 import { getOrderedMediaRecords } from "./post-media";
 
 type ContentInput = z.infer<typeof contentCreateSchema>;
@@ -77,6 +78,20 @@ export async function createContent({
     logger?.info(`Starting transaction for ${contentType} creation`);
 
     const orderedMedia = await getOrderedMediaRecords(tx, input.mediaIds);
+    const earlyAccessFields =
+      input.type === "post"
+        ? resolveEarlyAccessStorageFields({
+            documentStatus: input.documentStatus,
+            enabled: input.earlyAccessEnabled,
+            vip12Hours: input.vip12EarlyAccessHours,
+            vip8Hours: input.vip8EarlyAccessHours,
+          })
+        : resolveEarlyAccessStorageFields({
+            documentStatus: input.documentStatus,
+            enabled: false,
+            vip12Hours: 0,
+            vip8Hours: 0,
+          });
 
     const [postData] = await tx
       .insert(post)
@@ -89,6 +104,7 @@ export async function createContent({
         content: input.type === "post" ? input.content : (input.content ?? ""),
         creatorLink: input.creatorLink ?? "",
         creatorName: input.creatorName ?? "",
+        ...earlyAccessFields,
         imageObjectKeys: orderedMedia.map((item) => item.objectKey),
         isWeekly: false,
         premiumLinks:
@@ -173,6 +189,7 @@ export async function editContent({
   const updatedPostId = await db.transaction(async (tx) => {
     const existingPost = await tx.query.post.findFirst({
       columns: {
+        earlyAccessStartedAt: true,
         id: true,
         status: true,
         title: true,
@@ -195,6 +212,22 @@ export async function editContent({
       .where(eq(postMedia.postId, input.id));
 
     const orderedMedia = await getOrderedMediaRecords(tx, input.mediaIds);
+    const earlyAccessFields =
+      input.type === "post"
+        ? resolveEarlyAccessStorageFields({
+            documentStatus: input.documentStatus,
+            enabled: input.earlyAccessEnabled,
+            existingStartedAt: existingPost.earlyAccessStartedAt,
+            vip12Hours: input.vip12EarlyAccessHours,
+            vip8Hours: input.vip8EarlyAccessHours,
+          })
+        : resolveEarlyAccessStorageFields({
+            documentStatus: input.documentStatus,
+            enabled: false,
+            existingStartedAt: existingPost.earlyAccessStartedAt,
+            vip12Hours: 0,
+            vip8Hours: 0,
+          });
 
     const [postData] = await tx
       .update(post)
@@ -206,6 +239,7 @@ export async function editContent({
         content: input.type === "post" ? input.content : (input.content ?? ""),
         creatorLink: input.creatorLink ?? "",
         creatorName: input.creatorName ?? "",
+        ...earlyAccessFields,
         imageObjectKeys: orderedMedia.map((item) => item.objectKey),
         premiumLinks:
           input.type === "post"

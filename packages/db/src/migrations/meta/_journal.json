@@ -141,6 +141,13 @@
       "when": 1775189892431,
       "tag": "0019_workable_genesis",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1775268493028,
+      "tag": "0020_striped_nuke",
+      "breakpoints": true
     }
   ]
 }

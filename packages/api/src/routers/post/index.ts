@@ -3,7 +3,6 @@ import { and, asc, desc, eq, getRedis, ne, sql } from "@repo/db";
 import {
   comment,
   featuredPost,
-  patron,
   post,
   postBookmark,
   postLikes,
@@ -21,6 +20,7 @@ import type {
   PatronTier,
   PremiumLinksDescriptor,
 } from "@repo/shared/constants";
+import { getMaskedPostLabel } from "@repo/shared/early-access";
 import { parseTokens, validateTokenLimit } from "@repo/shared/token-parser";
 import z from "zod";
 
@@ -30,6 +30,12 @@ import {
   publicProcedure,
 } from "../../index";
 import { buildProfileSummaries } from "../../services/profile";
+import {
+  activeVipCatalogCondition,
+  getPostEarlyAccessView,
+  getViewerPatronTier,
+  publicCatalogVisibilityCondition,
+} from "../../utils/early-access";
 import { resolveEngagementPrompts } from "../../utils/engagement-prompts";
 import admin from "./admin";
 
@@ -94,7 +100,13 @@ export default {
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
-        .where(and(eq(post.status, "publish"), eq(post.type, "post")))
+        .where(
+          and(
+            eq(post.status, "publish"),
+            eq(post.type, "post"),
+            publicCatalogVisibilityCondition()
+          )
+        )
         .orderBy(desc(post.createdAt))
         .limit(input.limit);
 
@@ -160,7 +172,13 @@ export default {
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
-        .where(and(eq(post.status, "publish"), eq(post.isWeekly, true)))
+        .where(
+          and(
+            eq(post.status, "publish"),
+            eq(post.isWeekly, true),
+            publicCatalogVisibilityCondition()
+          )
+        )
         .orderBy(asc(post.title));
 
       logger?.debug(`Successfully fetched ${posts.length} weekly posts`);
@@ -234,7 +252,9 @@ export default {
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
-        .where(eq(post.status, "publish"))
+        .where(
+          and(eq(post.status, "publish"), publicCatalogVisibilityCondition())
+        )
         .orderBy(
           sql`CASE WHEN ${featuredPost.position} = 'main' THEN 0 ELSE 1 END`,
           featuredPost.order
@@ -326,6 +346,7 @@ export default {
       const conditions = [
         eq(post.status, "publish"),
         eq(post.type, input.type),
+        publicCatalogVisibilityCondition(),
       ];
 
       // Add search filter combining exact substring match (ILIKE) and fuzzy match (pg_trgm)
@@ -453,7 +474,13 @@ export default {
       const result = await db
         .select({ id: post.id })
         .from(post)
-        .where(and(eq(post.status, "publish"), eq(post.type, input.type)))
+        .where(
+          and(
+            eq(post.status, "publish"),
+            eq(post.type, input.type),
+            publicCatalogVisibilityCondition()
+          )
+        )
         .orderBy(sql`RANDOM()`)
         .limit(1);
 
@@ -464,6 +491,65 @@ export default {
 
       logger?.debug(`Random ${input.type} selected: ${result[0]?.id}`);
       return result[0];
+    }),
+
+  getVipFeed: publicProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
+    .handler(async ({ context: { db, ...context } }) => {
+      const logger = getLogger(context);
+      logger?.info("Fetching VIP early access feed");
+
+      const viewerTier = await getViewerPatronTier(db, context.session);
+      const items = await db
+        .select({
+          content: post.content,
+          createdAt: post.createdAt,
+          earlyAccessEnabled: post.earlyAccessEnabled,
+          earlyAccessPublicAt: post.earlyAccessPublicAt,
+          earlyAccessStartedAt: post.earlyAccessStartedAt,
+          earlyAccessVip12EndsAt: post.earlyAccessVip12EndsAt,
+          id: post.id,
+          imageObjectKeys: post.imageObjectKeys,
+          title: post.title,
+          type: post.type,
+          vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+          vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+          version: post.version,
+        })
+        .from(post)
+        .where(and(eq(post.status, "publish"), activeVipCatalogCondition()))
+        .orderBy(asc(post.earlyAccessPublicAt), desc(post.createdAt));
+
+      const result = items.map((item) => {
+        const earlyAccess = getPostEarlyAccessView(
+          {
+            earlyAccessEnabled: item.earlyAccessEnabled,
+            earlyAccessStartedAt: item.earlyAccessStartedAt,
+            type: item.type,
+            vip12EarlyAccessHours: item.vip12EarlyAccessHours,
+            vip8EarlyAccessHours: item.vip8EarlyAccessHours,
+          },
+          {
+            role: context.session?.user.role,
+            tier: viewerTier,
+          }
+        );
+
+        return {
+          content: item.content,
+          createdAt: item.createdAt,
+          earlyAccess,
+          id: item.id,
+          imageObjectKeys: item.imageObjectKeys,
+          title: earlyAccess.isRestrictedView
+            ? getMaskedPostLabel(item.id)
+            : item.title,
+          version: earlyAccess.isRestrictedView ? null : item.version,
+        };
+      });
+
+      logger?.debug(`VIP feed returned ${result.length} items`);
+      return result;
     }),
 
   // TODO: could probably benefit from caching as well, especially on frequently accessed posts
@@ -534,6 +620,10 @@ export default {
           createdAt: post.createdAt,
           creatorLink: post.creatorLink,
           creatorName: post.creatorName,
+          earlyAccessEnabled: post.earlyAccessEnabled,
+          earlyAccessPublicAt: post.earlyAccessPublicAt,
+          earlyAccessStartedAt: post.earlyAccessStartedAt,
+          earlyAccessVip12EndsAt: post.earlyAccessVip12EndsAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
           imageObjectKeys: post.imageObjectKeys,
@@ -554,6 +644,8 @@ export default {
           type: post.type,
 
           updatedAt: post.updatedAt,
+          vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+          vip8EarlyAccessHours: post.vip8EarlyAccessHours,
 
           version: post.version,
           views: post.views,
@@ -573,6 +665,21 @@ export default {
 
       logger?.debug(`Successfully retrieved post with ID: ${input}`);
 
+      const viewerTier = await getViewerPatronTier(db, context.session);
+      const earlyAccess = getPostEarlyAccessView(
+        {
+          earlyAccessEnabled: result[0]!.earlyAccessEnabled,
+          earlyAccessStartedAt: result[0]!.earlyAccessStartedAt,
+          type: result[0]!.type,
+          vip12EarlyAccessHours: result[0]!.vip12EarlyAccessHours,
+          vip8EarlyAccessHours: result[0]!.vip8EarlyAccessHours,
+        },
+        {
+          role: context.session?.user.role,
+          tier: viewerTier,
+        }
+      );
+
       try {
         await db
           .update(post)
@@ -585,7 +692,16 @@ export default {
         logger?.error(error);
       }
 
-      const { rawPremiumLinks, ...postData } = result[0]!;
+      const {
+        earlyAccessEnabled: _earlyAccessEnabled,
+        earlyAccessPublicAt: _earlyAccessPublicAt,
+        earlyAccessStartedAt: _earlyAccessStartedAt,
+        earlyAccessVip12EndsAt: _earlyAccessVip12EndsAt,
+        rawPremiumLinks,
+        vip12EarlyAccessHours: _vip12EarlyAccessHours,
+        vip8EarlyAccessHours: _vip8EarlyAccessHours,
+        ...postData
+      } = result[0]!;
 
       const manualOverrides = await db.query.postEngagementOverride.findMany({
         columns: {
@@ -645,33 +761,24 @@ export default {
       );
 
       let premiumLinksAccess: PremiumLinksDescriptor;
-      if (rawPremiumLinks) {
+      if (earlyAccess.isRestrictedView) {
+        premiumLinksAccess = { status: "no_premium_links" };
+      } else if (rawPremiumLinks) {
         const statusTerm = postData.terms.find((t) => t.taxonomy === "status");
         const statusName = statusTerm?.name;
 
-        let tier: PatronTier = "none";
-        if (context.session?.user) {
-          const patronRecord = await db.query.patron.findFirst({
-            columns: { isActivePatron: true, tier: true },
-            where: eq(patron.userId, context.session.user.id),
-          });
-          if (patronRecord?.isActivePatron) {
-            ({ tier } = patronRecord);
-          }
-        }
-
         if (
           canAccessPremiumLinks(
-            { role: context.session?.user.role, tier },
+            { role: context.session?.user.role, tier: viewerTier },
             statusName
           )
         ) {
           premiumLinksAccess = { content: rawPremiumLinks, status: "granted" };
-        } else if (tier === "none") {
+        } else if (viewerTier === "none") {
           premiumLinksAccess = { status: "denied_need_patron" };
         } else {
           premiumLinksAccess = {
-            requiredTierLabel: getRequiredTierLabel(tier, statusName),
+            requiredTierLabel: getRequiredTierLabel(viewerTier, statusName),
             status: "denied_need_upgrade",
           };
         }
@@ -679,7 +786,23 @@ export default {
         premiumLinksAccess = { status: "no_premium_links" };
       }
 
-      return { ...postData, engagementPrompts, premiumLinksAccess };
+      return {
+        ...postData,
+        adsLinks: earlyAccess.isRestrictedView ? "" : postData.adsLinks,
+        changelog: earlyAccess.isRestrictedView ? "" : postData.changelog,
+        creatorLink: earlyAccess.hideCreatorSupport ? "" : postData.creatorLink,
+        creatorName: earlyAccess.hideCreatorSupport ? "" : postData.creatorName,
+        earlyAccess,
+        engagementPrompts: earlyAccess.isRestrictedView
+          ? []
+          : engagementPrompts,
+        premiumLinksAccess,
+        terms: earlyAccess.isRestrictedView ? [] : postData.terms,
+        title: earlyAccess.isRestrictedView
+          ? getMaskedPostLabel(postData.id)
+          : postData.title,
+        version: earlyAccess.isRestrictedView ? null : postData.version,
+      };
     }),
 
   getLikes: publicProcedure
@@ -810,6 +933,32 @@ export default {
         logger?.info(
           `User ${session.user.id} creating comment on post ${input.postId}`
         );
+        const viewerTier = await getViewerPatronTier(db, session);
+        const targetPost = await db.query.post.findFirst({
+          columns: {
+            earlyAccessEnabled: true,
+            earlyAccessStartedAt: true,
+            type: true,
+            vip12EarlyAccessHours: true,
+            vip8EarlyAccessHours: true,
+          },
+          where: eq(post.id, input.postId),
+        });
+
+        if (!targetPost) {
+          throw errors.NOT_FOUND();
+        }
+
+        const earlyAccess = getPostEarlyAccessView(targetPost, {
+          role: session.user.role,
+          tier: viewerTier,
+        });
+        if (earlyAccess.isActive) {
+          logger?.warn(
+            `Comment blocked for post ${input.postId} because early access is active`
+          );
+          throw errors.FORBIDDEN();
+        }
 
         const tokens = parseTokens(input.content);
 
@@ -819,16 +968,7 @@ export default {
             throw errors.FORBIDDEN();
           }
 
-          let userTier: PatronTier = "none";
-          const patronRecord = await db.query.patron.findFirst({
-            columns: { isActivePatron: true, tier: true },
-            where: eq(patron.userId, session.user.id),
-          });
-          if (patronRecord?.isActivePatron) {
-            userTier = patronRecord.tier;
-          }
-
-          const userCtx = { role: session.user.role, tier: userTier };
+          const userCtx = { role: session.user.role, tier: viewerTier };
 
           const emojiTokens = tokens.filter((t) => t.type === "emoji");
           const stickerTokens = tokens.filter((t) => t.type === "sticker");
@@ -896,9 +1036,36 @@ export default {
 
   getComments: publicProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, ...context }, input }) => {
+    .handler(async ({ context: { db, ...context }, input, errors }) => {
       const logger = getLogger(context);
       logger?.info(`Fetching comments for post: ${input.postId}`);
+      const targetPost = await db.query.post.findFirst({
+        columns: {
+          earlyAccessEnabled: true,
+          earlyAccessStartedAt: true,
+          type: true,
+          vip12EarlyAccessHours: true,
+          vip8EarlyAccessHours: true,
+        },
+        where: eq(post.id, input.postId),
+      });
+
+      if (!targetPost) {
+        throw errors.NOT_FOUND();
+      }
+
+      const viewerTier = await getViewerPatronTier(db, context.session);
+      const earlyAccess = getPostEarlyAccessView(targetPost, {
+        role: context.session?.user.role,
+        tier: viewerTier,
+      });
+
+      if (earlyAccess.isActive) {
+        logger?.warn(
+          `Comments blocked for post ${input.postId} because early access is active`
+        );
+        throw errors.FORBIDDEN();
+      }
 
       const comments = await db.query.comment.findMany({
         orderBy: (c, { desc: descSql }) => [descSql(c.createdAt)],
@@ -1062,7 +1229,8 @@ export default {
           and(
             eq(post.status, "publish"),
             eq(post.type, input.type),
-            ne(post.id, input.postId)
+            ne(post.id, input.postId),
+            publicCatalogVisibilityCondition()
           )
         )
         .orderBy(sql`score DESC`)

@@ -1,5 +1,6 @@
 import type { post, postRating, term } from "@repo/db/schema/app";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
+import type { EarlyAccessView } from "@repo/shared/early-access";
 
 export type TermType = typeof term.$inferSelect;
 
@@ -12,13 +13,22 @@ export type EngagementPromptType = {
 
 export type PostType = Omit<
   typeof post.$inferSelect,
-  "authorId" | "premiumLinks" | "status"
+  | "authorId"
+  | "earlyAccessEnabled"
+  | "earlyAccessPublicAt"
+  | "earlyAccessStartedAt"
+  | "earlyAccessVip12EndsAt"
+  | "premiumLinks"
+  | "status"
+  | "vip12EarlyAccessHours"
+  | "vip8EarlyAccessHours"
 > & {
   likes: number;
   favorites: number;
   terms: Omit<TermType, "createdAt" | "updatedAt">[];
   averageRating?: number;
   ratingCount?: number;
+  earlyAccess: EarlyAccessView;
   premiumLinksAccess: PremiumLinksDescriptor;
   engagementPrompts: EngagementPromptType[];
 };

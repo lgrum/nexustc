@@ -5,6 +5,7 @@ import {
   RATING_REVIEW_MAX_LENGTH,
   TAXONOMIES,
 } from "./constants";
+import { EARLY_ACCESS_MAX_DURATION_HOURS } from "./early-access";
 import { normalizeEngagementPromptList } from "./engagement-prompts";
 
 export const termCreateSchema = z.object({
@@ -107,8 +108,23 @@ const contentBaseFields = {
     .transform((val) => val.trim()),
 };
 
+const earlyAccessFields = {
+  earlyAccessEnabled: z.boolean(),
+  vip12EarlyAccessHours: z
+    .number()
+    .int()
+    .min(0)
+    .max(EARLY_ACCESS_MAX_DURATION_HOURS),
+  vip8EarlyAccessHours: z
+    .number()
+    .int()
+    .min(0)
+    .max(EARLY_ACCESS_MAX_DURATION_HOURS),
+};
+
 export const postCreateSchema = z.object({
   ...contentBaseFields,
+  ...earlyAccessFields,
   adsLinks: z.string(),
   changelog: z.string(),
   content: z

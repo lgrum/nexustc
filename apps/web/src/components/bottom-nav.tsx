@@ -4,6 +4,7 @@ import {
   Home07Icon,
   MoreHorizontalCircle01Icon,
   Search01Icon,
+  StarIcon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -48,6 +49,7 @@ export function BottomNav() {
       )}
     >
       <NavItem href="/" icon={Home07Icon} label="Inicio" />
+      <NavItem href="/vip" icon={StarIcon} label="VIP" />
       <NavItem href="/chronos" icon={GameController03Icon} label="Chronos" />
       <NavButtonItem href="/search" icon={Search01Icon} />
       <NavItem href="/tutorials" icon={Book03Icon} label="Tutoriales" />

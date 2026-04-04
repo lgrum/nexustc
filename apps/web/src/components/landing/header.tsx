@@ -4,6 +4,7 @@ import {
   CircleLockIcon,
   Search01Icon,
   Book03Icon,
+  StarIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -26,6 +27,7 @@ import { Button } from "../ui/button";
 
 const navItems = [
   { href: "/", icon: Home01Icon, label: "Inicio", search: {} },
+  { href: "/vip", icon: StarIcon, label: "VIP", search: {} },
   {
     href: "/search",
     icon: Search01Icon,

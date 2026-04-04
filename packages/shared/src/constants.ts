@@ -77,6 +77,16 @@ export const PATRON_TIER_KEYS = [
   "level69",
 ] as const;
 
+const PATRON_TIER_HIERARCHY = [
+  "none",
+  "level1",
+  "level3",
+  "level5",
+  "level8",
+  "level12",
+  "level69",
+] as const;
+
 // Patreon tier configuration
 export const PATRON_TIERS: Record<
   (typeof PATRON_TIER_KEYS)[number],
@@ -139,6 +149,10 @@ export const PATRON_TIERS: Record<
   },
 } as const;
 
+export function getPatronTierRank(tier: PatronTier): number {
+  return PATRON_TIER_HIERARCHY.indexOf(tier);
+}
+
 export function userMeetsTierLevel(
   user: { role?: string; tier: PatronTier },
   requiredTier: PatronTier
@@ -151,7 +165,7 @@ export function userMeetsTierLevel(
     return true;
   }
 
-  return PATRON_TIERS[user.tier].level >= PATRON_TIERS[requiredTier].level;
+  return getPatronTierRank(user.tier) >= getPatronTierRank(requiredTier);
 }
 
 export function canAccessPremiumLinks(

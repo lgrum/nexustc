@@ -30,9 +30,44 @@ function ReviewsPage() {
   });
 
   const { data: stats } = useQuery({
+    enabled: !!post && !post.earlyAccess.isActive,
     queryFn: () => orpcClient.rating.getStats({ postId }),
     queryKey: ["rating", "stats", postId],
   });
+
+  if (post?.earlyAccess.isActive) {
+    return (
+      <main className="grid w-full grid-cols-1 lg:grid-cols-5">
+        <div className="space-y-8 lg:col-span-3 lg:col-start-2">
+          <div className="flex items-center gap-4">
+            <Link params={{ id: postId }} to="/post/$id">
+              <Button size="icon" variant="ghost">
+                <HugeiconsIcon icon={ArrowLeft02Icon} />
+              </Button>
+            </Link>
+            <div className="flex flex-col">
+              <h1 className="font-bold text-2xl">Valoraciones</h1>
+              <p className="text-muted-foreground">
+                Se abrirán cuando termine el Early Access
+              </p>
+            </div>
+          </div>
+
+          <Card>
+            <CardContent className="space-y-3 p-6">
+              <h2 className="font-[Lexend] font-semibold text-xl">
+                Las valoraciones también esperan la salida pública
+              </h2>
+              <p className="text-muted-foreground text-sm leading-relaxed">
+                Así evitamos que comentarios, reseñas o puntuaciones revelen
+                demasiado antes del lanzamiento general.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="grid w-full grid-cols-1 lg:grid-cols-5">

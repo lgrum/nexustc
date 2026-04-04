@@ -46,10 +46,10 @@ function RouteComponent() {
         .promise(mutation.mutateAsync(formData.value), {
           error: (error) => ({
             duration: 10_000,
-            message: `Error al editar cÃ³mic: ${error}`,
+            message: `Error al editar cómic: ${error}`,
           }),
-          loading: "Editando cÃ³mic...",
-          success: "CÃ³mic editado!",
+          loading: "Editando cómic...",
+          success: "¡Cómic editado!",
         })
         .unwrap();
 
@@ -72,7 +72,7 @@ function RouteComponent() {
         form.handleSubmit();
       }}
     >
-      <h1 className="font-semibold text-2xl">Editar CÃ³mic</h1>
+      <h1 className="font-semibold text-2xl">Editar Cómic</h1>
       <div className="space-y-4">
         <form.AppForm>
           <ComicFormFields terms={prerequisiteTerms} />
