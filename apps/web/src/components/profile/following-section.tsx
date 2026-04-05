@@ -15,24 +15,23 @@ import { getBucketUrl } from "@/lib/utils";
 const FOLLOWING_LIMIT = 20;
 
 export function FollowingSection() {
-  const followingQuery = useQuery({
-    ...orpc.notification.getFollowing.queryOptions({
+  const followingQuery = useQuery(
+    orpc.notification.getFollowing.queryOptions({
       input: { limit: FOLLOWING_LIMIT },
-    }),
-    staleTime: 15_000,
-  });
+    })
+  );
 
   const markReadMutation = useMutation(
     orpc.notification.markRead.mutationOptions({
       onSuccess: async () => {
         await Promise.all([
           queryClient.invalidateQueries({
-            queryKey: orpc.notification.getFollowing.queryOptions({
+            queryKey: orpc.notification.getFollowing.queryKey({
               input: { limit: FOLLOWING_LIMIT },
-            }).queryKey,
+            }),
           }),
           queryClient.invalidateQueries({
-            queryKey: orpc.notification.getUnreadCount.queryOptions().queryKey,
+            queryKey: orpc.notification.getUnreadCount.queryKey(),
           }),
           queryClient.invalidateQueries({
             queryKey: ["notification-feed"],

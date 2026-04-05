@@ -10,12 +10,15 @@ import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { toast } from "sonner";
 
+const DEFAULT_QUERY_STALE_TIME_MS = 30_000;
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnMount: false,
+      refetchOnMount: true,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
+      staleTime: DEFAULT_QUERY_STALE_TIME_MS,
       retry: 1,
       retryDelay: 1000,
     },

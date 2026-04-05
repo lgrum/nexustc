@@ -384,12 +384,12 @@ async function invalidateNotificationQueries() {
       queryKey: ["notification-feed"],
     }),
     queryClient.invalidateQueries({
-      queryKey: orpc.notification.getUnreadCount.queryOptions().queryKey,
+      queryKey: orpc.notification.getUnreadCount.queryKey(),
     }),
     queryClient.invalidateQueries({
-      queryKey: orpc.notification.getFollowing.queryOptions({
+      queryKey: orpc.notification.getFollowing.queryKey({
         input: { limit: 20 },
-      }).queryKey,
+      }),
     }),
   ]);
 }

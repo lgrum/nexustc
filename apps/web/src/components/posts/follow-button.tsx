@@ -166,14 +166,14 @@ export function FollowButton({ contentId }: FollowButtonProps) {
 async function invalidateNotificationFollowQueries(contentId: string) {
   await Promise.all([
     queryClient.invalidateQueries({
-      queryKey: orpc.notification.getFollowState.queryOptions({
+      queryKey: orpc.notification.getFollowState.queryKey({
         input: { contentId },
-      }).queryKey,
+      }),
     }),
     queryClient.invalidateQueries({
-      queryKey: orpc.notification.getFollowing.queryOptions({
+      queryKey: orpc.notification.getFollowing.queryKey({
         input: { limit: 20 },
-      }).queryKey,
+      }),
     }),
   ]);
 }

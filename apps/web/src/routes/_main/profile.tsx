@@ -323,7 +323,7 @@ function PatreonStatusSection() {
     try {
       await syncMutation.mutateAsync({});
       await queryClient.invalidateQueries({
-        queryKey: orpc.patreon.getStatus.queryOptions().queryKey,
+        queryKey: orpc.patreon.getStatus.queryKey(),
       });
       toast.success("Estado de Patreon sincronizado");
     } catch (error) {
