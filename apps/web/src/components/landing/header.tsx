@@ -10,7 +10,6 @@ import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
-import { motion } from "motion/react";
 import { useEffect, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
@@ -49,20 +48,22 @@ export function Header() {
 
   return (
     <header className="relative z-50 w-full">
-      <div className="grid w-full grid-cols-[1fr_auto] md:grid-cols-[1fr_auto_1fr] items-center px-4 py-3">
-        <Link to="/">
-          <Logo />
-        </Link>
-        <div className="hidden md:block">
-          <div className="flex items-center gap-4">
-            {navItems.map((item) => (
-              <NavItem
-                key={item.href}
-                href={item.href}
-                icon={item.icon}
-                label={item.label}
-              />
-            ))}
+      <div className="grid w-full grid-cols-[1fr_auto] items-center px-4 py-3">
+        <div className="flex gap-12 items-center">
+          <Link to="/">
+            <Logo />
+          </Link>
+          <div className="hidden md:block">
+            <div className="flex items-center gap-4">
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                />
+              ))}
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-end gap-2">
@@ -103,21 +104,22 @@ function NavItem({
     <Link
       aria-current={isItemActive ? "page" : undefined}
       className={cn(
-        "relative flex min-h-11 min-w-11 flex-row items-center justify-center gap-1 rounded-lg px-1 py-1 transition-colors duration-200",
+        "relative flex flex-row items-center justify-center gap-1 rounded-lg px-1 py-1 transition-colors duration-200",
+        "text-sm font-bold uppercase tracking-[0.2em] text-white/50 hover:text-primary transition-all relative group py-2",
         isItemActive
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
       )}
       to={href}
     >
-      {isItemActive && (
-        <motion.span
-          layoutId="nav-highlight"
-          className="absolute bottom-0 left-1/2 h-0.75 w-6 -translate-x-1/2 rounded-full bg-primary"
-        />
-      )}
       <HugeiconsIcon className="size-4" icon={icon} />
-      <span className="tracking-wide text-base">{label}</span>
+      <span className="tracking-wider">{label}</span>
+      <span
+        className={cn(
+          "absolute bottom-0 left-0 w-0 h-0.5 bg-primary shadow-[0_0_10px_rgba(var(--primary-rgb),0.8)] transition-all group-hover:w-full",
+          isItemActive && "w-full"
+        )}
+      />
     </Link>
   );
 }

@@ -28,7 +28,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAdblockDetector } from "@/hooks/use-adblock-detector";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main")({
   component: MainLayout,
@@ -59,13 +58,27 @@ function MainLayout() {
   );
 }
 
+function Marquee() {
+  return (
+    <div className="text-black font-[Lexend] font-bold uppercase tracking-widest text-sm flex w-max shrink-0 gap-8 py-2 pr-8">
+      {/* oxlint-disable-next-line react/jsx-no-comment-textnodes */}
+      <span>/// SYSTEM_ONLINE ///</span>
+      <span>NEXUSTC PROTOCOL V1.0</span>
+      <span>EXPLORE NEW REALITIES</span>
+    </div>
+  );
+}
+
 function Wrapper({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <div
-        className={cn("relative min-h-screen w-full min-w-0 overflow-x-clip")}
-      >
-        <div className="fixed inset-0 z-0 h-screen" />
+      <div className="relative min-h-screen w-full min-w-0 overflow-x-clip selection:bg-accent selection:text-accent-foreground">
+        <div className="group font-mono w-full bg-primary text-primary-foreground overflow-hidden whitespace-nowrap">
+          <div className="flex min-w-[200%] justify-around hover:paused animate-marquee select-none">
+            <Marquee />
+            <Marquee />
+          </div>
+        </div>
         <div
           className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] overflow-x-clip pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] md:pb-0"
           id="main-scrollable-area"
