@@ -14,6 +14,8 @@ export type EngagementPromptType = {
 export type PostType = Omit<
   typeof post.$inferSelect,
   | "authorId"
+  | "comicLastUpdateAt"
+  | "comicPageCount"
   | "earlyAccessEnabled"
   | "earlyAccessPublicAt"
   | "earlyAccessStartedAt"

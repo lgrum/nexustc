@@ -101,6 +101,8 @@ export async function createContent({
         authorId: session.user?.id,
         changelog:
           input.type === "post" ? input.changelog : (input.changelog ?? ""),
+        comicLastUpdateAt: input.type === "comic" ? new Date() : null,
+        comicPageCount: input.type === "comic" ? orderedMedia.length : 0,
         content: input.type === "post" ? input.content : (input.content ?? ""),
         creatorLink: input.creatorLink ?? "",
         creatorName: input.creatorName ?? "",
@@ -189,6 +191,7 @@ export async function editContent({
   const updatedPostId = await db.transaction(async (tx) => {
     const existingPost = await tx.query.post.findFirst({
       columns: {
+        comicLastUpdateAt: true,
         earlyAccessStartedAt: true,
         id: true,
         status: true,
@@ -236,6 +239,14 @@ export async function editContent({
           input.type === "post" ? input.adsLinks : (input.adsLinks ?? ""),
         changelog:
           input.type === "post" ? input.changelog : (input.changelog ?? ""),
+        comicLastUpdateAt:
+          input.type === "comic" &&
+          orderedMedia.length > (previousMediaCountResult?.mediaCount ?? 0)
+            ? new Date()
+            : input.type === "comic"
+              ? existingPost.comicLastUpdateAt
+              : null,
+        comicPageCount: input.type === "comic" ? orderedMedia.length : 0,
         content: input.type === "post" ? input.content : (input.content ?? ""),
         creatorLink: input.creatorLink ?? "",
         creatorName: input.creatorName ?? "",

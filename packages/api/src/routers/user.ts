@@ -27,11 +27,12 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../index";
+import { attachComicCatalogProgress } from "../services/comic-progress";
 import { buildProfileSummaries } from "../services/profile";
 
 const RECENT_USERS_CACHE_TTL_SECONDS = 60 * 5; // 5 minutes
 
-// TODO: improve recent user caching implementation
+// Future improvement: tighten the recent-user cache strategy.
 // const recentUserSchema = z.object({
 //   id: z.string(),
 //   name: z.string(),
@@ -158,7 +159,10 @@ export default {
         `Fetched ${result.length} posts for user ${session.user.id} bookmarks`
       );
 
-      return result;
+      return attachComicCatalogProgress(db, {
+        items: result,
+        userId: session.user.id,
+      });
     }
   ),
 
@@ -370,7 +374,7 @@ export default {
         userId: z.string(),
       })
     )
-    .handler(async ({ context: { db, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(`Fetching public bookmarks for user: ${input.userId}`);
 
@@ -465,7 +469,10 @@ export default {
         `Fetched ${result.length} public bookmarks for user ${input.userId}`
       );
 
-      return result;
+      return attachComicCatalogProgress(db, {
+        items: result,
+        userId: session?.user.id,
+      });
     }),
 
   getDashboardList: permissionProcedure({

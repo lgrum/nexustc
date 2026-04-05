@@ -29,6 +29,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../../index";
+import { attachComicCatalogProgress } from "../../services/comic-progress";
 import { buildProfileSummaries } from "../../services/profile";
 import {
   activeVipCatalogCondition,
@@ -42,7 +43,7 @@ import admin from "./admin";
 const RECOMMENDATION_LIMIT = 5;
 
 export default {
-  // TODO: implement caching here, very heavily used endpoint
+  // Future improvement: add caching here because this endpoint is heavily used.
   getRecent: publicProcedure
     .input(z.object({ limit: z.number().min(1).max(24).default(12) }))
     .handler(async ({ context: { db, ...context }, input }) => {
@@ -114,7 +115,7 @@ export default {
       return posts;
     }),
 
-  // TODO: implement caching here as well
+  // Future improvement: add caching here as well.
   getWeekly: publicProcedure.handler(
     async ({ context: { db, ...context } }) => {
       const logger = getLogger(context);
@@ -186,7 +187,7 @@ export default {
     }
   ),
 
-  // TODO: cache as well
+  // Future improvement: cache this listing too.
   getFeatured: publicProcedure.handler(
     async ({ context: { db, ...context } }) => {
       const logger = getLogger(context);
@@ -286,7 +287,7 @@ export default {
         type: z.enum(["post", "comic"]),
       })
     )
-    .handler(async ({ context: { db, ...context }, input }) => {
+    .handler(async ({ context: { db, session, ...context }, input }) => {
       const logger = getLogger(context);
       logger?.info(
         `Searching posts with type: ${input.type}, query: ${input.query || "none"}, termIds: ${input.termIds?.length || 0}`
@@ -462,7 +463,10 @@ export default {
       const result = posts.map(({ similarity: _, ...postData }) => postData);
       logger?.debug(`Search returned ${result.length} posts`);
 
-      return result;
+      return attachComicCatalogProgress(db, {
+        items: result,
+        userId: session?.user.id,
+      });
     }),
 
   getRandom: publicProcedure
@@ -552,7 +556,7 @@ export default {
       return result;
     }),
 
-  // TODO: could probably benefit from caching as well, especially on frequently accessed posts
+  // Future improvement: cache this endpoint too, especially for hot posts.
   getPostById: publicProcedure
     .use(fixedWindowRatelimitMiddleware({ limit: 20, windowSeconds: 60 }))
     .input(z.string())

@@ -147,6 +147,7 @@ export const patron = pgTable(
 
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
+  comicProgress: many(userComicProgress),
   patron: one(patron),
   profileEmblemAssignments: many(profileEmblemAssignment),
   profileMediaAssets: many(profileMediaAsset),
@@ -199,6 +200,10 @@ export const post = pgTable(
     adsLinks: text("ads_links"),
     authorId: text("author_id").notNull(),
     changelog: text("changelog").notNull().default(""),
+    comicLastUpdateAt: timestamp("comic_last_update_at", {
+      withTimezone: true,
+    }),
+    comicPageCount: integer("comic_page_count").notNull().default(0),
     content: text("content").notNull().default(""),
     creatorLink: text("creator_link").notNull().default(""),
     creatorName: text("creator_name").notNull().default(""),
@@ -422,6 +427,43 @@ export const postRating = pgTable(
     primaryKey({ columns: [table.userId, table.postId] }),
     index("post_rating_post_id_idx").on(table.postId),
     index("post_rating_created_at_idx").on(table.createdAt),
+  ]
+);
+
+export const userComicProgress = pgTable(
+  "user_comic_progress",
+  {
+    comicId: text("comic_id")
+      .notNull()
+      .references(() => post.id, { onDelete: "cascade" }),
+    completed: boolean("completed").notNull().default(false),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    lastPageRead: integer("last_page_read").notNull().default(0),
+    lastReadTimestamp: timestamp("last_read_timestamp", {
+      withTimezone: true,
+    })
+      .defaultNow()
+      .notNull(),
+    totalPagesAtLastRead: integer("total_pages_at_last_read")
+      .notNull()
+      .default(0),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verifiedThroughPage: integer("verified_through_page").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.comicId] }),
+    index("user_comic_progress_comic_id_idx").on(table.comicId),
+    index("user_comic_progress_user_completed_idx").on(
+      table.userId,
+      table.completed
+    ),
+    index("user_comic_progress_user_last_read_idx").on(
+      table.userId,
+      table.lastReadTimestamp
+    ),
   ]
 );
 
@@ -820,6 +862,7 @@ export const stickerRelations = relations(sticker, ({ one }) => ({
 
 export const postRelations = relations(post, ({ many }) => ({
   comments: many(comment),
+  comicProgress: many(userComicProgress),
   engagementOverrides: many(postEngagementOverride),
   favorites: many(postBookmark),
   featured: many(featuredPost),
@@ -916,3 +959,17 @@ export const postRatingRelations = relations(postRating, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const userComicProgressRelations = relations(
+  userComicProgress,
+  ({ one }) => ({
+    comic: one(post, {
+      fields: [userComicProgress.comicId],
+      references: [post.id],
+    }),
+    user: one(user, {
+      fields: [userComicProgress.userId],
+      references: [user.id],
+    }),
+  })
+);

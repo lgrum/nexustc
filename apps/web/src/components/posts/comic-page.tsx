@@ -15,12 +15,15 @@ import {
   ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
 
+import { authClient } from "@/lib/auth-client";
+import { orpc, orpcClient, queryClient } from "@/lib/orpc";
 import type { PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
 
@@ -47,9 +50,57 @@ import { PostProvider, usePost } from "./post-context";
 
 const postPageApi = getRouteApi("/_main/post/$id");
 
+type ComicProgressData = {
+  currentPageCount: number;
+  lastPageRead: number;
+  resumePage: number | null;
+  resumePromptEnabled: boolean;
+  status: "read" | "reading" | "unread" | "updated";
+  vipResumeEnabled: boolean;
+} | null;
+
+function getComicProgressBadge(
+  status: NonNullable<ComicProgressData>["status"] | undefined
+) {
+  switch (status) {
+    case "read": {
+      return {
+        className: "border-emerald-500/30 bg-emerald-500/90 text-white",
+        label: "Leido",
+      };
+    }
+    case "reading": {
+      return {
+        className: "border-sky-500/30 bg-sky-500/90 text-white",
+        label: "En progreso",
+      };
+    }
+    case "updated": {
+      return {
+        className: "border-amber-400/40 bg-amber-400 text-amber-950",
+        label: "Nuevo contenido",
+      };
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
 export function ComicPage({ comic }: { comic: PostType }) {
   const { page } = postPageApi.useSearch();
   const navigate = postPageApi.useNavigate();
+  const { data: auth } = authClient.useSession();
+  const isAuthed = Boolean(auth?.session);
+  const comicProgressQueryOptions =
+    orpc.comicProgress.getByComicId.queryOptions({
+      input: { comicId: comic.id },
+    });
+  const comicProgressQuery = useQuery({
+    ...comicProgressQueryOptions,
+    enabled: isAuthed,
+  });
+  const comicProgress = (comicProgressQuery.data ?? null) as ComicProgressData;
 
   const setPage = useMemo(
     () => (newPage: number) => {
@@ -74,7 +125,9 @@ export function ComicPage({ comic }: { comic: PostType }) {
         <ComicReader
           comic={comic}
           images={comic.imageObjectKeys}
+          isAuthed={isAuthed}
           page={page}
+          progressQueryKey={comicProgressQueryOptions.queryKey}
           setPage={setPage}
         />
       </PostProvider>
@@ -84,7 +137,7 @@ export function ComicPage({ comic }: { comic: PostType }) {
   // Otherwise show the info page
   return (
     <PostProvider post={comic}>
-      <ComicInfoPage setPage={setPage} />
+      <ComicInfoPage comicProgress={comicProgress} setPage={setPage} />
     </PostProvider>
   );
 }
@@ -93,11 +146,19 @@ export function ComicPage({ comic }: { comic: PostType }) {
    Comic Info Page
    ============================================================================ */
 
-function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
+function ComicInfoPage({
+  comicProgress,
+  setPage,
+}: {
+  comicProgress: ComicProgressData;
+  setPage: (page: number) => void;
+}) {
   const comic = usePost();
   const mainImage = comic.imageObjectKeys?.[0];
   const allImages = comic.imageObjectKeys ?? [];
   const totalPages = allImages.length;
+  const progressBadge = getComicProgressBadge(comicProgress?.status);
+  const resumePage = comicProgress?.resumePage ?? null;
 
   return (
     <div className="relative flex gap-6 pb-4">
@@ -127,6 +188,11 @@ function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
                     <HugeiconsIcon className="size-3.5" icon={Book02Icon} />
                     {totalPages} páginas
                   </Badge>
+                  {progressBadge && (
+                    <Badge className={progressBadge.className}>
+                      {progressBadge.label}
+                    </Badge>
+                  )}
                   <span className="flex items-center gap-1 text-muted-foreground">
                     <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
                     {format(comic.createdAt, "d MMM yyyy", { locale: es })}
@@ -152,6 +218,29 @@ function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
         <PostStatsBar />
 
         <div className="flex flex-col gap-4 px-4 pt-4">
+          {comicProgress?.resumePromptEnabled && resumePage !== null && (
+            <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <p className="font-medium text-sm md:text-base">
+                    Quieres continuar donde lo dejaste?
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    Retoma la lectura desde la pagina {resumePage}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => setPage(resumePage - 1)}>
+                    Continuar lectura
+                  </Button>
+                  <Button onClick={() => setPage(0)} variant="outline">
+                    Empezar desde el inicio
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* CTA */}
           <Button
             className="w-full gap-2 py-6 text-lg"
@@ -159,7 +248,9 @@ function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
             size="lg"
           >
             <HugeiconsIcon className="size-5" icon={Book02Icon} />
-            Empezar a Leer
+            {comicProgress?.status === "read"
+              ? "Leer de nuevo"
+              : "Empezar a Leer"}
           </Button>
 
           <PostContent />
@@ -229,11 +320,15 @@ function ComicInfoPage({ setPage }: { setPage: (page: number) => void }) {
 function ComicReader({
   comic,
   page,
+  isAuthed,
+  progressQueryKey,
   setPage,
   images,
 }: {
   comic: PostType;
+  isAuthed: boolean;
   page: number;
+  progressQueryKey: readonly unknown[];
   setPage: (page: number) => void;
   images: string[];
 }) {
@@ -244,6 +339,7 @@ function ComicReader({
   const [scale, setScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -257,6 +353,63 @@ function ComicReader({
   const totalPages = images.length;
   const currentImage = images[page];
   const progress = ((page + 1) / totalPages) * 100;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!isAuthed) {
+      setReadingSessionId(null);
+      return;
+    }
+
+    const createReadingSession = async () => {
+      try {
+        const sessionState = await orpcClient.comicProgress.startSession({
+          comicId: comic.id,
+        });
+
+        if (!cancelled) {
+          setReadingSessionId(sessionState.readingSessionId);
+        }
+      } catch {
+        if (!cancelled) {
+          setReadingSessionId(null);
+        }
+      }
+    };
+
+    createReadingSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [comic.id, isAuthed]);
+
+  useEffect(() => {
+    if (!(isAuthed && readingSessionId && totalPages > 0)) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const syncProgress = async () => {
+        try {
+          await orpcClient.comicProgress.update({
+            comicId: comic.id,
+            page: page + 1,
+            readingSessionId,
+          });
+        } catch {
+          // Best-effort sync; reader UX should not break on transient failures.
+        }
+      };
+
+      syncProgress();
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [comic.id, isAuthed, page, readingSessionId, totalPages]);
 
   // Check if image is already cached/loaded on mount
   useEffect(() => {
@@ -304,8 +457,19 @@ function ComicReader({
   }, [setPage, totalPages, resetZoom]);
 
   const goToInfo = useCallback(() => {
+    const invalidateProgress = async () => {
+      try {
+        await queryClient.invalidateQueries({
+          queryKey: progressQueryKey,
+        });
+      } catch {
+        // Let navigation continue even if the cache refresh fails.
+      }
+    };
+
+    invalidateProgress();
     setPage(-1);
-  }, [setPage]);
+  }, [progressQueryKey, setPage]);
 
   const zoomIn = useCallback(() => {
     setScale((prev) => Math.min(prev + 0.5, 4));

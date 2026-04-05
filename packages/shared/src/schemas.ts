@@ -239,6 +239,16 @@ export const ratingUpdateSchema = z.object({
     .default(""),
 });
 
+export const comicProgressComicSchema = z.object({
+  comicId: z.string().min(1),
+});
+
+export const comicProgressUpdateSchema = z.object({
+  comicId: z.string().min(1),
+  page: z.number().int().min(1),
+  readingSessionId: z.string().min(1),
+});
+
 export const chronosUpdateSchema = z.object({
   carouselImageKeys: z.array(z.string()).optional(),
   headerImageKey: z.string().optional(),

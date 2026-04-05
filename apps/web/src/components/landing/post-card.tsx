@@ -4,9 +4,11 @@ import { Link } from "@tanstack/react-router";
 
 import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
 
+import { Badge } from "../ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "../ui/card";
 
 export type PostProps = {
+  comicProgressStatus?: "read" | "reading" | "unread" | "updated" | null;
   id: string;
   title: string;
   version: string | null;
@@ -22,9 +24,33 @@ type PostCardProps = {
   post: PostProps;
 };
 
+function getComicProgressBadge(
+  status: PostProps["comicProgressStatus"]
+): { className: string; label: string } | null {
+  switch (status) {
+    case "read": {
+      return {
+        className:
+          "border-emerald-500/30 bg-emerald-500/90 text-white shadow-sm",
+        label: "Leido",
+      };
+    }
+    case "updated": {
+      return {
+        className: "border-amber-400/40 bg-amber-400 text-amber-950 shadow-sm",
+        label: "Nuevo",
+      };
+    }
+    default: {
+      return null;
+    }
+  }
+}
+
 export function PostCard({ post }: PostCardProps) {
   const images = (post.imageObjectKeys?.slice(0, 4) ?? []).map(getBucketUrl);
   const count = images.length;
+  const comicProgressBadge = getComicProgressBadge(post.comicProgressStatus);
 
   return (
     <Link
@@ -109,6 +135,16 @@ export function PostCard({ post }: PostCardProps) {
                 />
               ))}
             </div>
+          )}
+          {post.type === "comic" && comicProgressBadge && (
+            <Badge
+              className={cn(
+                "pointer-events-none absolute top-2 left-2 z-10",
+                comicProgressBadge.className
+              )}
+            >
+              {comicProgressBadge.label}
+            </Badge>
           )}
           {/* Gradient overlay */}
           {/* <div className="absolute inset-0 bg-linear-to-t from-card via-transparent to-transparent" /> */}
