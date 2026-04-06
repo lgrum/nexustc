@@ -1,7 +1,12 @@
 import { News01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AnyFieldApi } from "@tanstack/react-form";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -55,6 +60,9 @@ const optionalDateInputSchema = z.string().trim().max(64);
 
 function RouteComponent() {
   const queryClient = useQueryClient();
+  const { data: mediaLibrary } = useSuspenseQuery(
+    orpc.media.admin.list.queryOptions()
+  );
   const postsQuery = useQuery(orpc.post.admin.getDashboardList.queryOptions());
   const comicsQuery = useQuery(
     orpc.comic.admin.getDashboardList.queryOptions()
@@ -93,10 +101,11 @@ function RouteComponent() {
         value: item.id,
       })),
   ].toSorted((a, b) => a.label.localeCompare(b.label, "es"));
+  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
 
   const newsForm = useAppForm({
     defaultValues: {
-      bannerImageObjectKey: "",
+      bannerImageMediaId: "",
       body: "",
       contentId: "",
       expirationAt: "",
@@ -105,8 +114,12 @@ function RouteComponent() {
       title: "",
     },
     onSubmit: async ({ value }) => {
+      const bannerImageObjectKey = value.bannerImageMediaId
+        ? mediaMap.get(value.bannerImageMediaId)?.objectKey
+        : undefined;
+
       await createNewsMutation.mutateAsync({
-        bannerImageObjectKey: value.bannerImageObjectKey || undefined,
+        bannerImageObjectKey,
         body: value.body,
         contentId: value.contentId,
         expirationAt: parseOptionalDate(value.expirationAt),
@@ -118,7 +131,7 @@ function RouteComponent() {
     },
     validators: {
       onSubmit: z.object({
-        bannerImageObjectKey: z.string().max(512),
+        bannerImageMediaId: z.string().max(255),
         body: z.string().trim().min(1).max(65_535),
         contentId: z.string().trim().min(1, "Selecciona un contenido."),
         expirationAt: optionalDateInputSchema,
@@ -192,7 +205,7 @@ function RouteComponent() {
                   <field.BlockNoteField label="Cuerpo del articulo" required />
                 )}
               </newsForm.AppField>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <newsForm.AppField name="publishedAt">
                   {(field) => (
                     <field.TextField
@@ -211,15 +224,16 @@ function RouteComponent() {
                     />
                   )}
                 </newsForm.AppField>
-                <newsForm.AppField name="bannerImageObjectKey">
-                  {(field) => (
-                    <field.TextField
-                      label="Banner image key"
-                      placeholder="Opcional"
-                    />
-                  )}
-                </newsForm.AppField>
               </div>
+              <newsForm.AppField name="bannerImageMediaId">
+                {(field) => (
+                  <field.MediaField
+                    description="Selecciona una imagen opcional para usarla como banner del articulo."
+                    label="Banner del articulo"
+                    maxItems={1}
+                  />
+                )}
+              </newsForm.AppField>
               <newsForm.AppForm>
                 <newsForm.SubmitButton className="w-full">
                   Publicar articulo
