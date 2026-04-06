@@ -116,8 +116,12 @@ const nav = {
   notifications: {
     links: [
       {
-        href: "/admin/notifications",
-        name: "Centro editorial",
+        href: "/admin/notifications/announcements",
+        name: "Anuncios globales",
+      },
+      {
+        href: "/admin/notifications/articles",
+        name: "Articulos manuales",
       },
     ],
     name: "Notificaciones",
