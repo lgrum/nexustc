@@ -31,6 +31,8 @@ import {
 } from "@/components/ui/sidebar";
 import { adminMiddleware } from "@/middleware/admin";
 
+import "@blocknote/shadcn/style.css";
+
 export const Route = createFileRoute("/admin")({
   component: AdminLayout,
   head: () => ({

@@ -319,11 +319,7 @@ function RouteComponent() {
               </newsForm.AppField>
               <newsForm.AppField name="body">
                 {(field) => (
-                  <field.TextareaField
-                    label="Cuerpo del artículo"
-                    placeholder="Redacta aquí la noticia completa."
-                    rows={7}
-                  />
+                  <field.BlockNoteField label="Cuerpo del artículo" required />
                 )}
               </newsForm.AppField>
               <div className="grid gap-4 md:grid-cols-3">
