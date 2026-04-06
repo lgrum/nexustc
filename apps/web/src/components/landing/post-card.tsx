@@ -163,7 +163,7 @@ export function PostCard({ post }: PostCardProps) {
         <CardFooter className="relative flex flex-col border-t-0 gap-1.5 p-3">
           {/* Tier bar */}
           <div
-            className={`absolute -top-1 h-0.75 w-full z-50 ${getTierColor(post.favorites)}`}
+            className={`absolute -top-1 h-0.75 w-full z-50 ${getTierColor(post.likes)}`}
           />
           {/* Stats row */}
           <div className="flex items-center justify-center gap-3 text-muted-foreground text-sm">
