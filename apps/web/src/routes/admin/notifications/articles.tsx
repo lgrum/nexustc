@@ -146,7 +146,7 @@ function RouteComponent() {
     <main className="flex flex-col gap-6">
       <EditorialDashboardHeader
         activeDashboard="articles"
-        description="Redacta articulos manuales para juegos o comics concretos. Cada publicacion nueva reemplaza la anterior del mismo contenido para evitar ruido en la bandeja del usuario."
+        description="Redacta articulos manuales para juegos o comics concretos. Cada publicacion se conserva en el historial y solo se bloquean duplicados exactos."
         title="Dashboard de articulos manuales"
       />
 
@@ -247,8 +247,7 @@ function RouteComponent() {
           <CardHeader>
             <CardTitle>Articulos recientes</CardTitle>
             <CardDescription>
-              Cada nueva publicacion reemplaza la notificacion anterior del
-              mismo contenido.
+              El historial se mantiene completo para cada contenido.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

@@ -76,9 +76,37 @@ type FeedParams = {
   userId: string;
 };
 
+type ManualNewsDuplicateSignatureInput = {
+  bannerImageObjectKey?: string | null;
+  body: string;
+  contentId: string;
+  summary: string;
+  title: string;
+};
+
 function normalizeVersion(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
+}
+
+function normalizeManualNewsDuplicateValue(
+  value: string | null | undefined
+): string {
+  return value?.trim() ?? "";
+}
+
+export function buildManualNewsDuplicateSignature(
+  input: ManualNewsDuplicateSignatureInput
+): string {
+  return JSON.stringify({
+    bannerImageObjectKey: normalizeManualNewsDuplicateValue(
+      input.bannerImageObjectKey
+    ),
+    body: normalizeManualNewsDuplicateValue(input.body),
+    contentId: normalizeManualNewsDuplicateValue(input.contentId),
+    summary: normalizeManualNewsDuplicateValue(input.summary),
+    title: normalizeManualNewsDuplicateValue(input.title),
+  });
 }
 
 function pluralizePages(count: number): string {
@@ -410,51 +438,40 @@ export async function publishContentNewsArticle(
     throw new Error("NEWS_ARTICLE_TARGET_MUST_BE_PUBLISHED");
   }
 
-  const existingArticles = await db.query.newsArticle.findMany({
-    columns: {
-      id: true,
-      notificationId: true,
-    },
-    where: (table, { and: andWhere, eq: equals }) =>
-      andWhere(
-        equals(table.contentId, params.contentId),
-        equals(table.status, "published")
-      ),
-  });
-
-  const previousNotificationIds = existingArticles
-    .map((article) => article.notificationId)
-    .filter(
-      (notificationId): notificationId is string => notificationId !== null
+  const duplicateSignature = buildManualNewsDuplicateSignature(params);
+  const existingArticles = await db
+    .select({
+      bannerImageObjectKey: newsArticle.bannerImageObjectKey,
+      body: newsArticle.body,
+      contentId: newsArticle.contentId,
+      id: newsArticle.id,
+      notificationId: newsArticle.notificationId,
+      summary: newsArticle.summary,
+      title: newsArticle.title,
+    })
+    .from(newsArticle)
+    .where(
+      and(
+        eq(newsArticle.contentId, params.contentId),
+        eq(newsArticle.status, "published")
+      )
     );
 
-  if (existingArticles.length > 0) {
-    await db
-      .update(newsArticle)
-      .set({
-        status: "archived",
-      })
-      .where(
-        inArray(
-          newsArticle.id,
-          existingArticles.map((article) => article.id)
-        )
-      );
-  }
+  const existingDuplicateArticle = existingArticles.find(
+    (article) =>
+      buildManualNewsDuplicateSignature(article) === duplicateSignature
+  );
 
-  if (previousNotificationIds.length > 0) {
-    await db
-      .update(notification)
-      .set({
-        archivedAt: new Date(),
-      })
-      .where(inArray(notification.id, previousNotificationIds));
+  if (existingDuplicateArticle) {
+    return {
+      id: existingDuplicateArticle.id,
+      notificationId: existingDuplicateArticle.notificationId,
+    };
   }
 
   const notificationId = await createNotificationRecord(db, {
     audienceType: "content_followers",
-    description:
-      params.summary || `New staff article published for ${content.title}.`,
+    description: params.summary,
     expirationAt: params.expirationAt,
     imageObjectKey: params.bannerImageObjectKey,
     metadata: {

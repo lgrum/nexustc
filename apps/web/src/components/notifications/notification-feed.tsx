@@ -176,7 +176,7 @@ function NotificationFeedCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden rounded-[1.5rem] border-border/70 bg-card/95 py-0 shadow-[0_20px_50px_-32px_hsl(var(--foreground)/0.5)] backdrop-blur-md supports-backdrop-filter:bg-card/88 transition-colors",
+        "overflow-hidden rounded-[1.5rem] gap-0 border-border/70 bg-card/95 py-0 shadow-[0_20px_50px_-32px_hsl(var(--foreground)/0.5)] backdrop-blur-md supports-backdrop-filter:bg-card/88 transition-colors",
         accent.panelClassName,
         isUnread &&
           "border-primary/30 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_22px_60px_-34px_hsl(var(--primary)/0.6)]"
@@ -241,7 +241,7 @@ function NotificationFeedCard({
       ) : null}
 
       <CardContent>
-        <p className="text-pretty text-sm leading-6 text-foreground/88">
+        <p className="text-pretty text-sm leading-6 text-foreground/88 py-3">
           {item.description}
         </p>
       </CardContent>

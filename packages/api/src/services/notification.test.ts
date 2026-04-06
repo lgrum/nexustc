@@ -1,4 +1,7 @@
-import { deriveContentUpdateEvent } from "./notification";
+import {
+  buildManualNewsDuplicateSignature,
+  deriveContentUpdateEvent,
+} from "./notification";
 
 describe(deriveContentUpdateEvent, () => {
   it("creates a game update event only when the version changes on a published post", () => {
@@ -104,5 +107,45 @@ describe(deriveContentUpdateEvent, () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe(buildManualNewsDuplicateSignature, () => {
+  it("treats equivalent manual news articles as duplicates", () => {
+    const firstSignature = buildManualNewsDuplicateSignature({
+      bannerImageObjectKey: " banners/chronos.webp ",
+      body: " Se agrego una nueva build al branch publico. ",
+      contentId: "post-1",
+      summary: " Build nueva disponible ",
+      title: " Devlog 12 ",
+    });
+    const secondSignature = buildManualNewsDuplicateSignature({
+      bannerImageObjectKey: "banners/chronos.webp",
+      body: "Se agrego una nueva build al branch publico.",
+      contentId: "post-1",
+      summary: "Build nueva disponible",
+      title: "Devlog 12",
+    });
+
+    expect(firstSignature).toBe(secondSignature);
+  });
+
+  it("changes when the actual article content changes", () => {
+    const previousSignature = buildManualNewsDuplicateSignature({
+      bannerImageObjectKey: "banners/chronos.webp",
+      body: "Se agrego una nueva build al branch publico.",
+      contentId: "post-1",
+      summary: "Build nueva disponible",
+      title: "Devlog 12",
+    });
+    const nextSignature = buildManualNewsDuplicateSignature({
+      bannerImageObjectKey: "banners/chronos.webp",
+      body: "Se agrego una nueva build al branch publico con hotfixes.",
+      contentId: "post-1",
+      summary: "Build nueva disponible",
+      title: "Devlog 12",
+    });
+
+    expect(previousSignature).not.toBe(nextSignature);
   });
 });
