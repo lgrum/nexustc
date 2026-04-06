@@ -226,15 +226,15 @@ export function getBucketUrl(object: string) {
 }
 
 const TIER_BREAKPOINTS = {
-  0: "bg-gray-400",
-  100: "bg-blue-400",
-  1000: "bg-amber-400",
-  20: "bg-green-400",
-  500: "bg-purple-400",
+  0: "bg-gray-500/50",
+  100: "bg-blue-500/50",
+  1000: "bg-amber-500/50",
+  20: "bg-green-500/50",
+  500: "bg-violet-500/50",
 };
 
 export function getTierColor(favoriteCount: number) {
-  let tierColor = "bg-gray-400"; // Default color
+  let tierColor = "bg-gray-500/50"; // Default color
 
   for (const [threshold, color] of Object.entries(TIER_BREAKPOINTS)) {
     if (favoriteCount >= Number(threshold)) {
@@ -290,6 +290,33 @@ export function pickTextColorFromHex(
   }
 
   return pickTextColor(rgb);
+}
+
+const HUE_HASH_MODULUS = 1_000_000_007;
+const HUE_HASH_MULTIPLIER = 131;
+const HUE_HASH_SEED = 7;
+
+function normalizeHueSeed(seed: string): string {
+  return seed.normalize("NFKC").trim().toLocaleLowerCase("es");
+}
+
+export function getDeterministicHue(seed: string): number {
+  const normalizedSeed = normalizeHueSeed(seed);
+  let hash = HUE_HASH_SEED;
+  let index = 1;
+
+  for (const character of normalizedSeed) {
+    const codePoint = character.codePointAt(0) ?? 0;
+
+    hash =
+      (Math.imul(hash, HUE_HASH_MULTIPLIER) +
+        Math.imul(codePoint, index * 17 + 97)) %
+      HUE_HASH_MODULUS;
+    hash = (hash + HUE_HASH_MODULUS) % HUE_HASH_MODULUS;
+    index += 1;
+  }
+
+  return hash % 360;
 }
 
 const urlRegex = /https?:\/\/[^\s)\]]+|www\.[^\s)\]]+/gi;

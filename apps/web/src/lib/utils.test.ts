@@ -1,4 +1,4 @@
-import { getPixelCropRegion } from "./utils";
+import { getDeterministicHue, getPixelCropRegion } from "./utils";
 
 vi.mock(import("@repo/env/client"), () => ({
   env: {
@@ -54,5 +54,37 @@ describe(getPixelCropRegion, () => {
       x: 0,
       y: 0,
     });
+  });
+});
+
+describe(getDeterministicHue, () => {
+  it("returns the same hue for equivalent labels", () => {
+    expect(getDeterministicHue(" Visual Novel ")).toBe(
+      getDeterministicHue("visual novel")
+    );
+  });
+
+  it("keeps hues inside the valid range", () => {
+    const hue = getDeterministicHue("Aventura");
+
+    expect(hue).toBeGreaterThanOrEqual(0);
+    expect(hue).toBeLessThan(360);
+  });
+
+  it("spreads different labels across distinct hues", () => {
+    const hues = [
+      "RPG",
+      "Visual Novel",
+      "Sandbox",
+      "Accion",
+      "Aventura",
+      "Simulacion",
+      "Anime",
+      "Horror",
+      "Romance",
+      "Estrategia",
+    ].map((label) => getDeterministicHue(label));
+
+    expect(new Set(hues).size).toBe(hues.length);
   });
 });

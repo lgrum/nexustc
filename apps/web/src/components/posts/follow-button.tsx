@@ -31,14 +31,14 @@ function FollowButtonUI({
       className={cn(
         "text-white",
         isFollowing
-          ? "border-primary bg-primary/25 shadow-[0_0_0_1px_hsl(var(--primary)/0.15)]"
-          : "border-primary/35 bg-primary/10"
+          ? "border-emerald-500 bg-emerald-500/20 shadow-[0_0_0_1px_hsl(var(--emerald-500)/0.15)]"
+          : "border-emerald-500/35 bg-emerald-500/10"
       )}
       disabled={isLoading}
       onClick={onClick}
     >
       <HugeiconsIcon
-        className={cn(isFollowing && "text-primary")}
+        className={cn(isFollowing && "text-emerald-500")}
         icon={Notification03Icon}
       />
       {isFollowing ? "Siguiendo" : "Seguir"}
@@ -125,7 +125,7 @@ export function FollowButton({ contentId }: FollowButtonProps) {
         await invalidateNotificationFollowQueries(contentId);
       },
       onSuccess: () => {
-        toast.success("Dejaste de recibir updates de este contenido.");
+        toast.success("Dejarás de recibir actualizaciones de este contenido.");
       },
     })
   );

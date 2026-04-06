@@ -270,7 +270,7 @@
 /* Section title with left accent bar */
 .section-title {
   font-family: var(--font-lexend);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -280,13 +280,13 @@
   gap: 8px;
 }
 
-.section-title::before {
+/* .section-title::before {
   content: "";
   width: 3px;
   height: 16px;
   background: var(--primary);
   flex-shrink: 0;
-}
+} */
 
 /* Tier gradient bars */
 .tier-bar-gold {

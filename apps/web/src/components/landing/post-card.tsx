@@ -60,7 +60,7 @@ export function PostCard({ post }: PostCardProps) {
       to="/post/$id"
     >
       <Card
-        className="relative rounded-t-xl h-full"
+        className="relative rounded-t-xl h-full pb-0.75"
         style={{
           paddingBlock: "0px", // pt-0 gets overridden for some reason
         }}
@@ -68,7 +68,7 @@ export function PostCard({ post }: PostCardProps) {
         {/* Image area */}
         <div
           className={cn(
-            "min-h-0 pt-0.75",
+            "min-h-0",
             post.type === "comic"
               ? "relative aspect-3/4"
               : "relative aspect-video"
@@ -146,8 +146,6 @@ export function PostCard({ post }: PostCardProps) {
               {comicProgressBadge.label}
             </Badge>
           )}
-          {/* Gradient overlay */}
-          {/* <div className="absolute inset-0 bg-linear-to-t from-card via-transparent to-transparent" /> */}
           {/* Version badge */}
           {post.version && (
             <span className="absolute top-2 right-2 rounded bg-black/50 px-1.5 py-0.5 font-medium text-[10px] text-white backdrop-blur-sm">
@@ -156,19 +154,17 @@ export function PostCard({ post }: PostCardProps) {
           )}
         </div>
 
-        {/* Tier bar */}
-        <div
-          className={`absolute inset-0 top-0 h-0.75 w-full ${getTierColor(post.favorites)}`}
-        />
-
         <CardHeader className="grow">
           <CardTitle className="text-center text-pretty">
             {post.title}
           </CardTitle>
         </CardHeader>
-
         {/* Body */}
-        <CardFooter className="flex flex-col gap-1.5 p-3">
+        <CardFooter className="relative flex flex-col border-t-0 gap-1.5 p-3">
+          {/* Tier bar */}
+          <div
+            className={`absolute -top-1 h-0.75 w-full z-50 ${getTierColor(post.favorites)}`}
+          />
           {/* Stats row */}
           <div className="flex items-center justify-center gap-3 text-muted-foreground text-sm">
             <span className="inline-flex items-center gap-1">

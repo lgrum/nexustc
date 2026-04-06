@@ -1,6 +1,6 @@
 import type React from "react";
 
-import { cn, pickTextColorFromHex } from "@/lib/utils";
+import { cn, getDeterministicHue, pickTextColorFromHex } from "@/lib/utils";
 
 export function TermBadge({
   tag,
@@ -10,6 +10,7 @@ export function TermBadge({
   tag: { name: string; color: string | null | undefined };
   className?: string;
 }) {
+  const hue = getDeterministicHue(tag.name);
   const colors = tag.color ? tag.color.split(",") : [];
 
   let color1 = "";
@@ -39,9 +40,14 @@ export function TermBadge({
     return (
       <span
         className={cn(
-          "inline-flex grow items-center justify-center rounded-4xl border border-border bg-muted px-2.5 py-1 text-center font-medium text-muted-foreground text-xs transition-colors",
+          "inline-flex grow items-center justify-center rounded-full border px-3.5 py-1.5 text-center font-semibold text-sm transition-colors",
           className
         )}
+        style={{
+          background: `oklch(0.25 0.12 ${hue} / 0.5)`,
+          borderColor: `oklch(0.45 0.12 ${hue} / 0.3)`,
+          color: `oklch(0.82 0.12 ${hue})`,
+        }}
         {...props}
       >
         {tag.name}
@@ -54,7 +60,7 @@ export function TermBadge({
   return (
     <span
       className={cn(
-        "inline-flex grow items-center justify-center rounded-4xl border px-2.5 py-1 text-center font-medium text-xs transition-colors",
+        "inline-flex grow items-center justify-center rounded-full border px-3.5 py-1.5 text-center font-semibold text-sm transition-colors",
         className
       )}
       key={tag.name}

@@ -120,7 +120,7 @@ export function PostHero() {
     <div className="relative">
       {mainImage ? (
         <div className="relative">
-          <div className="aspect-video w-full overflow-hidden md:aspect-21/9">
+          <div className="aspect-video w-full overflow-hidden md:aspect-21/9 rounded-xl">
             <img
               alt={`Portada de ${post.title}`}
               className="h-full w-full object-cover"
@@ -190,7 +190,7 @@ export function PostStatsBar() {
               <PostStat
                 color="text-primary"
                 label="Rating"
-                value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
+                value={`${(post.averageRating ?? 0).toFixed(1)}/10.0`}
               />
             )}
           <PostStat
@@ -199,7 +199,7 @@ export function PostStatsBar() {
             value={updatedAt}
           />
         </CardContent>
-        <CardFooter className="flex flex-wrap items-center justify-center gap-2">
+        <CardFooter className="flex flex-wrap items-center justify-around gap-2">
           <FollowButton contentId={post.id} />
           <BookmarkButton postId={post.id} />
           <LikeButton postId={post.id} />
@@ -222,7 +222,7 @@ export function PostStatsBar() {
               render={<Button variant="secondary" />}
             >
               <HugeiconsIcon className="size-4" icon={Share08Icon} />
-              <span className="hidden md:block">Compartir</span>
+              Compartir
             </TooltipTrigger>
             <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
           </Tooltip>
@@ -752,11 +752,7 @@ export function PostInfo() {
     hasContent && (
       <div className="flex flex-col gap-3">
         <div className="section-title">Sinopsis</div>
-        <Card>
-          <CardContent>
-            <Markdown>{post.content}</Markdown>
-          </CardContent>
-        </Card>
+        <Markdown>{post.content}</Markdown>
       </div>
     )
   );

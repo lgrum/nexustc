@@ -87,7 +87,7 @@ function RouteComponent() {
               params={{ id: article.id }}
               to="/news/$id"
             >
-              <Card className="h-full rounded-[1.6rem] border-border/70 bg-card/90 py-0 transition-transform duration-200 group-hover:-translate-y-1">
+              <Card className="h-full rounded-[1.6rem] border-border/70 bg-card/90 pt-0 transition-transform duration-200 group-hover:-translate-y-1">
                 {article.bannerImageObjectKey ? (
                   <div className="aspect-[1.85/1] overflow-hidden border-border/40 border-b">
                     <img
@@ -124,7 +124,6 @@ function RouteComponent() {
 
                 <CardContent className="mt-auto flex items-center justify-between gap-3 pt-0 text-muted-foreground text-xs uppercase tracking-[0.18em]">
                   <span className="truncate">{article.contentTitle}</span>
-                  <span className="text-primary">Leer nota</span>
                 </CardContent>
               </Card>
             </Link>

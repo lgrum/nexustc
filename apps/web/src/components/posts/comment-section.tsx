@@ -28,7 +28,6 @@ import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
 import { ErrorField } from "../forms/error-field";
 import { Button } from "../ui/button";
-import { Card } from "../ui/card";
 import {
   InputGroup,
   InputGroupAddon,
@@ -126,12 +125,9 @@ export function CommentSection() {
     return (
       <div className="flex flex-col gap-3" ref={ref}>
         <div className="section-title">Comentarios</div>
-        <Card
-          className="flex min-h-100 items-center justify-center border border-border bg-card p-6"
-          ref={ref}
-        >
+        <div className="flex min-h-100 items-center justify-center" ref={ref}>
           <Spinner />
-        </Card>
+        </div>
       </div>
     );
   }
@@ -143,7 +139,7 @@ export function CommentSection() {
       <div className="section-title">
         Comentarios{commentCount > 0 && ` (${commentCount})`}
       </div>
-      <Card className="flex flex-col gap-4 border border-border bg-card p-4">
+      <div className="flex flex-col gap-4">
         {/* Comment Form */}
         <SignedIn>
           <form
@@ -286,7 +282,7 @@ export function CommentSection() {
             )}
           </div>
         </ScrollArea>
-      </Card>
+      </div>
     </div>
   );
 }

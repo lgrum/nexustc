@@ -3,6 +3,10 @@ import {
   Login03Icon,
   StarIcon,
   ViewIcon,
+  GameController03Icon,
+  UserGroupIcon,
+  Tag01Icon,
+  Time04Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
@@ -76,13 +80,16 @@ function HomeComponent() {
   const { weeklyGames } = Route.useLoaderData();
 
   return (
-    <main className="flex w-full gap-6 py-4">
+    <main className="flex w-full gap-6">
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <HeroSection />
 
-        <section className="py-5">
-          <div className="section-title mb-3.5">Juegos de la Semana</div>
+        <section className="py-5 space-y-3">
+          <SectionTitle
+            title="Juegos de la Semana"
+            icon={GameController03Icon}
+          />
           <GamesCarousel games={weeklyGames.data ?? []} />
         </section>
 
@@ -100,8 +107,8 @@ function HomeComponent() {
       </div>
 
       {/* Sidebar — desktop only */}
-      <aside className="hidden w-72 shrink-0 md:block">
-        <div className="sticky top-16 flex flex-col gap-4">
+      <aside className="hidden w-80 shrink-0 md:block pb-4">
+        <div className="sticky top-4 flex flex-col gap-4">
           <AuthAction />
           <div className="glow-line" />
           <ActiveUsersSection />
@@ -219,8 +226,8 @@ function ActiveUsersSection() {
   const { recentUsers } = Route.useLoaderData();
 
   return (
-    <section>
-      <div className="section-title mb-3.5">Usuarios Activos</div>
+    <section className="space-y-3">
+      <SectionTitle title="Usuarios Activos" icon={UserGroupIcon} />
       {!!recentUsers.error && (
         <p className="text-red-500 text-sm">Error: {recentUsers.error.code}</p>
       )}
@@ -335,8 +342,8 @@ function TagsSection() {
   const tags = terms?.filter((term) => term.taxonomy === "tag") ?? [];
 
   return (
-    <section>
-      <div className="section-title mb-3.5">Tags Populares</div>
+    <section className="space-y-3">
+      <SectionTitle title="Tags Populares" icon={Tag01Icon} />
       <div className="flex flex-wrap gap-1.5">
         {tags.map((tag) => (
           <Link
@@ -365,8 +372,8 @@ function RecentPostsSection() {
   });
 
   return (
-    <section className="px-3 py-5">
-      <div className="section-title mb-3.5">Publicaciones Recientes</div>
+    <section className="px-3 py-5 space-y-3">
+      <SectionTitle title="Publicaciones Recientes" icon={Time04Icon} />
 
       {isLoading && (
         <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
@@ -391,5 +398,22 @@ function RecentPostsSection() {
         </div>
       )}
     </section>
+  );
+}
+
+function SectionTitle({
+  title,
+  icon,
+}: {
+  title: string;
+  icon: IconSvgElement;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="bg-linear-135 from-primary/30 to-secondary/30 border border-primary flex size-8 items-center justify-center rounded-lg">
+        <HugeiconsIcon className="size-4 text-primary" icon={icon} />
+      </div>
+      <div className="section-title">{title}</div>
+    </div>
   );
 }

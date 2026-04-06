@@ -84,7 +84,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
           id="main-scrollable-area"
         >
           <div className="relative flex w-full min-w-0 max-w-full flex-col items-center overflow-x-clip">
-            <div className="container">
+            <div className="container space-y-4">
               <Header />
               <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>
             </div>
