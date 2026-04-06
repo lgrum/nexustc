@@ -1,4 +1,4 @@
-import { Notification03Icon, SparklesIcon } from "@hugeicons/core-free-icons";
+import { Notification03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -17,9 +17,6 @@ import {
 import {
   Popover,
   PopoverContent,
-  PopoverDescription,
-  PopoverHeader,
-  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -173,18 +170,9 @@ export function NotificationCenter() {
       <PopoverTrigger render={trigger} />
       <PopoverContent
         align="end"
-        className="relative isolate w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-[1.9rem] border border-border/70 bg-background/96 p-0 shadow-[0_34px_100px_-42px_hsl(var(--foreground)/0.75)] before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150 supports-backdrop-filter:bg-background/80"
+        className="relative isolate w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-[1.9rem] border border-border/70 bg-background/96 pb-0 px-0 shadow-[0_34px_100px_-42px_hsl(var(--foreground)/0.75)] before:pointer-events-none before:absolute before:inset-0 before:-z-1 before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150 supports-backdrop-filter:bg-background/80"
         sideOffset={10}
       >
-        <PopoverHeader className="border-border/60 border-b px-4 py-4">
-          <PopoverTitle className="font-[Lexend] text-xl">
-            Notificaciones
-          </PopoverTitle>
-          <PopoverDescription>
-            Novedades de la plataforma, tus juegos seguidos y avisos del
-            sistema.
-          </PopoverDescription>
-        </PopoverHeader>
         {content}
       </PopoverContent>
     </Popover>
@@ -266,16 +254,8 @@ function NotificationPanel({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="relative overflow-hidden border-border/60 border-b bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.18),transparent_58%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))] px-4 py-4">
-        <div className="pointer-events-none absolute inset-x-4 top-4 flex items-center justify-between opacity-35">
-          <span className="h-px w-18 bg-primary/40" />
-          <HugeiconsIcon
-            className="size-4 text-primary/60"
-            icon={SparklesIcon}
-          />
-          <span className="h-px w-18 bg-primary/40" />
-        </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="relative overflow-hidden border-border/60 border-b bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.18),transparent_58%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))] px-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <Tabs
             onValueChange={(value) => onFilterChange(value as "all" | "unread")}
             value={filter}
@@ -303,7 +283,7 @@ function NotificationPanel({
             Marcar todo
           </button>
         </div>
-        <div className="mt-3 flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-[0.22em]">
+        <div className="py-3 flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-[0.22em]">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           {unreadCount > 0
             ? `${unreadCount} pendientes en tu bandeja`
@@ -311,7 +291,7 @@ function NotificationPanel({
         </div>
       </div>
 
-      <ScrollArea className="max-h-[min(70vh,40rem)] flex-1">
+      <ScrollArea className="h-[min(70vh,30rem)]">
         <div className="flex flex-col gap-4 p-4">
           {isLoading ? (
             <NotificationFeedSkeleton />

@@ -240,7 +240,7 @@ function NotificationFeedCard({
         </div>
       ) : null}
 
-      <CardContent className="px-4 py-4">
+      <CardContent>
         <p className="text-pretty text-sm leading-6 text-foreground/88">
           {item.description}
         </p>
