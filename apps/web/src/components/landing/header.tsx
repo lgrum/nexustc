@@ -2,6 +2,7 @@ import {
   Home01Icon,
   Clock01Icon,
   CircleLockIcon,
+  News01Icon,
   Search01Icon,
   Book03Icon,
   StarIcon,
@@ -26,7 +27,6 @@ import { Button } from "../ui/button";
 
 const navItems = [
   { href: "/", icon: Home01Icon, label: "Inicio", search: {} },
-  { href: "/vip", icon: StarIcon, label: "VIP", search: {} },
   {
     href: "/search",
     icon: Search01Icon,
@@ -39,6 +39,8 @@ const navItems = [
     label: "Tutoriales",
     search: {},
   },
+  { href: "/vip", icon: StarIcon, label: "VIP", search: {} },
+  { href: "/news", icon: News01Icon, label: "Noticias", search: {} },
   { href: "/chronos", icon: Clock01Icon, label: "Chronos", search: {} },
 ] as const;
 

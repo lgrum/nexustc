@@ -76,6 +76,7 @@ export function AdminNotificationCard({
   badgeLabel,
   description,
   expirationAt,
+  newsArticleId,
   onArchive,
   publishedAt,
   title,
@@ -84,11 +85,12 @@ export function AdminNotificationCard({
   badgeLabel: string;
   description: string;
   expirationAt?: Date | null;
+  newsArticleId?: string;
   onArchive?: () => void;
   publishedAt?: Date | null;
   title: string;
 }) {
-  return (
+  const content = (
     <Card className="rounded-[1.35rem] border-border/70 bg-muted/20 py-0">
       <CardHeader className="gap-3 border-border/50 border-b px-4 py-4">
         <div className="flex items-center gap-2">
@@ -123,6 +125,20 @@ export function AdminNotificationCard({
           : "Sin fecha"}
       </CardContent>
     </Card>
+  );
+
+  if (!newsArticleId) {
+    return content;
+  }
+
+  return (
+    <Link
+      className="block rounded-[1.35rem] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-primary/40"
+      params={{ id: newsArticleId }}
+      to="/news/$id"
+    >
+      {content}
+    </Link>
   );
 }
 

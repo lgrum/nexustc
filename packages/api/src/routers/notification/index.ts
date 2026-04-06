@@ -5,13 +5,15 @@ import {
 } from "@repo/shared/schemas";
 import z from "zod";
 
-import { protectedProcedure } from "../../index";
+import { protectedProcedure, publicProcedure } from "../../index";
 import {
   followContent,
+  getPublishedNewsArticleById,
   getFollowState,
   getFollowingOverview,
   getNotificationFeed,
   getUnreadNotificationCount,
+  listPublishedNewsArticles,
   markAllNotificationsRead,
   markNotificationsRead,
   unfollowContent,
@@ -20,6 +22,32 @@ import admin from "./admin";
 
 export default {
   admin,
+
+  getPublishedNewsArticleById: publicProcedure
+    .input(z.string().min(1))
+    .handler(async ({ context: { db }, input, errors }) => {
+      const article = await getPublishedNewsArticleById(db, input);
+
+      if (!article) {
+        throw errors.NOT_FOUND();
+      }
+
+      return article;
+    }),
+
+  listPublishedNewsArticles: publicProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(100).default(24),
+        })
+        .optional()
+    )
+    .handler(({ context: { db }, input }) =>
+      listPublishedNewsArticles(db, {
+        limit: input?.limit ?? 24,
+      })
+    ),
 
   followContent: protectedProcedure
     .input(contentFollowSchema)

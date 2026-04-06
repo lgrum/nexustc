@@ -229,6 +229,7 @@ function RouteComponent() {
                   }
                   description={item.summary || "Sin resumen para la bandeja."}
                   expirationAt={item.expirationAt}
+                  newsArticleId={item.id}
                   publishedAt={item.publishedAt}
                   title={item.title}
                 />

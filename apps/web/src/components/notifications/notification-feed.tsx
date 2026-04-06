@@ -154,6 +154,24 @@ function NotificationFeedCard({
     addSuffix: true,
     locale: es,
   });
+  const metadataArticleId =
+    typeof item.metadata.articleId === "string"
+      ? item.metadata.articleId
+      : null;
+  const articleLink =
+    item.type === "content_news" && metadataArticleId
+      ? {
+          params: { id: metadataArticleId },
+          to: "/news/$id" as const,
+        }
+      : null;
+  const contentLink = item.targetContentId
+    ? {
+        params: { id: item.targetContentId },
+        to: "/post/$id" as const,
+      }
+    : null;
+  const openLink = articleLink ?? contentLink;
 
   return (
     <Card
@@ -233,7 +251,7 @@ function NotificationFeedCard({
           {isUnread ? "Aún no marcada como leída" : "Leída"}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {item.targetContentId ? (
+          {openLink ? (
             <Button
               className="rounded-full"
               nativeButton={false}
@@ -242,9 +260,7 @@ function NotificationFeedCard({
                   onMarkRead?.(item.id);
                 }
               }}
-              render={
-                <Link params={{ id: item.targetContentId }} to="/post/$id" />
-              }
+              render={<Link params={openLink.params} to={openLink.to} />}
               size="sm"
               variant="outline"
             >

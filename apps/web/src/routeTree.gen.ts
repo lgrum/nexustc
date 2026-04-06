@@ -50,6 +50,7 @@ import { Route as AdminNotificationsIndexRouteImport } from './routes/admin/noti
 import { Route as AdminMediaIndexRouteImport } from './routes/admin/media/index'
 import { Route as AdminEmojisIndexRouteImport } from './routes/admin/emojis/index'
 import { Route as AdminComicsIndexRouteImport } from './routes/admin/comics/index'
+import { Route as MainNewsIndexRouteImport } from './routes/_main/news.index'
 import { Route as ApiRpcSplatRouteImport } from './routes/api/rpc.$'
 import { Route as ApiPatreonWebhookRouteImport } from './routes/api/patreon/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
@@ -69,6 +70,7 @@ import { Route as AdminComicsCreateRouteImport } from './routes/admin/comics/cre
 import { Route as AdminChronosEditRouteImport } from './routes/admin/chronos/edit'
 import { Route as MainUserIdRouteImport } from './routes/_main/user.$id'
 import { Route as MainPostIdRouteImport } from './routes/_main/post.$id'
+import { Route as MainNewsIdRouteImport } from './routes/_main/news.$id'
 import { Route as AdminStickersIdEditRouteImport } from './routes/admin/stickers/$id.edit'
 import { Route as AdminPostsEditIdRouteImport } from './routes/admin/posts/edit.$id'
 import { Route as AdminEmojisIdEditRouteImport } from './routes/admin/emojis/$id.edit'
@@ -279,6 +281,11 @@ const AdminComicsIndexRoute = AdminComicsIndexRouteImport.update({
   path: '/comics/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const MainNewsIndexRoute = MainNewsIndexRouteImport.update({
+  id: '/news/',
+  path: '/news/',
+  getParentRoute: () => MainRouteRoute,
+} as any)
 const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   id: '/api/rpc/$',
   path: '/api/rpc/$',
@@ -376,6 +383,11 @@ const MainPostIdRoute = MainPostIdRouteImport.update({
   path: '/post/$id',
   getParentRoute: () => MainRouteRoute,
 } as any)
+const MainNewsIdRoute = MainNewsIdRouteImport.update({
+  id: '/news/$id',
+  path: '/news/$id',
+  getParentRoute: () => MainRouteRoute,
+} as any)
 const AdminStickersIdEditRoute = AdminStickersIdEditRouteImport.update({
   id: '/stickers/$id/edit',
   path: '/stickers/$id/edit',
@@ -435,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/demo/n': typeof DemoNRoute
   '/admin/': typeof AdminIndexRoute
   '/demo/': typeof DemoIndexRoute
+  '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
   '/user/$id': typeof MainUserIdRoute
   '/admin/chronos/edit': typeof AdminChronosEditRoute
@@ -454,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/patreon/webhook': typeof ApiPatreonWebhookRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/news/': typeof MainNewsIndexRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
   '/admin/emojis/': typeof AdminEmojisIndexRoute
   '/admin/media/': typeof AdminMediaIndexRoute
@@ -500,6 +514,7 @@ export interface FileRoutesByTo {
   '/': typeof MainIndexRoute
   '/admin': typeof AdminIndexRoute
   '/demo': typeof DemoIndexRoute
+  '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
   '/user/$id': typeof MainUserIdRoute
   '/admin/chronos/edit': typeof AdminChronosEditRoute
@@ -519,6 +534,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/patreon/webhook': typeof ApiPatreonWebhookRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/news': typeof MainNewsIndexRoute
   '/admin/comics': typeof AdminComicsIndexRoute
   '/admin/emojis': typeof AdminEmojisIndexRoute
   '/admin/media': typeof AdminMediaIndexRoute
@@ -568,6 +584,7 @@ export interface FileRoutesById {
   '/_main/': typeof MainIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/demo/': typeof DemoIndexRoute
+  '/_main/news/$id': typeof MainNewsIdRoute
   '/_main/post/$id': typeof MainPostIdRoute
   '/_main/user/$id': typeof MainUserIdRoute
   '/admin/chronos/edit': typeof AdminChronosEditRoute
@@ -587,6 +604,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/patreon/webhook': typeof ApiPatreonWebhookRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/_main/news/': typeof MainNewsIndexRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
   '/admin/emojis/': typeof AdminEmojisIndexRoute
   '/admin/media/': typeof AdminMediaIndexRoute
@@ -636,6 +654,7 @@ export interface FileRouteTypes {
     | '/demo/n'
     | '/admin/'
     | '/demo/'
+    | '/news/$id'
     | '/post/$id'
     | '/user/$id'
     | '/admin/chronos/edit'
@@ -655,6 +674,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/patreon/webhook'
     | '/api/rpc/$'
+    | '/news/'
     | '/admin/comics/'
     | '/admin/emojis/'
     | '/admin/media/'
@@ -701,6 +721,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/demo'
+    | '/news/$id'
     | '/post/$id'
     | '/user/$id'
     | '/admin/chronos/edit'
@@ -720,6 +741,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/patreon/webhook'
     | '/api/rpc/$'
+    | '/news'
     | '/admin/comics'
     | '/admin/emojis'
     | '/admin/media'
@@ -768,6 +790,7 @@ export interface FileRouteTypes {
     | '/_main/'
     | '/admin/'
     | '/demo/'
+    | '/_main/news/$id'
     | '/_main/post/$id'
     | '/_main/user/$id'
     | '/admin/chronos/edit'
@@ -787,6 +810,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/patreon/webhook'
     | '/api/rpc/$'
+    | '/_main/news/'
     | '/admin/comics/'
     | '/admin/emojis/'
     | '/admin/media/'
@@ -1116,6 +1140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminComicsIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/_main/news/': {
+      id: '/_main/news/'
+      path: '/news'
+      fullPath: '/news/'
+      preLoaderRoute: typeof MainNewsIndexRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
     '/api/rpc/$': {
       id: '/api/rpc/$'
       path: '/api/rpc/$'
@@ -1249,6 +1280,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainPostIdRouteImport
       parentRoute: typeof MainRouteRoute
     }
+    '/_main/news/$id': {
+      id: '/_main/news/$id'
+      path: '/news/$id'
+      fullPath: '/news/$id'
+      preLoaderRoute: typeof MainNewsIdRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
     '/admin/stickers/$id/edit': {
       id: '/admin/stickers/$id/edit'
       path: '/stickers/$id/edit'
@@ -1300,8 +1338,10 @@ interface MainRouteRouteChildren {
   MainTutorialsRoute: typeof MainTutorialsRoute
   MainVipRoute: typeof MainVipRoute
   MainIndexRoute: typeof MainIndexRoute
+  MainNewsIdRoute: typeof MainNewsIdRoute
   MainPostIdRoute: typeof MainPostIdRoute
   MainUserIdRoute: typeof MainUserIdRoute
+  MainNewsIndexRoute: typeof MainNewsIndexRoute
   MainPostReviewsIdRoute: typeof MainPostReviewsIdRoute
 }
 
@@ -1318,8 +1358,10 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainTutorialsRoute: MainTutorialsRoute,
   MainVipRoute: MainVipRoute,
   MainIndexRoute: MainIndexRoute,
+  MainNewsIdRoute: MainNewsIdRoute,
   MainPostIdRoute: MainPostIdRoute,
   MainUserIdRoute: MainUserIdRoute,
+  MainNewsIndexRoute: MainNewsIndexRoute,
   MainPostReviewsIdRoute: MainPostReviewsIdRoute,
 }
 

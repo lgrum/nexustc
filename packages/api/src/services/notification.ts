@@ -491,7 +491,91 @@ export async function publishContentNewsArticle(
       notificationId: newsArticle.notificationId,
     });
 
+  if (article?.id && notificationId) {
+    await db
+      .update(notification)
+      .set({
+        metadata: {
+          articleId: article.id,
+          articleType: "manual_news",
+          contentId: params.contentId,
+          contentType: content.type,
+          linkPath: getContentPath(params.contentId),
+          ...params.metadata,
+        },
+      })
+      .where(eq(notification.id, notificationId));
+  }
+
   return article;
+}
+
+export async function getPublishedNewsArticleById(
+  db: NotificationDb,
+  articleId: string
+) {
+  const now = new Date();
+
+  const [article] = await db
+    .select({
+      bannerImageObjectKey: newsArticle.bannerImageObjectKey,
+      body: newsArticle.body,
+      contentId: newsArticle.contentId,
+      contentTitle: post.title,
+      contentType: post.type,
+      expirationAt: newsArticle.expirationAt,
+      id: newsArticle.id,
+      publishedAt: newsArticle.publishedAt,
+      summary: newsArticle.summary,
+      title: newsArticle.title,
+    })
+    .from(newsArticle)
+    .innerJoin(post, eq(post.id, newsArticle.contentId))
+    .where(
+      and(
+        eq(newsArticle.id, articleId),
+        eq(newsArticle.status, "published"),
+        eq(post.status, "publish"),
+        lte(newsArticle.publishedAt, now),
+        or(isNull(newsArticle.expirationAt), gt(newsArticle.expirationAt, now))
+      )
+    )
+    .limit(1);
+
+  return article ?? null;
+}
+
+export function listPublishedNewsArticles(
+  db: NotificationDb,
+  params: {
+    limit: number;
+  }
+) {
+  const now = new Date();
+
+  return db
+    .select({
+      bannerImageObjectKey: newsArticle.bannerImageObjectKey,
+      contentId: newsArticle.contentId,
+      contentTitle: post.title,
+      contentType: post.type,
+      id: newsArticle.id,
+      publishedAt: newsArticle.publishedAt,
+      summary: newsArticle.summary,
+      title: newsArticle.title,
+    })
+    .from(newsArticle)
+    .innerJoin(post, eq(post.id, newsArticle.contentId))
+    .where(
+      and(
+        eq(newsArticle.status, "published"),
+        eq(post.status, "publish"),
+        lte(newsArticle.publishedAt, now),
+        or(isNull(newsArticle.expirationAt), gt(newsArticle.expirationAt, now))
+      )
+    )
+    .orderBy(desc(newsArticle.publishedAt))
+    .limit(params.limit);
 }
 
 export async function createOrCollapseContentUpdateNotification(

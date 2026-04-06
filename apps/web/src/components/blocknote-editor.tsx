@@ -1,50 +1,14 @@
-import type { PartialBlock } from "@blocknote/core";
 import { es } from "@blocknote/core/locales";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 
-const EMPTY_BLOCK_NOTE_DOCUMENT: PartialBlock[] = [
-  {
-    type: "paragraph",
-  },
-];
-
-function parseBlockNoteValue(
-  value: string,
-  editor: ReturnType<typeof useCreateBlockNote>
-): PartialBlock[] {
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) {
-    return EMPTY_BLOCK_NOTE_DOCUMENT;
-  }
-
-  try {
-    const parsedValue = JSON.parse(trimmedValue);
-
-    if (Array.isArray(parsedValue)) {
-      return parsedValue as PartialBlock[];
-    }
-  } catch {
-    return editor.tryParseMarkdownToBlocks(trimmedValue);
-  }
-
-  return editor.tryParseMarkdownToBlocks(trimmedValue);
-}
-
-function serializeBlockNoteValue(
-  editor: ReturnType<typeof useCreateBlockNote>
-): string {
-  const blocks = editor.document;
-  const markdownValue = editor.blocksToMarkdownLossy(blocks).trim();
-
-  if (!markdownValue) {
-    return "";
-  }
-
-  return JSON.stringify(blocks);
-}
+import "@blocknote/shadcn/style.css";
+import {
+  EMPTY_BLOCK_NOTE_DOCUMENT,
+  parseBlockNoteValue,
+  serializeBlockNoteValue,
+} from "@/lib/blocknote";
 
 export function BlockNoteEditor({
   onChange,
@@ -54,6 +18,7 @@ export function BlockNoteEditor({
   onChange?: (value: string) => void;
   value?: string;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const editor = useCreateBlockNote({
     dictionary: es,
     initialContent: EMPTY_BLOCK_NOTE_DOCUMENT,
@@ -73,7 +38,51 @@ export function BlockNoteEditor({
     editor.replaceBlocks(editor.document, parseBlockNoteValue(value, editor));
   }, [editor, value]);
 
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const normalizeButtonType = (element: Element) => {
+      if (element instanceof HTMLButtonElement) {
+        element.type = "button";
+      }
+
+      for (const button of element.querySelectorAll("button")) {
+        button.type = "button";
+      }
+    };
+
+    normalizeButtonType(container);
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof Element) {
+            normalizeButtonType(node);
+          }
+        }
+      }
+    });
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   return (
-    <BlockNoteView editor={editor} onChange={handleEditorChange} {...props} />
+    <BlockNoteView
+      editor={editor}
+      onChange={handleEditorChange}
+      ref={containerRef}
+      {...props}
+    />
   );
 }

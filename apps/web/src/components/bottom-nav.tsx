@@ -3,6 +3,7 @@ import {
   GameController03Icon,
   Home07Icon,
   MoreHorizontalCircle01Icon,
+  News01Icon,
   Search01Icon,
   StarIcon,
   UserIcon,
@@ -33,7 +34,8 @@ export function BottomNav() {
     return location.pathname.startsWith(href);
   };
 
-  const isExtrasActive = isActive("/profile") || isActive("/auth");
+  const isExtrasActive =
+    isActive("/news") || isActive("/profile") || isActive("/auth");
 
   return (
     <nav
@@ -159,6 +161,10 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
           <span className="font-medium text-[10px]">Extras</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" side="top" sideOffset={8}>
+          <DropdownMenuItem onClick={() => navigate({ to: "/news" })}>
+            <HugeiconsIcon icon={News01Icon} />
+            News
+          </DropdownMenuItem>
           {auth?.session ? (
             <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>
               <HugeiconsIcon icon={UserIcon} />
