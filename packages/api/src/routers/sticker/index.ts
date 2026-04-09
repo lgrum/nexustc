@@ -48,12 +48,9 @@ export default {
       .input(z.string())
       .handler(async ({ context: { db, ...ctx }, input }) => {
         const logger = getLogger(ctx);
-        logger?.info(`Admin: Soft-deleting sticker ${input}`);
+        logger?.info(`Admin: Deleting sticker ${input}`);
 
-        await db
-          .update(sticker)
-          .set({ isActive: false })
-          .where(eq(sticker.id, input));
+        await db.delete(sticker).where(eq(sticker.id, input));
       }),
 
     getById: permissionProcedure({ stickers: ["update"] })

@@ -69,10 +69,12 @@ function RouteComponent() {
         })
         .unwrap();
 
-      await queryClient.invalidateQueries(
-        orpc.sticker.admin.list.queryOptions()
-      );
-      await queryClient.invalidateQueries(orpc.media.admin.list.queryOptions());
+      await queryClient.invalidateQueries({
+        queryKey: orpc.sticker.admin.list.queryKey(),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.media.admin.list.queryKey(),
+      });
       navigate({ to: "/admin/stickers" });
     },
     validators: { onSubmit: stickerCreateSchema },

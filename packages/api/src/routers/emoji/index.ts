@@ -48,12 +48,9 @@ export default {
       .input(z.string())
       .handler(async ({ context: { db, ...ctx }, input }) => {
         const logger = getLogger(ctx);
-        logger?.info(`Admin: Soft-deleting emoji ${input}`);
+        logger?.info(`Admin: Deleting emoji ${input}`);
 
-        await db
-          .update(emoji)
-          .set({ isActive: false })
-          .where(eq(emoji.id, input));
+        await db.delete(emoji).where(eq(emoji.id, input));
       }),
 
     getById: permissionProcedure({ emojis: ["update"] })

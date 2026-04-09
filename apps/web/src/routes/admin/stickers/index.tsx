@@ -74,10 +74,10 @@ const columns: ColumnDef<Sticker>[] = [
             onClick={async () => {
               const isConfirmed = await confirm({
                 cancelText: "Cancelar",
-                confirmText: "Desactivar",
+                confirmText: "Eliminar",
                 description:
-                  "¿Estás seguro de que quieres desactivar este sticker?",
-                title: "Desactivar Sticker",
+                  "¿Estás absolutamente seguro de que quieres eliminar este sticker? Esta acción no se puede deshacer.",
+                title: "Eliminar Sticker",
               });
 
               if (isConfirmed) {
@@ -87,10 +87,10 @@ const columns: ColumnDef<Sticker>[] = [
                     {
                       error: (error) => ({
                         duration: 10_000,
-                        message: `Error: ${error}`,
+                        message: `Error al eliminar sticker: ${error}`,
                       }),
-                      loading: "Desactivando sticker...",
-                      success: "Sticker desactivado.",
+                      loading: "Eliminando sticker...",
+                      success: "Sticker eliminado.",
                     }
                   )
                   .unwrap();

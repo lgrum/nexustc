@@ -74,10 +74,10 @@ const columns: ColumnDef<Emoji>[] = [
             onClick={async () => {
               const isConfirmed = await confirm({
                 cancelText: "Cancelar",
-                confirmText: "Desactivar",
+                confirmText: "Eliminar",
                 description:
-                  "¿Estás seguro de que quieres desactivar este emoji?",
-                title: "Desactivar Emoji",
+                  "¿Estás absolutamente seguro de que quieres eliminar este emoji? Esta acción no se puede deshacer.",
+                title: "Eliminar Emoji",
               });
 
               if (isConfirmed) {
@@ -87,10 +87,10 @@ const columns: ColumnDef<Emoji>[] = [
                     {
                       error: (error) => ({
                         duration: 10_000,
-                        message: `Error: ${error}`,
+                        message: `Error al eliminar emoji: ${error}`,
                       }),
-                      loading: "Desactivando emoji...",
-                      success: "Emoji desactivado.",
+                      loading: "Eliminando emoji...",
+                      success: "Emoji eliminado.",
                     }
                   )
                   .unwrap();

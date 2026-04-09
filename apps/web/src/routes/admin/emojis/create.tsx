@@ -58,19 +58,21 @@ function RouteComponent() {
       type: "static" as "static" | "animated",
     },
     onSubmit: async (formData) => {
-      await toast
-        .promise(mutation.mutateAsync(formData.value), {
-          error: (error) => ({
-            duration: 10_000,
-            message: `Error al crear emoji: ${error}`,
-          }),
-          loading: "Creando emoji...",
-          success: "Emoji creado!",
-        })
-        .unwrap();
+      await toast.promise(mutation.mutateAsync(formData.value), {
+        error: (error) => ({
+          duration: 10_000,
+          message: `Error al crear emoji: ${error}`,
+        }),
+        loading: "Creando emoji...",
+        success: "Emoji creado!",
+      });
 
-      await queryClient.invalidateQueries(orpc.emoji.admin.list.queryOptions());
-      await queryClient.invalidateQueries(orpc.media.admin.list.queryOptions());
+      await queryClient.invalidateQueries({
+        queryKey: orpc.emoji.admin.list.queryKey(),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: orpc.media.admin.list.queryKey(),
+      });
       navigate({ to: "/admin/emojis" });
     },
     validators: { onSubmit: emojiCreateSchema },
