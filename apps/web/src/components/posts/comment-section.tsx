@@ -220,23 +220,24 @@ export function CommentSection() {
             </Link>
           </div>
         </SignedOut>
+        {commentCount === 0 && (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+              <HugeiconsIcon
+                className="size-6 text-muted-foreground"
+                icon={Comment01Icon}
+              />
+            </div>
+            <p className="text-muted-foreground">
+              Aún no hay comentarios. ¡Sé el primero!
+            </p>
+          </div>
+        )}
         {/* Comments List */}
-        <ScrollArea className="h-150">
-          <div className="flex flex-col">
-            {commentCount === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-center">
-                <div className="flex size-12 items-center justify-center rounded-full bg-muted">
-                  <HugeiconsIcon
-                    className="size-6 text-muted-foreground"
-                    icon={Comment01Icon}
-                  />
-                </div>
-                <p className="text-muted-foreground">
-                  Aún no hay comentarios. ¡Sé el primero!
-                </p>
-              </div>
-            ) : (
-              commentsQuery.data
+        {commentCount > 0 && (
+          <ScrollArea className="h-150">
+            <div className="flex flex-col">
+              {commentsQuery.data
                 .filter(
                   (
                     comment
@@ -278,10 +279,10 @@ export function CommentSection() {
                       />
                     </div>
                   </div>
-                ))
-            )}
-          </div>
-        </ScrollArea>
+                ))}
+            </div>
+          </ScrollArea>
+        )}
       </div>
     </div>
   );

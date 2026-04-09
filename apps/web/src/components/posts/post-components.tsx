@@ -99,7 +99,7 @@ export function PostPage({ post }: { post: PostProps }) {
         </div>
         {/* Sidebar — desktop only */}
         <aside className="hidden w-72 shrink-0 pt-4 pr-4 md:block">
-          <div className="sticky top-22 flex flex-col gap-4">
+          <div className="flex flex-col gap-4">
             {showRestrictedView ? (
               <EarlyAccessSidebarCard />
             ) : (
