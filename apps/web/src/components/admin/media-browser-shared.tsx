@@ -1,4 +1,8 @@
-import { Home01Icon, PlusSignIcon } from "@hugeicons/core-free-icons";
+import {
+  Folder01Icon,
+  Home01Icon,
+  PlusSignIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Fragment, useState } from "react";
 
@@ -81,6 +85,34 @@ export function buildMediaFolderPathLabelMap(folders: MediaFolderItem[]) {
   );
 }
 
+export function buildMediaFolderBreadcrumbs(
+  folders: MediaFolderItem[],
+  folderId: string | null
+) {
+  if (!folderId) {
+    return [] satisfies MediaFolderItem[];
+  }
+
+  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
+  const breadcrumbs: MediaFolderItem[] = [];
+  let currentFolderId: string | null = folderId;
+  const seen = new Set<string>();
+
+  while (currentFolderId && !seen.has(currentFolderId)) {
+    const folder = foldersById.get(currentFolderId);
+
+    if (!folder) {
+      break;
+    }
+
+    breadcrumbs.unshift(folder);
+    seen.add(currentFolderId);
+    currentFolderId = folder.parentId;
+  }
+
+  return breadcrumbs;
+}
+
 export function MediaFolderBreadcrumbs({
   breadcrumbs,
   onNavigateRoot,
@@ -151,15 +183,10 @@ export function MediaFolderCard({
       type="button"
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="font-medium text-sm text-primary uppercase tracking-[0.2em]">
-            Carpeta
-          </div>
-          <div className="mt-2 font-semibold text-lg">{folder.name}</div>
+        <div className="font-semibold text-lg items-center flex gap-2">
+          <HugeiconsIcon icon={Folder01Icon} />
+          {folder.name}
         </div>
-        <span className="inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 font-medium text-sm shadow-xs">
-          Abrir
-        </span>
       </div>
       <div className="mt-4 flex flex-wrap gap-2 text-muted-foreground text-xs">
         <span>{folder.childFolderCount} subcarpetas</span>

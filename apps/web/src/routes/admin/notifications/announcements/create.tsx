@@ -1,10 +1,6 @@
 import { Megaphone01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 import * as z from "zod";
@@ -22,6 +18,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createEmptyDeferredMediaSelection,
+  optionalSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc } from "@/lib/orpc";
 
 export const Route = createFileRoute(
@@ -39,15 +39,20 @@ export const Route = createFileRoute(
 
 const optionalDateInputSchema = z.string().trim().max(64);
 
+const announcementCreateSchema = z.object({
+  description: z.string().max(4096),
+  expirationAt: optionalDateInputSchema,
+  imageSelection: optionalSingleDeferredMediaSelectionSchema,
+  title: z.string().trim().min(1).max(255),
+});
+
 function RouteComponent() {
   const queryClient = useQueryClient();
-  const { data: mediaLibrary } = useSuspenseQuery(
-    orpc.media.admin.list.queryOptions()
-  );
   const createAnnouncementMutation = useMutation(
     orpc.notification.admin.createGlobalAnnouncement.mutationOptions({
       onSuccess: async () => {
         await Promise.all([
+          queryClient.invalidateQueries(orpc.media.admin.list.queryOptions()),
           queryClient.invalidateQueries(
             orpc.notification.admin.listGlobalAnnouncements.queryOptions()
           ),
@@ -59,35 +64,25 @@ function RouteComponent() {
       },
     })
   );
-  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
 
   const announcementForm = useAppForm({
     defaultValues: {
-      bannerImageMediaId: "",
       description: "",
       expirationAt: "",
+      imageSelection: createEmptyDeferredMediaSelection(),
       title: "",
     },
     onSubmit: async ({ value }) => {
-      const imageObjectKey = value.bannerImageMediaId
-        ? mediaMap.get(value.bannerImageMediaId)?.objectKey
-        : undefined;
-
       await createAnnouncementMutation.mutateAsync({
         description: value.description,
         expirationAt: parseOptionalDate(value.expirationAt),
-        imageObjectKey,
+        imageSelection: value.imageSelection,
         title: value.title,
       });
       announcementForm.reset();
     },
     validators: {
-      onSubmit: z.object({
-        bannerImageMediaId: z.string().max(255),
-        description: z.string().max(4096),
-        expirationAt: optionalDateInputSchema,
-        title: z.string().trim().min(1).max(255),
-      }),
+      onSubmit: announcementCreateSchema,
     },
   });
 
@@ -158,12 +153,13 @@ function RouteComponent() {
                 )}
               </announcementForm.AppField>
             </div>
-            <announcementForm.AppField name="bannerImageMediaId">
+            <announcementForm.AppField name="imageSelection">
               {(field) => (
                 <field.MediaField
                   description="Selecciona una imagen opcional para mostrarla junto al anuncio global."
                   label="Banner del anuncio"
                   maxItems={1}
+                  ownerKind="Anuncio"
                 />
               )}
             </announcementForm.AppField>

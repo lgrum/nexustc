@@ -1,7 +1,6 @@
 import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
-import type { postCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -33,6 +32,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTypedAppFormContext } from "@/hooks/use-app-form";
+import type { postAdminFormSchema } from "@/lib/deferred-media";
 import { removeUrls } from "@/lib/utils";
 
 type PostTermOption = {
@@ -48,7 +48,7 @@ type PostFormTerm = PostTermOption & {
 
 type GroupedPostTerms = Partial<Record<PostTermTaxonomy, PostFormTerm[]>>;
 
-type SharedPostFormValues = z.input<typeof postCreateSchema>;
+type SharedPostFormValues = z.input<typeof postAdminFormSchema>;
 
 type PostFormFieldsProps = {
   terms: PostFormTerm[];
@@ -441,11 +441,12 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
         </form.AppField>
       </section>
 
-      <form.AppField name="mediaIds">
+      <form.AppField name="mediaSelection">
         {(field) => (
           <field.MediaField
             description="Selecciona y ordena la media del post desde la biblioteca central."
             label="Media"
+            ownerKind="Juego"
           />
         )}
       </form.AppField>

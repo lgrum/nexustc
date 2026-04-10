@@ -1,7 +1,6 @@
 import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
-import type { comicCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -28,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTypedAppFormContext } from "@/hooks/use-app-form";
+import type { comicAdminFormSchema } from "@/lib/deferred-media";
 import { removeUrls } from "@/lib/utils";
 
 type ComicTermOption = {
@@ -40,7 +40,7 @@ type GroupedComicTerms = Partial<
   Record<(typeof TAXONOMIES)[number], ComicTermOption[]>
 >;
 
-type SharedComicFormValues = z.input<typeof comicCreateSchema>;
+type SharedComicFormValues = z.input<typeof comicAdminFormSchema>;
 
 type ComicFormFieldsProps = {
   terms: ComicTermOption[];
@@ -255,11 +255,12 @@ export function ComicFormFields({ terms }: ComicFormFieldsProps) {
         </form.AppField>
       </section>
 
-      <form.AppField name="mediaIds">
+      <form.AppField name="mediaSelection">
         {(field) => (
           <field.MediaField
             description="Selecciona y ordena las paginas del comic desde la biblioteca central."
             label="Media"
+            ownerKind="Comic"
           />
         )}
       </form.AppField>

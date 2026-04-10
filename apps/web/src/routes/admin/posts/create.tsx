@@ -5,7 +5,6 @@ import {
   EARLY_ACCESS_DEFAULTS,
   getEarlyAccessView,
 } from "@repo/shared/early-access";
-import { postCreateSchema } from "@repo/shared/schemas";
 import { useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -16,6 +15,11 @@ import type { PostProps } from "@/components/posts/post-components";
 import { PostPage } from "@/components/posts/post-components";
 import { Button } from "@/components/ui/button";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createEmptyDeferredMediaSelection,
+  getDeferredMediaPreviewSources,
+  postAdminFormSchema,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { parseTemplate } from "@/lib/post-template";
 
@@ -46,7 +50,7 @@ function RouteComponent() {
       graphics: "",
       languages: [] as string[],
       manualEngagementQuestions: [] as string[],
-      mediaIds: [] as string[],
+      mediaSelection: createEmptyDeferredMediaSelection(),
       platforms: [] as string[],
       premiumLinks: "",
       status: "",
@@ -84,15 +88,16 @@ function RouteComponent() {
       }
     },
     validators: {
-      onSubmit: postCreateSchema,
+      onSubmit: postAdminFormSchema,
     },
   });
 
   const post = useStore(form.store, (state) => state.values);
   const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
-  const selectedMediaKeys = post.mediaIds
-    .map((mediaId) => mediaMap.get(mediaId)?.objectKey)
-    .filter((objectKey): objectKey is string => objectKey !== undefined);
+  const selectedMediaKeys = getDeferredMediaPreviewSources(
+    post.mediaSelection,
+    mediaMap
+  );
   const previewEarlyAccess = getEarlyAccessView({
     role: "admin",
     schedule: buildEarlyAccessSchedule({

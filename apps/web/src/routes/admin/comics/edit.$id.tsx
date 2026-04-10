@@ -1,10 +1,13 @@
-import { comicEditSchema } from "@repo/shared/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  comicAdminEditFormSchema,
+  createDeferredMediaSelectionFromExistingIds,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/edit/$id")({
@@ -34,7 +37,9 @@ function RouteComponent() {
       id: oldComic.id,
       manualEngagementQuestions:
         oldComic.engagementOverrides?.map((item) => item.text) ?? [],
-      mediaIds: oldComic.media?.map((item) => item.id) ?? [],
+      mediaSelection: createDeferredMediaSelectionFromExistingIds(
+        oldComic.media?.map((item) => item.id) ?? []
+      ),
       premiumLinks: oldComic.premiumLinks ?? "",
       status: terms.status?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],
@@ -59,7 +64,7 @@ function RouteComponent() {
       navigate({ to: "/admin/comics" });
     },
     validators: {
-      onSubmit: comicEditSchema,
+      onSubmit: comicAdminEditFormSchema,
     },
   });
 

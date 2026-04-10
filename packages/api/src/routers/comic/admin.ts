@@ -1,5 +1,4 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { comicCreateSchema, comicEditSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure } from "../../index";
@@ -8,13 +7,17 @@ import {
   deleteContent,
   editContent,
 } from "../../utils/content-handlers";
+import {
+  comicCreateInputSchema,
+  comicEditInputSchema,
+} from "../../utils/deferred-media";
 import { mapPostWithMedia } from "../../utils/post-media";
 
 export default {
   create: permissionProcedure({
     comics: ["create"],
   })
-    .input(comicCreateSchema)
+    .input(comicCreateInputSchema)
     .handler(createContent),
 
   createComicPrerequisites: permissionProcedure({
@@ -40,7 +43,7 @@ export default {
   edit: permissionProcedure({
     comics: ["update"],
   })
-    .input(comicEditSchema)
+    .input(comicEditInputSchema)
     .handler(editContent),
 
   getDashboardList: permissionProcedure({

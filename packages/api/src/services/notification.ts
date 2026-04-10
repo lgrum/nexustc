@@ -39,7 +39,7 @@ type EditableContentSnapshot = {
 
 type EditableContentInput = {
   documentStatus: "draft" | "pending" | "publish" | "trash";
-  mediaIds: string[];
+  mediaCount: number;
   title: string;
   type: "comic" | "post";
   version?: string | null;
@@ -199,7 +199,7 @@ export function deriveContentUpdateEvent(params: {
   }
 
   if (previous.type === "comic" && next.type === "comic") {
-    const currentPageCount = next.mediaIds.length;
+    const currentPageCount = next.mediaCount;
     const pagesAdded = currentPageCount - previous.mediaCount;
 
     if (pagesAdded < MIN_COMIC_PAGE_DELTA) {

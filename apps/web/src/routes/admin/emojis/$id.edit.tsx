@@ -19,6 +19,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  getDeferredMediaPreviewSource,
+  requiredSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -34,7 +39,7 @@ const emojiEditSchema = z.object({
   displayName: z.string().min(1).max(128),
   id: z.string(),
   isActive: z.boolean(),
-  mediaId: z.string().min(1, "Debes seleccionar una imagen."),
+  mediaSelection: requiredSingleDeferredMediaSelectionSchema,
   name: z
     .string()
     .min(1)
@@ -59,7 +64,7 @@ function RouteComponent() {
       displayName: emoji.displayName,
       id: emoji.id,
       isActive: emoji.isActive,
-      mediaId: emoji.mediaId ?? "",
+      mediaSelection: createDeferredMediaSelectionFromExistingId(emoji.mediaId),
       name: emoji.name,
       order: emoji.order,
       requiredTier: emoji.requiredTier,
@@ -84,10 +89,14 @@ function RouteComponent() {
     validators: { onSubmit: emojiEditSchema },
   });
 
-  const selectedMediaId = useStore(form.store, (state) => state.values.mediaId);
-  const selectedMedia = mediaLibrary.find(
-    (item) => item.id === selectedMediaId
+  const mediaSelection = useStore(
+    form.store,
+    (state) => state.values.mediaSelection
   );
+  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
+  const selectedMediaSource = mediaSelection[0]
+    ? getDeferredMediaPreviewSource(mediaSelection[0], mediaMap)
+    : null;
 
   return (
     <form
@@ -110,7 +119,7 @@ function RouteComponent() {
                 <img
                   alt={emoji.displayName}
                   className="size-16 object-contain"
-                  src={getBucketUrl(selectedMedia?.objectKey ?? emoji.assetKey)}
+                  src={getBucketUrl(selectedMediaSource ?? emoji.assetKey)}
                 />
               </div>
             </div>
@@ -177,12 +186,13 @@ function RouteComponent() {
               )}
             </form.AppField>
 
-            <form.AppField name="mediaId">
+            <form.AppField name="mediaSelection">
               {(field) => (
                 <field.MediaField
-                  description="Reemplaza el asset del emoji con un archivo de la biblioteca."
+                  description="Reemplaza el asset del emoji con un archivo preparado desde la biblioteca."
                   label="Imagen"
                   maxItems={1}
+                  ownerKind="Emoji"
                   required
                 />
               )}

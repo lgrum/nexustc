@@ -1,11 +1,14 @@
 import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
-import { postEditSchema } from "@repo/shared/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { PostFormFields } from "@/components/admin/posts/post-form-fields";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createDeferredMediaSelectionFromExistingIds,
+  postAdminEditFormSchema,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/posts/edit/$id")({
@@ -44,7 +47,9 @@ function RouteComponent() {
       languages: terms.language?.map((term) => term.term.id) ?? [],
       manualEngagementQuestions:
         oldPost.engagementOverrides?.map((item) => item.text) ?? [],
-      mediaIds: oldPost.media?.map((item) => item.id) ?? [],
+      mediaSelection: createDeferredMediaSelectionFromExistingIds(
+        oldPost.media?.map((item) => item.id) ?? []
+      ),
       platforms: terms.platform?.map((term) => term.term.id) ?? [],
       premiumLinks: oldPost.premiumLinks ?? "",
       status: terms.status?.[0]?.term.id ?? "",
@@ -75,7 +80,7 @@ function RouteComponent() {
       navigate({ to: "/admin/posts" });
     },
     validators: {
-      onSubmit: postEditSchema,
+      onSubmit: postAdminEditFormSchema,
     },
   });
 

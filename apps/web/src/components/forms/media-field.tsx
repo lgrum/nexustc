@@ -4,12 +4,13 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import type { MediaOwnerKind } from "@repo/shared/media";
 import {
   useMutation,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { toast } from "sonner";
 
@@ -18,7 +19,6 @@ import {
   MediaFolderBreadcrumbs,
   MediaFolderCard,
 } from "@/components/admin/media-browser-shared";
-import type { MediaLibraryItem } from "@/components/admin/media-browser-shared";
 import { SortableGrid } from "@/components/admin/sortable-grid";
 import { ErrorField } from "@/components/forms/error-field";
 import { useFieldContext } from "@/components/forms/form-context";
@@ -35,45 +35,58 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
+import {
+  createDeferredMediaItemsFromFiles,
+  getDeferredMediaPreviewSource,
+  isDeferredPendingMediaItem,
+} from "@/lib/deferred-media";
+import type {
+  DeferredMediaItem,
+  DeferredMediaSelection,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { cn, getBucketUrl } from "@/lib/utils";
-
-type MediaValue = string | string[];
 
 type MediaFieldProps = {
   className?: string;
   description?: string;
   label: string;
   maxItems?: number;
+  ownerKind: MediaOwnerKind;
   required?: boolean;
 };
 
-function normalizeValue(value: MediaValue | null | undefined) {
-  if (Array.isArray(value)) {
-    return value.filter((item) => item !== "");
-  }
+type SelectedMediaDisplayItem = {
+  createdAtLabel: string | null;
+  id: string;
+  isPending: boolean;
+  previewSrc: string | null;
+  selection: DeferredMediaItem;
+  usageCount: number | null;
+  valueLabel: string;
+};
 
-  if (typeof value === "string" && value !== "") {
-    return [value];
-  }
-
-  return [];
+function normalizeValue(value: DeferredMediaSelection | null | undefined) {
+  return Array.isArray(value) ? value.filter((item) => item !== undefined) : [];
 }
 
 function createSelectionUpdater(
-  setSelectedIds: React.Dispatch<React.SetStateAction<string[]>>,
-  items: MediaLibraryItem[]
+  setSelectedItems: React.Dispatch<
+    React.SetStateAction<DeferredMediaSelection>
+  >,
+  items: SelectedMediaDisplayItem[]
 ) {
   return (
     nextItems:
-      | MediaLibraryItem[]
-      | ((previousItems: MediaLibraryItem[]) => MediaLibraryItem[])
+      | SelectedMediaDisplayItem[]
+      | ((
+          previousItems: SelectedMediaDisplayItem[]
+        ) => SelectedMediaDisplayItem[])
   ) => {
     const resolvedItems =
       typeof nextItems === "function" ? nextItems(items) : nextItems;
 
-    setSelectedIds(resolvedItems.map((item) => item.id));
+    setSelectedItems(resolvedItems.map((item) => item.selection));
   };
 }
 
@@ -90,45 +103,143 @@ export function MediaField({
   description,
   label,
   maxItems,
+  ownerKind,
   required,
 }: MediaFieldProps) {
-  const field = useFieldContext<MediaValue>();
+  const field = useFieldContext<DeferredMediaSelection>();
   const queryClient = useQueryClient();
   const listQueryOptions = orpc.media.admin.list.queryOptions();
   const { data: library } = useSuspenseQuery(listQueryOptions);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const browseQueryOptions = orpc.media.admin.browse.queryOptions(
-    currentFolderId ? { folderId: currentFolderId } : {}
+    currentFolderId ? { input: { folderId: currentFolderId } } : {}
   );
   const { data: browseData } = useSuspenseQuery(browseQueryOptions);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
-  const [draftSelectedIds, setDraftSelectedIds] = useState<string[]>([]);
+  const [draftSelectedItems, setDraftSelectedItems] =
+    useState<DeferredMediaSelection>([]);
+  const previewUrlsRef = useRef<Set<string>>(new Set());
 
   const selectionLimit = maxItems ?? Number.POSITIVE_INFINITY;
   const isSingle = selectionLimit === 1;
-  const selectedIds = normalizeValue(field.state.value);
+  const selectedItems = normalizeValue(field.state.value).slice(
+    0,
+    selectionLimit
+  );
 
   const mediaById = useMemo(
     () => new Map(library.map((item) => [item.id, item])),
     [library]
   );
 
+  const selectedExistingIds = useMemo(
+    () =>
+      new Set(
+        draftSelectedItems
+          .filter(
+            (item): item is Extract<DeferredMediaItem, { kind: "existing" }> =>
+              item.kind === "existing"
+          )
+          .map((item) => item.mediaId)
+      ),
+    [draftSelectedItems]
+  );
+
   const selectedMedia = useMemo(
     () =>
-      selectedIds
-        .map((mediaId) => mediaById.get(mediaId))
-        .filter((item): item is MediaLibraryItem => item !== undefined),
-    [mediaById, selectedIds]
+      selectedItems.map<SelectedMediaDisplayItem>((item) => {
+        const previewSource = getDeferredMediaPreviewSource(item, mediaById);
+
+        if (item.kind === "pending") {
+          return {
+            createdAtLabel: "Pendiente",
+            id: item.selectionId,
+            isPending: true,
+            previewSrc: previewSource,
+            selection: item,
+            usageCount: null,
+            valueLabel: item.file.name,
+          };
+        }
+
+        const libraryItem = mediaById.get(item.mediaId);
+
+        return {
+          createdAtLabel: libraryItem
+            ? new Date(libraryItem.createdAt).toLocaleDateString()
+            : "Media faltante",
+          id: item.selectionId,
+          isPending: false,
+          previewSrc: previewSource,
+          selection: item,
+          usageCount: libraryItem?.usageCount ?? 0,
+          valueLabel: libraryItem?.objectKey ?? item.mediaId,
+        };
+      }),
+    [mediaById, selectedItems]
   );
 
   const draftSelectedMedia = useMemo(
     () =>
-      draftSelectedIds
-        .map((mediaId) => mediaById.get(mediaId))
-        .filter((item): item is MediaLibraryItem => item !== undefined),
-    [draftSelectedIds, mediaById]
+      draftSelectedItems.map<SelectedMediaDisplayItem>((item) => {
+        const previewSource = getDeferredMediaPreviewSource(item, mediaById);
+
+        if (item.kind === "pending") {
+          return {
+            createdAtLabel: "Pendiente",
+            id: item.selectionId,
+            isPending: true,
+            previewSrc: previewSource,
+            selection: item,
+            usageCount: null,
+            valueLabel: item.file.name,
+          };
+        }
+
+        const libraryItem = mediaById.get(item.mediaId);
+
+        return {
+          createdAtLabel: libraryItem
+            ? new Date(libraryItem.createdAt).toLocaleDateString()
+            : "Media faltante",
+          id: item.selectionId,
+          isPending: false,
+          previewSrc: previewSource,
+          selection: item,
+          usageCount: libraryItem?.usageCount ?? 0,
+          valueLabel: libraryItem?.objectKey ?? item.mediaId,
+        };
+      }),
+    [draftSelectedItems, mediaById]
+  );
+
+  useEffect(() => {
+    const nextPreviewUrls = new Set(
+      [...selectedItems, ...draftSelectedItems]
+        .filter(isDeferredPendingMediaItem)
+        .map((item) => item.previewUrl)
+    );
+
+    for (const previewUrl of previewUrlsRef.current) {
+      if (!nextPreviewUrls.has(previewUrl)) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    }
+
+    previewUrlsRef.current = nextPreviewUrls;
+  }, [draftSelectedItems, selectedItems]);
+
+  useEffect(
+    () => () => {
+      for (const previewUrl of previewUrlsRef.current) {
+        URL.revokeObjectURL(previewUrl);
+      }
+
+      previewUrlsRef.current.clear();
+    },
+    []
   );
 
   const normalizedSearch = deferredSearch.trim().toLowerCase();
@@ -150,8 +261,8 @@ export function MediaField({
           );
 
     return [...filteredLibrary].toSorted((left, right) => {
-      const leftSelected = draftSelectedIds.includes(left.id) ? 1 : 0;
-      const rightSelected = draftSelectedIds.includes(right.id) ? 1 : 0;
+      const leftSelected = selectedExistingIds.has(left.id) ? 1 : 0;
+      const rightSelected = selectedExistingIds.has(right.id) ? 1 : 0;
 
       if (leftSelected !== rightSelected) {
         return rightSelected - leftSelected;
@@ -161,7 +272,7 @@ export function MediaField({
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
       );
     });
-  }, [browseData.items, draftSelectedIds, normalizedSearch]);
+  }, [browseData.items, normalizedSearch, selectedExistingIds]);
 
   const createFolderMutation = useMutation({
     mutationFn: async (name: string) =>
@@ -180,59 +291,24 @@ export function MediaField({
     },
   });
 
-  const uploadMutation = useMutation({
-    mutationFn: async (files: File[]) =>
-      await orpcClient.media.admin.upload({
-        files,
-        folderId: currentFolderId,
-      }),
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo subir la media."
-      );
-    },
-    onSuccess: async (uploadedMedia) => {
-      queryClient.setQueryData(
-        listQueryOptions.queryKey,
-        (previousData: MediaLibraryItem[] | undefined) => {
-          const merged = [
-            ...uploadedMedia.map((item) => ({
-              ...item,
-              usageCount: 0,
-            })),
-            ...(previousData ?? []),
-          ];
-          const seen = new Set<string>();
-
-          return merged.filter((item) => {
-            if (seen.has(item.id)) {
-              return false;
-            }
-
-            seen.add(item.id);
-            return true;
-          });
-        }
-      );
-
-      await queryClient.invalidateQueries(browseQueryOptions);
-
-      toast.success(
-        uploadedMedia.length === 1
-          ? "Media subida. Ya puedes seleccionarla."
-          : `${uploadedMedia.length} archivos subidos. Ya puedes seleccionarlos.`
-      );
-    },
-  });
-
   const toggleDraftSelection = (mediaId: string) => {
-    setDraftSelectedIds((currentSelection) => {
-      if (currentSelection.includes(mediaId)) {
-        return currentSelection.filter((item) => item !== mediaId);
+    setDraftSelectedItems((currentSelection) => {
+      const existingIndex = currentSelection.findIndex(
+        (item) => item.kind === "existing" && item.mediaId === mediaId
+      );
+
+      if (existingIndex !== -1) {
+        return currentSelection.filter((_, index) => index !== existingIndex);
       }
 
+      const nextItem: DeferredMediaItem = {
+        kind: "existing",
+        mediaId,
+        selectionId: `existing:${mediaId}`,
+      };
+
       if (isSingle) {
-        return [mediaId];
+        return [nextItem];
       }
 
       if (currentSelection.length >= selectionLimit) {
@@ -242,21 +318,17 @@ export function MediaField({
         return currentSelection;
       }
 
-      return [...currentSelection, mediaId];
+      return [...currentSelection, nextItem];
     });
   };
 
   const commitSelection = () => {
-    field.handleChange(
-      isSingle ? (draftSelectedIds[0] ?? "") : draftSelectedIds
-    );
+    field.handleChange(draftSelectedItems.slice(0, selectionLimit));
     field.handleBlur();
     setDialogOpen(false);
   };
 
-  const handleFileUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = [...(event.target.files ?? [])].filter((file) =>
       file.type.startsWith("image/")
     );
@@ -267,7 +339,33 @@ export function MediaField({
       return;
     }
 
-    await uploadMutation.mutateAsync(files);
+    setDraftSelectedItems((currentSelection) => {
+      if (isSingle) {
+        return createDeferredMediaItemsFromFiles(files.slice(0, 1));
+      }
+
+      const availableSlots = selectionLimit - currentSelection.length;
+
+      if (availableSlots <= 0) {
+        toast.error(
+          `Solo puedes seleccionar hasta ${selectionLimit} archivos.`
+        );
+        return currentSelection;
+      }
+
+      const filesToAdd = files.slice(0, availableSlots);
+
+      if (filesToAdd.length < files.length) {
+        toast.error(
+          `Solo se agregaron ${filesToAdd.length} archivos para respetar el limite de ${selectionLimit}.`
+        );
+      }
+
+      return [
+        ...currentSelection,
+        ...createDeferredMediaItemsFromFiles(filesToAdd),
+      ];
+    });
   };
 
   const selectedCountLabel = getSelectionLabel(selectedMedia.length, isSingle);
@@ -283,7 +381,7 @@ export function MediaField({
         onOpenChange={(nextOpen) => {
           if (nextOpen) {
             setCurrentFolderId(null);
-            setDraftSelectedIds(selectedIds.slice(0, selectionLimit));
+            setDraftSelectedItems(selectedItems.slice(0, selectionLimit));
             setSearch("");
           }
 
@@ -306,10 +404,11 @@ export function MediaField({
                 {Number.isFinite(selectionLimit) && !isSingle ? (
                   <Badge variant="outline">Hasta {selectionLimit}</Badge>
                 ) : null}
+                <Badge variant="outline">{ownerKind}</Badge>
               </div>
               <p className="text-sm text-muted-foreground">
                 {description ??
-                  "Abre la biblioteca, sube media nueva y ordena tu seleccion."}
+                  "Abre la biblioteca, selecciona archivos existentes o agrega nuevos para subirlos al guardar."}
               </p>
             </div>
 
@@ -325,15 +424,29 @@ export function MediaField({
                   className="overflow-hidden rounded-xl border border-border/60 bg-background"
                   key={item.id}
                 >
-                  <div className="aspect-video overflow-hidden bg-muted">
-                    <img
-                      alt={item.objectKey}
-                      className="h-full w-full object-cover"
-                      src={getBucketUrl(item.objectKey)}
-                    />
+                  <div className="relative aspect-video overflow-hidden bg-muted">
+                    {item.previewSrc ? (
+                      <img
+                        alt={item.valueLabel}
+                        className="h-full w-full object-cover"
+                        src={getBucketUrl(item.previewSrc)}
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-center text-muted-foreground text-xs">
+                        Vista previa no disponible
+                      </div>
+                    )}
+                    {item.isPending ? (
+                      <div className="absolute top-2 right-2">
+                        <Badge className="bg-amber-500 text-black hover:bg-amber-500">
+                          Nuevo
+                        </Badge>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="p-2 text-xs text-muted-foreground">
-                    Imagen {index + 1}
+                  <div className="space-y-1 p-2 text-xs text-muted-foreground">
+                    <div>Imagen {index + 1}</div>
+                    <div className="line-clamp-2">{item.valueLabel}</div>
                   </div>
                 </div>
               ))}
@@ -368,8 +481,9 @@ export function MediaField({
                         Biblioteca de media
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Navega carpetas virtuales, sube archivos nuevos o
-                        selecciona media existente.
+                        Navega carpetas virtuales, prepara archivos nuevos y
+                        confirma la seleccion. Los archivos pendientes se
+                        subirán cuando guardes este {ownerKind.toLowerCase()}.
                       </p>
                     </div>
 
@@ -392,25 +506,16 @@ export function MediaField({
                           <Input
                             accept="image/gif,image/jpeg,image/png,image/webp"
                             className="absolute inset-0 cursor-pointer opacity-0"
-                            disabled={uploadMutation.isPending}
-                            multiple
-                            onChange={handleFileUpload}
+                            multiple={!isSingle}
+                            onChange={handleFileSelection}
                             type="file"
                           />
-                          <Button
-                            className="w-full md:w-auto"
-                            disabled={uploadMutation.isPending}
-                            type="button"
-                          >
-                            {uploadMutation.isPending ? (
-                              <Spinner className="size-4" />
-                            ) : (
-                              <HugeiconsIcon
-                                className="size-4"
-                                icon={ImageAdd02Icon}
-                              />
-                            )}
-                            Subir media
+                          <Button className="w-full md:w-auto" type="button">
+                            <HugeiconsIcon
+                              className="size-4"
+                              icon={ImageAdd02Icon}
+                            />
+                            Agregar archivos
                           </Button>
                         </div>
 
@@ -462,9 +567,7 @@ export function MediaField({
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                           {visibleLibrary.map((item) => {
-                            const isSelected = draftSelectedIds.includes(
-                              item.id
-                            );
+                            const isSelected = selectedExistingIds.has(item.id);
 
                             return (
                               <button
@@ -524,8 +627,8 @@ export function MediaField({
                 ) : (
                   <div className="flex min-h-60 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center text-sm text-muted-foreground">
                     {normalizedSearch
-                      ? "No hay carpetas ni media que coincidan con esa búsqueda."
-                      : "Esta carpeta todavía no tiene contenido."}
+                      ? "No hay carpetas ni media que coincidan con esa busqueda."
+                      : "Esta carpeta todavia no tiene contenido."}
                   </div>
                 )}
               </div>
@@ -542,7 +645,7 @@ export function MediaField({
                   </div>
 
                   <Badge variant="secondary">
-                    {draftSelectedIds.length}
+                    {draftSelectedItems.length}
                     {isSingle ? "/1" : ""}
                   </Badge>
                 </div>
@@ -555,7 +658,7 @@ export function MediaField({
                     getItemId={(item) => item.id}
                     items={draftSelectedMedia}
                     setItems={createSelectionUpdater(
-                      setDraftSelectedIds,
+                      setDraftSelectedItems,
                       draftSelectedMedia
                     )}
                   >
@@ -570,20 +673,36 @@ export function MediaField({
                           isDragging ? "border-secondary" : "",
                           isSelected ? "ring-2 ring-primary" : ""
                         )}
-                        data-label={item.objectKey}
+                        data-label={item.valueLabel}
                         key={item.id}
                         onClick={onSelect}
                         ref={ref as React.Ref<HTMLDivElement>}
                       >
                         <div className="relative aspect-square overflow-hidden bg-muted">
-                          <img
-                            alt={item.objectKey}
-                            className="h-full w-full object-cover"
-                            src={getBucketUrl(item.objectKey)}
-                          />
+                          {item.previewSrc ? (
+                            <img
+                              alt={item.valueLabel}
+                              className="h-full w-full object-cover"
+                              src={getBucketUrl(item.previewSrc)}
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-center text-muted-foreground text-xs">
+                              Sin vista previa
+                            </div>
+                          )}
                           <Badge className="absolute top-2 right-2">
                             {index + 1}
                           </Badge>
+                          {item.isPending ? (
+                            <Badge className="absolute bottom-2 left-2 bg-amber-500 text-black hover:bg-amber-500">
+                              Nuevo
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <div className="space-y-1 p-2">
+                          <div className="line-clamp-2 text-xs text-muted-foreground">
+                            {item.valueLabel}
+                          </div>
                         </div>
                       </Card>
                     )}
@@ -610,6 +729,14 @@ export function MediaField({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {selectedMedia.length > 0 ? (
+        <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-muted-foreground text-xs">
+          {selectedMedia.some((item) => item.isPending)
+            ? "Los archivos marcados como nuevos se subirán solo cuando guardes el formulario."
+            : "La seleccion actual usa media ya existente en la biblioteca."}
+        </div>
+      ) : null}
 
       <ErrorField field={field} />
     </div>

@@ -1,7 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, eq, inArray, sql } from "@repo/db";
 import { featuredPost, post } from "@repo/db/schema/app";
-import { contentCreateSchema, contentEditSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure } from "../../index";
@@ -10,13 +9,17 @@ import {
   deleteContent,
   editContent,
 } from "../../utils/content-handlers";
+import {
+  postCreateInputSchema,
+  postEditInputSchema,
+} from "../../utils/deferred-media";
 import { mapPostWithMedia } from "../../utils/post-media";
 
 export default {
   create: permissionProcedure({
     posts: ["create"],
   })
-    .input(contentCreateSchema)
+    .input(postCreateInputSchema)
     .handler(createContent),
 
   createPostPrerequisites: permissionProcedure({
@@ -42,7 +45,7 @@ export default {
   edit: permissionProcedure({
     posts: ["update"],
   })
-    .input(contentEditSchema)
+    .input(postEditInputSchema)
     .handler(editContent),
 
   getDashboardList: permissionProcedure({

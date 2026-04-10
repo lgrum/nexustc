@@ -1,10 +1,13 @@
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
-import { comicCreateSchema } from "@repo/shared/schemas";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  comicAdminFormSchema,
+  createEmptyDeferredMediaSelection,
+} from "@/lib/deferred-media";
 import { orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/create")({
@@ -23,7 +26,7 @@ function RouteComponent() {
       censorship: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
       manualEngagementQuestions: [] as string[],
-      mediaIds: [] as string[],
+      mediaSelection: createEmptyDeferredMediaSelection(),
       premiumLinks: "",
       status: "",
       tags: [] as string[],
@@ -58,7 +61,7 @@ function RouteComponent() {
       }
     },
     validators: {
-      onSubmit: comicCreateSchema,
+      onSubmit: comicAdminFormSchema,
     },
   });
 

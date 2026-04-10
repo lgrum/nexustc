@@ -6,7 +6,11 @@ import type { PatronTier } from "@repo/shared/constants";
 import z from "zod";
 
 import { permissionProcedure, publicProcedure } from "../../index";
-import { getManagedMediaAsset } from "../../utils/managed-media";
+import {
+  requiredSingleDeferredMediaSelectionInputSchema,
+  withDeferredMediaSelection,
+} from "../../utils/deferred-media";
+import { getManagedMediaAssetFromRecord } from "../../utils/managed-media";
 
 export default {
   admin: {
@@ -15,7 +19,7 @@ export default {
         z.object({
           displayName: z.string().min(1).max(128),
           isActive: z.boolean().default(true),
-          mediaId: z.string().min(1),
+          mediaSelection: requiredSingleDeferredMediaSelectionInputSchema,
           name: z
             .string()
             .min(1)
@@ -30,16 +34,29 @@ export default {
         const logger = getLogger(ctx);
         logger?.info(`Admin: Creating emoji "${input.name}"`);
 
-        const mediaAsset = await getManagedMediaAsset(db, input.mediaId);
+        const { mediaSelection, ...data } = input;
 
-        const [created] = await db
-          .insert(emoji)
-          .values({
-            ...input,
-            assetFormat: mediaAsset.assetFormat,
-            assetKey: mediaAsset.assetKey,
-          })
-          .returning();
+        const created = await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) => {
+            const mediaAsset = getManagedMediaAssetFromRecord(orderedMedia[0]!);
+            const [createdEmoji] = await tx
+              .insert(emoji)
+              .values({
+                ...data,
+                assetFormat: mediaAsset.assetFormat,
+                assetKey: mediaAsset.assetKey,
+                mediaId: mediaAsset.id,
+              })
+              .returning();
+
+            return createdEmoji;
+          },
+          ownerKind: "Emoji",
+          resourceName: input.displayName,
+          selection: mediaSelection,
+        });
+
         logger?.info(`Emoji created with id: ${created?.id}`);
         return created;
       }),
@@ -86,7 +103,7 @@ export default {
           displayName: z.string().min(1).max(128).optional(),
           id: z.string(),
           isActive: z.boolean().optional(),
-          mediaId: z.string().min(1).optional(),
+          mediaSelection: requiredSingleDeferredMediaSelectionInputSchema,
           name: z
             .string()
             .min(1)
@@ -102,25 +119,31 @@ export default {
         const logger = getLogger(ctx);
         logger?.info(`Admin: Updating emoji ${input.id}`);
 
-        const { id, mediaId, ...data } = input;
-        const managedAsset = mediaId
-          ? await getManagedMediaAsset(db, mediaId)
-          : null;
+        const { id, mediaSelection, ...data } = input;
+        const updated = await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) => {
+            const managedAsset = getManagedMediaAssetFromRecord(
+              orderedMedia[0]!
+            );
+            const [updatedEmoji] = await tx
+              .update(emoji)
+              .set({
+                ...data,
+                assetFormat: managedAsset.assetFormat,
+                assetKey: managedAsset.assetKey,
+                mediaId: managedAsset.id,
+              })
+              .where(eq(emoji.id, id))
+              .returning();
 
-        const [updated] = await db
-          .update(emoji)
-          .set({
-            ...data,
-            ...(managedAsset
-              ? {
-                  assetFormat: managedAsset.assetFormat,
-                  assetKey: managedAsset.assetKey,
-                  mediaId: managedAsset.id,
-                }
-              : {}),
-          })
-          .where(eq(emoji.id, id))
-          .returning();
+            return updatedEmoji;
+          },
+          ownerKind: "Emoji",
+          resourceName: input.displayName ?? input.name ?? input.id,
+          selection: mediaSelection,
+        });
+
         return updated;
       }),
   },

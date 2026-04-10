@@ -6,55 +6,50 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { formatDistanceToNow } from "date-fns";
-import { es } from "date-fns/locale";
-import { useDeferredValue, useMemo, useState } from "react";
+import { Suspense, useDeferredValue, useMemo, useState } from "react";
 import type React from "react";
 import { toast } from "sonner";
+import z from "zod";
 
 import {
+  buildMediaFolderBreadcrumbs,
   buildMediaFolderPathLabelMap,
   CreateMediaFolderDialog,
   MediaFolderBreadcrumbs,
-  MediaFolderCard,
-  normalizeMediaFolderValue,
-  parseMediaFolderValue,
   ROOT_MEDIA_FOLDER_VALUE,
 } from "@/components/admin/media-browser-shared";
-import type { MediaLibraryItem } from "@/components/admin/media-browser-shared";
-import { Badge } from "@/components/ui/badge";
+import {
+  MediaLibraryBrowser,
+  MediaLibraryBrowserFallback,
+} from "@/components/admin/media-library-browser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { orpc, orpcClient } from "@/lib/orpc";
-import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/media/")({
   component: RouteComponent,
+  validateSearch: z.object({
+    folderId: z.string().optional(),
+  }),
 });
 
 function RouteComponent() {
   const queryClient = useQueryClient();
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const navigate = Route.useNavigate();
+  const { folderId: routeFolderId } = Route.useSearch();
+  const currentFolderId = routeFolderId ?? null;
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
 
   const listQueryOptions = orpc.media.admin.list.queryOptions();
   const foldersQueryOptions = orpc.media.admin.listFolders.queryOptions();
   const browseQueryOptions = orpc.media.admin.browse.queryOptions(
-    currentFolderId ? { folderId: currentFolderId } : {}
+    currentFolderId ? { input: { folderId: currentFolderId } } : {}
   );
 
   const { data: allMedia } = useSuspenseQuery(listQueryOptions);
   const { data: allFolders } = useSuspenseQuery(foldersQueryOptions);
-  const { data: browseData } = useSuspenseQuery(browseQueryOptions);
 
   const folderPathLabels = useMemo(
     () => buildMediaFolderPathLabelMap(allFolders),
@@ -73,25 +68,16 @@ function RouteComponent() {
     ],
     [allFolders, folderPathLabels]
   );
-
-  const normalizedSearch = deferredSearch.trim().toLowerCase();
-  const visibleFolders = useMemo(
+  const currentFolder = useMemo(
     () =>
-      normalizedSearch
-        ? browseData.folders.filter((folder) =>
-            folder.name.toLowerCase().includes(normalizedSearch)
-          )
-        : browseData.folders,
-    [browseData.folders, normalizedSearch]
+      currentFolderId
+        ? (allFolders.find((folder) => folder.id === currentFolderId) ?? null)
+        : null,
+    [allFolders, currentFolderId]
   );
-  const visibleItems = useMemo(
-    () =>
-      normalizedSearch
-        ? browseData.items.filter((item) =>
-            item.objectKey.toLowerCase().includes(normalizedSearch)
-          )
-        : browseData.items,
-    [browseData.items, normalizedSearch]
+  const breadcrumbs = useMemo(
+    () => buildMediaFolderBreadcrumbs(allFolders, currentFolderId),
+    [allFolders, currentFolderId]
   );
 
   const uploadMutation = useMutation({
@@ -141,14 +127,14 @@ function RouteComponent() {
 
   const moveMediaMutation = useMutation({
     mutationFn: async ({
-      folderId,
+      targetFolderId,
       mediaId,
     }: {
-      folderId: string | null;
+      targetFolderId: string | null;
       mediaId: string;
     }) =>
       await orpcClient.media.admin.move({
-        folderId,
+        folderId: targetFolderId,
         mediaIds: [mediaId],
       }),
     onError: (error) => {
@@ -181,9 +167,18 @@ function RouteComponent() {
     await uploadMutation.mutateAsync(files);
   };
 
-  const currentFolderLabel = browseData.currentFolder?.name ?? "la raiz";
-  const hasVisibleEntries =
-    visibleFolders.length > 0 || visibleItems.length > 0;
+  const navigateToFolder = (nextFolderId: string | null) => {
+    navigate({
+      replace: false,
+      resetScroll: false,
+      search: () => ({
+        folderId: nextFolderId ?? undefined,
+      }),
+    });
+  };
+
+  const currentFolderLabel = currentFolder?.name ?? "la raiz";
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -222,7 +217,7 @@ function RouteComponent() {
               onCreate={async (name) => {
                 await createFolderMutation.mutateAsync(name);
               }}
-              parentLabel={browseData.currentFolder?.name}
+              parentLabel={currentFolder?.name ?? undefined}
             />
           </div>
         </div>
@@ -241,9 +236,9 @@ function RouteComponent() {
 
       <section className="space-y-4 rounded-2xl border border-border/70 bg-card/50 p-4">
         <MediaFolderBreadcrumbs
-          breadcrumbs={browseData.breadcrumbs}
-          onNavigateRoot={() => setCurrentFolderId(null)}
-          onNavigateToFolder={(folderId) => setCurrentFolderId(folderId)}
+          breadcrumbs={breadcrumbs}
+          onNavigateRoot={() => navigateToFolder(null)}
+          onNavigateToFolder={(nextFolderId) => navigateToFolder(nextFolderId)}
         />
 
         <div className="relative max-w-md">
@@ -260,136 +255,21 @@ function RouteComponent() {
         </div>
       </section>
 
-      {hasVisibleEntries ? (
-        <div className="space-y-6">
-          {visibleFolders.length > 0 ? (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-semibold text-xl">Carpetas</h2>
-                <Badge variant="secondary">{visibleFolders.length}</Badge>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {visibleFolders.map((folder) => (
-                  <MediaFolderCard
-                    folder={folder}
-                    key={folder.id}
-                    onOpen={(folderId) => setCurrentFolderId(folderId)}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          {visibleItems.length > 0 ? (
-            <section className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="font-semibold text-xl">Archivos</h2>
-                <Badge variant="secondary">{visibleItems.length}</Badge>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {visibleItems.map((item) => (
-                  <MediaItemCard
-                    folderOptions={folderOptions}
-                    isMoving={moveMediaMutation.isPending}
-                    item={item}
-                    key={item.id}
-                    onMove={async (folderId) => {
-                      await moveMediaMutation.mutateAsync({
-                        folderId,
-                        mediaId: item.id,
-                      });
-                    }}
-                  />
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-dashed border-border/70 bg-muted/20 px-6 py-14 text-center text-muted-foreground">
-          {normalizedSearch
-            ? "No hay carpetas ni archivos que coincidan con esa búsqueda."
-            : "Esta carpeta todavía no tiene contenido."}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MediaItemCard({
-  folderOptions,
-  isMoving,
-  item,
-  onMove,
-}: {
-  folderOptions: {
-    label: string;
-    value: string;
-  }[];
-  isMoving: boolean;
-  item: MediaLibraryItem;
-  onMove: (folderId: string | null) => Promise<void>;
-}) {
-  return (
-    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card">
-      <div className="aspect-video overflow-hidden bg-muted">
-        <img
-          alt={item.objectKey}
-          className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
-          loading="lazy"
-          src={getBucketUrl(item.objectKey)}
+      <Suspense fallback={<MediaLibraryBrowserFallback />}>
+        <MediaLibraryBrowser
+          currentFolderId={currentFolderId}
+          folderOptions={folderOptions}
+          isMoving={moveMediaMutation.isPending}
+          normalizedSearch={normalizedSearch}
+          onMoveMedia={async ({ mediaId, targetFolderId }) => {
+            await moveMediaMutation.mutateAsync({
+              mediaId,
+              targetFolderId,
+            });
+          }}
+          onOpenFolder={(nextFolderId) => navigateToFolder(nextFolderId)}
         />
-      </div>
-      <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <Badge variant={item.usageCount > 0 ? "default" : "outline"}>
-            {item.usageCount > 0
-              ? `${item.usageCount} uso${item.usageCount === 1 ? "" : "s"}`
-              : "Sin uso"}
-          </Badge>
-          <span className="text-muted-foreground text-xs">
-            {formatDistanceToNow(new Date(item.createdAt), {
-              addSuffix: true,
-              locale: es,
-            })}
-          </span>
-        </div>
-
-        <div className="break-all font-mono text-sm leading-5">
-          {item.objectKey}
-        </div>
-
-        <div className="space-y-2">
-          <div className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
-            Mover a
-          </div>
-          <Select
-            items={folderOptions}
-            onValueChange={async (nextValue) => {
-              const nextFolderId = parseMediaFolderValue(nextValue as string);
-              const currentValue = normalizeMediaFolderValue(item.folderId);
-
-              if ((nextValue as string) === currentValue) {
-                return;
-              }
-
-              await onMove(nextFolderId);
-            }}
-            value={normalizeMediaFolderValue(item.folderId)}
-          >
-            <SelectTrigger className="w-full" disabled={isMoving}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {folderOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      </Suspense>
     </div>
   );
 }

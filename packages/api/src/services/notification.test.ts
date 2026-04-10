@@ -8,7 +8,7 @@ describe(deriveContentUpdateEvent, () => {
     const result = deriveContentUpdateEvent({
       next: {
         documentStatus: "publish",
-        mediaIds: ["media-1"],
+        mediaCount: 1,
         title: "Chronos Nightfall",
         type: "post",
         version: "0.21",
@@ -39,7 +39,7 @@ describe(deriveContentUpdateEvent, () => {
     const result = deriveContentUpdateEvent({
       next: {
         documentStatus: "publish",
-        mediaIds: ["media-1"],
+        mediaCount: 1,
         title: "Chronos Nightfall Remastered",
         type: "post",
         version: "0.20",
@@ -61,7 +61,7 @@ describe(deriveContentUpdateEvent, () => {
     const result = deriveContentUpdateEvent({
       next: {
         documentStatus: "publish",
-        mediaIds: ["page-1", "page-2", "page-3", "page-4"],
+        mediaCount: 4,
         title: "TheChronos: Eclipse",
         type: "comic",
       },
@@ -92,7 +92,7 @@ describe(deriveContentUpdateEvent, () => {
     const result = deriveContentUpdateEvent({
       next: {
         documentStatus: "publish",
-        mediaIds: ["page-1", "page-2"],
+        mediaCount: 2,
         title: "TheChronos: Prelude",
         type: "comic",
       },

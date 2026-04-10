@@ -19,6 +19,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  getDeferredMediaPreviewSource,
+  requiredSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -34,7 +39,7 @@ const stickerEditSchema = z.object({
   displayName: z.string().min(1).max(128),
   id: z.string(),
   isActive: z.boolean(),
-  mediaId: z.string().min(1, "Debes seleccionar una imagen."),
+  mediaSelection: requiredSingleDeferredMediaSelectionSchema,
   name: z
     .string()
     .min(1)
@@ -59,7 +64,9 @@ function RouteComponent() {
       displayName: sticker.displayName,
       id: sticker.id,
       isActive: sticker.isActive,
-      mediaId: sticker.mediaId ?? "",
+      mediaSelection: createDeferredMediaSelectionFromExistingId(
+        sticker.mediaId
+      ),
       name: sticker.name,
       order: sticker.order,
       requiredTier: sticker.requiredTier,
@@ -86,10 +93,14 @@ function RouteComponent() {
     validators: { onSubmit: stickerEditSchema },
   });
 
-  const selectedMediaId = useStore(form.store, (state) => state.values.mediaId);
-  const selectedMedia = mediaLibrary.find(
-    (item) => item.id === selectedMediaId
+  const mediaSelection = useStore(
+    form.store,
+    (state) => state.values.mediaSelection
   );
+  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
+  const selectedMediaSource = mediaSelection[0]
+    ? getDeferredMediaPreviewSource(mediaSelection[0], mediaMap)
+    : null;
 
   return (
     <form
@@ -112,9 +123,7 @@ function RouteComponent() {
                 <img
                   alt={sticker.displayName}
                   className="size-24 object-contain"
-                  src={getBucketUrl(
-                    selectedMedia?.objectKey ?? sticker.assetKey
-                  )}
+                  src={getBucketUrl(selectedMediaSource ?? sticker.assetKey)}
                 />
               </div>
             </div>
@@ -181,12 +190,13 @@ function RouteComponent() {
               )}
             </form.AppField>
 
-            <form.AppField name="mediaId">
+            <form.AppField name="mediaSelection">
               {(field) => (
                 <field.MediaField
-                  description="Reemplaza el asset del sticker con un archivo de la biblioteca."
+                  description="Reemplaza el asset del sticker con un archivo preparado desde la biblioteca."
                   label="Imagen"
                   maxItems={1}
+                  ownerKind="Sticker"
                   required
                 />
               )}

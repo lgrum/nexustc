@@ -18,6 +18,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createEmptyDeferredMediaSelection,
+  getDeferredMediaPreviewSource,
+  requiredSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -28,7 +33,7 @@ export const Route = createFileRoute("/admin/stickers/create")({
 const stickerCreateSchema = z.object({
   displayName: z.string().min(1).max(128),
   isActive: z.boolean(),
-  mediaId: z.string().min(1, "Debes seleccionar una imagen."),
+  mediaSelection: requiredSingleDeferredMediaSelectionSchema,
   name: z
     .string()
     .min(1)
@@ -51,7 +56,7 @@ function RouteComponent() {
     defaultValues: {
       displayName: "",
       isActive: true,
-      mediaId: "",
+      mediaSelection: createEmptyDeferredMediaSelection(),
       name: "",
       order: 0,
       requiredTier: "level3" as PatronTier,
@@ -80,10 +85,14 @@ function RouteComponent() {
     validators: { onSubmit: stickerCreateSchema },
   });
 
-  const selectedMediaId = useStore(form.store, (state) => state.values.mediaId);
-  const selectedMedia = mediaLibrary.find(
-    (item) => item.id === selectedMediaId
+  const mediaSelection = useStore(
+    form.store,
+    (state) => state.values.mediaSelection
   );
+  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
+  const selectedMediaSource = mediaSelection[0]
+    ? getDeferredMediaPreviewSource(mediaSelection[0], mediaMap)
+    : null;
 
   return (
     <form
@@ -103,11 +112,11 @@ function RouteComponent() {
           <CardContent className="grid grid-cols-2 gap-4">
             <div className="col-span-2 flex justify-center">
               <div className="flex size-28 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-border bg-muted/30">
-                {selectedMedia ? (
+                {selectedMediaSource ? (
                   <img
                     alt="Vista previa"
                     className="size-24 object-contain"
-                    src={getBucketUrl(selectedMedia.objectKey)}
+                    src={getBucketUrl(selectedMediaSource)}
                   />
                 ) : (
                   <span className="text-muted-foreground text-xs">
@@ -167,12 +176,13 @@ function RouteComponent() {
               )}
             </form.AppField>
 
-            <form.AppField name="mediaId">
+            <form.AppField name="mediaSelection">
               {(field) => (
                 <field.MediaField
-                  description="Selecciona o sube un archivo desde la biblioteca de media."
+                  description="Selecciona o prepara un archivo desde la biblioteca de media."
                   label="Imagen"
                   maxItems={1}
+                  ownerKind="Sticker"
                   required
                 />
               )}

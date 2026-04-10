@@ -1,12 +1,7 @@
 import { News01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { AnyFieldApi } from "@tanstack/react-form";
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -41,6 +36,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createEmptyDeferredMediaSelection,
+  optionalSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -56,12 +55,18 @@ export const Route = createFileRoute("/admin/notifications/articles/create")({
 });
 
 const optionalDateInputSchema = z.string().trim().max(64);
+const newsArticleCreateSchema = z.object({
+  bannerImageSelection: optionalSingleDeferredMediaSelectionSchema,
+  body: z.string().trim().min(1).max(65_535),
+  contentId: z.string().trim().min(1, "Selecciona un contenido."),
+  expirationAt: optionalDateInputSchema,
+  publishedAt: optionalDateInputSchema,
+  summary: z.string().max(1024),
+  title: z.string().trim().min(1).max(255),
+});
 
 function RouteComponent() {
   const queryClient = useQueryClient();
-  const { data: mediaLibrary } = useSuspenseQuery(
-    orpc.media.admin.list.queryOptions()
-  );
   const postsQuery = useQuery(orpc.post.admin.getDashboardList.queryOptions());
   const comicsQuery = useQuery(
     orpc.comic.admin.getDashboardList.queryOptions()
@@ -71,6 +76,7 @@ function RouteComponent() {
     orpc.notification.admin.createNewsArticle.mutationOptions({
       onSuccess: async () => {
         await Promise.all([
+          queryClient.invalidateQueries(orpc.media.admin.list.queryOptions()),
           queryClient.invalidateQueries(
             orpc.notification.admin.listNewsArticles.queryOptions()
           ),
@@ -97,11 +103,10 @@ function RouteComponent() {
         value: item.id,
       })),
   ].toSorted((a, b) => a.label.localeCompare(b.label, "es"));
-  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
 
   const newsForm = useAppForm({
     defaultValues: {
-      bannerImageMediaId: "",
+      bannerImageSelection: createEmptyDeferredMediaSelection(),
       body: "",
       contentId: "",
       expirationAt: "",
@@ -110,12 +115,8 @@ function RouteComponent() {
       title: "",
     },
     onSubmit: async ({ value }) => {
-      const bannerImageObjectKey = value.bannerImageMediaId
-        ? mediaMap.get(value.bannerImageMediaId)?.objectKey
-        : undefined;
-
       await createNewsMutation.mutateAsync({
-        bannerImageObjectKey,
+        bannerImageSelection: value.bannerImageSelection,
         body: value.body,
         contentId: value.contentId,
         expirationAt: parseOptionalDate(value.expirationAt),
@@ -126,15 +127,7 @@ function RouteComponent() {
       newsForm.reset();
     },
     validators: {
-      onSubmit: z.object({
-        bannerImageMediaId: z.string().max(255),
-        body: z.string().trim().min(1).max(65_535),
-        contentId: z.string().trim().min(1, "Selecciona un contenido."),
-        expirationAt: optionalDateInputSchema,
-        publishedAt: optionalDateInputSchema,
-        summary: z.string().max(1024),
-        title: z.string().trim().min(1).max(255),
-      }),
+      onSubmit: newsArticleCreateSchema,
     },
   });
 
@@ -225,12 +218,13 @@ function RouteComponent() {
                 )}
               </newsForm.AppField>
             </div>
-            <newsForm.AppField name="bannerImageMediaId">
+            <newsForm.AppField name="bannerImageSelection">
               {(field) => (
                 <field.MediaField
                   description="Selecciona una imagen opcional para usarla como banner del articulo."
                   label="Banner del articulo"
                   maxItems={1}
+                  ownerKind="Articulo"
                 />
               )}
             </newsForm.AppField>

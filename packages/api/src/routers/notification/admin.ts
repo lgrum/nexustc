@@ -1,8 +1,6 @@
 import { and, desc, eq, newsArticle, notification } from "@repo/db";
 import {
-  globalAnnouncementSchema,
   globalAnnouncementUpdateSchema,
-  newsArticleCreateSchema,
   notificationArchiveSchema,
 } from "@repo/shared/schemas";
 import z from "zod";
@@ -13,6 +11,11 @@ import {
   createGlobalAnnouncement,
   publishContentNewsArticle,
 } from "../../services/notification";
+import {
+  globalAnnouncementCreateInputSchema,
+  newsArticleCreateInputSchema,
+  withDeferredMediaSelection,
+} from "../../utils/deferred-media";
 
 export default {
   archive: permissionProcedure({
@@ -26,36 +29,50 @@ export default {
   createGlobalAnnouncement: permissionProcedure({
     notifications: ["create"],
   })
-    .input(globalAnnouncementSchema)
-    .handler(({ context: { db, session }, input }) =>
-      createGlobalAnnouncement(db, {
-        description: input.description,
-        expirationAt: input.expirationAt,
-        imageObjectKey: input.imageObjectKey,
-        metadata: input.metadata,
-        sourceUserId: session.user.id,
-        title: input.title,
-      })
+    .input(globalAnnouncementCreateInputSchema)
+    .handler(
+      async ({ context: { db, session }, input }) =>
+        await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) =>
+            await createGlobalAnnouncement(tx, {
+              description: input.description,
+              expirationAt: input.expirationAt,
+              imageObjectKey: orderedMedia[0]?.objectKey,
+              metadata: input.metadata,
+              sourceUserId: session.user.id,
+              title: input.title,
+            }),
+          ownerKind: "Anuncio",
+          resourceName: input.title,
+          selection: input.imageSelection,
+        })
     ),
 
   createNewsArticle: permissionProcedure({
     notifications: ["create"],
   })
-    .input(newsArticleCreateSchema)
-    .handler(({ context: { db, session }, input }) =>
-      db.transaction((tx) =>
-        publishContentNewsArticle(tx, {
-          authorUserId: session.user.id,
-          bannerImageObjectKey: input.bannerImageObjectKey,
-          body: input.body,
-          contentId: input.contentId,
-          expirationAt: input.expirationAt,
-          metadata: input.metadata,
-          publishedAt: input.publishedAt,
-          summary: input.summary,
-          title: input.title,
+    .input(newsArticleCreateInputSchema)
+    .handler(
+      async ({ context: { db, session }, input }) =>
+        await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) =>
+            await publishContentNewsArticle(tx, {
+              authorUserId: session.user.id,
+              bannerImageObjectKey: orderedMedia[0]?.objectKey,
+              body: input.body,
+              contentId: input.contentId,
+              expirationAt: input.expirationAt,
+              metadata: input.metadata,
+              publishedAt: input.publishedAt,
+              summary: input.summary,
+              title: input.title,
+            }),
+          ownerKind: "Articulo",
+          resourceName: input.title,
+          selection: input.bannerImageSelection,
         })
-      )
     ),
 
   listGlobalAnnouncements: permissionProcedure({

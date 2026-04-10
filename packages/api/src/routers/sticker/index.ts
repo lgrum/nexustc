@@ -6,7 +6,11 @@ import type { PatronTier } from "@repo/shared/constants";
 import z from "zod";
 
 import { permissionProcedure, publicProcedure } from "../../index";
-import { getManagedMediaAsset } from "../../utils/managed-media";
+import {
+  requiredSingleDeferredMediaSelectionInputSchema,
+  withDeferredMediaSelection,
+} from "../../utils/deferred-media";
+import { getManagedMediaAssetFromRecord } from "../../utils/managed-media";
 
 export default {
   admin: {
@@ -15,7 +19,7 @@ export default {
         z.object({
           displayName: z.string().min(1).max(128),
           isActive: z.boolean().default(true),
-          mediaId: z.string().min(1),
+          mediaSelection: requiredSingleDeferredMediaSelectionInputSchema,
           name: z
             .string()
             .min(1)
@@ -30,16 +34,29 @@ export default {
         const logger = getLogger(ctx);
         logger?.info(`Admin: Creating sticker "${input.name}"`);
 
-        const mediaAsset = await getManagedMediaAsset(db, input.mediaId);
+        const { mediaSelection, ...data } = input;
 
-        const [created] = await db
-          .insert(sticker)
-          .values({
-            ...input,
-            assetFormat: mediaAsset.assetFormat,
-            assetKey: mediaAsset.assetKey,
-          })
-          .returning();
+        const created = await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) => {
+            const mediaAsset = getManagedMediaAssetFromRecord(orderedMedia[0]!);
+            const [createdSticker] = await tx
+              .insert(sticker)
+              .values({
+                ...data,
+                assetFormat: mediaAsset.assetFormat,
+                assetKey: mediaAsset.assetKey,
+                mediaId: mediaAsset.id,
+              })
+              .returning();
+
+            return createdSticker;
+          },
+          ownerKind: "Sticker",
+          resourceName: input.displayName,
+          selection: mediaSelection,
+        });
+
         logger?.info(`Sticker created with id: ${created?.id}`);
         return created;
       }),
@@ -86,7 +103,7 @@ export default {
           displayName: z.string().min(1).max(128).optional(),
           id: z.string(),
           isActive: z.boolean().optional(),
-          mediaId: z.string().min(1).optional(),
+          mediaSelection: requiredSingleDeferredMediaSelectionInputSchema,
           name: z
             .string()
             .min(1)
@@ -102,25 +119,31 @@ export default {
         const logger = getLogger(ctx);
         logger?.info(`Admin: Updating sticker ${input.id}`);
 
-        const { id, mediaId, ...data } = input;
-        const managedAsset = mediaId
-          ? await getManagedMediaAsset(db, mediaId)
-          : null;
+        const { id, mediaSelection, ...data } = input;
+        const updated = await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) => {
+            const managedAsset = getManagedMediaAssetFromRecord(
+              orderedMedia[0]!
+            );
+            const [updatedSticker] = await tx
+              .update(sticker)
+              .set({
+                ...data,
+                assetFormat: managedAsset.assetFormat,
+                assetKey: managedAsset.assetKey,
+                mediaId: managedAsset.id,
+              })
+              .where(eq(sticker.id, id))
+              .returning();
 
-        const [updated] = await db
-          .update(sticker)
-          .set({
-            ...data,
-            ...(managedAsset
-              ? {
-                  assetFormat: managedAsset.assetFormat,
-                  assetKey: managedAsset.assetKey,
-                  mediaId: managedAsset.id,
-                }
-              : {}),
-          })
-          .where(eq(sticker.id, id))
-          .returning();
+            return updatedSticker;
+          },
+          ownerKind: "Sticker",
+          resourceName: input.displayName ?? input.name ?? input.id,
+          selection: mediaSelection,
+        });
+
         return updated;
       }),
   },
