@@ -17,6 +17,7 @@ import { PostPage } from "@/components/posts/post-components";
 import { Button } from "@/components/ui/button";
 import { useAppForm } from "@/hooks/use-app-form";
 import { orpc, orpcClient } from "@/lib/orpc";
+import { parseTemplate } from "@/lib/post-template";
 
 export const Route = createFileRoute("/admin/posts/create")({
   component: RouteComponent,
@@ -106,7 +107,8 @@ function RouteComponent() {
   const extractTemplate = async () => {
     try {
       const template = await navigator.clipboard.readText();
-      const { creatorBlock, linksBlock, lore, tags } = parseTemplate(template);
+      const { content, creatorName, creatorUrl, premiumLinks, tags } =
+        parseTemplate(template);
 
       const tagIds: string[] = [];
       for (const tagName of tags) {
@@ -121,15 +123,17 @@ function RouteComponent() {
       }
 
       const values = {
-        adsLinks: form.getFieldValue("adsLinks"),
         content: form.getFieldValue("content"),
+        creatorLink: form.getFieldValue("creatorLink"),
         creatorName: form.getFieldValue("creatorName"),
+        premiumLinks: form.getFieldValue("premiumLinks"),
         tags: form.getFieldValue("tags"),
       };
 
-      form.setFieldValue("creatorName", creatorBlock ?? values.creatorName);
-      form.setFieldValue("content", lore ?? values.content);
-      form.setFieldValue("adsLinks", linksBlock ?? values.adsLinks);
+      form.setFieldValue("creatorName", creatorName || values.creatorName);
+      form.setFieldValue("creatorLink", creatorUrl || values.creatorLink);
+      form.setFieldValue("content", content || values.content);
+      form.setFieldValue("premiumLinks", premiumLinks || values.premiumLinks);
       form.setFieldValue("tags", tagIds.length > 0 ? tagIds : values.tags);
     } catch (error) {
       toast.error(`No se pudo leer el portapapeles: ${error}`);
@@ -211,52 +215,4 @@ function Preview({ post }: { post: PostProps }) {
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
-}
-
-type ParsedTemplate = {
-  creatorBlock: string;
-  tags: string[];
-  linksBlock: string;
-  lore: string;
-};
-
-const TEMPLATE_SEPARATOR_PATTERN = String.raw`[^\S\r\n]*[^A-Za-z0-9\s]{5,}[^\S\r\n]*`;
-
-export function parseTemplate(md: string): ParsedTemplate {
-  const extract = (regex: RegExp): string => {
-    const match = md.match(regex);
-    return match ? match[1].trim() : "";
-  };
-
-  const creatorBlock = extract(/(\*\*CREADOR:[\s\S]*?\)\s*)(?:\r?\n){2}/i);
-  const tagsRaw = extract(
-    /\*\*(?:GÉNEROS|GENEROS) \/ TAGS:\*\*\s*([\s\S]*?)(?=(?:\r?\n){2}|$)/i
-  );
-  const linksBlock = extract(
-    new RegExp(
-      String.raw`(?:${TEMPLATE_SEPARATOR_PATTERN}\r?\n)?(\*\*\[JUEGOS PC\]\*\*[\s\S]*?)(?=\r?\n${TEMPLATE_SEPARATOR_PATTERN}(?:\r?\n|$)|$)`,
-      "i"
-    )
-  );
-  const cleanedLinksBlock = linksBlock
-    .replaceAll(new RegExp(TEMPLATE_SEPARATOR_PATTERN, "g"), "")
-    .trim();
-  const lore = extract(
-    new RegExp(
-      String.raw`\*\*SINOPSIS \/ RESUMEN \/ LORE:\*\*\s*(?:\r?\n${TEMPLATE_SEPARATOR_PATTERN})?\r?\n([\s\S]*?)(?=\r?\n${TEMPLATE_SEPARATOR_PATTERN}(?:\r?\n|$)|(?:\r?\n){2}|$)`,
-      "i"
-    )
-  );
-
-  return {
-    creatorBlock,
-    linksBlock: cleanedLinksBlock,
-    lore,
-    tags: tagsRaw
-      ? tagsRaw
-          .split(",")
-          .map((tag) => tag.trim())
-          .filter(Boolean)
-      : [],
-  };
 }
