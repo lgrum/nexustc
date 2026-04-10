@@ -16,7 +16,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { TermBadge } from "@/components/term-badge";
@@ -59,6 +59,8 @@ export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
   averageRating?: number;
   ratingCount?: number;
 };
+
+const CHANGELOG_COLLAPSED_HEIGHT = 320;
 
 export function PostPage({ post }: { post: PostProps }) {
   const showRestrictedView = post.earlyAccess.isRestrictedView;
@@ -823,6 +825,38 @@ export function PostContent() {
 
 export function PostChangelog() {
   const post = usePost();
+  const changelogRef = useRef<HTMLDivElement | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  useEffect(() => {
+    const element = changelogRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const updateOverflow = () => {
+      setHasOverflow(element.scrollHeight > CHANGELOG_COLLAPSED_HEIGHT + 8);
+    };
+
+    updateOverflow();
+
+    if (typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateOverflow();
+    });
+
+    resizeObserver.observe(element);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [post.changelog]);
+
   if (!post.changelog) {
     return null;
   }
@@ -831,7 +865,37 @@ export function PostChangelog() {
     <div className="flex flex-col gap-3">
       <div className="section-title">Changelog</div>
       <div className="border border-border bg-card p-4">
-        <Markdown>{post.changelog}</Markdown>
+        <div className="relative">
+          <div
+            className={
+              hasOverflow && !isExpanded ? "overflow-hidden" : undefined
+            }
+            ref={changelogRef}
+            style={
+              hasOverflow && !isExpanded
+                ? { maxHeight: `${CHANGELOG_COLLAPSED_HEIGHT}px` }
+                : undefined
+            }
+          >
+            <Markdown>{post.changelog}</Markdown>
+          </div>
+          {hasOverflow && !isExpanded ? (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-card via-card/90 to-transparent" />
+          ) : null}
+        </div>
+        {hasOverflow ? (
+          <div className="mt-4 flex justify-center">
+            <Button
+              onClick={() => {
+                setIsExpanded((current) => !current);
+              }}
+              type="button"
+              variant="outline"
+            >
+              {isExpanded ? "Ver menos" : "Ver mas"}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
