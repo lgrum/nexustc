@@ -801,7 +801,7 @@ export default {
           ? []
           : engagementPrompts,
         premiumLinksAccess,
-        terms: earlyAccess.isRestrictedView ? [] : postData.terms,
+        terms: postData.terms,
         title: earlyAccess.isRestrictedView
           ? getMaskedPostLabel(postData.id)
           : postData.title,

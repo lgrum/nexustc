@@ -74,12 +74,12 @@ export function PostPage({ post }: { post: PostProps }) {
         <div className="flex min-w-0 flex-1 flex-col">
           <PostHero />
           <EarlyAccessStatusBanner />
-          <PostStatsBar />
+          {!showRestrictedView && <PostStatsBar />}
           <div className="flex flex-col gap-4 px-4 pt-4">
             <PostCarousel />
             <PostInfo />
             <PostContent />
-            {!showRestrictedView && <PostTagsSection />}
+            <PostTagsSection />
             {!showRestrictedView && <PostChangelog />}
             {showCreatorSupport && (
               <div className="md:hidden">
