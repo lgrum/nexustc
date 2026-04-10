@@ -250,16 +250,43 @@ export const post = pgTable(
   ]
 );
 
+export const mediaFolder = pgTable(
+  "media_folder",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    name: text("name").notNull(),
+    parentId: text("parent_id"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+      name: "media_folder_parent_id_media_folder_id_fk",
+    }).onDelete("set null"),
+    index("media_folder_name_idx").on(table.name),
+    index("media_folder_parent_id_idx").on(table.parentId),
+  ]
+);
+
 export const media = pgTable(
   "media",
   {
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    folderId: text("folder_id").references(() => mediaFolder.id, {
+      onDelete: "set null",
+    }),
     id: text("id").primaryKey().$defaultFn(generateId),
     objectKey: text("object_key").notNull().unique(),
   },
-  (table) => [index("media_created_at_idx").on(table.createdAt)]
+  (table) => [
+    index("media_created_at_idx").on(table.createdAt),
+    index("media_folder_id_idx").on(table.folderId),
+  ]
 );
 
 export const postMedia = pgTable(
@@ -872,10 +899,26 @@ export const postRelations = relations(post, ({ many }) => ({
   terms: many(termPostRelation),
 }));
 
-export const mediaRelations = relations(media, ({ many }) => ({
+export const mediaRelations = relations(media, ({ many, one }) => ({
+  folder: one(mediaFolder, {
+    fields: [media.folderId],
+    references: [mediaFolder.id],
+  }),
   emojis: many(emoji),
   postRelations: many(postMedia),
   stickers: many(sticker),
+}));
+
+export const mediaFolderRelations = relations(mediaFolder, ({ many, one }) => ({
+  children: many(mediaFolder, {
+    relationName: "media_folder_hierarchy",
+  }),
+  mediaItems: many(media),
+  parent: one(mediaFolder, {
+    fields: [mediaFolder.parentId],
+    references: [mediaFolder.id],
+    relationName: "media_folder_hierarchy",
+  }),
 }));
 
 export const postMediaRelations = relations(postMedia, ({ one }) => ({

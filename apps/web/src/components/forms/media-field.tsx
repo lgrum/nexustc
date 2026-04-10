@@ -13,6 +13,12 @@ import { useDeferredValue, useMemo, useState } from "react";
 import type React from "react";
 import { toast } from "sonner";
 
+import {
+  CreateMediaFolderDialog,
+  MediaFolderBreadcrumbs,
+  MediaFolderCard,
+} from "@/components/admin/media-browser-shared";
+import type { MediaLibraryItem } from "@/components/admin/media-browser-shared";
 import { SortableGrid } from "@/components/admin/sortable-grid";
 import { ErrorField } from "@/components/forms/error-field";
 import { useFieldContext } from "@/components/forms/form-context";
@@ -34,10 +40,6 @@ import { orpc, orpcClient } from "@/lib/orpc";
 import { cn, getBucketUrl } from "@/lib/utils";
 
 type MediaValue = string | string[];
-
-type MediaLibraryItem = Awaited<
-  ReturnType<typeof orpcClient.media.admin.list>
->[number];
 
 type MediaFieldProps = {
   className?: string;
@@ -94,6 +96,11 @@ export function MediaField({
   const queryClient = useQueryClient();
   const listQueryOptions = orpc.media.admin.list.queryOptions();
   const { data: library } = useSuspenseQuery(listQueryOptions);
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const browseQueryOptions = orpc.media.admin.browse.queryOptions(
+    currentFolderId ? { folderId: currentFolderId } : {}
+  );
+  const { data: browseData } = useSuspenseQuery(browseQueryOptions);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -124,12 +131,21 @@ export function MediaField({
     [draftSelectedIds, mediaById]
   );
 
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const visibleFolders = useMemo(
+    () =>
+      normalizedSearch === ""
+        ? browseData.folders
+        : browseData.folders.filter((folder) =>
+            folder.name.toLowerCase().includes(normalizedSearch)
+          ),
+    [browseData.folders, normalizedSearch]
+  );
   const visibleLibrary = useMemo(() => {
-    const normalizedSearch = deferredSearch.trim().toLowerCase();
     const filteredLibrary =
       normalizedSearch === ""
-        ? library
-        : library.filter((item) =>
+        ? browseData.items
+        : browseData.items.filter((item) =>
             item.objectKey.toLowerCase().includes(normalizedSearch)
           );
 
@@ -145,17 +161,37 @@ export function MediaField({
         new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
       );
     });
-  }, [deferredSearch, draftSelectedIds, library]);
+  }, [browseData.items, draftSelectedIds, normalizedSearch]);
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (name: string) =>
+      await orpcClient.media.admin.createFolder({
+        name,
+        parentId: currentFolderId,
+      }),
+    onError: (error) => {
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo crear la carpeta."
+      );
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(browseQueryOptions);
+      toast.success("Carpeta creada.");
+    },
+  });
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) =>
-      await orpcClient.media.admin.upload({ files }),
+      await orpcClient.media.admin.upload({
+        files,
+        folderId: currentFolderId,
+      }),
     onError: (error) => {
       toast.error(
         error instanceof Error ? error.message : "No se pudo subir la media."
       );
     },
-    onSuccess: (uploadedMedia) => {
+    onSuccess: async (uploadedMedia) => {
       queryClient.setQueryData(
         listQueryOptions.queryKey,
         (previousData: MediaLibraryItem[] | undefined) => {
@@ -178,6 +214,8 @@ export function MediaField({
           });
         }
       );
+
+      await queryClient.invalidateQueries(browseQueryOptions);
 
       toast.success(
         uploadedMedia.length === 1
@@ -244,7 +282,9 @@ export function MediaField({
       <Dialog
         onOpenChange={(nextOpen) => {
           if (nextOpen) {
+            setCurrentFolderId(null);
             setDraftSelectedIds(selectedIds.slice(0, selectionLimit));
+            setSearch("");
           }
 
           setDialogOpen(nextOpen);
@@ -315,12 +355,21 @@ export function MediaField({
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
                 <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
                   <div className="flex flex-col gap-4">
+                    <MediaFolderBreadcrumbs
+                      breadcrumbs={browseData.breadcrumbs}
+                      onNavigateRoot={() => setCurrentFolderId(null)}
+                      onNavigateToFolder={(folderId) =>
+                        setCurrentFolderId(folderId)
+                      }
+                    />
+
                     <div className="space-y-1">
                       <div className="font-medium text-sm">
                         Biblioteca de media
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Sube archivos nuevos o selecciona media existente.
+                        Navega carpetas virtuales, sube archivos nuevos o
+                        selecciona media existente.
                       </p>
                     </div>
 
@@ -333,35 +382,45 @@ export function MediaField({
                         <Input
                           className="pl-9"
                           onChange={(event) => setSearch(event.target.value)}
-                          placeholder="Buscar media por object key"
+                          placeholder={`Buscar dentro de ${browseData.currentFolder?.name ?? "la raiz"}`}
                           value={search}
                         />
                       </div>
 
-                      <div className="relative w-full md:w-auto">
-                        <Input
-                          accept="image/gif,image/jpeg,image/png,image/webp"
-                          className="absolute inset-0 cursor-pointer opacity-0"
-                          disabled={uploadMutation.isPending}
-                          multiple
-                          onChange={handleFileUpload}
-                          type="file"
+                      <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
+                        <div className="relative w-full md:w-auto">
+                          <Input
+                            accept="image/gif,image/jpeg,image/png,image/webp"
+                            className="absolute inset-0 cursor-pointer opacity-0"
+                            disabled={uploadMutation.isPending}
+                            multiple
+                            onChange={handleFileUpload}
+                            type="file"
+                          />
+                          <Button
+                            className="w-full md:w-auto"
+                            disabled={uploadMutation.isPending}
+                            type="button"
+                          >
+                            {uploadMutation.isPending ? (
+                              <Spinner className="size-4" />
+                            ) : (
+                              <HugeiconsIcon
+                                className="size-4"
+                                icon={ImageAdd02Icon}
+                              />
+                            )}
+                            Subir media
+                          </Button>
+                        </div>
+
+                        <CreateMediaFolderDialog
+                          isPending={createFolderMutation.isPending}
+                          onCreate={async (name) => {
+                            await createFolderMutation.mutateAsync(name);
+                          }}
+                          parentLabel={browseData.currentFolder?.name}
                         />
-                        <Button
-                          className="w-full md:w-auto"
-                          disabled={uploadMutation.isPending}
-                          type="button"
-                        >
-                          {uploadMutation.isPending ? (
-                            <Spinner className="size-4" />
-                          ) : (
-                            <HugeiconsIcon
-                              className="size-4"
-                              icon={ImageAdd02Icon}
-                            />
-                          )}
-                          Subir media
-                        </Button>
                       </div>
                     </div>
                   </div>
@@ -369,62 +428,104 @@ export function MediaField({
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
-                {visibleLibrary.length > 0 ? (
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                    {visibleLibrary.map((item) => {
-                      const isSelected = draftSelectedIds.includes(item.id);
-
-                      return (
-                        <button
-                          aria-pressed={isSelected}
-                          className={cn(
-                            "group overflow-hidden rounded-2xl border bg-card text-left transition-all",
-                            isSelected
-                              ? "border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/30"
-                              : "border-border/70 hover:border-primary/35"
-                          )}
-                          key={item.id}
-                          onClick={() => toggleDraftSelection(item.id)}
-                          type="button"
-                        >
-                          <div className="relative aspect-video overflow-hidden bg-muted">
-                            <img
-                              alt={item.objectKey}
-                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                              loading="lazy"
-                              src={getBucketUrl(item.objectKey)}
+                {visibleFolders.length > 0 || visibleLibrary.length > 0 ? (
+                  <div className="space-y-6">
+                    {visibleFolders.length > 0 ? (
+                      <section className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-sm">Carpetas</div>
+                          <Badge variant="secondary">
+                            {visibleFolders.length}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                          {visibleFolders.map((folder) => (
+                            <MediaFolderCard
+                              folder={folder}
+                              key={folder.id}
+                              onOpen={(folderId) =>
+                                setCurrentFolderId(folderId)
+                              }
                             />
-                            <div className="absolute top-3 right-3">
-                              <Badge
-                                variant={isSelected ? "default" : "secondary"}
+                          ))}
+                        </div>
+                      </section>
+                    ) : null}
+
+                    {visibleLibrary.length > 0 ? (
+                      <section className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="font-medium text-sm">Archivos</div>
+                          <Badge variant="secondary">
+                            {visibleLibrary.length}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                          {visibleLibrary.map((item) => {
+                            const isSelected = draftSelectedIds.includes(
+                              item.id
+                            );
+
+                            return (
+                              <button
+                                aria-pressed={isSelected}
+                                className={cn(
+                                  "group overflow-hidden rounded-2xl border bg-card text-left transition-all",
+                                  isSelected
+                                    ? "border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/30"
+                                    : "border-border/70 hover:border-primary/35"
+                                )}
+                                key={item.id}
+                                onClick={() => toggleDraftSelection(item.id)}
+                                type="button"
                               >
-                                {isSelected ? "Seleccionado" : "Elegir"}
-                              </Badge>
-                            </div>
-                          </div>
+                                <div className="relative aspect-video overflow-hidden bg-muted">
+                                  <img
+                                    alt={item.objectKey}
+                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                                    loading="lazy"
+                                    src={getBucketUrl(item.objectKey)}
+                                  />
+                                  <div className="absolute top-3 right-3">
+                                    <Badge
+                                      variant={
+                                        isSelected ? "default" : "secondary"
+                                      }
+                                    >
+                                      {isSelected ? "Seleccionado" : "Elegir"}
+                                    </Badge>
+                                  </div>
+                                </div>
 
-                          <div className="space-y-2 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <Badge variant="outline">
-                                {item.usageCount} uso
-                                {item.usageCount === 1 ? "" : "s"}
-                              </Badge>
-                              <span className="text-muted-foreground text-xs">
-                                {new Date(item.createdAt).toLocaleDateString()}
-                              </span>
-                            </div>
+                                <div className="space-y-2 p-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <Badge variant="outline">
+                                      {item.usageCount} uso
+                                      {item.usageCount === 1 ? "" : "s"}
+                                    </Badge>
+                                    <span className="text-muted-foreground text-xs">
+                                      {new Date(
+                                        item.createdAt
+                                      ).toLocaleDateString()}
+                                    </span>
+                                  </div>
 
-                            <div className="line-clamp-2 font-mono text-xs leading-5 text-muted-foreground">
-                              {item.objectKey}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
+                                  <div className="line-clamp-2 font-mono text-xs leading-5 text-muted-foreground">
+                                    {item.objectKey}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="flex min-h-60 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center text-sm text-muted-foreground">
-                    No hay media que coincida con esa busqueda.
+                    {normalizedSearch
+                      ? "No hay carpetas ni media que coincidan con esa búsqueda."
+                      : "Esta carpeta todavía no tiene contenido."}
                   </div>
                 )}
               </div>
