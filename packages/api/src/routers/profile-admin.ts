@@ -197,8 +197,7 @@ export default {
       .input(z.object({ id: z.string() }))
       .handler(async ({ context: { db }, input }) => {
         await db
-          .update(profileEmblemDefinition)
-          .set({ isActive: false })
+          .delete(profileEmblemDefinition)
           .where(eq(profileEmblemDefinition.id, input.id));
         return { success: true };
       }),
@@ -206,6 +205,7 @@ export default {
     list: ownerProcedure.handler(async ({ context: { db } }) => {
       const rows = await db.query.profileEmblemDefinition.findMany({
         orderBy: (table, { desc }) => [desc(table.priority)],
+        where: (table, { eq: equals }) => equals(table.isActive, true),
       });
       return enrichDefinitionsWithAssets(db, rows);
     }),
@@ -361,8 +361,7 @@ export default {
       .input(z.object({ id: z.string() }))
       .handler(async ({ context: { db }, input }) => {
         await db
-          .update(profileRoleDefinition)
-          .set({ isActive: false })
+          .delete(profileRoleDefinition)
           .where(eq(profileRoleDefinition.id, input.id));
         return { success: true };
       }),
@@ -370,6 +369,7 @@ export default {
     list: ownerProcedure.handler(async ({ context: { db } }) => {
       const rows = await db.query.profileRoleDefinition.findMany({
         orderBy: (table, { desc }) => [desc(table.priority)],
+        where: (table, { eq: equals }) => equals(table.isActive, true),
       });
       return enrichDefinitionsWithAssets(db, rows);
     }),

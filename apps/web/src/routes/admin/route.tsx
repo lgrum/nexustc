@@ -143,7 +143,15 @@ const nav = {
     links: [
       {
         href: "/admin/profile",
-        name: "Visuales",
+        name: "Asignaciones",
+      },
+      {
+        href: "/admin/profile/roles",
+        name: "Roles",
+      },
+      {
+        href: "/admin/profile/emblems",
+        name: "Emblemas",
       },
     ],
     name: "Perfiles",

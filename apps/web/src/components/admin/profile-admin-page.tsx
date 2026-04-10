@@ -1,14 +1,20 @@
+import { Delete02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { useConfirm } from "@omit/react-confirm-dialog";
 import {
   useMutation,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { toast } from "sonner";
 
+import { DataTable } from "@/components/admin/data-table";
 import { ProfileAssetInput } from "@/components/admin/profile-asset-input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -20,9 +26,9 @@ import {
 import { ColorPickerField } from "@/components/ui/color-picker-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
+import { getBucketUrl } from "@/lib/utils";
 
 type ProfileAssetPreview = {
   objectKey: string;
@@ -61,6 +67,11 @@ type EmblemDefinitionListItem = {
     glowColor: string | null;
     backgroundColor: string | null;
   };
+};
+
+type ProfileAdminUser = {
+  id: string;
+  email: string;
 };
 
 type RoleFormState = {
@@ -158,19 +169,9 @@ function mapEmblem(emblem: EmblemDefinitionListItem): EmblemFormState {
   };
 }
 
-export function ProfileAdminPage() {
-  const queryClient = useQueryClient();
-  const rolesQuery = useSuspenseQuery(
-    orpc.profileAdmin.roles.list.queryOptions()
-  );
-  const emblemsQuery = useSuspenseQuery(
-    orpc.profileAdmin.emblems.list.queryOptions()
-  );
-  const systemConfigQuery = useSuspenseQuery(
-    orpc.profileAdmin.systemConfig.get.queryOptions()
-  );
-  const usersQuery = useQuery({
-    queryFn: async () => {
+function useOwnerUsersQuery() {
+  return useQuery({
+    queryFn: async (): Promise<ProfileAdminUser[]> => {
       const result = await authClient.admin.listUsers({
         query: { limit: 200, offset: 0 },
       });
@@ -179,34 +180,19 @@ export function ProfileAdminPage() {
         throw new Error(result.error.message);
       }
 
-      return result.data.users;
+      return result.data.users.map((user) => ({
+        email: user.email,
+        id: user.id,
+      }));
     },
     queryKey: ["owner-users"],
   });
+}
 
-  const [selectedUserId, setSelectedUserId] = useState("");
-  const assignmentsQuery = useQuery({
-    ...orpc.profileAdmin.assignments.getUserAssignments.queryOptions({
-      input: { userId: selectedUserId || "pending" },
-    }),
-    enabled: selectedUserId.length > 0,
-  });
-  const [roleIds, setRoleIds] = useState<string[]>([]);
-  const [emblemIds, setEmblemIds] = useState<string[]>([]);
-  const [maxVisibleEmblems, setMaxVisibleEmblems] = useState(
-    systemConfigQuery.data.maxVisibleEmblems
-  );
+function useInvalidateProfileAdmin() {
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    setMaxVisibleEmblems(systemConfigQuery.data.maxVisibleEmblems);
-  }, [systemConfigQuery.data.maxVisibleEmblems]);
-
-  useEffect(() => {
-    setRoleIds(assignmentsQuery.data?.roleIds ?? []);
-    setEmblemIds(assignmentsQuery.data?.emblemIds ?? []);
-  }, [assignmentsQuery.data?.emblemIds, assignmentsQuery.data?.roleIds]);
-
-  const invalidateAll = async () => {
+  return async () => {
     await Promise.all([
       queryClient.invalidateQueries(
         orpc.profileAdmin.roles.list.queryOptions()
@@ -222,6 +208,358 @@ export function ProfileAdminPage() {
       queryClient.invalidateQueries({ queryKey: ["comments"] }),
     ]);
   };
+}
+
+function PageHeader({
+  description,
+  title,
+}: {
+  description: string;
+  title: string;
+}) {
+  return (
+    <div>
+      <h1 className="font-black text-3xl">{title}</h1>
+      <p className="text-muted-foreground text-sm">{description}</p>
+    </div>
+  );
+}
+
+function AssetPreview({
+  alt,
+  objectKey,
+}: {
+  alt: string;
+  objectKey: string | null | undefined;
+}) {
+  if (!objectKey) {
+    return <span className="text-muted-foreground text-xs">Sin icono</span>;
+  }
+
+  return (
+    <img
+      alt={alt}
+      className="size-10 rounded-md object-contain"
+      src={getBucketUrl(objectKey)}
+    />
+  );
+}
+
+function ProfileSystemConfigCard() {
+  const queryClient = useQueryClient();
+  const systemConfigQuery = useSuspenseQuery(
+    orpc.profileAdmin.systemConfig.get.queryOptions()
+  );
+  const [maxVisibleEmblems, setMaxVisibleEmblems] = useState(
+    systemConfigQuery.data.maxVisibleEmblems
+  );
+
+  useEffect(() => {
+    setMaxVisibleEmblems(systemConfigQuery.data.maxVisibleEmblems);
+  }, [systemConfigQuery.data.maxVisibleEmblems]);
+
+  const systemConfigMutation = useMutation({
+    mutationFn: () =>
+      orpcClient.profileAdmin.systemConfig.update({ maxVisibleEmblems }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(
+        orpc.profileAdmin.systemConfig.get.queryOptions()
+      );
+      toast.success("Configuracion actualizada");
+    },
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Configuracion Global</CardTitle>
+        <CardDescription>
+          Ajusta limites de render del perfil publico.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <InputField
+          className="flex-1"
+          id="profile-system-max-visible-emblems"
+          label="Emblemas visibles"
+          min={1}
+          onChange={(event) => setMaxVisibleEmblems(Number(event.target.value))}
+          type="number"
+          value={maxVisibleEmblems}
+        />
+        <Button onClick={() => systemConfigMutation.mutate()}>Guardar</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ProfileRolesSection({ roles }: { roles: RoleDefinitionListItem[] }) {
+  const confirm = useConfirm();
+  const invalidateProfileAdmin = useInvalidateProfileAdmin();
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+
+  const selectedRole = roles.find((role) => role.id === selectedRoleId);
+  const columns: ColumnDef<RoleDefinitionListItem>[] = [
+    {
+      accessorKey: "iconAsset",
+      cell: (info) => (
+        <AssetPreview
+          alt={info.row.original.name}
+          objectKey={info.row.original.iconAsset?.objectKey}
+        />
+      ),
+      header: "Icono",
+    },
+    { accessorKey: "name", header: "Nombre" },
+    { accessorKey: "slug", header: "Slug" },
+    {
+      accessorKey: "description",
+      cell: (info) => (
+        <div className="max-w-md text-sm text-muted-foreground">
+          {info.row.original.description || "Sin descripcion"}
+        </div>
+      ),
+      header: "Descripcion",
+    },
+    { accessorKey: "priority", header: "Prioridad" },
+    {
+      accessorKey: "isVisible",
+      cell: (info) => (info.row.original.isVisible ? "Si" : "No"),
+      header: "Visible",
+    },
+    {
+      accessorKey: "isExclusive",
+      cell: (info) => (info.row.original.isExclusive ? "Si" : "No"),
+      header: "Exclusivo",
+    },
+    {
+      cell: (info) => (
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setSelectedRoleId(info.row.original.id)}
+            variant="outline"
+          >
+            Editar
+          </Button>
+          <Button
+            onClick={async () => {
+              const isConfirmed = await confirm({
+                cancelText: "Cancelar",
+                confirmText: "Eliminar",
+                description:
+                  "Estas absolutamente seguro de que quieres eliminar este rol? Esta accion no se puede deshacer.",
+                title: "Eliminar Rol",
+              });
+
+              if (isConfirmed) {
+                await toast
+                  .promise(
+                    orpcClient.profileAdmin.roles.delete({
+                      id: info.row.original.id,
+                    }),
+                    {
+                      error: (error) => ({
+                        duration: 10_000,
+                        message: `Error al eliminar rol: ${error}`,
+                      }),
+                      loading: "Eliminando rol...",
+                      success: "Rol eliminado.",
+                    }
+                  )
+                  .unwrap();
+
+                if (selectedRoleId === info.row.original.id) {
+                  setSelectedRoleId(null);
+                }
+
+                await invalidateProfileAdmin();
+              }
+            }}
+            size="icon"
+            variant="destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} />
+          </Button>
+        </div>
+      ),
+      header: "Acciones",
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <RoleEditorCard
+        initial={selectedRole ? mapRole(selectedRole) : defaultRoleState()}
+        key={selectedRole?.id ?? "create-role"}
+        mode={selectedRole ? "update" : "create"}
+        onCancel={() => setSelectedRoleId(null)}
+        onSaved={async () => {
+          await invalidateProfileAdmin();
+          setSelectedRoleId(null);
+        }}
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Roles existentes</CardTitle>
+          <CardDescription>
+            Edita un rol desde la tabla o eliminalo de forma permanente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataTable columns={columns} data={roles} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProfileEmblemsSection({
+  emblems,
+}: {
+  emblems: EmblemDefinitionListItem[];
+}) {
+  const confirm = useConfirm();
+  const invalidateProfileAdmin = useInvalidateProfileAdmin();
+  const [selectedEmblemId, setSelectedEmblemId] = useState<string | null>(null);
+
+  const selectedEmblem = emblems.find(
+    (emblem) => emblem.id === selectedEmblemId
+  );
+  const columns: ColumnDef<EmblemDefinitionListItem>[] = [
+    {
+      accessorKey: "iconAsset",
+      cell: (info) => (
+        <AssetPreview
+          alt={info.row.original.name}
+          objectKey={info.row.original.iconAsset?.objectKey}
+        />
+      ),
+      header: "Icono",
+    },
+    { accessorKey: "name", header: "Nombre" },
+    { accessorKey: "slug", header: "Slug" },
+    {
+      accessorKey: "tooltip",
+      cell: (info) => (
+        <div className="max-w-md text-sm text-muted-foreground">
+          {info.row.original.tooltip || "Sin tooltip"}
+        </div>
+      ),
+      header: "Tooltip",
+    },
+    { accessorKey: "priority", header: "Prioridad" },
+    {
+      accessorKey: "isVisible",
+      cell: (info) => (info.row.original.isVisible ? "Si" : "No"),
+      header: "Visible",
+    },
+    {
+      cell: (info) => (
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setSelectedEmblemId(info.row.original.id)}
+            variant="outline"
+          >
+            Editar
+          </Button>
+          <Button
+            onClick={async () => {
+              const isConfirmed = await confirm({
+                cancelText: "Cancelar",
+                confirmText: "Eliminar",
+                description:
+                  "Estas absolutamente seguro de que quieres eliminar este emblema? Esta accion no se puede deshacer.",
+                title: "Eliminar Emblema",
+              });
+
+              if (isConfirmed) {
+                await toast
+                  .promise(
+                    orpcClient.profileAdmin.emblems.delete({
+                      id: info.row.original.id,
+                    }),
+                    {
+                      error: (error) => ({
+                        duration: 10_000,
+                        message: `Error al eliminar emblema: ${error}`,
+                      }),
+                      loading: "Eliminando emblema...",
+                      success: "Emblema eliminado.",
+                    }
+                  )
+                  .unwrap();
+
+                if (selectedEmblemId === info.row.original.id) {
+                  setSelectedEmblemId(null);
+                }
+
+                await invalidateProfileAdmin();
+              }
+            }}
+            size="icon"
+            variant="destructive"
+          >
+            <HugeiconsIcon icon={Delete02Icon} />
+          </Button>
+        </div>
+      ),
+      header: "Acciones",
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-4">
+      <EmblemEditorCard
+        initial={
+          selectedEmblem ? mapEmblem(selectedEmblem) : defaultEmblemState()
+        }
+        key={selectedEmblem?.id ?? "create-emblem"}
+        mode={selectedEmblem ? "update" : "create"}
+        onCancel={() => setSelectedEmblemId(null)}
+        onSaved={async () => {
+          await invalidateProfileAdmin();
+          setSelectedEmblemId(null);
+        }}
+      />
+      <Card>
+        <CardHeader>
+          <CardTitle>Emblemas existentes</CardTitle>
+          <CardDescription>
+            Edita un emblema desde la tabla o eliminalo de forma permanente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataTable columns={columns} data={emblems} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function ProfileAssignmentsCard({
+  emblems,
+  roles,
+  users,
+}: {
+  emblems: EmblemDefinitionListItem[];
+  roles: RoleDefinitionListItem[];
+  users: ProfileAdminUser[] | undefined;
+}) {
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  const [emblemIds, setEmblemIds] = useState<string[]>([]);
+
+  const assignmentsQuery = useQuery({
+    ...orpc.profileAdmin.assignments.getUserAssignments.queryOptions({
+      input: { userId: selectedUserId || "pending" },
+    }),
+    enabled: selectedUserId.length > 0,
+  });
+
+  useEffect(() => {
+    setRoleIds(assignmentsQuery.data?.roleIds ?? []);
+    setEmblemIds(assignmentsQuery.data?.emblemIds ?? []);
+  }, [assignmentsQuery.data?.emblemIds, assignmentsQuery.data?.roleIds]);
 
   const assignmentsMutation = useMutation({
     mutationFn: () =>
@@ -239,170 +577,147 @@ export function ProfileAdminPage() {
     onSuccess: () => toast.success("Asignaciones guardadas"),
   });
 
-  const systemConfigMutation = useMutation({
-    mutationFn: () =>
-      orpcClient.profileAdmin.systemConfig.update({ maxVisibleEmblems }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries(
-        orpc.profileAdmin.systemConfig.get.queryOptions()
-      );
-      toast.success("Configuracion actualizada");
-    },
-  });
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Asignaciones</CardTitle>
+        <CardDescription>
+          Selecciona un usuario y define sus roles/emblemas visibles.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-2 text-sm">
+          <label htmlFor="profile-assignments-user">Usuario</label>
+          <select
+            className="h-11 rounded-xl border border-input bg-background px-3"
+            id="profile-assignments-user"
+            onChange={(event) => setSelectedUserId(event.target.value)}
+            value={selectedUserId}
+          >
+            <option value="">Selecciona un usuario</option>
+            {users?.map((currentUser) => (
+              <option key={currentUser.id} value={currentUser.id}>
+                {currentUser.email}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedUserId ? (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="flex flex-col gap-2">
+                <p className="font-semibold">Roles</p>
+                {roles.map((role) => (
+                  <label
+                    className="flex items-center gap-2 text-sm"
+                    key={role.id}
+                  >
+                    <input
+                      checked={roleIds.includes(role.id)}
+                      onChange={(event) =>
+                        setRoleIds((current) =>
+                          event.target.checked
+                            ? [...current, role.id]
+                            : current.filter((id) => id !== role.id)
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    {role.name}
+                  </label>
+                ))}
+              </div>
+              <div className="flex flex-col gap-2">
+                <p className="font-semibold">Emblemas</p>
+                {emblems.map((emblem) => (
+                  <label
+                    className="flex items-center gap-2 text-sm"
+                    key={emblem.id}
+                  >
+                    <input
+                      checked={emblemIds.includes(emblem.id)}
+                      onChange={(event) =>
+                        setEmblemIds((current) =>
+                          event.target.checked
+                            ? [...current, emblem.id]
+                            : current.filter((id) => id !== emblem.id)
+                        )
+                      }
+                      type="checkbox"
+                    />
+                    {emblem.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <Button onClick={() => assignmentsMutation.mutate()}>
+              Guardar asignaciones
+            </Button>
+          </>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ProfileAdminPage() {
+  const rolesQuery = useSuspenseQuery(
+    orpc.profileAdmin.roles.list.queryOptions()
+  );
+  const emblemsQuery = useSuspenseQuery(
+    orpc.profileAdmin.emblems.list.queryOptions()
+  );
+  const usersQuery = useOwnerUsersQuery();
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="font-black text-3xl">Profile Admin</h1>
-        <p className="text-muted-foreground text-sm">
-          Gestiona badges, emblemas y asignaciones visuales sin tocar codigo.
-        </p>
-      </div>
+      <PageHeader
+        description="Gestiona badges, emblemas y asignaciones visuales sin tocar codigo."
+        title="Profile Admin"
+      />
+      <ProfileSystemConfigCard />
+      <ProfileAssignmentsCard
+        emblems={emblemsQuery.data as EmblemDefinitionListItem[]}
+        roles={rolesQuery.data as RoleDefinitionListItem[]}
+        users={usersQuery.data}
+      />
+    </div>
+  );
+}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Configuracion Global</CardTitle>
-          <CardDescription>
-            Ajusta limites de render del perfil publico.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <InputField
-            className="flex-1"
-            id="profile-system-max-visible-emblems"
-            label="Emblemas visibles"
-            min={1}
-            onChange={(event) =>
-              setMaxVisibleEmblems(Number(event.target.value))
-            }
-            type="number"
-            value={maxVisibleEmblems}
-          />
-          <Button onClick={() => systemConfigMutation.mutate()}>Guardar</Button>
-        </CardContent>
-      </Card>
+export function ProfileRolesAdminPage() {
+  const rolesQuery = useSuspenseQuery(
+    orpc.profileAdmin.roles.list.queryOptions()
+  );
 
-      <Tabs defaultValue="roles">
-        <TabsList className="w-full">
-          <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="emblems">Emblemas</TabsTrigger>
-          <TabsTrigger value="assignments">Asignaciones</TabsTrigger>
-        </TabsList>
-        <TabsContent className="flex flex-col gap-4" value="roles">
-          <RoleEditorCard
-            initial={defaultRoleState()}
-            mode="create"
-            onSaved={invalidateAll}
-          />
-          {rolesQuery.data.map((role) => (
-            <RoleEditorCard
-              initial={mapRole(role as RoleDefinitionListItem)}
-              key={role.id}
-              mode="update"
-              onDeleted={invalidateAll}
-              onSaved={invalidateAll}
-            />
-          ))}
-        </TabsContent>
-        <TabsContent className="flex flex-col gap-4" value="emblems">
-          <EmblemEditorCard
-            initial={defaultEmblemState()}
-            mode="create"
-            onSaved={invalidateAll}
-          />
-          {emblemsQuery.data.map((emblem) => (
-            <EmblemEditorCard
-              initial={mapEmblem(emblem as EmblemDefinitionListItem)}
-              key={emblem.id}
-              mode="update"
-              onDeleted={invalidateAll}
-              onSaved={invalidateAll}
-            />
-          ))}
-        </TabsContent>
-        <TabsContent value="assignments">
-          <Card>
-            <CardHeader>
-              <CardTitle>Asignaciones</CardTitle>
-              <CardDescription>
-                Selecciona un usuario y define sus roles/emblemas visibles.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2 text-sm">
-                <label htmlFor="profile-assignments-user">Usuario</label>
-                <select
-                  className="h-11 rounded-xl border border-input bg-background px-3"
-                  id="profile-assignments-user"
-                  onChange={(event) => setSelectedUserId(event.target.value)}
-                  value={selectedUserId}
-                >
-                  <option value="">Selecciona un usuario</option>
-                  {usersQuery.data?.map((currentUser) => (
-                    <option key={currentUser.id} value={currentUser.id}>
-                      {currentUser.email}
-                    </option>
-                  ))}
-                </select>
-              </div>
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        description="Crea y edita los roles visuales disponibles para los perfiles."
+        title="Roles de Perfil"
+      />
+      <ProfileRolesSection
+        roles={rolesQuery.data as RoleDefinitionListItem[]}
+      />
+    </div>
+  );
+}
 
-              {selectedUserId ? (
-                <>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="flex flex-col gap-2">
-                      <p className="font-semibold">Roles</p>
-                      {rolesQuery.data.map((role) => (
-                        <label
-                          className="flex items-center gap-2 text-sm"
-                          key={role.id}
-                        >
-                          <input
-                            checked={roleIds.includes(role.id)}
-                            onChange={(event) =>
-                              setRoleIds((current) =>
-                                event.target.checked
-                                  ? [...current, role.id]
-                                  : current.filter((id) => id !== role.id)
-                              )
-                            }
-                            type="checkbox"
-                          />
-                          {role.name}
-                        </label>
-                      ))}
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <p className="font-semibold">Emblemas</p>
-                      {emblemsQuery.data.map((emblem) => (
-                        <label
-                          className="flex items-center gap-2 text-sm"
-                          key={emblem.id}
-                        >
-                          <input
-                            checked={emblemIds.includes(emblem.id)}
-                            onChange={(event) =>
-                              setEmblemIds((current) =>
-                                event.target.checked
-                                  ? [...current, emblem.id]
-                                  : current.filter((id) => id !== emblem.id)
-                              )
-                            }
-                            type="checkbox"
-                          />
-                          {emblem.name}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <Button onClick={() => assignmentsMutation.mutate()}>
-                    Guardar asignaciones
-                  </Button>
-                </>
-              ) : null}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+export function ProfileEmblemsAdminPage() {
+  const emblemsQuery = useSuspenseQuery(
+    orpc.profileAdmin.emblems.list.queryOptions()
+  );
+
+  return (
+    <div className="flex flex-col gap-4">
+      <PageHeader
+        description="Crea y edita los emblemas disponibles para asignar en perfiles."
+        title="Emblemas de Perfil"
+      />
+      <ProfileEmblemsSection
+        emblems={emblemsQuery.data as EmblemDefinitionListItem[]}
+      />
     </div>
   );
 }
@@ -411,19 +726,31 @@ function RoleEditorCard({
   initial,
   mode,
   onSaved,
-  onDeleted,
+  onCancel,
 }: {
   initial: RoleFormState;
   mode: "create" | "update";
   onSaved: () => Promise<void> | void;
-  onDeleted?: () => Promise<void> | void;
+  onCancel?: () => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState(initial);
   const fieldPrefix = state.id ?? `${mode}-role`;
 
   useEffect(() => {
     setState(initial);
   }, [initial]);
+
+  useEffect(() => {
+    if (mode !== "update") {
+      return;
+    }
+
+    containerRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [initial.id, mode]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -439,159 +766,172 @@ function RoleEditorCard({
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => orpcClient.profileAdmin.roles.delete({ id: state.id! }),
-    onSuccess: async () => {
-      await onDeleted?.();
-      toast.success("Rol archivado");
-    },
-  });
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{mode === "create" ? "Crear rol" : state.name}</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
-        <InputField
-          id={`role-${fieldPrefix}-slug`}
-          label="Slug"
-          onChange={(event) =>
-            setState((current) => ({ ...current, slug: event.target.value }))
-          }
-          value={state.slug}
-        />
-        <InputField
-          id={`role-${fieldPrefix}-name`}
-          label="Nombre"
-          onChange={(event) =>
-            setState((current) => ({ ...current, name: event.target.value }))
-          }
-          value={state.name}
-        />
-        <InputField
-          className="md:col-span-2"
-          id={`role-${fieldPrefix}-description`}
-          label="Descripcion"
-          onChange={(event) =>
-            setState((current) => ({
-              ...current,
-              description: event.target.value,
-            }))
-          }
-          value={state.description}
-        />
-        <InputField
-          id={`role-${fieldPrefix}-priority`}
-          label="Prioridad"
-          onChange={(event) =>
-            setState((current) => ({
-              ...current,
-              priority: Number(event.target.value),
-            }))
-          }
-          type="number"
-          value={state.priority}
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              checked={state.isVisible}
-              onChange={(event) =>
-                setState((current) => ({
-                  ...current,
-                  isVisible: event.target.checked,
-                }))
-              }
-              type="checkbox"
-            />
-            Visible
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              checked={state.isExclusive}
-              onChange={(event) =>
-                setState((current) => ({
-                  ...current,
-                  isExclusive: event.target.checked,
-                }))
-              }
-              type="checkbox"
-            />
-            Exclusivo
-          </label>
-        </div>
-        <ColorField
-          id={`role-${fieldPrefix}-base-color`}
-          label="Color base"
-          onChange={(value) =>
-            setState((current) => ({ ...current, baseColor: value }))
-          }
-          value={state.baseColor}
-        />
-        <ColorField
-          id={`role-${fieldPrefix}-accent-color`}
-          label="Color acento"
-          onChange={(value) =>
-            setState((current) => ({ ...current, accentColor: value }))
-          }
-          value={state.accentColor ?? "#1d4ed8"}
-        />
-        <ColorField
-          id={`role-${fieldPrefix}-text-color`}
-          label="Color texto"
-          onChange={(value) =>
-            setState((current) => ({ ...current, textColor: value }))
-          }
-          value={state.textColor}
-        />
-        <ColorField
-          id={`role-${fieldPrefix}-glow-color`}
-          label="Color glow"
-          onChange={(value) =>
-            setState((current) => ({ ...current, glowColor: value }))
-          }
-          value={state.glowColor ?? "#60a5fa"}
-        />
-        <ProfileAssetInput
-          currentObjectKey={state.iconObjectKey}
-          label="Icono"
-          onUploaded={(assetId, objectKey) =>
-            setState((current) => ({
-              ...current,
-              iconAssetId: assetId,
-              iconObjectKey: objectKey,
-            }))
-          }
-          slot="role-icon"
-        />
-        <ProfileAssetInput
-          currentObjectKey={state.overlayObjectKey}
-          label="Overlay"
-          onUploaded={(assetId, objectKey) =>
-            setState((current) => ({
-              ...current,
-              overlayAssetId: assetId,
-              overlayObjectKey: objectKey,
-            }))
-          }
-          slot="role-overlay"
-        />
-        <div className="flex gap-2 md:col-span-2">
-          <Button onClick={() => saveMutation.mutate()}>
-            {mode === "create" ? "Crear" : "Guardar"}
-          </Button>
+    <div ref={containerRef}>
+      <Card
+        className={
+          mode === "update" ? "border-primary/50 ring-2 ring-primary/20" : ""
+        }
+      >
+        <CardHeader>
+          <CardTitle>
+            {mode === "create" ? "Crear rol" : `Editar ${state.name}`}
+          </CardTitle>
+          <CardDescription>
+            {mode === "create"
+              ? "Completa el formulario para crear un nuevo rol visual."
+              : "Actualiza el rol seleccionado o cancela para volver a crear uno nuevo."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
           {mode === "update" ? (
-            <Button
-              onClick={() => deleteMutation.mutate()}
-              variant="destructive"
-            >
-              Archivar
-            </Button>
+            <Alert className="border-amber-300 bg-amber-50 text-amber-950 md:col-span-2">
+              <AlertTitle className="text-amber-950">
+                Modo edicion activado
+              </AlertTitle>
+              <AlertDescription className="text-amber-900/90">
+                Estas editando el rol <strong>{state.name}</strong>. Guarda los
+                cambios o cancela para volver al formulario de creacion.
+              </AlertDescription>
+            </Alert>
           ) : null}
-        </div>
-      </CardContent>
-    </Card>
+          <InputField
+            id={`role-${fieldPrefix}-slug`}
+            label="Slug"
+            onChange={(event) =>
+              setState((current) => ({ ...current, slug: event.target.value }))
+            }
+            value={state.slug}
+          />
+          <InputField
+            id={`role-${fieldPrefix}-name`}
+            label="Nombre"
+            onChange={(event) =>
+              setState((current) => ({ ...current, name: event.target.value }))
+            }
+            value={state.name}
+          />
+          <InputField
+            className="md:col-span-2"
+            id={`role-${fieldPrefix}-description`}
+            label="Descripcion"
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                description: event.target.value,
+              }))
+            }
+            value={state.description}
+          />
+          <InputField
+            id={`role-${fieldPrefix}-priority`}
+            label="Prioridad"
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                priority: Number(event.target.value),
+              }))
+            }
+            type="number"
+            value={state.priority}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                checked={state.isVisible}
+                onChange={(event) =>
+                  setState((current) => ({
+                    ...current,
+                    isVisible: event.target.checked,
+                  }))
+                }
+                type="checkbox"
+              />
+              Visible
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                checked={state.isExclusive}
+                onChange={(event) =>
+                  setState((current) => ({
+                    ...current,
+                    isExclusive: event.target.checked,
+                  }))
+                }
+                type="checkbox"
+              />
+              Exclusivo
+            </label>
+          </div>
+          <ColorField
+            id={`role-${fieldPrefix}-base-color`}
+            label="Color base"
+            onChange={(value) =>
+              setState((current) => ({ ...current, baseColor: value }))
+            }
+            value={state.baseColor}
+          />
+          <ColorField
+            id={`role-${fieldPrefix}-accent-color`}
+            label="Color acento"
+            onChange={(value) =>
+              setState((current) => ({ ...current, accentColor: value }))
+            }
+            value={state.accentColor ?? "#1d4ed8"}
+          />
+          <ColorField
+            id={`role-${fieldPrefix}-text-color`}
+            label="Color texto"
+            onChange={(value) =>
+              setState((current) => ({ ...current, textColor: value }))
+            }
+            value={state.textColor}
+          />
+          <ColorField
+            id={`role-${fieldPrefix}-glow-color`}
+            label="Color glow"
+            onChange={(value) =>
+              setState((current) => ({ ...current, glowColor: value }))
+            }
+            value={state.glowColor ?? "#60a5fa"}
+          />
+          <ProfileAssetInput
+            currentObjectKey={state.iconObjectKey}
+            label="Icono"
+            onUploaded={(assetId, objectKey) =>
+              setState((current) => ({
+                ...current,
+                iconAssetId: assetId,
+                iconObjectKey: objectKey,
+              }))
+            }
+            slot="role-icon"
+          />
+          <ProfileAssetInput
+            currentObjectKey={state.overlayObjectKey}
+            label="Overlay"
+            onUploaded={(assetId, objectKey) =>
+              setState((current) => ({
+                ...current,
+                overlayAssetId: assetId,
+                overlayObjectKey: objectKey,
+              }))
+            }
+            slot="role-overlay"
+          />
+          <div className="flex gap-2 md:col-span-2">
+            <Button onClick={() => saveMutation.mutate()}>
+              {mode === "create" ? "Crear" : "Guardar"}
+            </Button>
+            {mode === "update" ? (
+              <Button onClick={onCancel} variant="outline">
+                Cancelar
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -599,19 +939,31 @@ function EmblemEditorCard({
   initial,
   mode,
   onSaved,
-  onDeleted,
+  onCancel,
 }: {
   initial: EmblemFormState;
   mode: "create" | "update";
   onSaved: () => Promise<void> | void;
-  onDeleted?: () => Promise<void> | void;
+  onCancel?: () => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState(initial);
   const fieldPrefix = state.id ?? `${mode}-emblem`;
 
   useEffect(() => {
     setState(initial);
   }, [initial]);
+
+  useEffect(() => {
+    if (mode !== "update") {
+      return;
+    }
+
+    containerRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, [initial.id, mode]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -629,118 +981,129 @@ function EmblemEditorCard({
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: () => orpcClient.profileAdmin.emblems.delete({ id: state.id! }),
-    onSuccess: async () => {
-      await onDeleted?.();
-      toast.success("Emblema archivado");
-    },
-  });
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
-          {mode === "create" ? "Crear emblema" : state.name}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2">
-        <InputField
-          id={`emblem-${fieldPrefix}-slug`}
-          label="Slug"
-          onChange={(event) =>
-            setState((current) => ({ ...current, slug: event.target.value }))
-          }
-          value={state.slug}
-        />
-        <InputField
-          id={`emblem-${fieldPrefix}-name`}
-          label="Nombre"
-          onChange={(event) =>
-            setState((current) => ({ ...current, name: event.target.value }))
-          }
-          value={state.name}
-        />
-        <InputField
-          className="md:col-span-2"
-          id={`emblem-${fieldPrefix}-tooltip`}
-          label="Tooltip"
-          onChange={(event) =>
-            setState((current) => ({
-              ...current,
-              tooltip: event.target.value,
-            }))
-          }
-          value={state.tooltip}
-        />
-        <InputField
-          id={`emblem-${fieldPrefix}-priority`}
-          label="Prioridad"
-          onChange={(event) =>
-            setState((current) => ({
-              ...current,
-              priority: Number(event.target.value),
-            }))
-          }
-          type="number"
-          value={state.priority}
-        />
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            checked={state.isVisible}
+    <div ref={containerRef}>
+      <Card
+        className={
+          mode === "update" ? "border-primary/50 ring-2 ring-primary/20" : ""
+        }
+      >
+        <CardHeader>
+          <CardTitle>
+            {mode === "create" ? "Crear emblema" : `Editar ${state.name}`}
+          </CardTitle>
+          <CardDescription>
+            {mode === "create"
+              ? "Completa el formulario para crear un nuevo emblema."
+              : "Actualiza el emblema seleccionado o cancela para volver a crear uno nuevo."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          {mode === "update" ? (
+            <Alert className="border-amber-300 bg-amber-50 text-amber-950 md:col-span-2">
+              <AlertTitle className="text-amber-950">
+                Modo edicion activado
+              </AlertTitle>
+              <AlertDescription className="text-amber-900/90">
+                Estas editando el emblema <strong>{state.name}</strong>. Guarda
+                los cambios o cancela para volver al formulario de creacion.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <InputField
+            id={`emblem-${fieldPrefix}-slug`}
+            label="Slug"
+            onChange={(event) =>
+              setState((current) => ({ ...current, slug: event.target.value }))
+            }
+            value={state.slug}
+          />
+          <InputField
+            id={`emblem-${fieldPrefix}-name`}
+            label="Nombre"
+            onChange={(event) =>
+              setState((current) => ({ ...current, name: event.target.value }))
+            }
+            value={state.name}
+          />
+          <InputField
+            className="md:col-span-2"
+            id={`emblem-${fieldPrefix}-tooltip`}
+            label="Tooltip"
             onChange={(event) =>
               setState((current) => ({
                 ...current,
-                isVisible: event.target.checked,
+                tooltip: event.target.value,
               }))
             }
-            type="checkbox"
+            value={state.tooltip}
           />
-          Visible
-        </label>
-        <ColorField
-          id={`emblem-${fieldPrefix}-glow-color`}
-          label="Glow"
-          onChange={(value) =>
-            setState((current) => ({ ...current, glowColor: value }))
-          }
-          value={state.glowColor ?? "#f59e0b"}
-        />
-        <ColorField
-          id={`emblem-${fieldPrefix}-background-color`}
-          label="Fondo"
-          onChange={(value) =>
-            setState((current) => ({ ...current, backgroundColor: value }))
-          }
-          value={state.backgroundColor ?? "#111827"}
-        />
-        <ProfileAssetInput
-          currentObjectKey={state.iconObjectKey}
-          label="Icono"
-          onUploaded={(assetId, objectKey) =>
-            setState((current) => ({
-              ...current,
-              iconAssetId: assetId,
-              iconObjectKey: objectKey,
-            }))
-          }
-          slot="emblem-icon"
-        />
-        <div className="flex gap-2 md:col-span-2">
-          <Button onClick={() => saveMutation.mutate()}>
-            {mode === "create" ? "Crear" : "Guardar"}
-          </Button>
-          {mode === "update" ? (
-            <Button
-              onClick={() => deleteMutation.mutate()}
-              variant="destructive"
-            >
-              Archivar
+          <InputField
+            id={`emblem-${fieldPrefix}-priority`}
+            label="Prioridad"
+            onChange={(event) =>
+              setState((current) => ({
+                ...current,
+                priority: Number(event.target.value),
+              }))
+            }
+            type="number"
+            value={state.priority}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              checked={state.isVisible}
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  isVisible: event.target.checked,
+                }))
+              }
+              type="checkbox"
+            />
+            Visible
+          </label>
+          <ColorField
+            id={`emblem-${fieldPrefix}-glow-color`}
+            label="Glow"
+            onChange={(value) =>
+              setState((current) => ({ ...current, glowColor: value }))
+            }
+            value={state.glowColor ?? "#f59e0b"}
+          />
+          <ColorField
+            id={`emblem-${fieldPrefix}-background-color`}
+            label="Fondo"
+            onChange={(value) =>
+              setState((current) => ({ ...current, backgroundColor: value }))
+            }
+            value={state.backgroundColor ?? "#111827"}
+          />
+          <ProfileAssetInput
+            currentObjectKey={state.iconObjectKey}
+            label="Icono"
+            onUploaded={(assetId, objectKey) =>
+              setState((current) => ({
+                ...current,
+                iconAssetId: assetId,
+                iconObjectKey: objectKey,
+              }))
+            }
+            slot="emblem-icon"
+          />
+          <div className="flex gap-2 md:col-span-2">
+            <Button onClick={() => saveMutation.mutate()}>
+              {mode === "create" ? "Crear" : "Guardar"}
             </Button>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+            {mode === "update" ? (
+              <Button onClick={onCancel} variant="outline">
+                Cancelar
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
