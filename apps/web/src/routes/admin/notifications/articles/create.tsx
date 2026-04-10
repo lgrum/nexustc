@@ -13,9 +13,8 @@ import { toast } from "sonner";
 import * as z from "zod";
 
 import {
-  AdminNotificationCard,
   EditorialDashboardHeader,
-  EmptyAdminState,
+  EditorialDashboardViewToggle,
   parseOptionalDate,
 } from "@/components/admin/notifications/editorial-dashboard-shell";
 import { ErrorField } from "@/components/forms/error-field";
@@ -45,12 +44,12 @@ import { useAppForm } from "@/hooks/use-app-form";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/admin/notifications/articles")({
+export const Route = createFileRoute("/admin/notifications/articles/create")({
   component: RouteComponent,
   head: () => ({
     meta: [
       {
-        title: "NeXusTC - Articulos manuales",
+        title: "NeXusTC - Crear articulo manual",
       },
     ],
   }),
@@ -66,9 +65,6 @@ function RouteComponent() {
   const postsQuery = useQuery(orpc.post.admin.getDashboardList.queryOptions());
   const comicsQuery = useQuery(
     orpc.comic.admin.getDashboardList.queryOptions()
-  );
-  const newsQuery = useQuery(
-    orpc.notification.admin.listNewsArticles.queryOptions()
   );
 
   const createNewsMutation = useMutation(
@@ -146,131 +142,106 @@ function RouteComponent() {
     <main className="flex flex-col gap-6">
       <EditorialDashboardHeader
         activeDashboard="articles"
-        description="Redacta articulos manuales para juegos o comics concretos. Cada publicacion se conserva en el historial y solo se bloquean duplicados exactos."
-        title="Dashboard de articulos manuales"
+        description="Redacta articulos manuales con todo el ancho disponible para el editor y vuelve al listado dedicado cuando quieras revisar el historial."
+        title="Crear articulo manual"
       />
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <Card className="rounded-[1.8rem]">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <HugeiconsIcon
-                className="size-5 text-sky-400"
-                icon={News01Icon}
-              />
-              Publicar articulo por contenido
-            </CardTitle>
-            <CardDescription>
-              Publica una noticia ligada a un juego o comic seguido por los
-              usuarios.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="space-y-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                newsForm.handleSubmit();
-              }}
-            >
-              <newsForm.AppField name="contentId">
-                {(field) => (
-                  <SearchableContentField
-                    field={field}
-                    options={contentOptions}
-                  />
-                )}
-              </newsForm.AppField>
-              <newsForm.AppField name="title">
+      <EditorialDashboardViewToggle
+        activeView="create"
+        createHref="/admin/notifications/articles/create"
+        createLabel="Crear articulo"
+        listHref="/admin/notifications/articles"
+        listLabel="Listar articulos"
+      />
+
+      <Card className="rounded-[1.8rem]">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <HugeiconsIcon className="size-5 text-sky-400" icon={News01Icon} />
+            Publicar articulo por contenido
+          </CardTitle>
+          <CardDescription>
+            Publica una noticia ligada a un juego o comic seguido por los
+            usuarios.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              newsForm.handleSubmit();
+            }}
+          >
+            <newsForm.AppField name="contentId">
+              {(field) => (
+                <SearchableContentField
+                  field={field}
+                  options={contentOptions}
+                />
+              )}
+            </newsForm.AppField>
+            <newsForm.AppField name="title">
+              {(field) => (
+                <field.TextField
+                  label="Titulo"
+                  placeholder="Devlog, parche, anuncio comunitario"
+                  required
+                />
+              )}
+            </newsForm.AppField>
+            <newsForm.AppField name="summary">
+              {(field) => (
+                <field.TextareaField
+                  label="Resumen para la bandeja"
+                  placeholder="Texto corto que aparecera en la notificacion."
+                  rows={3}
+                />
+              )}
+            </newsForm.AppField>
+            <newsForm.AppField name="body">
+              {(field) => (
+                <field.BlockNoteField label="Cuerpo del articulo" required />
+              )}
+            </newsForm.AppField>
+            <div className="grid gap-4 md:grid-cols-2">
+              <newsForm.AppField name="publishedAt">
                 {(field) => (
                   <field.TextField
-                    label="Titulo"
-                    placeholder="Devlog, parche, anuncio comunitario"
-                    required
+                    label="Publicar en"
+                    placeholder="Ahora"
+                    type="datetime-local"
                   />
                 )}
               </newsForm.AppField>
-              <newsForm.AppField name="summary">
+              <newsForm.AppField name="expirationAt">
                 {(field) => (
-                  <field.TextareaField
-                    label="Resumen para la bandeja"
-                    placeholder="Texto corto que aparecera en la notificacion."
-                    rows={3}
+                  <field.TextField
+                    label="Expira en"
+                    placeholder="Opcional"
+                    type="datetime-local"
                   />
                 )}
               </newsForm.AppField>
-              <newsForm.AppField name="body">
-                {(field) => (
-                  <field.BlockNoteField label="Cuerpo del articulo" required />
-                )}
-              </newsForm.AppField>
-              <div className="grid gap-4 md:grid-cols-2">
-                <newsForm.AppField name="publishedAt">
-                  {(field) => (
-                    <field.TextField
-                      label="Publicar en"
-                      placeholder="Ahora"
-                      type="datetime-local"
-                    />
-                  )}
-                </newsForm.AppField>
-                <newsForm.AppField name="expirationAt">
-                  {(field) => (
-                    <field.TextField
-                      label="Expira en"
-                      placeholder="Opcional"
-                      type="datetime-local"
-                    />
-                  )}
-                </newsForm.AppField>
-              </div>
-              <newsForm.AppField name="bannerImageMediaId">
-                {(field) => (
-                  <field.MediaField
-                    description="Selecciona una imagen opcional para usarla como banner del articulo."
-                    label="Banner del articulo"
-                    maxItems={1}
-                  />
-                )}
-              </newsForm.AppField>
-              <newsForm.AppForm>
-                <newsForm.SubmitButton className="w-full">
-                  Publicar articulo
-                </newsForm.SubmitButton>
-              </newsForm.AppForm>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[1.8rem]">
-          <CardHeader>
-            <CardTitle>Articulos recientes</CardTitle>
-            <CardDescription>
-              El historial se mantiene completo para cada contenido.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {newsQuery.data?.length ? (
-              newsQuery.data.map((item) => (
-                <AdminNotificationCard
-                  key={item.id}
-                  badgeLabel={
-                    item.status === "published" ? "Publicado" : "Archivado"
-                  }
-                  description={item.summary || "Sin resumen para la bandeja."}
-                  expirationAt={item.expirationAt}
-                  newsArticleId={item.id}
-                  publishedAt={item.publishedAt}
-                  title={item.title}
+            </div>
+            <newsForm.AppField name="bannerImageMediaId">
+              {(field) => (
+                <field.MediaField
+                  description="Selecciona una imagen opcional para usarla como banner del articulo."
+                  label="Banner del articulo"
+                  maxItems={1}
                 />
-              ))
-            ) : (
-              <EmptyAdminState copy="Todavia no se publicaron articulos manuales." />
-            )}
-          </CardContent>
-        </Card>
-      </section>
+              )}
+            </newsForm.AppField>
+            <newsForm.AppForm>
+              <newsForm.SubmitButton className="w-full">
+                Publicar articulo
+              </newsForm.SubmitButton>
+            </newsForm.AppForm>
+          </form>
+        </CardContent>
+      </Card>
     </main>
   );
 }

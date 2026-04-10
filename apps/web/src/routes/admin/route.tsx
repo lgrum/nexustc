@@ -117,11 +117,19 @@ const nav = {
     links: [
       {
         href: "/admin/notifications/announcements",
-        name: "Anuncios globales",
+        name: "Listar anuncios",
+      },
+      {
+        href: "/admin/notifications/announcements/create",
+        name: "Crear anuncio",
       },
       {
         href: "/admin/notifications/articles",
-        name: "Articulos manuales",
+        name: "Listar articulos",
+      },
+      {
+        href: "/admin/notifications/articles/create",
+        name: "Crear articulo",
       },
     ],
     name: "Notificaciones",

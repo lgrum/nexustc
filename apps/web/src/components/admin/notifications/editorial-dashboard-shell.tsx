@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type DashboardKey = "announcements" | "articles";
+type DashboardView = "create" | "list";
 
 export function EditorialDashboardHeader({
   activeDashboard,
@@ -68,6 +69,45 @@ export function EditorialDashboardHeader({
         </div>
       </div>
     </section>
+  );
+}
+
+export function EditorialDashboardViewToggle({
+  activeView,
+  createHref,
+  createLabel,
+  listHref,
+  listLabel,
+}: {
+  activeView: DashboardView;
+  createHref: string;
+  createLabel: string;
+  listHref: string;
+  listLabel: string;
+}) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Link
+        className={cn(
+          buttonVariants({
+            variant: activeView === "list" ? "default" : "outline",
+          })
+        )}
+        to={listHref}
+      >
+        {listLabel}
+      </Link>
+      <Link
+        className={cn(
+          buttonVariants({
+            variant: activeView === "create" ? "default" : "outline",
+          })
+        )}
+        to={createHref}
+      >
+        {createLabel}
+      </Link>
+    </div>
   );
 }
 

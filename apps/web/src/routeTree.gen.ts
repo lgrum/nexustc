@@ -61,8 +61,6 @@ import { Route as AdminProfileRolesRouteImport } from './routes/admin/profile/ro
 import { Route as AdminProfileEmblemsRouteImport } from './routes/admin/profile/emblems'
 import { Route as AdminPostsCreateRouteImport } from './routes/admin/posts/create'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin/pages/$slug'
-import { Route as AdminNotificationsArticlesRouteImport } from './routes/admin/notifications/articles'
-import { Route as AdminNotificationsAnnouncementsRouteImport } from './routes/admin/notifications/announcements'
 import { Route as AdminExtrasWeeklyRouteImport } from './routes/admin/extras/weekly'
 import { Route as AdminExtrasTutorialsRouteImport } from './routes/admin/extras/tutorials'
 import { Route as AdminExtrasFeaturedRouteImport } from './routes/admin/extras/featured'
@@ -73,8 +71,12 @@ import { Route as AdminChronosEditRouteImport } from './routes/admin/chronos/edi
 import { Route as MainUserIdRouteImport } from './routes/_main/user.$id'
 import { Route as MainPostIdRouteImport } from './routes/_main/post.$id'
 import { Route as MainNewsIdRouteImport } from './routes/_main/news.$id'
+import { Route as AdminNotificationsArticlesIndexRouteImport } from './routes/admin/notifications/articles/index'
+import { Route as AdminNotificationsAnnouncementsIndexRouteImport } from './routes/admin/notifications/announcements/index'
 import { Route as AdminStickersIdEditRouteImport } from './routes/admin/stickers/$id.edit'
 import { Route as AdminPostsEditIdRouteImport } from './routes/admin/posts/edit.$id'
+import { Route as AdminNotificationsArticlesCreateRouteImport } from './routes/admin/notifications/articles/create'
+import { Route as AdminNotificationsAnnouncementsCreateRouteImport } from './routes/admin/notifications/announcements/create'
 import { Route as AdminEmojisIdEditRouteImport } from './routes/admin/emojis/$id.edit'
 import { Route as AdminComicsEditIdRouteImport } from './routes/admin/comics/edit.$id'
 import { Route as MainPostReviewsIdRouteImport } from './routes/_main/post.reviews.$id'
@@ -338,18 +340,6 @@ const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
   path: '/pages/$slug',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const AdminNotificationsArticlesRoute =
-  AdminNotificationsArticlesRouteImport.update({
-    id: '/notifications/articles',
-    path: '/notifications/articles',
-    getParentRoute: () => AdminRouteRoute,
-  } as any)
-const AdminNotificationsAnnouncementsRoute =
-  AdminNotificationsAnnouncementsRouteImport.update({
-    id: '/notifications/announcements',
-    path: '/notifications/announcements',
-    getParentRoute: () => AdminRouteRoute,
-  } as any)
 const AdminExtrasWeeklyRoute = AdminExtrasWeeklyRouteImport.update({
   id: '/extras/weekly',
   path: '/extras/weekly',
@@ -400,6 +390,18 @@ const MainNewsIdRoute = MainNewsIdRouteImport.update({
   path: '/news/$id',
   getParentRoute: () => MainRouteRoute,
 } as any)
+const AdminNotificationsArticlesIndexRoute =
+  AdminNotificationsArticlesIndexRouteImport.update({
+    id: '/notifications/articles/',
+    path: '/notifications/articles/',
+    getParentRoute: () => AdminRouteRoute,
+  } as any)
+const AdminNotificationsAnnouncementsIndexRoute =
+  AdminNotificationsAnnouncementsIndexRouteImport.update({
+    id: '/notifications/announcements/',
+    path: '/notifications/announcements/',
+    getParentRoute: () => AdminRouteRoute,
+  } as any)
 const AdminStickersIdEditRoute = AdminStickersIdEditRouteImport.update({
   id: '/stickers/$id/edit',
   path: '/stickers/$id/edit',
@@ -410,6 +412,18 @@ const AdminPostsEditIdRoute = AdminPostsEditIdRouteImport.update({
   path: '/posts/edit/$id',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminNotificationsArticlesCreateRoute =
+  AdminNotificationsArticlesCreateRouteImport.update({
+    id: '/notifications/articles/create',
+    path: '/notifications/articles/create',
+    getParentRoute: () => AdminRouteRoute,
+  } as any)
+const AdminNotificationsAnnouncementsCreateRoute =
+  AdminNotificationsAnnouncementsCreateRouteImport.update({
+    id: '/notifications/announcements/create',
+    path: '/notifications/announcements/create',
+    getParentRoute: () => AdminRouteRoute,
+  } as any)
 const AdminEmojisIdEditRoute = AdminEmojisIdEditRouteImport.update({
   id: '/emojis/$id/edit',
   path: '/emojis/$id/edit',
@@ -468,8 +482,6 @@ export interface FileRoutesByFullPath {
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
-  '/admin/notifications/announcements': typeof AdminNotificationsAnnouncementsRoute
-  '/admin/notifications/articles': typeof AdminNotificationsArticlesRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
@@ -493,8 +505,12 @@ export interface FileRoutesByFullPath {
   '/post/reviews/$id': typeof MainPostReviewsIdRoute
   '/admin/comics/edit/$id': typeof AdminComicsEditIdRoute
   '/admin/emojis/$id/edit': typeof AdminEmojisIdEditRoute
+  '/admin/notifications/announcements/create': typeof AdminNotificationsAnnouncementsCreateRoute
+  '/admin/notifications/articles/create': typeof AdminNotificationsArticlesCreateRoute
   '/admin/posts/edit/$id': typeof AdminPostsEditIdRoute
   '/admin/stickers/$id/edit': typeof AdminStickersIdEditRoute
+  '/admin/notifications/announcements/': typeof AdminNotificationsAnnouncementsIndexRoute
+  '/admin/notifications/articles/': typeof AdminNotificationsArticlesIndexRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -537,8 +553,6 @@ export interface FileRoutesByTo {
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
-  '/admin/notifications/announcements': typeof AdminNotificationsAnnouncementsRoute
-  '/admin/notifications/articles': typeof AdminNotificationsArticlesRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
@@ -562,8 +576,12 @@ export interface FileRoutesByTo {
   '/post/reviews/$id': typeof MainPostReviewsIdRoute
   '/admin/comics/edit/$id': typeof AdminComicsEditIdRoute
   '/admin/emojis/$id/edit': typeof AdminEmojisIdEditRoute
+  '/admin/notifications/announcements/create': typeof AdminNotificationsAnnouncementsCreateRoute
+  '/admin/notifications/articles/create': typeof AdminNotificationsArticlesCreateRoute
   '/admin/posts/edit/$id': typeof AdminPostsEditIdRoute
   '/admin/stickers/$id/edit': typeof AdminStickersIdEditRoute
+  '/admin/notifications/announcements': typeof AdminNotificationsAnnouncementsIndexRoute
+  '/admin/notifications/articles': typeof AdminNotificationsArticlesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -609,8 +627,6 @@ export interface FileRoutesById {
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
-  '/admin/notifications/announcements': typeof AdminNotificationsAnnouncementsRoute
-  '/admin/notifications/articles': typeof AdminNotificationsArticlesRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
@@ -634,8 +650,12 @@ export interface FileRoutesById {
   '/_main/post/reviews/$id': typeof MainPostReviewsIdRoute
   '/admin/comics/edit/$id': typeof AdminComicsEditIdRoute
   '/admin/emojis/$id/edit': typeof AdminEmojisIdEditRoute
+  '/admin/notifications/announcements/create': typeof AdminNotificationsAnnouncementsCreateRoute
+  '/admin/notifications/articles/create': typeof AdminNotificationsArticlesCreateRoute
   '/admin/posts/edit/$id': typeof AdminPostsEditIdRoute
   '/admin/stickers/$id/edit': typeof AdminStickersIdEditRoute
+  '/admin/notifications/announcements/': typeof AdminNotificationsAnnouncementsIndexRoute
+  '/admin/notifications/articles/': typeof AdminNotificationsArticlesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -681,8 +701,6 @@ export interface FileRouteTypes {
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
-    | '/admin/notifications/announcements'
-    | '/admin/notifications/articles'
     | '/admin/pages/$slug'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
@@ -706,8 +724,12 @@ export interface FileRouteTypes {
     | '/post/reviews/$id'
     | '/admin/comics/edit/$id'
     | '/admin/emojis/$id/edit'
+    | '/admin/notifications/announcements/create'
+    | '/admin/notifications/articles/create'
     | '/admin/posts/edit/$id'
     | '/admin/stickers/$id/edit'
+    | '/admin/notifications/announcements/'
+    | '/admin/notifications/articles/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -750,8 +772,6 @@ export interface FileRouteTypes {
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
-    | '/admin/notifications/announcements'
-    | '/admin/notifications/articles'
     | '/admin/pages/$slug'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
@@ -775,8 +795,12 @@ export interface FileRouteTypes {
     | '/post/reviews/$id'
     | '/admin/comics/edit/$id'
     | '/admin/emojis/$id/edit'
+    | '/admin/notifications/announcements/create'
+    | '/admin/notifications/articles/create'
     | '/admin/posts/edit/$id'
     | '/admin/stickers/$id/edit'
+    | '/admin/notifications/announcements'
+    | '/admin/notifications/articles'
   id:
     | '__root__'
     | '/_main'
@@ -821,8 +845,6 @@ export interface FileRouteTypes {
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
-    | '/admin/notifications/announcements'
-    | '/admin/notifications/articles'
     | '/admin/pages/$slug'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
@@ -846,8 +868,12 @@ export interface FileRouteTypes {
     | '/_main/post/reviews/$id'
     | '/admin/comics/edit/$id'
     | '/admin/emojis/$id/edit'
+    | '/admin/notifications/announcements/create'
+    | '/admin/notifications/articles/create'
     | '/admin/posts/edit/$id'
     | '/admin/stickers/$id/edit'
+    | '/admin/notifications/announcements/'
+    | '/admin/notifications/articles/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1241,20 +1267,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesSlugRouteImport
       parentRoute: typeof AdminRouteRoute
     }
-    '/admin/notifications/articles': {
-      id: '/admin/notifications/articles'
-      path: '/notifications/articles'
-      fullPath: '/admin/notifications/articles'
-      preLoaderRoute: typeof AdminNotificationsArticlesRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
-    '/admin/notifications/announcements': {
-      id: '/admin/notifications/announcements'
-      path: '/notifications/announcements'
-      fullPath: '/admin/notifications/announcements'
-      preLoaderRoute: typeof AdminNotificationsAnnouncementsRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
     '/admin/extras/weekly': {
       id: '/admin/extras/weekly'
       path: '/extras/weekly'
@@ -1325,6 +1337,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainNewsIdRouteImport
       parentRoute: typeof MainRouteRoute
     }
+    '/admin/notifications/articles/': {
+      id: '/admin/notifications/articles/'
+      path: '/notifications/articles'
+      fullPath: '/admin/notifications/articles/'
+      preLoaderRoute: typeof AdminNotificationsArticlesIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/notifications/announcements/': {
+      id: '/admin/notifications/announcements/'
+      path: '/notifications/announcements'
+      fullPath: '/admin/notifications/announcements/'
+      preLoaderRoute: typeof AdminNotificationsAnnouncementsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/stickers/$id/edit': {
       id: '/admin/stickers/$id/edit'
       path: '/stickers/$id/edit'
@@ -1337,6 +1363,20 @@ declare module '@tanstack/react-router' {
       path: '/posts/edit/$id'
       fullPath: '/admin/posts/edit/$id'
       preLoaderRoute: typeof AdminPostsEditIdRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/notifications/articles/create': {
+      id: '/admin/notifications/articles/create'
+      path: '/notifications/articles/create'
+      fullPath: '/admin/notifications/articles/create'
+      preLoaderRoute: typeof AdminNotificationsArticlesCreateRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/notifications/announcements/create': {
+      id: '/admin/notifications/announcements/create'
+      path: '/notifications/announcements/create'
+      fullPath: '/admin/notifications/announcements/create'
+      preLoaderRoute: typeof AdminNotificationsAnnouncementsCreateRouteImport
       parentRoute: typeof AdminRouteRoute
     }
     '/admin/emojis/$id/edit': {
@@ -1416,8 +1456,6 @@ interface AdminRouteRouteChildren {
   AdminExtrasFeaturedRoute: typeof AdminExtrasFeaturedRoute
   AdminExtrasTutorialsRoute: typeof AdminExtrasTutorialsRoute
   AdminExtrasWeeklyRoute: typeof AdminExtrasWeeklyRoute
-  AdminNotificationsAnnouncementsRoute: typeof AdminNotificationsAnnouncementsRoute
-  AdminNotificationsArticlesRoute: typeof AdminNotificationsArticlesRoute
   AdminPagesSlugRoute: typeof AdminPagesSlugRoute
   AdminPostsCreateRoute: typeof AdminPostsCreateRoute
   AdminProfileEmblemsRoute: typeof AdminProfileEmblemsRoute
@@ -1436,8 +1474,12 @@ interface AdminRouteRouteChildren {
   AdminUsersIndexRoute: typeof AdminUsersIndexRoute
   AdminComicsEditIdRoute: typeof AdminComicsEditIdRoute
   AdminEmojisIdEditRoute: typeof AdminEmojisIdEditRoute
+  AdminNotificationsAnnouncementsCreateRoute: typeof AdminNotificationsAnnouncementsCreateRoute
+  AdminNotificationsArticlesCreateRoute: typeof AdminNotificationsArticlesCreateRoute
   AdminPostsEditIdRoute: typeof AdminPostsEditIdRoute
   AdminStickersIdEditRoute: typeof AdminStickersIdEditRoute
+  AdminNotificationsAnnouncementsIndexRoute: typeof AdminNotificationsAnnouncementsIndexRoute
+  AdminNotificationsArticlesIndexRoute: typeof AdminNotificationsArticlesIndexRoute
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
@@ -1449,8 +1491,6 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminExtrasFeaturedRoute: AdminExtrasFeaturedRoute,
   AdminExtrasTutorialsRoute: AdminExtrasTutorialsRoute,
   AdminExtrasWeeklyRoute: AdminExtrasWeeklyRoute,
-  AdminNotificationsAnnouncementsRoute: AdminNotificationsAnnouncementsRoute,
-  AdminNotificationsArticlesRoute: AdminNotificationsArticlesRoute,
   AdminPagesSlugRoute: AdminPagesSlugRoute,
   AdminPostsCreateRoute: AdminPostsCreateRoute,
   AdminProfileEmblemsRoute: AdminProfileEmblemsRoute,
@@ -1469,8 +1509,14 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminUsersIndexRoute: AdminUsersIndexRoute,
   AdminComicsEditIdRoute: AdminComicsEditIdRoute,
   AdminEmojisIdEditRoute: AdminEmojisIdEditRoute,
+  AdminNotificationsAnnouncementsCreateRoute:
+    AdminNotificationsAnnouncementsCreateRoute,
+  AdminNotificationsArticlesCreateRoute: AdminNotificationsArticlesCreateRoute,
   AdminPostsEditIdRoute: AdminPostsEditIdRoute,
   AdminStickersIdEditRoute: AdminStickersIdEditRoute,
+  AdminNotificationsAnnouncementsIndexRoute:
+    AdminNotificationsAnnouncementsIndexRoute,
+  AdminNotificationsArticlesIndexRoute: AdminNotificationsArticlesIndexRoute,
 }
 
 const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
