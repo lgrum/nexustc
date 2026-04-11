@@ -38,11 +38,6 @@ export type ProfileRoleVisualConfig = {
   glowColor: string | null;
 };
 
-export type ProfileEmblemVisualConfig = {
-  glowColor: string | null;
-  backgroundColor: string | null;
-};
-
 export const PROFILE_DEFAULTS = {
   avatarFallbackColor: "#f59e0b",
   bannerColor: "#111827",

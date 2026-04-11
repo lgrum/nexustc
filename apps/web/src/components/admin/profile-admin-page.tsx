@@ -1,6 +1,7 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useConfirm } from "@omit/react-confirm-dialog";
+import { useStore } from "@tanstack/react-form";
 import {
   useMutation,
   useQuery,
@@ -11,6 +12,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { toast } from "sonner";
+import z from "zod";
 
 import { DataTable } from "@/components/admin/data-table";
 import { ProfileAssetInput } from "@/components/admin/profile-asset-input";
@@ -26,7 +28,14 @@ import {
 import { ColorPickerField } from "@/components/ui/color-picker-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAppForm } from "@/hooks/use-app-form";
 import { authClient } from "@/lib/auth-client";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  createEmptyDeferredMediaSelection,
+  optionalSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
+import type { DeferredMediaSelection } from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -61,12 +70,9 @@ type EmblemDefinitionListItem = {
   tooltip: string;
   iconAssetId: string | null;
   iconAsset: ProfileAssetPreview | null;
+  iconMediaId: string | null;
   priority: number;
   isVisible: boolean;
-  visualConfig: {
-    glowColor: string | null;
-    backgroundColor: string | null;
-  };
 };
 
 type ProfileAdminUser = {
@@ -99,10 +105,10 @@ type EmblemFormState = {
   tooltip: string;
   iconAssetId: string | null;
   iconObjectKey: string | null;
+  iconMediaId: string | null;
+  mediaSelection: DeferredMediaSelection;
   priority: number;
   isVisible: boolean;
-  glowColor: string | null;
-  backgroundColor: string | null;
 };
 
 const defaultRoleState = (): RoleFormState => ({
@@ -123,11 +129,11 @@ const defaultRoleState = (): RoleFormState => ({
 });
 
 const defaultEmblemState = (): EmblemFormState => ({
-  backgroundColor: "#111827",
-  glowColor: "#f59e0b",
   iconAssetId: null,
+  iconMediaId: null,
   iconObjectKey: null,
   isVisible: true,
+  mediaSelection: createEmptyDeferredMediaSelection(),
   name: "",
   priority: 0,
   slug: "",
@@ -156,18 +162,24 @@ function mapRole(role: RoleDefinitionListItem): RoleFormState {
 
 function mapEmblem(emblem: EmblemDefinitionListItem): EmblemFormState {
   return {
-    backgroundColor: emblem.visualConfig.backgroundColor,
-    glowColor: emblem.visualConfig.glowColor,
     iconAssetId: emblem.iconAssetId ?? null,
+    iconMediaId: emblem.iconMediaId ?? null,
     iconObjectKey: emblem.iconAsset?.objectKey ?? null,
     id: emblem.id,
     isVisible: emblem.isVisible,
+    mediaSelection: createDeferredMediaSelectionFromExistingId(
+      emblem.iconMediaId
+    ),
     name: emblem.name,
     priority: emblem.priority,
     slug: emblem.slug,
     tooltip: emblem.tooltip,
   };
 }
+
+const emblemMediaFormSchema = z.object({
+  mediaSelection: optionalSingleDeferredMediaSelectionSchema,
+});
 
 function useOwnerUsersQuery() {
   return useQuery({
@@ -949,6 +961,24 @@ function EmblemEditorCard({
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState(initial);
   const fieldPrefix = state.id ?? `${mode}-emblem`;
+  const mediaForm = useAppForm({
+    defaultValues: {
+      mediaSelection: initial.mediaSelection,
+    },
+    onSubmit: async ({ value }) => {
+      await saveMutation.mutateAsync({
+        ...state,
+        mediaSelection: value.mediaSelection,
+      });
+    },
+    validators: {
+      onSubmit: emblemMediaFormSchema,
+    },
+  });
+  const selectedMedia = useStore(
+    mediaForm.store,
+    (formState) => formState.values.mediaSelection
+  );
 
   useEffect(() => {
     setState(initial);
@@ -966,10 +996,15 @@ function EmblemEditorCard({
   }, [initial.id, mode]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (
+      nextState: EmblemFormState & { mediaSelection: DeferredMediaSelection }
+    ) =>
       mode === "create"
-        ? orpcClient.profileAdmin.emblems.create(state)
-        : orpcClient.profileAdmin.emblems.update({ id: state.id!, ...state }),
+        ? orpcClient.profileAdmin.emblems.create(nextState)
+        : orpcClient.profileAdmin.emblems.update({
+            id: state.id!,
+            ...nextState,
+          }),
     onSuccess: async () => {
       await onSaved();
       toast.success(
@@ -977,6 +1012,7 @@ function EmblemEditorCard({
       );
       if (mode === "create") {
         setState(defaultEmblemState());
+        mediaForm.reset();
       }
     },
   });
@@ -994,114 +1030,130 @@ function EmblemEditorCard({
           </CardTitle>
           <CardDescription>
             {mode === "create"
-              ? "Completa el formulario para crear un nuevo emblema."
+              ? "Completa el formulario para crear un nuevo emblema solo con icono."
               : "Actualiza el emblema seleccionado o cancela para volver a crear uno nuevo."}
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
-          {mode === "update" ? (
-            <Alert className="border-amber-300 bg-amber-50 text-amber-950 md:col-span-2">
-              <AlertTitle className="text-amber-950">
-                Modo edicion activado
-              </AlertTitle>
-              <AlertDescription className="text-amber-900/90">
-                Estas editando el emblema <strong>{state.name}</strong>. Guarda
-                los cambios o cancela para volver al formulario de creacion.
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <InputField
-            id={`emblem-${fieldPrefix}-slug`}
-            label="Slug"
-            onChange={(event) =>
-              setState((current) => ({ ...current, slug: event.target.value }))
-            }
-            value={state.slug}
-          />
-          <InputField
-            id={`emblem-${fieldPrefix}-name`}
-            label="Nombre"
-            onChange={(event) =>
-              setState((current) => ({ ...current, name: event.target.value }))
-            }
-            value={state.name}
-          />
-          <InputField
-            className="md:col-span-2"
-            id={`emblem-${fieldPrefix}-tooltip`}
-            label="Tooltip"
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                tooltip: event.target.value,
-              }))
-            }
-            value={state.tooltip}
-          />
-          <InputField
-            id={`emblem-${fieldPrefix}-priority`}
-            label="Prioridad"
-            onChange={(event) =>
-              setState((current) => ({
-                ...current,
-                priority: Number(event.target.value),
-              }))
-            }
-            type="number"
-            value={state.priority}
-          />
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              checked={state.isVisible}
+        <mediaForm.AppForm>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            {mode === "update" ? (
+              <Alert className="border-amber-300 bg-amber-50 text-amber-950 md:col-span-2">
+                <AlertTitle className="text-amber-950">
+                  Modo edicion activado
+                </AlertTitle>
+                <AlertDescription className="text-amber-900/90">
+                  Estas editando el emblema <strong>{state.name}</strong>.
+                  Guarda los cambios o cancela para volver al formulario de
+                  creacion.
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <InputField
+              id={`emblem-${fieldPrefix}-slug`}
+              label="Slug"
               onChange={(event) =>
                 setState((current) => ({
                   ...current,
-                  isVisible: event.target.checked,
+                  slug: event.target.value,
                 }))
               }
-              type="checkbox"
+              value={state.slug}
             />
-            Visible
-          </label>
-          <ColorField
-            id={`emblem-${fieldPrefix}-glow-color`}
-            label="Glow"
-            onChange={(value) =>
-              setState((current) => ({ ...current, glowColor: value }))
-            }
-            value={state.glowColor ?? "#f59e0b"}
-          />
-          <ColorField
-            id={`emblem-${fieldPrefix}-background-color`}
-            label="Fondo"
-            onChange={(value) =>
-              setState((current) => ({ ...current, backgroundColor: value }))
-            }
-            value={state.backgroundColor ?? "#111827"}
-          />
-          <ProfileAssetInput
-            currentObjectKey={state.iconObjectKey}
-            label="Icono"
-            onUploaded={(assetId, objectKey) =>
-              setState((current) => ({
-                ...current,
-                iconAssetId: assetId,
-                iconObjectKey: objectKey,
-              }))
-            }
-            slot="emblem-icon"
-          />
-          <div className="flex gap-2 md:col-span-2">
-            <Button onClick={() => saveMutation.mutate()}>
-              {mode === "create" ? "Crear" : "Guardar"}
-            </Button>
-            {mode === "update" ? (
-              <Button onClick={onCancel} variant="outline">
-                Cancelar
+            <InputField
+              id={`emblem-${fieldPrefix}-name`}
+              label="Nombre"
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  name: event.target.value,
+                }))
+              }
+              value={state.name}
+            />
+            <InputField
+              className="md:col-span-2"
+              id={`emblem-${fieldPrefix}-tooltip`}
+              label="Tooltip"
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  tooltip: event.target.value,
+                }))
+              }
+              value={state.tooltip}
+            />
+            <InputField
+              id={`emblem-${fieldPrefix}-priority`}
+              label="Prioridad"
+              onChange={(event) =>
+                setState((current) => ({
+                  ...current,
+                  priority: Number(event.target.value),
+                }))
+              }
+              type="number"
+              value={state.priority}
+            />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                checked={state.isVisible}
+                onChange={(event) =>
+                  setState((current) => ({
+                    ...current,
+                    isVisible: event.target.checked,
+                  }))
+                }
+                type="checkbox"
+              />
+              Visible
+            </label>
+            <div className="md:col-span-2">
+              <mediaForm.AppField name="mediaSelection">
+                {(field) => (
+                  <field.MediaField
+                    description="Selecciona un icono desde la biblioteca central o prepara uno nuevo para subirlo al guardar."
+                    label="Icono"
+                    maxItems={1}
+                    ownerKind="Emblema"
+                  />
+                )}
+              </mediaForm.AppField>
+              {state.iconObjectKey &&
+              selectedMedia.length === 0 &&
+              !state.iconMediaId ? (
+                <div className="mt-3 rounded-xl border border-dashed border-border/60 bg-muted/20 p-3">
+                  <p className="text-muted-foreground text-xs">
+                    Icono actual fuera de la biblioteca central. Puedes dejarlo
+                    asi o reemplazarlo con un item de Media.
+                  </p>
+                  <div className="mt-3 flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background p-2">
+                    <img
+                      alt=""
+                      aria-hidden="true"
+                      className="max-h-full max-w-full object-contain"
+                      src={getBucketUrl(state.iconObjectKey)}
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="flex gap-2 md:col-span-2">
+              <Button
+                onClick={() => {
+                  mediaForm.handleSubmit();
+                }}
+                type="button"
+              >
+                {mode === "create" ? "Crear" : "Guardar"}
               </Button>
-            ) : null}
-          </div>
-        </CardContent>
+              {mode === "update" ? (
+                <Button onClick={onCancel} type="button" variant="outline">
+                  Cancelar
+                </Button>
+              ) : null}
+            </div>
+          </CardContent>
+        </mediaForm.AppForm>
       </Card>
     </div>
   );

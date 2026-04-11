@@ -12,10 +12,6 @@ type ProfileEmblem = {
   slug: string;
   name: string;
   tooltip: string;
-  visualConfig: {
-    glowColor: string | null;
-    backgroundColor: string | null;
-  };
   icon?: { objectKey: string; isAnimated: boolean } | null;
 };
 
@@ -35,29 +31,21 @@ export function ProfileEmblemStrip({
           <PopoverTrigger
             render={
               <button
-                className="inline-flex size-9 items-center justify-center rounded-2xl border"
+                aria-label={emblem.name}
+                className="inline-flex size-10 items-center justify-center rounded-xl transition-transform hover:scale-105 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring/60"
                 type="button"
               />
             }
-            style={{
-              backgroundColor:
-                emblem.visualConfig.backgroundColor ??
-                "color-mix(in srgb, var(--card) 86%, white 14%)",
-              borderColor: emblem.visualConfig.glowColor ?? "var(--border)",
-              boxShadow: emblem.visualConfig.glowColor
-                ? `0 0 0 1px ${emblem.visualConfig.glowColor}26, 0 8px 18px ${emblem.visualConfig.glowColor}33`
-                : undefined,
-            }}
           >
             {emblem.icon ? (
               <img
                 alt=""
                 aria-hidden="true"
-                className="size-5 object-contain"
+                className="size-8 object-contain"
                 src={getBucketUrl(emblem.icon.objectKey)}
               />
             ) : (
-              <span className="font-semibold text-xs">
+              <span className="font-semibold text-sm">
                 {emblem.name.slice(0, 1)}
               </span>
             )}

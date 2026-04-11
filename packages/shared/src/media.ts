@@ -10,6 +10,7 @@ export const MEDIA_OWNER_KINDS = [
   "Comic",
   "Emoji",
   "Sticker",
+  "Emblema",
   "Anuncio",
   "Articulo",
 ] as const;

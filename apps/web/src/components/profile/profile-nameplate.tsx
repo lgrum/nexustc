@@ -31,10 +31,6 @@ export function ProfileNameplate({
       slug: string;
       name: string;
       tooltip: string;
-      visualConfig: {
-        glowColor: string | null;
-        backgroundColor: string | null;
-      };
       icon?: { objectKey: string; isAnimated: boolean } | null;
     }[];
   };

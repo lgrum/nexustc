@@ -11,7 +11,6 @@ import {
   PROFILE_MEDIA_VALIDATION_STATUSES,
 } from "@repo/shared/profile";
 import type {
-  ProfileEmblemVisualConfig,
   ProfileRoleVisualConfig,
   ProfileVisibilityConfig,
 } from "@repo/shared/profile";
@@ -680,9 +679,6 @@ export const profileEmblemDefinition = pgTable(
     priority: integer("priority").notNull().default(0),
     slug: text("slug").notNull().unique(),
     tooltip: text("tooltip").notNull().default(""),
-    visualConfig: jsonb("visual_config")
-      .$type<ProfileEmblemVisualConfig>()
-      .notNull(),
     ...timestamps,
   },
   (table) => [

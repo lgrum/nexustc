@@ -56,10 +56,6 @@ export type PublicProfileEmblem = {
   name: string;
   tooltip: string;
   priority: number;
-  visualConfig: {
-    glowColor: string | null;
-    backgroundColor: string | null;
-  };
   icon: { objectKey: string; isAnimated: boolean } | null;
 };
 
@@ -475,7 +471,6 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
           startsAt: profileEmblemAssignment.startsAt,
           tooltip: profileEmblemDefinition.tooltip,
           userId: profileEmblemAssignment.userId,
-          visualConfig: profileEmblemDefinition.visualConfig,
         })
         .from(profileEmblemAssignment)
         .innerJoin(
@@ -594,7 +589,6 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
       priority: row.priority,
       slug: row.slug,
       tooltip: row.tooltip,
-      visualConfig: row.visualConfig,
     } satisfies PublicProfileEmblem;
     const group = emblemGroups.get(row.userId) ?? [];
     group.push(emblem);

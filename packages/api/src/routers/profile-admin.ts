@@ -3,6 +3,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, inArray } from "@repo/db";
 import {
+  media,
   profileEmblemAssignment,
   profileEmblemDefinition,
   profileMediaAsset,
@@ -21,6 +22,11 @@ import {
   inspectProfileMediaAsset,
   validateProfileMediaUpload,
 } from "../services/profile";
+import type { ProfileEntitlements } from "../services/profile";
+import {
+  optionalSingleDeferredMediaSelectionInputSchema,
+  withDeferredMediaSelection,
+} from "../utils/deferred-media";
 import { getS3Client } from "../utils/s3";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
@@ -51,9 +57,8 @@ const roleDefinitionSchema = z.object({
   textColor: colorSchema,
 });
 const emblemDefinitionSchema = z.object({
-  backgroundColor: colorSchema.nullable(),
-  glowColor: colorSchema.nullable(),
   iconAssetId: z.string().nullable().optional(),
+  mediaSelection: optionalSingleDeferredMediaSelectionInputSchema.default([]),
   isVisible: z.boolean(),
   name: z.string().min(1).max(64),
   priority: z.number().int().min(0).max(1000),
@@ -64,6 +69,21 @@ const emblemDefinitionSchema = z.object({
     .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   tooltip: z.string().max(160).default(""),
 });
+
+const ownerProfileEntitlements = {
+  animatedAvatarRequiredTier: "level3",
+  animatedBannerRequiredTier: "level8",
+  canUseAnimatedAvatar: true,
+  canUseAnimatedBanner: true,
+  canUseUploadedBanner: true,
+  overrideSource: "staff" as const,
+  uploadedBannerRequiredTier: "level5",
+} satisfies ProfileEntitlements;
+
+type EmblemProfileAssetDb = Pick<
+  Parameters<Parameters<typeof ownerProcedure.handler>[0]>[0]["context"]["db"],
+  "insert" | "query"
+>;
 
 function getOwnerUploadObjectKey(
   slot: z.infer<typeof ownerSlotsSchema>,
@@ -104,6 +124,95 @@ async function enrichDefinitionsWithAssets<
       ? (assetMap.get(row.overlayAssetId) ?? null)
       : null,
   }));
+}
+
+async function enrichEmblemsWithAssets(
+  db: Parameters<
+    Parameters<typeof ownerProcedure.handler>[0]
+  >[0]["context"]["db"],
+  rows: Awaited<ReturnType<typeof db.query.profileEmblemDefinition.findMany>>
+) {
+  const assetIds = [
+    ...new Set(
+      rows
+        .map((row) => row.iconAssetId)
+        // oxlint-disable-next-line unicorn/prefer-native-coercion-functions: type guard is necessary
+        .filter((id): id is string => Boolean(id))
+    ),
+  ];
+
+  const assets = assetIds.length
+    ? await db.query.profileMediaAsset.findMany({
+        where: inArray(profileMediaAsset.id, assetIds),
+      })
+    : [];
+  const assetMap = new Map(assets.map((asset) => [asset.id, asset]));
+  const objectKeys = [
+    ...new Set(assets.map((asset) => asset.objectKey).filter(Boolean)),
+  ];
+  const mediaRows = objectKeys.length
+    ? await db.query.media.findMany({
+        columns: { id: true, objectKey: true },
+        where: inArray(media.objectKey, objectKeys),
+      })
+    : [];
+  const mediaIdByObjectKey = new Map(
+    mediaRows.map((mediaRow) => [mediaRow.objectKey, mediaRow.id])
+  );
+
+  return rows.map((row) => {
+    const iconAsset = row.iconAssetId
+      ? (assetMap.get(row.iconAssetId) ?? null)
+      : null;
+
+    return {
+      ...row,
+      iconAsset,
+      iconMediaId: iconAsset
+        ? (mediaIdByObjectKey.get(iconAsset.objectKey) ?? null)
+        : null,
+    };
+  });
+}
+
+async function getOrCreateEmblemProfileAsset(params: {
+  db: EmblemProfileAssetDb;
+  objectKey: string;
+  ownerUserId: string;
+}) {
+  const existingAsset = await params.db.query.profileMediaAsset.findFirst({
+    where: eq(profileMediaAsset.objectKey, params.objectKey),
+  });
+
+  if (existingAsset) {
+    return existingAsset;
+  }
+
+  const validation = await inspectProfileMediaAsset(params.objectKey);
+  validateProfileMediaUpload({
+    contentType: "image/webp",
+    entitlements: ownerProfileEntitlements,
+    slot: "emblem-icon",
+    validation,
+  });
+
+  const [createdAsset] = await params.db
+    .insert(profileMediaAsset)
+    .values({
+      durationMs: validation.durationMs,
+      fileSizeBytes: validation.fileSizeBytes,
+      height: validation.height,
+      isAnimated: validation.isAnimated,
+      mimeType: "image/webp",
+      objectKey: params.objectKey,
+      ownerUserId: params.ownerUserId,
+      slot: "emblem-icon",
+      validationStatus: "ready",
+      width: validation.width,
+    })
+    .returning();
+
+  return createdAsset!;
 }
 
 export default {
@@ -173,24 +282,37 @@ export default {
   emblems: {
     create: ownerProcedure
       .input(emblemDefinitionSchema)
-      .handler(async ({ context: { db }, input }) => {
-        const [created] = await db
-          .insert(profileEmblemDefinition)
-          .values({
-            iconAssetId: input.iconAssetId ?? null,
-            isVisible: input.isVisible,
-            name: input.name,
-            priority: input.priority,
-            slug: input.slug,
-            tooltip: input.tooltip,
-            visualConfig: {
-              backgroundColor: input.backgroundColor,
-              glowColor: input.glowColor,
-            },
-          })
-          .returning();
+      .handler(async ({ context: { db, session }, input }) => {
+        const { mediaSelection, ...data } = input;
 
-        return created;
+        return await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) => {
+            const iconAsset = orderedMedia[0]
+              ? await getOrCreateEmblemProfileAsset({
+                  db: tx,
+                  objectKey: orderedMedia[0].objectKey,
+                  ownerUserId: session.user.id,
+                })
+              : null;
+            const [created] = await tx
+              .insert(profileEmblemDefinition)
+              .values({
+                iconAssetId: iconAsset?.id ?? data.iconAssetId ?? null,
+                isVisible: data.isVisible,
+                name: data.name,
+                priority: data.priority,
+                slug: data.slug,
+                tooltip: data.tooltip,
+              })
+              .returning();
+
+            return created;
+          },
+          ownerKind: "Emblema",
+          resourceName: input.name,
+          selection: mediaSelection,
+        });
       }),
 
     delete: ownerProcedure
@@ -207,31 +329,43 @@ export default {
         orderBy: (table, { desc }) => [desc(table.priority)],
         where: (table, { eq: equals }) => equals(table.isActive, true),
       });
-      return enrichDefinitionsWithAssets(db, rows);
+      return enrichEmblemsWithAssets(db, rows);
     }),
 
     update: ownerProcedure
       .input(emblemDefinitionSchema.extend({ id: z.string() }))
-      .handler(async ({ context: { db }, input }) => {
-        const { id, ...rest } = input;
-        const [updated] = await db
-          .update(profileEmblemDefinition)
-          .set({
-            iconAssetId: rest.iconAssetId ?? null,
-            isVisible: rest.isVisible,
-            name: rest.name,
-            priority: rest.priority,
-            slug: rest.slug,
-            tooltip: rest.tooltip,
-            visualConfig: {
-              backgroundColor: rest.backgroundColor,
-              glowColor: rest.glowColor,
-            },
-          })
-          .where(eq(profileEmblemDefinition.id, id))
-          .returning();
+      .handler(async ({ context: { db, session }, input }) => {
+        const { id, mediaSelection, ...rest } = input;
 
-        return updated;
+        return await withDeferredMediaSelection({
+          db,
+          onComplete: async ({ orderedMedia, tx }) => {
+            const iconAsset = orderedMedia[0]
+              ? await getOrCreateEmblemProfileAsset({
+                  db: tx,
+                  objectKey: orderedMedia[0].objectKey,
+                  ownerUserId: session.user.id,
+                })
+              : null;
+            const [updated] = await tx
+              .update(profileEmblemDefinition)
+              .set({
+                iconAssetId: iconAsset?.id ?? rest.iconAssetId ?? null,
+                isVisible: rest.isVisible,
+                name: rest.name,
+                priority: rest.priority,
+                slug: rest.slug,
+                tooltip: rest.tooltip,
+              })
+              .where(eq(profileEmblemDefinition.id, id))
+              .returning();
+
+            return updated;
+          },
+          ownerKind: "Emblema",
+          resourceName: input.name,
+          selection: mediaSelection,
+        });
       }),
   },
 

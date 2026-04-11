@@ -1,0 +1,1 @@
+ALTER TABLE "profile_emblem_definition" DROP COLUMN "visual_config";
