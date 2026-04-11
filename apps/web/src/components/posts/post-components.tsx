@@ -751,7 +751,7 @@ export function PostInfo() {
   return (
     hasContent && (
       <div className="flex flex-col gap-3">
-        <div className="section-title">Sinopsis</div>
+        <div className="section-title">Acerca De</div>
         <Markdown>{post.content}</Markdown>
       </div>
     )

@@ -422,7 +422,7 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
       <section className="col-span-2 space-y-4">
         <form.AppField name="content">
           {(field) => (
-            <field.TextareaField className="w-full" label="Sinopsis" />
+            <field.TextareaField className="w-full" label="Acerca de" />
           )}
         </form.AppField>
         <form.AppField name="changelog">
