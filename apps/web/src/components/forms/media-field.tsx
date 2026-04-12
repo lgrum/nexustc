@@ -396,6 +396,7 @@ export function MediaField({
               id={field.name}
             />
           }
+          nativeButton={false}
         >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-2">

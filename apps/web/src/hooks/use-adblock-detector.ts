@@ -55,7 +55,7 @@ function checkBaitScript(): Promise<boolean> {
       clearTimeout(timeout);
       // oxlint-disable-next-line promise/no-multiple-resolved: see above
       setTimeout(() => {
-        const markerExists = document.querySelector("#38ml23f9joasl34");
+        const markerExists = document.querySelector("#ml23f9jo38asl34");
         const win = window as WindowWithAd;
         const adLoadedSuccessfully =
           win.adLoaded === true && markerExists !== null;

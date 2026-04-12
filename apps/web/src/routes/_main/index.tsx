@@ -13,6 +13,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
+import { useEffect, useState } from "react";
 
 import {
   AuthDialog,
@@ -253,6 +254,15 @@ function AuthAction() {
   const auth = authClient.useSession();
   const user = auth.data?.user;
   const imageSrc = user?.image ? getBucketUrl(user.image) : undefined;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
 
   if (auth.isPending) {
     return (
@@ -284,6 +294,7 @@ function AuthAction() {
         render={<Link to="/profile" />}
         size="lg"
         variant="ghost"
+        nativeButton={false}
       >
         <Avatar className="size-12 rounded-full border border-primary/25">
           <AvatarImage src={imageSrc} />

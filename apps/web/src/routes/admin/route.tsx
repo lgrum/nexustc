@@ -313,14 +313,12 @@ function SidebarLinks({ item }: { item: { name: string; links: NavLink[] } }) {
   return (
     <Collapsible className="group/collapsible">
       <SidebarMenuItem>
-        <CollapsibleTrigger>
-          <SidebarMenuButton tooltip={item.name}>
-            <span>{item.name}</span>
-            <HugeiconsIcon
-              className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
-              icon={ChevronRight}
-            />
-          </SidebarMenuButton>
+        <CollapsibleTrigger render={<SidebarMenuButton tooltip={item.name} />}>
+          <span>{item.name}</span>
+          <HugeiconsIcon
+            className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+            icon={ChevronRight}
+          />
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
