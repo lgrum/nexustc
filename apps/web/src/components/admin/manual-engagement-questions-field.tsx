@@ -2,6 +2,7 @@ import {
   engagementPromptListFromTextarea,
   engagementPromptListToTextarea,
 } from "@repo/shared/engagement-prompts";
+import type { KeyboardEvent } from "react";
 
 import { FieldDescription, FieldError } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
@@ -18,6 +19,24 @@ export function ManualEngagementQuestionsField({
   onChange,
   errors,
 }: ManualEngagementQuestionsFieldProps) {
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Tab") {
+      return;
+    }
+
+    event.preventDefault();
+
+    const textarea = event.currentTarget;
+    const nextValue = `${textarea.value.slice(0, textarea.selectionStart)}\t${textarea.value.slice(textarea.selectionEnd)}`;
+    const nextCursorPosition = textarea.selectionStart + 1;
+
+    onChange(engagementPromptListFromTextarea(nextValue));
+
+    requestAnimationFrame(() => {
+      textarea.setSelectionRange(nextCursorPosition, nextCursorPosition);
+    });
+  };
+
   return (
     <div className="space-y-2">
       <Label htmlFor="manual-engagement-questions">Preguntas manuales</Label>
@@ -31,6 +50,7 @@ export function ManualEngagementQuestionsField({
         onChange={(event) => {
           onChange(engagementPromptListFromTextarea(event.target.value));
         }}
+        onKeyDown={handleKeyDown}
         placeholder={[
           "Seamos honestos... qué pesa más acá: el diseno o la fantasia de poder?",
           "Nadie lo dice, pero... este protagonista suma tension o la arruina?",

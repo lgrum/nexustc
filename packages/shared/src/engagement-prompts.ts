@@ -29,9 +29,9 @@ export function normalizeEngagementPromptList(prompts: string[]): string[] {
 }
 
 export function engagementPromptListFromTextarea(text: string): string[] {
-  return normalizeEngagementPromptList(text.split(NEWLINE_SPLIT_REGEX));
+  return text.split(NEWLINE_SPLIT_REGEX);
 }
 
 export function engagementPromptListToTextarea(prompts: string[]): string {
-  return normalizeEngagementPromptList(prompts).join("\n");
+  return prompts.join("\n");
 }
