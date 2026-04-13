@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, sql } from "@repo/db";
 import {
+  creator,
   post,
   postEngagementOverride,
   postMedia,
@@ -62,6 +63,45 @@ async function syncPostMediaRelations(
   return orderedMedia;
 }
 
+async function resolveCreatorFields(params: {
+  creatorId: string | null;
+  creatorLink: string | null | undefined;
+  creatorName: string | null | undefined;
+  db: Pick<Context["db"], "select">;
+}) {
+  if (!params.creatorId) {
+    return {
+      creatorId: null,
+      creatorLink: params.creatorLink ?? "",
+      creatorName: params.creatorName ?? "",
+    };
+  }
+
+  const [selectedCreator] = await params.db
+    .select({
+      id: creator.id,
+      name: creator.name,
+      url: creator.url,
+    })
+    .from(creator)
+    .where(eq(creator.id, params.creatorId))
+    .limit(1);
+
+  if (!selectedCreator) {
+    return {
+      creatorId: null,
+      creatorLink: params.creatorLink ?? "",
+      creatorName: params.creatorName ?? "",
+    };
+  }
+
+  return {
+    creatorId: selectedCreator.id,
+    creatorLink: selectedCreator.url,
+    creatorName: selectedCreator.name,
+  };
+}
+
 export async function createContent({
   context: { db, session, ...ctx },
   input,
@@ -91,6 +131,19 @@ export async function createContent({
               vip12Hours: 0,
               vip8Hours: 0,
             });
+      const creatorFields =
+        input.type === "post"
+          ? await resolveCreatorFields({
+              creatorId: input.creatorId,
+              creatorLink: input.creatorLink,
+              db: tx,
+              creatorName: input.creatorName,
+            })
+          : {
+              creatorId: null,
+              creatorLink: input.creatorLink ?? "",
+              creatorName: input.creatorName ?? "",
+            };
 
       const [postData] = await tx
         .insert(post)
@@ -104,8 +157,9 @@ export async function createContent({
           comicPageCount: input.type === "comic" ? orderedMedia.length : 0,
           content:
             input.type === "post" ? input.content : (input.content ?? ""),
-          creatorLink: input.creatorLink ?? "",
-          creatorName: input.creatorName ?? "",
+          creatorId: creatorFields.creatorId,
+          creatorLink: creatorFields.creatorLink,
+          creatorName: creatorFields.creatorName,
           ...earlyAccessFields,
           imageObjectKeys: orderedMedia.map((item) => item.objectKey),
           isWeekly: false,
@@ -234,6 +288,19 @@ export async function editContent({
               vip12Hours: 0,
               vip8Hours: 0,
             });
+      const creatorFields =
+        input.type === "post"
+          ? await resolveCreatorFields({
+              creatorId: input.creatorId,
+              creatorLink: input.creatorLink,
+              db: tx,
+              creatorName: input.creatorName,
+            })
+          : {
+              creatorId: null,
+              creatorLink: input.creatorLink ?? "",
+              creatorName: input.creatorName ?? "",
+            };
 
       const [postData] = await tx
         .update(post)
@@ -252,8 +319,9 @@ export async function editContent({
           comicPageCount: input.type === "comic" ? orderedMedia.length : 0,
           content:
             input.type === "post" ? input.content : (input.content ?? ""),
-          creatorLink: input.creatorLink ?? "",
-          creatorName: input.creatorName ?? "",
+          creatorId: creatorFields.creatorId,
+          creatorLink: creatorFields.creatorLink,
+          creatorName: creatorFields.creatorName,
           ...earlyAccessFields,
           imageObjectKeys: orderedMedia.map((item) => item.objectKey),
           premiumLinks:

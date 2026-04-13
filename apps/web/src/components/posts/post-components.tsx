@@ -30,6 +30,7 @@ import { PostCard } from "../landing/post-card";
 import type { PostProps as PostCardProps } from "../landing/post-card";
 import { Markdown } from "../markdown";
 import { RatingDisplay } from "../ratings";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
@@ -1014,12 +1015,29 @@ export function CreatorSupportCard() {
 
       {/* Inner content */}
       <div className="relative flex items-center gap-4 bg-card p-4">
-        <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
-          <HugeiconsIcon
-            className="size-6 text-primary"
-            icon={FavouriteCircleIcon}
-          />
-        </div>
+        {post.creatorAvatarObjectKey ? (
+          <Avatar className="size-12 shrink-0" size="lg">
+            <AvatarImage
+              alt={post.creatorName || "Avatar del creador"}
+              src={getBucketUrl(post.creatorAvatarObjectKey)}
+            />
+            <AvatarFallback>
+              {(post.creatorName || "CR")
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0]?.toUpperCase() ?? "")
+                .join("")}
+            </AvatarFallback>
+          </Avatar>
+        ) : (
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
+            <HugeiconsIcon
+              className="size-6 text-primary"
+              icon={FavouriteCircleIcon}
+            />
+          </div>
+        )}
         <div className="flex flex-col gap-0.5">
           <span className="font-[Lexend] font-bold text-base">
             Apoya al Creador

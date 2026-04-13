@@ -49,6 +49,7 @@ import { Route as AdminPostsIndexRouteImport } from './routes/admin/posts/index'
 import { Route as AdminNotificationsIndexRouteImport } from './routes/admin/notifications/index'
 import { Route as AdminMediaIndexRouteImport } from './routes/admin/media/index'
 import { Route as AdminEmojisIndexRouteImport } from './routes/admin/emojis/index'
+import { Route as AdminCreatorsIndexRouteImport } from './routes/admin/creators/index'
 import { Route as AdminComicsIndexRouteImport } from './routes/admin/comics/index'
 import { Route as MainNewsIndexRouteImport } from './routes/_main/news.index'
 import { Route as ApiRpcSplatRouteImport } from './routes/api/rpc.$'
@@ -280,6 +281,11 @@ const AdminEmojisIndexRoute = AdminEmojisIndexRouteImport.update({
   path: '/emojis/',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminCreatorsIndexRoute = AdminCreatorsIndexRouteImport.update({
+  id: '/creators/',
+  path: '/creators/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminComicsIndexRoute = AdminComicsIndexRouteImport.update({
   id: '/comics/',
   path: '/comics/',
@@ -494,6 +500,7 @@ export interface FileRoutesByFullPath {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/news/': typeof MainNewsIndexRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
+  '/admin/creators/': typeof AdminCreatorsIndexRoute
   '/admin/emojis/': typeof AdminEmojisIndexRoute
   '/admin/media/': typeof AdminMediaIndexRoute
   '/admin/notifications/': typeof AdminNotificationsIndexRoute
@@ -565,6 +572,7 @@ export interface FileRoutesByTo {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/news': typeof MainNewsIndexRoute
   '/admin/comics': typeof AdminComicsIndexRoute
+  '/admin/creators': typeof AdminCreatorsIndexRoute
   '/admin/emojis': typeof AdminEmojisIndexRoute
   '/admin/media': typeof AdminMediaIndexRoute
   '/admin/notifications': typeof AdminNotificationsIndexRoute
@@ -639,6 +647,7 @@ export interface FileRoutesById {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/_main/news/': typeof MainNewsIndexRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
+  '/admin/creators/': typeof AdminCreatorsIndexRoute
   '/admin/emojis/': typeof AdminEmojisIndexRoute
   '/admin/media/': typeof AdminMediaIndexRoute
   '/admin/notifications/': typeof AdminNotificationsIndexRoute
@@ -713,6 +722,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/news/'
     | '/admin/comics/'
+    | '/admin/creators/'
     | '/admin/emojis/'
     | '/admin/media/'
     | '/admin/notifications/'
@@ -784,6 +794,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/news'
     | '/admin/comics'
+    | '/admin/creators'
     | '/admin/emojis'
     | '/admin/media'
     | '/admin/notifications'
@@ -857,6 +868,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/_main/news/'
     | '/admin/comics/'
+    | '/admin/creators/'
     | '/admin/emojis/'
     | '/admin/media/'
     | '/admin/notifications/'
@@ -1183,6 +1195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminEmojisIndexRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/creators/': {
+      id: '/admin/creators/'
+      path: '/creators'
+      fullPath: '/admin/creators/'
+      preLoaderRoute: typeof AdminCreatorsIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/comics/': {
       id: '/admin/comics/'
       path: '/comics'
@@ -1464,6 +1483,7 @@ interface AdminRouteRouteChildren {
   AdminTermsCreateRoute: typeof AdminTermsCreateRoute
   AdminUsersManageRoute: typeof AdminUsersManageRoute
   AdminComicsIndexRoute: typeof AdminComicsIndexRoute
+  AdminCreatorsIndexRoute: typeof AdminCreatorsIndexRoute
   AdminEmojisIndexRoute: typeof AdminEmojisIndexRoute
   AdminMediaIndexRoute: typeof AdminMediaIndexRoute
   AdminNotificationsIndexRoute: typeof AdminNotificationsIndexRoute
@@ -1499,6 +1519,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminTermsCreateRoute: AdminTermsCreateRoute,
   AdminUsersManageRoute: AdminUsersManageRoute,
   AdminComicsIndexRoute: AdminComicsIndexRoute,
+  AdminCreatorsIndexRoute: AdminCreatorsIndexRoute,
   AdminEmojisIndexRoute: AdminEmojisIndexRoute,
   AdminMediaIndexRoute: AdminMediaIndexRoute,
   AdminNotificationsIndexRoute: AdminNotificationsIndexRoute,

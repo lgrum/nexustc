@@ -132,6 +132,7 @@ export const postCreateSchema = z.object({
     .trim()
     .max(65_535)
     .transform((val) => val.trim()),
+  creatorId: z.string().nullable(),
   creatorLink: z.union([z.url("No es un link válido"), z.literal("")]),
   creatorName: z.string(),
   engine: z.string(),

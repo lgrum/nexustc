@@ -27,6 +27,7 @@ export type PostType = Omit<
 > & {
   likes: number;
   favorites: number;
+  creatorAvatarObjectKey?: string | null;
   terms: Omit<TermType, "createdAt" | "updatedAt">[];
   averageRating?: number;
   ratingCount?: number;

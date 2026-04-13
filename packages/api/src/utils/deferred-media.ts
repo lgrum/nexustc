@@ -133,6 +133,15 @@ function normalizeStorageSegment(name: string) {
   return normalized || FALLBACK_STORAGE_SEGMENT;
 }
 
+function getFolderNames(ownerKind: MediaOwnerKind, resourceName: string) {
+  if (ownerKind === "Creador") {
+    return [ownerKind];
+  }
+
+  const normalizedResourceName = normalizeFolderName(resourceName);
+  return [ownerKind, normalizedResourceName];
+}
+
 async function findFolderByName(
   db: FolderLookupDb,
   name: string,
@@ -239,8 +248,7 @@ async function materializeDeferredMediaSelection(params: {
     return [] satisfies PersistedMediaRecord[];
   }
 
-  const normalizedResourceName = normalizeFolderName(resourceName);
-  const folderNames = [ownerKind, normalizedResourceName];
+  const folderNames = getFolderNames(ownerKind, resourceName);
   const existingMediaIds = selection
     .filter(
       (item): item is z.infer<typeof deferredExistingMediaItemSchema> =>
@@ -311,8 +319,7 @@ export async function withDeferredMediaSelection<T>(params: {
     );
   }
 
-  const normalizedResourceName = normalizeFolderName(resourceName);
-  const folderNames = [ownerKind, normalizedResourceName];
+  const folderNames = getFolderNames(ownerKind, resourceName);
   const pendingItems = selection.filter(
     (item): item is z.infer<typeof deferredPendingMediaItemSchema> =>
       item.kind === "pending"

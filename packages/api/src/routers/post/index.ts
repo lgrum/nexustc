@@ -2,7 +2,9 @@ import { getLogger } from "@orpc/experimental-pino";
 import { and, asc, desc, eq, getRedis, ne, sql } from "@repo/db";
 import {
   comment,
+  creator,
   featuredPost,
+  media,
   post,
   postBookmark,
   postLikes,
@@ -625,6 +627,8 @@ export default {
           changelog: post.changelog,
           content: post.content,
           createdAt: post.createdAt,
+          creatorAvatarObjectKey: media.objectKey,
+          creatorId: post.creatorId,
           creatorLink: post.creatorLink,
           creatorName: post.creatorName,
           earlyAccessEnabled: post.earlyAccessEnabled,
@@ -658,6 +662,8 @@ export default {
           views: post.views,
         })
         .from(post)
+        .leftJoin(creator, eq(creator.id, post.creatorId))
+        .leftJoin(media, eq(media.id, creator.mediaId))
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
@@ -745,6 +751,9 @@ export default {
         ...postData,
         adsLinks: earlyAccess.isRestrictedView ? "" : postData.adsLinks,
         changelog: earlyAccess.isRestrictedView ? "" : postData.changelog,
+        creatorAvatarObjectKey: earlyAccess.hideCreatorSupport
+          ? null
+          : postData.creatorAvatarObjectKey,
         creatorLink: earlyAccess.hideCreatorSupport ? "" : postData.creatorLink,
         creatorName: earlyAccess.hideCreatorSupport ? "" : postData.creatorName,
         earlyAccess,

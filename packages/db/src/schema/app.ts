@@ -197,6 +197,23 @@ export const term = pgTable("term", {
   ...timestamps,
 });
 
+export const creator = pgTable(
+  "creator",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    mediaId: text("media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "restrict" }),
+    name: text("name").notNull(),
+    url: text("url").notNull().unique(),
+    ...timestamps,
+  },
+  (table) => [
+    index("creator_media_id_idx").on(table.mediaId),
+    index("creator_name_idx").on(table.name),
+  ]
+);
+
 export const post = pgTable(
   "post",
   {
@@ -208,6 +225,9 @@ export const post = pgTable(
     }),
     comicPageCount: integer("comic_page_count").notNull().default(0),
     content: text("content").notNull().default(""),
+    creatorId: text("creator_id").references(() => creator.id, {
+      onDelete: "set null",
+    }),
     creatorLink: text("creator_link").notNull().default(""),
     creatorName: text("creator_name").notNull().default(""),
     earlyAccessEnabled: boolean("early_access_enabled")
@@ -240,6 +260,7 @@ export const post = pgTable(
     ...timestamps,
   },
   (table) => [
+    index("post_creator_id_idx").on(table.creatorId),
     index("post_status_type_early_access_idx").on(
       table.status,
       table.type,
@@ -892,9 +913,21 @@ export const stickerRelations = relations(sticker, ({ one }) => ({
 
 /** -------------------------------------------------------- */
 
-export const postRelations = relations(post, ({ many }) => ({
+export const creatorRelations = relations(creator, ({ many, one }) => ({
+  media: one(media, {
+    fields: [creator.mediaId],
+    references: [media.id],
+  }),
+  posts: many(post),
+}));
+
+export const postRelations = relations(post, ({ many, one }) => ({
   comments: many(comment),
   comicProgress: many(userComicProgress),
+  creator: one(creator, {
+    fields: [post.creatorId],
+    references: [creator.id],
+  }),
   engagementOverrides: many(postEngagementOverride),
   favorites: many(postBookmark),
   featured: many(featuredPost),
@@ -905,6 +938,7 @@ export const postRelations = relations(post, ({ many }) => ({
 }));
 
 export const mediaRelations = relations(media, ({ many, one }) => ({
+  creators: many(creator),
   folder: one(mediaFolder, {
     fields: [media.folderId],
     references: [mediaFolder.id],

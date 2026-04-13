@@ -5,6 +5,7 @@ export const statement = {
   ...defaultStatements,
   chronos: ["view", "update"],
   comics: ["create", "update", "delete", "list"],
+  creators: ["create", "update", "delete", "list"],
   comments: ["create", "self-update", "self-delete", "update", "delete"],
   dashboard: ["view"],
   emojis: ["create", "update", "delete", "list"],
@@ -34,6 +35,7 @@ const shortener = ac.newRole({
 const uploader = ac.newRole({
   comics: ["create", "list"],
   comments: ["create", "self-update", "self-delete"],
+  creators: ["create", "list"],
   dashboard: ["view"],
   files: ["upload"],
   media: ["list"],
@@ -54,6 +56,7 @@ const moderator = ac.newRole({
 const admin = ac.newRole({
   chronos: ["view", "update"],
   comics: ["create", "list", "update", "delete"],
+  creators: ["create", "list", "update", "delete"],
   dashboard: ["view"],
   emojis: ["create", "update", "delete", "list"],
   files: ["upload"],
@@ -71,6 +74,7 @@ const owner = ac.newRole({
   ...adminAc.statements,
   chronos: ["view", "update"],
   comics: ["create", "list", "update", "delete"],
+  creators: ["create", "list", "update", "delete"],
   dashboard: ["view"],
   emojis: ["create", "update", "delete", "list"],
   files: ["upload"],

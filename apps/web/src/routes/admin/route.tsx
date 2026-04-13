@@ -70,6 +70,15 @@ const nav = {
     ],
     name: "Comics",
   },
+  creators: {
+    links: [
+      {
+        href: "/admin/creators",
+        name: "Gestionar",
+      },
+    ],
+    name: "Creadores",
+  },
   emojis: {
     links: [
       {
@@ -258,6 +267,9 @@ function AdminLayout() {
               </HasPermissions>
               <HasPermissions permissions={{ comics: ["create"] }}>
                 <SidebarLinks item={nav.comics} />
+              </HasPermissions>
+              <HasPermissions permissions={{ creators: ["list"] }}>
+                <SidebarLinks item={nav.creators} />
               </HasPermissions>
               <HasPermissions permissions={{ posts: ["create"] }}>
                 <SidebarLinks item={nav.extras} />

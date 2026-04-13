@@ -35,6 +35,9 @@ function RouteComponent() {
   const { data: mediaLibrary } = useSuspenseQuery(
     orpc.media.admin.list.queryOptions()
   );
+  const { data: creators } = useSuspenseQuery(
+    orpc.creator.admin.list.queryOptions()
+  );
 
   const form = useAppForm({
     defaultValues: {
@@ -42,6 +45,7 @@ function RouteComponent() {
       censorship: "",
       changelog: "",
       content: "",
+      creatorId: null as string | null,
       creatorLink: "",
       creatorName: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
@@ -108,6 +112,8 @@ function RouteComponent() {
     }),
     viewerTier: "level69",
   });
+  const selectedCreator =
+    creators.find((item) => item.id === post.creatorId) ?? null;
 
   const extractTemplate = async () => {
     try {
@@ -129,14 +135,31 @@ function RouteComponent() {
 
       const values = {
         content: form.getFieldValue("content"),
+        creatorId: form.getFieldValue("creatorId"),
         creatorLink: form.getFieldValue("creatorLink"),
         creatorName: form.getFieldValue("creatorName"),
         premiumLinks: form.getFieldValue("premiumLinks"),
         tags: form.getFieldValue("tags"),
       };
 
-      form.setFieldValue("creatorName", creatorName || values.creatorName);
-      form.setFieldValue("creatorLink", creatorUrl || values.creatorLink);
+      const matchingCreator =
+        creators.find((creator) => creator.url === creatorUrl) ??
+        creators.find(
+          (creator) =>
+            creator.name.toLowerCase() === (creatorName ?? "").toLowerCase()
+        ) ??
+        null;
+
+      form.setFieldValue("creatorId", matchingCreator?.id ?? values.creatorId);
+      form.setFieldValue(
+        "creatorName",
+        matchingCreator?.name || creatorName || values.creatorName
+      );
+      form.setFieldValue(
+        "creatorLink",
+        matchingCreator?.url || creatorUrl || values.creatorLink
+      );
+
       form.setFieldValue("content", content || values.content);
       form.setFieldValue("premiumLinks", premiumLinks || values.premiumLinks);
       form.setFieldValue("tags", tagIds.length > 0 ? tagIds : values.tags);
@@ -169,6 +192,8 @@ function RouteComponent() {
               post={{
                 ...post,
                 createdAt: new Date(),
+                creatorAvatarObjectKey:
+                  selectedCreator?.media.objectKey ?? null,
                 earlyAccess: previewEarlyAccess,
                 engagementPrompts: post.manualEngagementQuestions.map(
                   (text, index) => ({

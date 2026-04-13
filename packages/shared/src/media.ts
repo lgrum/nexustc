@@ -8,6 +8,7 @@ export const MEDIA_IMAGE_MIME_TYPES = [
 export const MEDIA_OWNER_KINDS = [
   "Juego",
   "Comic",
+  "Creador",
   "Emoji",
   "Sticker",
   "Emblema",

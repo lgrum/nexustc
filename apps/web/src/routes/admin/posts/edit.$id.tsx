@@ -36,6 +36,7 @@ function RouteComponent() {
       censorship: terms.censorship?.[0]?.term.id ?? "",
       changelog: oldPost.changelog ?? "",
       content: oldPost.content,
+      creatorId: oldPost.creatorId ?? null,
       creatorLink: oldPost.creatorLink,
       creatorName: oldPost.creatorName,
       documentStatus: oldPost.status,
