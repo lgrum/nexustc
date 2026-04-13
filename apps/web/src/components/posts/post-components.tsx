@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { TermBadge } from "@/components/term-badge";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
-import type { PostType } from "@/lib/types";
+import type { EngagementPromptType, PostType } from "@/lib/types";
 import { getBucketUrl } from "@/lib/utils";
 
 import { DiscordLogo } from "../icons/discord";
@@ -64,6 +64,8 @@ export function PostPage({ post }: { post: PostProps }) {
   const showRestrictedView = post.earlyAccess.isRestrictedView;
   const showComments = !post.earlyAccess.hideComments;
   const showCreatorSupport = !post.earlyAccess.hideCreatorSupport;
+  const [selectedPrompt, setSelectedPrompt] =
+    useState<EngagementPromptType | null>(null);
 
   return (
     <PostProvider post={post}>
@@ -85,9 +87,17 @@ export function PostPage({ post }: { post: PostProps }) {
               </div>
             )}
             {!showRestrictedView && (
-              <EngagementPromptBlock prompts={post.engagementPrompts} />
+              <EngagementPromptBlock
+                onAnswerPrompt={showComments ? setSelectedPrompt : undefined}
+                prompts={post.engagementPrompts}
+              />
             )}
-            {showComments && <CommentSection />}
+            {showComments && (
+              <CommentSection
+                onSelectedPromptChange={setSelectedPrompt}
+                selectedPrompt={selectedPrompt}
+              />
+            )}
             <TutorialsSection />
             <DiscordSection />
             {!showRestrictedView && (

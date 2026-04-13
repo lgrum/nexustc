@@ -1,86 +1,48 @@
-import {
-  AlertCircleIcon,
-  Comment01Icon,
-  SentIcon,
-} from "@hugeicons/core-free-icons";
+import { Comment01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useStore } from "@tanstack/react-form";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import z from "zod";
 
 import {
   CommentContent,
   useEmojiStickerMaps,
 } from "@/components/comments/comment-content";
-import { EmojiPicker } from "@/components/comments/emoji-picker";
-import { RichCommentInput } from "@/components/comments/rich-comment-input";
-import { StickerPicker } from "@/components/comments/sticker-picker";
+import { PostCommentForm } from "@/components/comments/post-comment-form";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
-import { useAppForm } from "@/hooks/use-app-form";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
+import { UserLabel } from "@/components/users/user-label";
 import { orpcClient } from "@/lib/orpc";
+import type { EngagementPromptType } from "@/lib/types";
 
 import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
-import { ErrorField } from "../forms/error-field";
-import { Button } from "../ui/button";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-} from "../ui/input-group";
-import { Item, ItemContent, ItemMedia } from "../ui/item";
-import { ScrollArea } from "../ui/scroll-area";
-import { Spinner } from "../ui/spinner";
-import { UserLabel } from "../users/user-label";
 import { usePost } from "./post-context";
 
-export function CommentSection() {
+type CommentSectionProps = {
+  onSelectedPromptChange: (prompt: EngagementPromptType | null) => void;
+  selectedPrompt: EngagementPromptType | null;
+};
+
+export function CommentSection({
+  onSelectedPromptChange,
+  selectedPrompt,
+}: CommentSectionProps) {
   const post = usePost();
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-  const queryClient = useQueryClient();
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
-
-  const form = useAppForm({
-    defaultValues: {
-      content: "",
-    },
-    onSubmit: async (formData) => {
-      try {
-        await orpcClient.post.createComment({
-          content: formData.value.content,
-          postId: post.id,
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["comments", post.id],
-        });
-        form.reset();
-      } catch (error) {
-        toast.error(`Ocurrió un error. ${error}`);
-      }
-    },
-    validators: {
-      onSubmit: z.object({
-        content: z
-          .string()
-          .min(10, "Debe tener al menos 10 caracteres.")
-          .max(2048, "No puede exceder los 2048 caracteres."),
-      }),
-    },
-  });
-
-  const currentContent = useStore(form.store, (state) => state.values.content);
-
-  const insertToken = (token: string) => {
-    const separator =
-      currentContent && !currentContent.endsWith(" ") ? " " : "";
-    form.setFieldValue("content", `${currentContent}${separator}${token}`);
-  };
 
   const commentsQuery = useQuery({
     enabled: visible,
@@ -89,14 +51,14 @@ export function CommentSection() {
         postId: post.id,
       });
 
-      const authorMap = new Map(authors.map((a) => [a.id, a]));
+      const authorMap = new Map(authors.map((author) => [author.id, author]));
 
-      const commentsWithAuthors = comments.map((c) => ({
-        ...c,
-        author: c.authorId ? (authorMap.get(c.authorId) ?? null) : null,
+      return comments.map((comment) => ({
+        ...comment,
+        author: comment.authorId
+          ? (authorMap.get(comment.authorId) ?? null)
+          : null,
       }));
-
-      return commentsWithAuthors;
     },
     queryKey: ["comments", post.id],
   });
@@ -121,18 +83,9 @@ export function CommentSection() {
     };
   }, []);
 
-  if (!commentsQuery.data) {
-    return (
-      <div className="flex flex-col gap-3" ref={ref}>
-        <div className="section-title">Comentarios</div>
-        <div className="flex min-h-100 items-center justify-center" ref={ref}>
-          <Spinner />
-        </div>
-      </div>
-    );
-  }
-
-  const commentCount = commentsQuery.data.length;
+  const comments = commentsQuery.data ?? [];
+  const commentCount = comments.length;
+  const isLoadingComments = !commentsQuery.data;
 
   return (
     <div className="flex flex-col gap-3" ref={ref}>
@@ -140,87 +93,74 @@ export function CommentSection() {
         Comentarios{commentCount > 0 && ` (${commentCount})`}
       </div>
       <div className="flex flex-col gap-4">
-        {/* Comment Form */}
         <SignedIn>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              form.handleSubmit();
-            }}
-          >
-            <form.AppField name="content">
-              {(field) => (
-                <div className="flex flex-col gap-2">
-                  <InputGroup>
-                    <RichCommentInput
-                      className="min-h-24 w-full border-0 bg-background shadow-none"
-                      emojiMap={emojiMap}
-                      onChange={(v) => field.setValue(v)}
-                      placeholder="Escribe tu comentario..."
-                      stickerMap={stickerMap}
-                      value={field.state.value}
-                    />
-                    <InputGroupAddon align="block-end" className="">
-                      <EmojiPicker onSelect={insertToken} />
-                      <StickerPicker
-                        currentContent={currentContent}
-                        onSelect={insertToken}
-                      />
-                      <form.Subscribe
-                        selector={(state) => [
-                          state.canSubmit,
-                          state.isSubmitting,
-                        ]}
-                      >
-                        {([canSubmit, isSubmitting]) => (
-                          <InputGroupButton
-                            className="ml-auto"
-                            disabled={!canSubmit}
-                            loading={isSubmitting}
-                            size="sm"
-                            type="submit"
-                            variant="default"
-                          >
-                            <HugeiconsIcon className="size-4" icon={SentIcon} />
-                            Enviar
-                          </InputGroupButton>
-                        )}
-                      </form.Subscribe>
-                    </InputGroupAddon>
-                  </InputGroup>
-                  {field.state.meta.errors.length > 0 && (
-                    <Item variant="outline">
-                      <ItemMedia>
-                        <HugeiconsIcon
-                          className="size-5 text-destructive"
-                          icon={AlertCircleIcon}
-                        />
-                      </ItemMedia>
-                      <ItemContent>
-                        <ErrorField field={field} />
-                      </ItemContent>
-                    </Item>
-                  )}
-                </div>
-              )}
-            </form.AppField>
-          </form>
+          <PostCommentForm
+            placeholder="Escribe tu comentario..."
+            postId={post.id}
+          />
         </SignedIn>
-        {/* Sign in prompt for logged out users */}
+
         <SignedOut>
-          <div className="flex flex-col items-center gap-3 bg-muted/30 p-6 text-center rounded-lg">
-            <p className="text-muted-foreground">
-              ¿Quieres dejar un comentario?
-            </p>
-            <Link to="/auth">
-              <Button size="sm" variant="outline">
-                Iniciar sesión
-              </Button>
-            </Link>
+          <div className="rounded-lg bg-muted/30 p-6 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-muted-foreground">
+                ¿Quieres dejar un comentario?
+              </p>
+              <Link to="/auth">
+                <Button size="sm" variant="outline">
+                  Iniciar sesión
+                </Button>
+              </Link>
+            </div>
           </div>
         </SignedOut>
-        {commentCount === 0 && (
+
+        <Dialog
+          onOpenChange={(open) => {
+            if (!open) {
+              onSelectedPromptChange(null);
+            }
+          }}
+          open={selectedPrompt !== null}
+        >
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Responder pregunta del post</DialogTitle>
+              <DialogDescription>
+                Tu respuesta se publicará como un comentario normal y mostrará
+                la pregunta elegida arriba del texto.
+              </DialogDescription>
+            </DialogHeader>
+
+            <SignedIn>
+              <PostCommentForm
+                key={selectedPrompt?.id ?? "engagement-answer"}
+                onSubmitted={() => onSelectedPromptChange(null)}
+                placeholder="Escribe tu respuesta..."
+                postId={post.id}
+                prompt={selectedPrompt}
+                submitLabel="Publicar respuesta"
+              />
+            </SignedIn>
+
+            <SignedOut>
+              <div className="rounded-2xl border border-border/60 bg-muted/40 p-5 text-center">
+                <p className="text-muted-foreground">
+                  Inicia sesión para responder esta pregunta y unirte al debate.
+                </p>
+                <Link className="mt-4 inline-flex" to="/auth">
+                  <Button variant="outline">Iniciar sesión</Button>
+                </Link>
+              </div>
+            </SignedOut>
+          </DialogContent>
+        </Dialog>
+
+        {isLoadingComments ? (
+          <div className="flex min-h-100 items-center justify-center">
+            <Spinner />
+          </div>
+        ) : commentCount === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <div className="flex size-12 items-center justify-center rounded-full bg-muted">
               <HugeiconsIcon
@@ -232,16 +172,13 @@ export function CommentSection() {
               Aún no hay comentarios. ¡Sé el primero!
             </p>
           </div>
-        )}
-        {/* Comments List */}
-        {commentCount > 0 && (
+        ) : (
           <ScrollArea className="h-150">
             <div className="flex flex-col">
-              {commentsQuery.data
+              {comments
                 .filter(
                   (
                     comment
-                    // little workaround to convince TS that author is not null
                   ): comment is typeof comment & {
                     author: NonNullable<typeof comment.author>;
                   } => comment.author !== null
@@ -272,6 +209,19 @@ export function CommentSection() {
                           })}
                         </time>
                       </div>
+                      {comment.engagementPromptText && (
+                        <div className="rounded-2xl border border-primary/12 bg-primary/6 px-4 py-3">
+                          <div className="mb-2 font-semibold text-[11px] text-primary uppercase tracking-[0.22em]">
+                            Respuesta a la pregunta
+                          </div>
+                          <CommentContent
+                            className="font-medium text-sm text-foreground"
+                            content={comment.engagementPromptText}
+                            emojiMap={emojiMap}
+                            stickerMap={stickerMap}
+                          />
+                        </div>
+                      )}
                       <CommentContent
                         content={comment.content}
                         emojiMap={emojiMap}

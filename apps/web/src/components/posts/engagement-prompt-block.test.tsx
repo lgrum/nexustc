@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { EngagementPromptBlock } from "./engagement-prompt-block";
 
@@ -129,12 +129,27 @@ describe(EngagementPromptBlock, () => {
     expect(screen.getByText(prompts[0]!.text)).toBeTruthy();
   });
 
-  it("renders no interactive descendants", () => {
+  it("renders no interactive descendants by default", () => {
     const { container } = render(<EngagementPromptBlock prompts={prompts} />);
     const interactiveNodes = container.querySelectorAll(
       'a, button, input, textarea, select, [tabindex]:not([tabindex="-1"])'
     );
 
     expect(interactiveNodes).toHaveLength(0);
+  });
+
+  it("renders an answer button when a handler is provided", () => {
+    const onAnswerPrompt = vi.fn();
+
+    render(
+      <EngagementPromptBlock
+        onAnswerPrompt={onAnswerPrompt}
+        prompts={[prompts[0]!]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Responder" }));
+
+    expect(onAnswerPrompt).toHaveBeenCalledWith(prompts[0]);
   });
 });

@@ -180,6 +180,10 @@ export const accountRelations = relations(account, ({ one }) => ({
 
 export const postTypeEnum = pgEnum("post_type", ["post", "comic"]);
 export const documentStatusEnum = pgEnum("document_status", DOCUMENT_STATUSES);
+export const engagementPromptSourceEnum = pgEnum("engagement_prompt_source", [
+  "manual",
+  "tag",
+]);
 export const featuredPositionEnum = pgEnum("featured_position", [
   "main",
   "secondary",
@@ -333,6 +337,11 @@ export const comment = pgTable(
       onDelete: "cascade",
     }),
     content: text("content").notNull(),
+    engagementPromptId: text("engagement_prompt_id"),
+    engagementPromptSource: engagementPromptSourceEnum(
+      "engagement_prompt_source"
+    ),
+    engagementPromptText: text("engagement_prompt_text"),
     id: text("id").primaryKey().$defaultFn(generateId),
     postId: text("post_id").references(() => post.id, { onDelete: "cascade" }),
     ...timestamps,

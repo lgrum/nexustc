@@ -3,11 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { orpcClient } from "@/lib/orpc";
-import { getBucketUrl } from "@/lib/utils";
+import { cn, getBucketUrl } from "@/lib/utils";
 
 import { AnimatedAsset } from "./animated-asset";
 
 type CommentContentProps = {
+  className?: string;
   content: string;
   emojiMap: Map<
     string,
@@ -20,6 +21,7 @@ type CommentContentProps = {
 };
 
 export function CommentContent({
+  className,
   content,
   emojiMap,
   stickerMap,
@@ -27,7 +29,9 @@ export function CommentContent({
   const segments = useMemo(() => renderTokenizedContent(content), [content]);
 
   return (
-    <div className="text-foreground/90 text-sm leading-relaxed">
+    <div
+      className={cn("text-foreground/90 text-sm leading-relaxed", className)}
+    >
       {segments.map((segment, i) => {
         const key =
           segment.type === "text"

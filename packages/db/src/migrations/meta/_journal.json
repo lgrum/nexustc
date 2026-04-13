@@ -169,6 +169,13 @@
       "when": 1775878065105,
       "tag": "0023_ancient_peter_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1776046849984,
+      "tag": "0024_plain_fallen_one",
+      "breakpoints": true
     }
   ]
 }

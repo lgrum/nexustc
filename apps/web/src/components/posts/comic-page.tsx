@@ -24,7 +24,7 @@ import type { TouchEvent } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient, queryClient } from "@/lib/orpc";
-import type { PostType } from "@/lib/types";
+import type { EngagementPromptType, PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
@@ -154,6 +154,8 @@ function ComicInfoPage({
   setPage: (page: number) => void;
 }) {
   const comic = usePost();
+  const [selectedPrompt, setSelectedPrompt] =
+    useState<EngagementPromptType | null>(null);
   const mainImage = comic.imageObjectKeys?.[0];
   const allImages = comic.imageObjectKeys ?? [];
   const totalPages = allImages.length;
@@ -293,8 +295,14 @@ function ComicInfoPage({
           <div className="md:hidden">
             <CreatorSupportCard />
           </div>
-          <EngagementPromptBlock prompts={comic.engagementPrompts} />
-          <CommentSection />
+          <EngagementPromptBlock
+            onAnswerPrompt={setSelectedPrompt}
+            prompts={comic.engagementPrompts}
+          />
+          <CommentSection
+            onSelectedPromptChange={setSelectedPrompt}
+            selectedPrompt={selectedPrompt}
+          />
           <TutorialsSection />
           <DiscordSection />
           <div className="md:hidden">

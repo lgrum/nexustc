@@ -32,12 +32,15 @@ import {
 import { attachComicCatalogProgress } from "../../services/comic-progress";
 import { buildProfileSummaries } from "../../services/profile";
 import {
+  getResolvedEngagementPromptsForPost,
+  resolveCommentEngagementSelection,
+} from "../../utils/comment-engagement";
+import {
   activeVipCatalogCondition,
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../../utils/early-access";
-import { resolveEngagementPrompts } from "../../utils/engagement-prompts";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -707,61 +710,9 @@ export default {
         ...postData
       } = result[0]!;
 
-      const manualOverrides = await db.query.postEngagementOverride.findMany({
-        columns: {
-          id: true,
-          text: true,
-        },
-        orderBy: (table, { asc: ascOrder }) => [
-          ascOrder(table.sortOrder),
-          ascOrder(table.createdAt),
-        ],
-        where: (table, { and: andWhere, eq: equals }) =>
-          andWhere(equals(table.postId, input), equals(table.isActive, true)),
-      });
-
-      const tagTermIds = postData.terms
-        .filter((item) => item.taxonomy === "tag")
-        .map((item) => item.id);
-
-      const automaticQuestions =
-        manualOverrides.length > 0
-          ? []
-          : await db.query.engagementQuestion.findMany({
-              columns: {
-                id: true,
-                tagTermId: true,
-                text: true,
-              },
-              where: (
-                table,
-                {
-                  and: andWhere,
-                  eq: equals,
-                  inArray: inArrayWhere,
-                  or: orWhere,
-                }
-              ) => {
-                if (tagTermIds.length === 0) {
-                  return andWhere(
-                    equals(table.isActive, true),
-                    equals(table.isGlobal, true)
-                  );
-                }
-
-                return andWhere(
-                  equals(table.isActive, true),
-                  orWhere(
-                    equals(table.isGlobal, true),
-                    inArrayWhere(table.tagTermId, tagTermIds)
-                  )
-                );
-              },
-            });
-
-      const engagementPrompts = resolveEngagementPrompts(
-        manualOverrides,
-        automaticQuestions
+      const engagementPrompts = await getResolvedEngagementPromptsForPost(
+        db,
+        input
       );
 
       let premiumLinksAccess: PremiumLinksDescriptor;
@@ -928,6 +879,12 @@ export default {
     .input(
       z.object({
         content: z.string().min(10).max(2048),
+        engagementPrompt: z
+          .object({
+            id: z.string(),
+            source: z.enum(["manual", "tag"]),
+          })
+          .optional(),
         postId: z.string(),
       })
     )
@@ -960,6 +917,22 @@ export default {
         if (earlyAccess.isActive) {
           logger?.warn(
             `Comment blocked for post ${input.postId} because early access is active`
+          );
+          throw errors.FORBIDDEN();
+        }
+
+        const resolvedEngagementPrompts =
+          input.engagementPrompt === undefined
+            ? []
+            : await getResolvedEngagementPromptsForPost(db, input.postId);
+        const selectedEngagementPrompt = resolveCommentEngagementSelection(
+          resolvedEngagementPrompts,
+          input.engagementPrompt
+        );
+
+        if (input.engagementPrompt && !selectedEngagementPrompt) {
+          logger?.warn(
+            `Comment blocked for post ${input.postId} because the engagement prompt selection is invalid`
           );
           throw errors.FORBIDDEN();
         }
@@ -1030,6 +1003,9 @@ export default {
         await db.insert(comment).values({
           authorId: session.user.id,
           content: input.content,
+          engagementPromptId: selectedEngagementPrompt?.id ?? null,
+          engagementPromptSource: selectedEngagementPrompt?.source ?? null,
+          engagementPromptText: selectedEngagementPrompt?.text ?? null,
           postId: input.postId,
         });
         logger?.info(
