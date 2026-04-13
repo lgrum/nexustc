@@ -24,9 +24,29 @@ import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
+const SHORTENER_COUNT_OPTIONS = [1, 2, 3] as const;
+
+function getShortenerPipelineLabel(
+  shortenerCount: (typeof SHORTENER_COUNT_OPTIONS)[number]
+) {
+  switch (shortenerCount) {
+    case 1: {
+      return "`exe.io`";
+    }
+    case 2: {
+      return "`shrinkearn.com` -> `exe.io`";
+    }
+    default: {
+      return "`uii.io` -> `shrinkearn.com` -> `exe.io`";
+    }
+  }
+}
+
 export function URLShortenerDialog({
+  shortenerCount = 3,
   triggerClassName,
 }: {
+  shortenerCount?: (typeof SHORTENER_COUNT_OPTIONS)[number];
   triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -86,7 +106,8 @@ export function URLShortenerDialog({
         <DialogHeader>
           <DialogTitle>Acortar URL</DialogTitle>
           <DialogDescription>
-            Envía una URL al pipeline `uii.io` → `shrinkearn.com` → `exe.io`.
+            Envía una URL al pipeline{" "}
+            {getShortenerPipelineLabel(shortenerCount)}.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -95,7 +116,7 @@ export function URLShortenerDialog({
             event.preventDefault();
             event.stopPropagation();
 
-            await shortenUrlMutation.mutateAsync({ url });
+            await shortenUrlMutation.mutateAsync({ shortenerCount, url });
           }}
         >
           <FieldSet>

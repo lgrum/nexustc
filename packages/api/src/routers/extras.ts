@@ -48,6 +48,11 @@ const shortenerProviders = [
     url: "https://exe.io/api",
   },
 ] as const;
+const shortenerCountSchema = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+]);
 
 const decodeHtmlEntities = (value: string): string =>
   value
@@ -220,6 +225,7 @@ export default {
     .use(fixedWindowRatelimitMiddleware({ limit: 5, windowSeconds: 60 }))
     .input(
       z.object({
+        shortenerCount: shortenerCountSchema.default(3),
         url: z.url(),
       })
     )
@@ -232,9 +238,10 @@ export default {
         `Resolved alias for shortening: ${alias ? `"${alias}"` : "not available"}`
       );
       let shortenedUrl = input.url;
+      const selectedProviders = shortenerProviders.slice(-input.shortenerCount);
 
       try {
-        for (const provider of shortenerProviders) {
+        for (const provider of selectedProviders) {
           shortenedUrl = await shortenWithProvider({
             alias,
             logger,

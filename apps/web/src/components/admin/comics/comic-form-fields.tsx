@@ -176,7 +176,7 @@ export function ComicFormFields({ terms }: ComicFormFieldsProps) {
 
       <div className="col-span-2 space-x-2">
         <HasPermissions permissions={{ shortener: ["use"] }}>
-          <URLShortenerDialog />
+          <URLShortenerDialog shortenerCount={2} />
         </HasPermissions>
         <GenerateMarkdownLinkDialog />
       </div>
