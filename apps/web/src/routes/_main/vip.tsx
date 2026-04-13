@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { MembershipUpgradeExperience } from "@/features/vip-upgrade/upgrade-experience";
 import { orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -37,6 +38,8 @@ function RouteComponent() {
 
   return (
     <main className="flex flex-col gap-8 px-4 py-6">
+      <MembershipUpgradeExperience />
+
       <section className="overflow-hidden rounded-[36px] border border-amber-400/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.16),transparent_26%),linear-gradient(135deg,rgba(9,13,28,0.98),rgba(41,16,55,0.94))] p-6 shadow-[0_36px_120px_-68px_rgba(251,191,36,0.95)] md:p-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <div className="space-y-5">
@@ -46,11 +49,11 @@ function RouteComponent() {
             </div>
 
             <div className="space-y-3">
-              <h1 className="max-w-3xl font-[Lexend] font-bold text-4xl text-white leading-[1.02] md:text-5xl">
+              <h2 className="max-w-3xl font-[Lexend] font-bold text-4xl text-white leading-[1.02] md:text-5xl">
                 Mira lo nuevo primero.
                 <br />
                 Juega antes.
-              </h1>
+              </h2>
             </div>
           </div>
 

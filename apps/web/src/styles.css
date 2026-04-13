@@ -353,3 +353,66 @@
     background-position: 200% 50%;
   }
 }
+
+@keyframes membership-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(56, 189, 248, 0);
+  }
+  50% {
+    box-shadow: 0 0 42px rgba(56, 189, 248, 0.18);
+  }
+}
+
+@keyframes membership-fracture {
+  0% {
+    opacity: 0.18;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+.membership-engine {
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(34, 211, 238, 0.16),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(251, 113, 133, 0.14),
+      transparent 30%
+    ),
+    linear-gradient(135deg, rgba(2, 6, 23, 0.96), rgba(17, 24, 39, 0.92));
+}
+
+.membership-noise {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(to bottom, black, transparent 92%);
+}
+
+.membership-unlocked-card {
+  animation: membership-glow 2.4s ease-in-out infinite;
+}
+
+.membership-missing-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.membership-missing-card::after {
+  content: "";
+  position: absolute;
+  inset: -20% 12%;
+  border-top: 1px dashed rgba(255, 255, 255, 0.16);
+  transform: rotate(-9deg);
+  animation: membership-fracture 1.1s ease-out both;
+  pointer-events: none;
+}
