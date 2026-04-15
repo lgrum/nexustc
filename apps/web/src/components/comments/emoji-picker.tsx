@@ -74,21 +74,21 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
           </InputGroupAddon>
         </InputGroup>
         {filtered.length > 0 ? (
-          <div className="grid max-h-48 grid-cols-7 gap-1 overflow-y-auto p-1">
+          <div className="grid max-h-48 grid-cols-5 gap-1 overflow-y-auto p-1">
             {filtered.map((e) =>
               e.locked ? (
                 <Tooltip key={e.id}>
                   <TooltipTrigger
                     render={
                       <button
-                        className="relative flex items-center justify-center rounded-lg p-1 opacity-40 transition-opacity hover:opacity-70"
+                        className="relative flex overflow-clip bg-muted/50 aspect-square items-center justify-center rounded-lg p-1 opacity-40 transition-opacity hover:opacity-70"
                         type="button"
                       />
                     }
                   >
                     <img
                       alt={e.displayName}
-                      className="size-8"
+                      className="size-full"
                       loading="lazy"
                       src={getBucketUrl(e.assetKey)}
                     />
@@ -104,7 +104,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
                 </Tooltip>
               ) : (
                 <button
-                  className="flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-muted hover:shadow-[0_0_12px_rgba(var(--primary),0.3)]"
+                  className="flex items-center overflow-clip bg-muted/50 aspect-square justify-center rounded-lg p-0 transition-colors hover:bg-muted hover:shadow-[0_0_12px_rgba(var(--primary),0.3)]"
                   key={e.id}
                   onClick={() => {
                     onSelect(`:${e.name}:`);
@@ -113,7 +113,7 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
                 >
                   <img
                     alt={e.displayName}
-                    className="size-8"
+                    className="size-full"
                     loading="lazy"
                     src={getBucketUrl(e.assetKey)}
                   />

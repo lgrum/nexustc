@@ -98,14 +98,14 @@ export function StickerPicker({
                     <TooltipTrigger
                       render={
                         <button
-                          className="relative flex items-center justify-center rounded-lg p-2 opacity-40 transition-opacity hover:opacity-70"
+                          className="relative overflow-clip flex items-center justify-center rounded-lg p-2 opacity-40 transition-opacity hover:opacity-70"
                           type="button"
                         />
                       }
                     >
                       <img
                         alt={s.displayName}
-                        className="size-24 object-contain"
+                        className="size-full object-contain"
                         loading="lazy"
                         src={getBucketUrl(s.assetKey)}
                       />
@@ -124,14 +124,14 @@ export function StickerPicker({
 
               return (
                 <button
-                  className="flex items-center justify-center rounded-lg p-2 transition-colors hover:bg-muted hover:shadow-[0_0_12px_rgba(var(--primary),0.3)]"
+                  className="flex items-center overflow-clip justify-center rounded-lg p-0 aspect-square transition-colors bg-muted/50 hover:bg-muted hover:shadow-[0_0_12px_rgba(var(--primary),0.3)]"
                   key={s.id}
                   onClick={() => handleSelect(s.name)}
                   type="button"
                 >
                   <img
                     alt={s.displayName}
-                    className="size-24 object-contain"
+                    className="size-full object-contain"
                     loading="lazy"
                     src={getBucketUrl(s.assetKey)}
                   />

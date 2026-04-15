@@ -216,7 +216,7 @@ export function PostStatsBar() {
           <LikeButton postId={post.id} />
           {!post.earlyAccess.isActive && (
             <Button
-              className="border-yellow-600 bg-yellow-600/30 text-white"
+              className="ring-2 ring-yellow-500 bg-yellow-500/50 text-white shadow-glow-[oklch(59.5%_0.184_86.047)] hover:shadow-glow-[oklch(79.5%_0.184_86.047)] hover:scale-105"
               nativeButton={false}
               render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
             >
@@ -230,7 +230,12 @@ export function PostStatsBar() {
           <Tooltip>
             <TooltipTrigger
               onClick={handleShare}
-              render={<Button variant="secondary" />}
+              render={
+                <Button
+                  variant="secondary"
+                  className="ring-2 ring-purple-500 hover:bg-purple-500/80 bg-purple-500/50 text-white shadow-glow-[oklch(62.7%_0.265_303.9)] hover:shadow-glow-[oklch(62.7%_0.265_303.9)] hover:scale-105"
+                />
+              }
             >
               <HugeiconsIcon className="size-4" icon={Share08Icon} />
               Compartir

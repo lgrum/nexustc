@@ -29,10 +29,10 @@ function FollowButtonUI({
   return (
     <Button
       className={cn(
-        "text-white",
+        "text-white ring-2 hover:bg-emerald-500/80 hover:scale-105 shadow-glow-[oklch(49.6%_0.17_162.48)] hover:shadow-glow-[oklch(69.6%_0.17_162.48)]",
         isFollowing
-          ? "border-emerald-500 bg-emerald-500/20 shadow-[0_0_0_1px_hsl(var(--emerald-500)/0.15)]"
-          : "border-emerald-500/35 bg-emerald-500/10"
+          ? "ring-emerald-500 bg-emerald-500/50"
+          : "ring-emerald-500/35 bg-emerald-500/30"
       )}
       disabled={isLoading}
       onClick={onClick}
