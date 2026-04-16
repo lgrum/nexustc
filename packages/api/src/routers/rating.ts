@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, desc, eq, sql } from "@repo/db";
+import { and, desc, eq, isNull, not, sql } from "@repo/db";
 import { post, postRating } from "@repo/db/schema/app";
+import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
 
@@ -58,6 +59,8 @@ export default {
     .input(ratingCreateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
+      const review = input.review ?? "";
+      const reviewWasRemoved = review.trim().length === 0;
       logger?.info(
         `User ${session.user.id} creating/updating rating for post ${input.postId}: ${input.rating} stars`
       );
@@ -73,13 +76,14 @@ export default {
         .values({
           postId: input.postId,
           rating: input.rating,
-          review: input.review ?? "",
+          review,
           userId: session.user.id,
         })
         .onConflictDoUpdate({
           set: {
+            ...(reviewWasRemoved ? { pinnedAt: null } : {}),
             rating: input.rating,
-            review: input.review ?? "",
+            review,
             updatedAt: new Date(),
           },
           target: [postRating.userId, postRating.postId],
@@ -96,6 +100,8 @@ export default {
     .input(ratingUpdateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
+      const review = input.review ?? "";
+      const reviewWasRemoved = review.trim().length === 0;
       logger?.info(
         `User ${session.user.id} updating rating for post ${input.postId}: ${input.rating} stars`
       );
@@ -109,8 +115,9 @@ export default {
       await db
         .update(postRating)
         .set({
+          ...(reviewWasRemoved ? { pinnedAt: null } : {}),
           rating: input.rating,
-          review: input.review ?? "",
+          review,
           updatedAt: new Date(),
         })
         .where(
@@ -180,6 +187,77 @@ export default {
       return { success: true };
     }),
 
+  setPinned: permissionProcedure({ ratings: ["pin"] })
+    .input(
+      z.object({ pinned: z.boolean(), postId: z.string(), userId: z.string() })
+    )
+    .handler(async ({ context: { db, ...ctx }, input, errors }) => {
+      const logger = getLogger(ctx);
+      logger?.info(
+        `${input.pinned ? "Pinning" : "Unpinning"} rating for user ${input.userId} on post ${input.postId}`
+      );
+
+      const existingRating = await db.query.postRating.findFirst({
+        columns: {
+          pinnedAt: true,
+          postId: true,
+          review: true,
+          userId: true,
+        },
+        where: and(
+          eq(postRating.postId, input.postId),
+          eq(postRating.userId, input.userId)
+        ),
+      });
+
+      if (!existingRating) {
+        throw errors.NOT_FOUND();
+      }
+
+      if (existingRating.review.trim().length === 0) {
+        throw errors.BAD_REQUEST({
+          message: "Solo se pueden fijar resenas con texto.",
+        });
+      }
+
+      if (input.pinned && existingRating.pinnedAt === null) {
+        const pinnedRatingCount = await db
+          .select({
+            count: sql<number>`COUNT(*)::integer`,
+          })
+          .from(postRating)
+          .where(
+            and(
+              eq(postRating.postId, input.postId),
+              not(isNull(postRating.pinnedAt))
+            )
+          );
+
+        if ((pinnedRatingCount[0]?.count ?? 0) >= MAX_PINNED_ITEMS_PER_POST) {
+          throw errors.BAD_REQUEST({
+            message: `No se pueden fijar mas de ${MAX_PINNED_ITEMS_PER_POST} resenas por post.`,
+          });
+        }
+      }
+
+      await db
+        .update(postRating)
+        .set({
+          pinnedAt: input.pinned ? new Date() : null,
+        })
+        .where(
+          and(
+            eq(postRating.postId, input.postId),
+            eq(postRating.userId, input.userId)
+          )
+        );
+
+      logger?.debug(
+        `Rating for user ${input.userId} on post ${input.postId} ${input.pinned ? "pinned" : "unpinned"}`
+      );
+      return { success: true };
+    }),
+
   // Get all ratings for a post
   getByPostId: publicProcedure
     .input(z.object({ postId: z.string() }))
@@ -196,6 +274,7 @@ export default {
       const ratings = await db
         .select({
           createdAt: postRating.createdAt,
+          pinnedAt: postRating.pinnedAt,
           postId: postRating.postId,
           rating: postRating.rating,
           review: postRating.review,
@@ -204,7 +283,10 @@ export default {
         })
         .from(postRating)
         .where(eq(postRating.postId, input.postId))
-        .orderBy(desc(postRating.createdAt));
+        .orderBy(
+          sql`${postRating.pinnedAt} DESC NULLS LAST`,
+          desc(postRating.createdAt)
+        );
 
       const userIds = [...new Set(ratings.map((r) => r.userId))];
 

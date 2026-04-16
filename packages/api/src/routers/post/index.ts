@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, asc, desc, eq, getRedis, ne, sql } from "@repo/db";
+import { and, asc, desc, eq, getRedis, isNull, ne, not, sql } from "@repo/db";
 import {
   comment,
   creator,
@@ -13,6 +13,7 @@ import {
   termPostRelation,
 } from "@repo/db/schema/app";
 import {
+  MAX_PINNED_ITEMS_PER_POST,
   canAccessPremiumLinks,
   getRequiredTierLabel,
   userMeetsTierLevel,
@@ -28,6 +29,7 @@ import z from "zod";
 
 import {
   fixedWindowRatelimitMiddleware,
+  permissionProcedure,
   protectedProcedure,
   publicProcedure,
 } from "../../index";
@@ -1023,6 +1025,66 @@ export default {
       }
     ),
 
+  setCommentPinned: permissionProcedure({ comments: ["pin"] })
+    .input(z.object({ commentId: z.string(), pinned: z.boolean() }))
+    .handler(async ({ context: { db, ...context }, input, errors }) => {
+      const logger = getLogger(context);
+      logger?.info(
+        `${input.pinned ? "Pinning" : "Unpinning"} comment ${input.commentId}`
+      );
+
+      const existingComment = await db.query.comment.findFirst({
+        columns: {
+          id: true,
+          pinnedAt: true,
+          postId: true,
+        },
+        where: eq(comment.id, input.commentId),
+      });
+
+      if (!existingComment) {
+        throw errors.NOT_FOUND();
+      }
+
+      if (existingComment.postId === null) {
+        throw errors.BAD_REQUEST({
+          message: "El comentario no esta asociado a ningun post.",
+        });
+      }
+
+      if (input.pinned && existingComment.pinnedAt === null) {
+        const pinnedCommentCount = await db
+          .select({
+            count: sql<number>`COUNT(*)::integer`,
+          })
+          .from(comment)
+          .where(
+            and(
+              eq(comment.postId, existingComment.postId),
+              not(isNull(comment.pinnedAt))
+            )
+          );
+
+        if ((pinnedCommentCount[0]?.count ?? 0) >= MAX_PINNED_ITEMS_PER_POST) {
+          throw errors.BAD_REQUEST({
+            message: `No se pueden fijar mas de ${MAX_PINNED_ITEMS_PER_POST} comentarios por post.`,
+          });
+        }
+      }
+
+      await db
+        .update(comment)
+        .set({
+          pinnedAt: input.pinned ? new Date() : null,
+        })
+        .where(eq(comment.id, input.commentId));
+
+      logger?.debug(
+        `Comment ${input.commentId} ${input.pinned ? "pinned" : "unpinned"}`
+      );
+      return { success: true };
+    }),
+
   getComments: publicProcedure
     .input(z.object({ postId: z.string() }))
     .handler(async ({ context: { db, ...context }, input, errors }) => {
@@ -1057,7 +1119,10 @@ export default {
       }
 
       const comments = await db.query.comment.findMany({
-        orderBy: (c, { desc: descSql }) => [descSql(c.createdAt)],
+        orderBy: (c, { desc: descSql }) => [
+          sql`${c.pinnedAt} DESC NULLS LAST`,
+          descSql(c.createdAt),
+        ],
         where: (c, { eq: equals }) => equals(c.postId, input.postId),
       });
 

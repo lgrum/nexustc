@@ -364,6 +364,7 @@ export const comment = pgTable(
     ),
     engagementPromptText: text("engagement_prompt_text"),
     id: text("id").primaryKey().$defaultFn(generateId),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     postId: text("post_id").references(() => post.id, { onDelete: "cascade" }),
     ...timestamps,
   },
@@ -469,6 +470,7 @@ export const postLikes = pgTable(
 export const postRating = pgTable(
   "post_rating",
   {
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     postId: text("post_id")
       .references(() => post.id, { onDelete: "cascade" })
       .notNull(),

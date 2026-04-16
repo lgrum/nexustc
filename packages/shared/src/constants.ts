@@ -39,6 +39,7 @@ export const DOCUMENT_STATUS_LABELS: Record<
 } as const;
 
 export const RATING_REVIEW_MAX_LENGTH = 512;
+export const MAX_PINNED_ITEMS_PER_POST = 3;
 
 export const PREMIUM_STATUS_CATEGORIES = {
   completed: ["Finalizado", "Abandonado"],

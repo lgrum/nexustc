@@ -1,11 +1,14 @@
 import { Comment01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useQuery } from "@tanstack/react-query";
+import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { HasPermissions } from "@/components/auth/has-role";
 import {
   CommentContent,
   useEmojiStickerMaps,
@@ -28,6 +31,7 @@ import type { EngagementPromptType } from "@/lib/types";
 
 import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { usePost } from "./post-context";
 
 type CommentSectionProps = {
@@ -40,9 +44,37 @@ export function CommentSection({
   selectedPrompt,
 }: CommentSectionProps) {
   const post = usePost();
+  const queryClient = useQueryClient();
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
+
+  const setPinnedMutation = useMutation({
+    mutationFn: ({
+      commentId,
+      pinned,
+    }: {
+      commentId: string;
+      pinned: boolean;
+    }) => orpcClient.post.setCommentPinned({ commentId, pinned }),
+    onError: (error) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `No se pudo actualizar el comentario fijado.`;
+
+      toast.error(
+        message.includes(`${MAX_PINNED_ITEMS_PER_POST}`)
+          ? message
+          : `Ocurrio un error. ${message}`
+      );
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["comments", post.id],
+      });
+    },
+  });
 
   const commentsQuery = useQuery({
     enabled: visible,
@@ -88,33 +120,33 @@ export function CommentSection({
   const isLoadingComments = !commentsQuery.data;
 
   return (
-    <div className="flex flex-col gap-3" ref={ref}>
-      <div className="section-title">
-        Comentarios{commentCount > 0 && ` (${commentCount})`}
-      </div>
-      <div className="flex flex-col gap-4">
+    <Card ref={ref}>
+      <CardHeader>
+        <CardTitle className="section-title">
+          Comentarios{commentCount > 0 && ` (${commentCount})`}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
         <SignedIn>
           <PostCommentForm
             placeholder="Escribe tu comentario..."
             postId={post.id}
           />
         </SignedIn>
-
         <SignedOut>
           <div className="rounded-lg bg-muted/30 p-6 text-center">
             <div className="flex flex-col items-center gap-3">
               <p className="text-muted-foreground">
-                ¿Quieres dejar un comentario?
+                Quieres dejar un comentario?
               </p>
               <Link to="/auth">
                 <Button size="sm" variant="outline">
-                  Iniciar sesión
+                  Iniciar sesion
                 </Button>
               </Link>
             </div>
           </div>
         </SignedOut>
-
         <Dialog
           onOpenChange={(open) => {
             if (!open) {
@@ -127,11 +159,10 @@ export function CommentSection({
             <DialogHeader>
               <DialogTitle>Responder pregunta del post</DialogTitle>
               <DialogDescription>
-                Tu respuesta se publicará como un comentario normal y mostrará
+                Tu respuesta se publicara como un comentario normal y mostrara
                 la pregunta elegida arriba del texto.
               </DialogDescription>
             </DialogHeader>
-
             <SignedIn>
               <PostCommentForm
                 key={selectedPrompt?.id ?? "engagement-answer"}
@@ -142,20 +173,18 @@ export function CommentSection({
                 submitLabel="Publicar respuesta"
               />
             </SignedIn>
-
             <SignedOut>
               <div className="rounded-2xl border border-border/60 bg-muted/40 p-5 text-center">
                 <p className="text-muted-foreground">
-                  Inicia sesión para responder esta pregunta y unirte al debate.
+                  Inicia sesion para responder esta pregunta y unirte al debate.
                 </p>
                 <Link className="mt-4 inline-flex" to="/auth">
-                  <Button variant="outline">Iniciar sesión</Button>
+                  <Button variant="outline">Iniciar sesion</Button>
                 </Link>
               </div>
             </SignedOut>
           </DialogContent>
         </Dialog>
-
         {isLoadingComments ? (
           <div className="flex min-h-100 items-center justify-center">
             <Spinner />
@@ -169,7 +198,7 @@ export function CommentSection({
               />
             </div>
             <p className="text-muted-foreground">
-              Aún no hay comentarios. ¡Sé el primero!
+              Aun no hay comentarios. Se el primero.
             </p>
           </div>
         ) : (
@@ -202,12 +231,37 @@ export function CommentSection({
                             user={comment.author}
                           />
                         </Link>
+                        {comment.pinnedAt && (
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
+                            Fijado
+                          </span>
+                        )}
                         <span className="text-muted-foreground text-xs">•</span>
                         <time className="text-muted-foreground text-xs">
                           {format(comment.createdAt, "d MMM yyyy", {
                             locale: es,
                           })}
                         </time>
+                        <HasPermissions permissions={{ comments: ["pin"] }}>
+                          <Button
+                            className="ml-auto"
+                            loading={
+                              setPinnedMutation.isPending &&
+                              setPinnedMutation.variables?.commentId ===
+                                comment.id
+                            }
+                            onClick={() =>
+                              setPinnedMutation.mutate({
+                                commentId: comment.id,
+                                pinned: comment.pinnedAt === null,
+                              })
+                            }
+                            size="xs"
+                            variant="ghost"
+                          >
+                            {comment.pinnedAt ? "Desfijar" : "Fijar"}
+                          </Button>
+                        </HasPermissions>
                       </div>
                       {comment.engagementPromptText && (
                         <div className="rounded-2xl border border-primary/12 bg-primary/6 px-4 py-3">
@@ -233,7 +287,7 @@ export function CommentSection({
             </div>
           </ScrollArea>
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
