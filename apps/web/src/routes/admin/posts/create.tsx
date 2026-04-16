@@ -1,5 +1,8 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
+import type {
+  DOCUMENT_STATUSES,
+  PremiumLinkAccessLevel,
+} from "@repo/shared/constants";
 import {
   buildEarlyAccessSchedule,
   EARLY_ACCESS_DEFAULTS,
@@ -56,6 +59,7 @@ function RouteComponent() {
       manualEngagementQuestions: [] as string[],
       mediaSelection: createEmptyDeferredMediaSelection(),
       platforms: [] as string[],
+      premiumLinksAccessLevel: "auto" as PremiumLinkAccessLevel,
       premiumLinks: "",
       status: "",
       tags: [] as string[],

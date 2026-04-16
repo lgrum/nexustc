@@ -1,6 +1,7 @@
 import {
   DOCUMENT_STATUSES,
   PATRON_TIER_KEYS,
+  PREMIUM_LINK_ACCESS_LEVELS,
   TAXONOMIES,
 } from "@repo/shared/constants";
 import {
@@ -180,6 +181,10 @@ export const accountRelations = relations(account, ({ one }) => ({
 
 export const postTypeEnum = pgEnum("post_type", ["post", "comic"]);
 export const documentStatusEnum = pgEnum("document_status", DOCUMENT_STATUSES);
+export const premiumLinksAccessLevelEnum = pgEnum(
+  "premium_links_access_level",
+  PREMIUM_LINK_ACCESS_LEVELS
+);
 export const engagementPromptSourceEnum = pgEnum("engagement_prompt_source", [
   "manual",
   "tag",
@@ -245,6 +250,11 @@ export const post = pgTable(
     id: text("id").primaryKey().$defaultFn(generateId),
     imageObjectKeys: jsonb("image_object_keys").$type<string[]>(),
     isWeekly: boolean("is_weekly").notNull().default(false),
+    premiumLinksAccessLevel: premiumLinksAccessLevelEnum(
+      "premium_links_access_level"
+    )
+      .notNull()
+      .default("auto"),
     premiumLinks: text("premium_links"),
     status: documentStatusEnum("status").notNull().default("draft"),
     title: text("title").notNull(),

@@ -643,6 +643,7 @@ export default {
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          premiumLinksAccessLevel: post.premiumLinksAccessLevel,
           rawPremiumLinks: post.premiumLinks,
           terms: sql<
             {
@@ -712,6 +713,7 @@ export default {
         earlyAccessPublicAt: _earlyAccessPublicAt,
         earlyAccessStartedAt: _earlyAccessStartedAt,
         earlyAccessVip12EndsAt: _earlyAccessVip12EndsAt,
+        premiumLinksAccessLevel,
         rawPremiumLinks,
         vip12EarlyAccessHours: _vip12EarlyAccessHours,
         vip8EarlyAccessHours: _vip8EarlyAccessHours,
@@ -732,11 +734,16 @@ export default {
 
         premiumLinksAccess = canAccessPremiumLinks(
           { role: context.session?.user.role, tier: viewerTier },
-          statusName
+          statusName,
+          premiumLinksAccessLevel
         )
           ? { content: rawPremiumLinks, status: "granted" }
           : {
-              requiredTierLabel: getRequiredTierLabel(viewerTier, statusName),
+              requiredTierLabel: getRequiredTierLabel(
+                viewerTier,
+                statusName,
+                premiumLinksAccessLevel
+              ),
               status:
                 viewerTier === "none"
                   ? "denied_need_patron"

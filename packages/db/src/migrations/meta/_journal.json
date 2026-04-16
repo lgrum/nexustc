@@ -190,6 +190,13 @@
       "when": 1776307234457,
       "tag": "0026_brown_darkhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1776343628278,
+      "tag": "0027_jazzy_black_queen",
+      "breakpoints": true
     }
   ]
 }

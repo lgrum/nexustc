@@ -41,6 +41,20 @@ export const DOCUMENT_STATUS_LABELS: Record<
 export const RATING_REVIEW_MAX_LENGTH = 512;
 export const MAX_PINNED_ITEMS_PER_POST = 3;
 
+export const PREMIUM_LINK_ACCESS_LEVELS = ["auto", "level1", "level3"] as const;
+
+export type PremiumLinkAccessLevel =
+  (typeof PREMIUM_LINK_ACCESS_LEVELS)[number];
+
+export const PREMIUM_LINK_ACCESS_LEVEL_LABELS: Record<
+  PremiumLinkAccessLevel,
+  string
+> = {
+  auto: "Automatico por estado",
+  level1: "VIP LvL 1+",
+  level3: "VIP LvL 3+",
+} as const;
+
 export const PREMIUM_STATUS_CATEGORIES = {
   completed: ["Finalizado", "Abandonado"],
   ongoing: ["En Progreso", "En Emision", "En Emisión"],
@@ -173,7 +187,8 @@ export function userMeetsTierLevel(
 
 export function canAccessPremiumLinks(
   user: { role?: string; tier: PatronTier },
-  postStatusName: string | undefined
+  postStatusName: string | undefined,
+  accessLevel: PremiumLinkAccessLevel = "auto"
 ): boolean {
   if (
     user.role === "owner" ||
@@ -181,6 +196,10 @@ export function canAccessPremiumLinks(
     user.role === "moderator"
   ) {
     return true;
+  }
+
+  if (accessLevel !== "auto") {
+    return userMeetsTierLevel(user, accessLevel);
   }
 
   const access = PATRON_TIERS[user.tier].premiumLinks;
@@ -214,8 +233,17 @@ export function canBookmark(
 
 export function getRequiredTierLabel(
   userTier: PatronTier,
-  postStatusName: string | undefined
+  postStatusName: string | undefined,
+  accessLevel: PremiumLinkAccessLevel = "auto"
 ): "LvL 1" | "LvL 3" | "LvL 5" {
+  if (accessLevel === "level1") {
+    return "LvL 1";
+  }
+
+  if (accessLevel === "level3") {
+    return "LvL 3";
+  }
+
   if (!postStatusName) {
     return "LvL 5";
   }

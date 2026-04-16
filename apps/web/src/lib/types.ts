@@ -20,6 +20,7 @@ export type PostType = Omit<
   | "earlyAccessPublicAt"
   | "earlyAccessStartedAt"
   | "earlyAccessVip12EndsAt"
+  | "premiumLinksAccessLevel"
   | "premiumLinks"
   | "status"
   | "vip12EarlyAccessHours"

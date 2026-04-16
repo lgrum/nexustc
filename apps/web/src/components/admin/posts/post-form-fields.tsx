@@ -1,5 +1,6 @@
 import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { PREMIUM_LINK_ACCESS_LEVEL_LABELS } from "@repo/shared/constants";
 import type { TAXONOMIES } from "@repo/shared/constants";
 import { useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -69,6 +70,13 @@ const DOCUMENT_STATUS_OPTIONS = [
   { label: "Borrador", value: "draft" },
   { label: "Basura", value: "trash" },
 ] as const;
+
+const PREMIUM_LINK_ACCESS_LEVEL_OPTIONS = Object.entries(
+  PREMIUM_LINK_ACCESS_LEVEL_LABELS
+).map(([value, label]) => ({
+  label,
+  value,
+}));
 
 const mapTermOptions = (terms?: PostTermOption[]) =>
   terms?.map((term) => ({
@@ -357,59 +365,14 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
         </div>
       </div>
 
-      <div className="col-span-2 space-x-2">
+      <div className="col-span-2 space-x-2 space-y-2">
         <HasPermissions permissions={{ shortener: ["use"] }}>
           <URLShortenerDialog />
         </HasPermissions>
         <GenerateMarkdownLinkDialog />
       </div>
 
-      <form.AppField name="censorship">
-        {(field) => (
-          <field.SelectField
-            label="Censura"
-            options={mapTermOptions(groupedTerms.censorship)}
-          />
-        )}
-      </form.AppField>
-
-      <form.AppField name="status">
-        {(field) => (
-          <field.SelectField
-            label="Estado"
-            options={mapTermOptions(groupedTerms.status)}
-          />
-        )}
-      </form.AppField>
-
-      <form.AppField name="engine">
-        {(field) => (
-          <field.SelectField
-            label="Motor"
-            options={mapTermOptions(groupedTerms.engine)}
-          />
-        )}
-      </form.AppField>
-
-      <form.AppField name="graphics">
-        {(field) => (
-          <field.SelectField
-            label="Gráficos"
-            options={mapTermOptions(groupedTerms.graphics)}
-          />
-        )}
-      </form.AppField>
-
-      <form.AppField name="platforms">
-        {(field) => (
-          <field.MultiSelectField
-            label="Plataformas"
-            options={mapTermOptions(groupedTerms.platform)}
-          />
-        )}
-      </form.AppField>
-
-      <div className="flex flex-row items-end gap-2">
+      <div className="flex flex-row col-span-2 items-end gap-2">
         <form.AppField name="tags">
           {(field) => (
             <field.MultiSelectField
@@ -442,6 +405,60 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
           </DialogContent>
         </Dialog>
       </div>
+
+      <form.AppField name="status">
+        {(field) => (
+          <field.SelectField
+            label="Estado"
+            options={mapTermOptions(groupedTerms.status)}
+          />
+        )}
+      </form.AppField>
+
+      <form.AppField name="premiumLinksAccessLevel">
+        {(field) => (
+          <field.SelectField
+            label="Acceso Links Premium"
+            options={PREMIUM_LINK_ACCESS_LEVEL_OPTIONS}
+          />
+        )}
+      </form.AppField>
+
+      <form.AppField name="censorship">
+        {(field) => (
+          <field.SelectField
+            label="Censura"
+            options={mapTermOptions(groupedTerms.censorship)}
+          />
+        )}
+      </form.AppField>
+
+      <form.AppField name="engine">
+        {(field) => (
+          <field.SelectField
+            label="Motor"
+            options={mapTermOptions(groupedTerms.engine)}
+          />
+        )}
+      </form.AppField>
+
+      <form.AppField name="graphics">
+        {(field) => (
+          <field.SelectField
+            label="Gráficos"
+            options={mapTermOptions(groupedTerms.graphics)}
+          />
+        )}
+      </form.AppField>
+
+      <form.AppField name="platforms">
+        {(field) => (
+          <field.MultiSelectField
+            label="Plataformas"
+            options={mapTermOptions(groupedTerms.platform)}
+          />
+        )}
+      </form.AppField>
 
       <form.AppField name="languages">
         {(field) => (

@@ -1,0 +1,2 @@
+CREATE TYPE "public"."premium_links_access_level" AS ENUM('auto', 'level1', 'level3');--> statement-breakpoint
+ALTER TABLE "post" ADD COLUMN "premium_links_access_level" "premium_links_access_level" DEFAULT 'auto' NOT NULL;

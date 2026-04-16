@@ -52,6 +52,7 @@ function RouteComponent() {
         oldPost.media?.map((item) => item.id) ?? []
       ),
       platforms: terms.platform?.map((term) => term.term.id) ?? [],
+      premiumLinksAccessLevel: oldPost.premiumLinksAccessLevel ?? "auto",
       premiumLinks: oldPost.premiumLinks ?? "",
       status: terms.status?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],

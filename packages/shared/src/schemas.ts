@@ -2,6 +2,7 @@ import * as z from "zod";
 
 import {
   DOCUMENT_STATUSES,
+  PREMIUM_LINK_ACCESS_LEVELS,
   RATING_REVIEW_MAX_LENGTH,
   TAXONOMIES,
 } from "./constants";
@@ -138,6 +139,7 @@ export const postCreateSchema = z.object({
   engine: z.string(),
   graphics: z.string(),
   platforms: z.array(z.string()),
+  premiumLinksAccessLevel: z.enum(PREMIUM_LINK_ACCESS_LEVELS),
   premiumLinks: z.string(),
   status: z.string().min(1, "Debe seleccionar un estado"),
   type: z.literal("post"),
