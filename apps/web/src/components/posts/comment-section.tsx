@@ -1,6 +1,13 @@
-import { Comment01Icon } from "@hugeicons/core-free-icons";
+import {
+  Comment01Icon,
+  Delete02Icon,
+  MoreHorizontalIcon,
+  PinIcon,
+} from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useConfirm } from "@omit/react-confirm-dialog";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
+import type { Role } from "@repo/shared/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
@@ -8,7 +15,6 @@ import { es } from "date-fns/locale";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { HasPermissions } from "@/components/auth/has-role";
 import {
   CommentContent,
   useEmojiStickerMaps,
@@ -25,13 +31,21 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
-import { UserLabel } from "@/components/users/user-label";
+import { authClient } from "@/lib/auth-client";
 import { orpcClient } from "@/lib/orpc";
 import type { EngagementPromptType } from "@/lib/types";
 
 import { SignedIn } from "../auth/signed-in";
 import { SignedOut } from "../auth/signed-out";
+import { ProfileNameplate } from "../profile/profile-nameplate";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { usePost } from "./post-context";
 
 type CommentSectionProps = {
@@ -45,9 +59,24 @@ export function CommentSection({
 }: CommentSectionProps) {
   const post = usePost();
   const queryClient = useQueryClient();
+  const { data: session } = authClient.useSession();
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
+  const confirm = useConfirm();
+  const role = session?.user.role as Role | undefined;
+  const canPinComments = role
+    ? authClient.admin.checkRolePermission({
+        permissions: { comments: ["pin"] },
+        role,
+      })
+    : false;
+  const canDeleteComments = role
+    ? authClient.admin.checkRolePermission({
+        permissions: { comments: ["delete"] },
+        role,
+      })
+    : false;
 
   const setPinnedMutation = useMutation({
     mutationFn: ({
@@ -68,6 +97,27 @@ export function CommentSection({
           ? message
           : `Ocurrio un error. ${message}`
       );
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["comments", post.id],
+      });
+    },
+  });
+
+  const deleteCommentMutation = useMutation({
+    mutationFn: ({
+      commentId,
+      isOwnComment,
+    }: {
+      commentId: string;
+      isOwnComment: boolean;
+    }) =>
+      isOwnComment
+        ? orpcClient.post.deleteOwnComment({ commentId })
+        : orpcClient.post.deleteComment({ commentId }),
+    onError: (error) => {
+      toast.error(`No se pudo eliminar el comentario. ${error}`);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -212,78 +262,131 @@ export function CommentSection({
                     author: NonNullable<typeof comment.author>;
                   } => comment.author !== null
                 )
-                .map((comment) => (
-                  <div
-                    className="group flex gap-4 border-border border-t p-4 first:border-t-0"
-                    key={comment.id}
-                  >
-                    <Link params={{ id: comment.author.id }} to="/user/$id">
-                      <ProfileAvatar
-                        className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105"
-                        user={comment.author}
-                      />
-                    </Link>
-                    <div className="flex min-w-0 flex-1 flex-col gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link params={{ id: comment.author.id }} to="/user/$id">
-                          <UserLabel
-                            className="font-semibold transition-colors hover:text-primary"
-                            user={comment.author}
-                          />
-                        </Link>
-                        {comment.pinnedAt && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary text-xs">
-                            Fijado
-                          </span>
-                        )}
-                        <span className="text-muted-foreground text-xs">•</span>
-                        <time className="text-muted-foreground text-xs">
-                          {format(comment.createdAt, "d MMM yyyy", {
-                            locale: es,
-                          })}
-                        </time>
-                        <HasPermissions permissions={{ comments: ["pin"] }}>
-                          <Button
-                            className="ml-auto"
-                            loading={
-                              setPinnedMutation.isPending &&
-                              setPinnedMutation.variables?.commentId ===
-                                comment.id
-                            }
-                            onClick={() =>
-                              setPinnedMutation.mutate({
-                                commentId: comment.id,
-                                pinned: comment.pinnedAt === null,
-                              })
-                            }
-                            size="xs"
-                            variant="ghost"
+                .map((comment) => {
+                  const isOwnComment = session?.user.id === comment.author.id;
+                  const canDeleteComment = canDeleteComments || isOwnComment;
+
+                  return (
+                    <div
+                      className="group flex gap-4 border-border border-t p-4 first:border-t-0"
+                      key={comment.id}
+                    >
+                      <Link params={{ id: comment.author.id }} to="/user/$id">
+                        <ProfileAvatar
+                          className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105"
+                          user={comment.author}
+                        />
+                      </Link>
+                      <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Link
+                            params={{ id: comment.author.id }}
+                            to="/user/$id"
                           >
-                            {comment.pinnedAt ? "Desfijar" : "Fijar"}
-                          </Button>
-                        </HasPermissions>
-                      </div>
-                      {comment.engagementPromptText && (
-                        <div className="rounded-2xl border border-primary/12 bg-primary/6 px-4 py-3">
-                          <div className="mb-2 font-semibold text-[11px] text-primary uppercase tracking-[0.22em]">
-                            Respuesta a la pregunta
-                          </div>
-                          <CommentContent
-                            className="font-medium text-sm text-foreground"
-                            content={comment.engagementPromptText}
-                            emojiMap={emojiMap}
-                            stickerMap={stickerMap}
-                          />
+                            <ProfileNameplate
+                              className="font-semibold transition-colors hover:text-primary"
+                              user={comment.author}
+                            />
+                          </Link>
+                          <span className="text-muted-foreground text-xs">
+                            •
+                          </span>
+                          <time className="text-muted-foreground text-xs">
+                            {format(comment.createdAt, "d MMM yyyy", {
+                              locale: es,
+                            })}
+                          </time>
+                          {comment.pinnedAt && (
+                            <span className="rounded-full bg-muted px-1 py-1 font-medium text-muted-foreground text-xs inline-flex items-center gap-1">
+                              <HugeiconsIcon
+                                className="size-5"
+                                icon={PinIcon}
+                              />
+                            </span>
+                          )}
+                          {(canPinComments || canDeleteComment) && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    className="ml-auto"
+                                    size="icon"
+                                    variant="ghost"
+                                  />
+                                }
+                              >
+                                <HugeiconsIcon icon={MoreHorizontalIcon} />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {canPinComments && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setPinnedMutation.mutate({
+                                        commentId: comment.id,
+                                        pinned: comment.pinnedAt === null,
+                                      })
+                                    }
+                                    variant={
+                                      comment.pinnedAt
+                                        ? "destructive"
+                                        : "default"
+                                    }
+                                  >
+                                    <HugeiconsIcon icon={PinIcon} />
+                                    {comment.pinnedAt ? "Desfijar" : "Fijar"}
+                                  </DropdownMenuItem>
+                                )}
+                                {canDeleteComment && canPinComments && (
+                                  <DropdownMenuSeparator />
+                                )}
+                                {canDeleteComment && (
+                                  <DropdownMenuItem
+                                    onClick={async () => {
+                                      if (
+                                        await confirm({
+                                          title: "Eliminar Comentario",
+                                          description:
+                                            "¿Estás seguro de que quieres eliminar este comentario? Esta acción no se puede deshacer.",
+                                        })
+                                      ) {
+                                        deleteCommentMutation.mutate({
+                                          commentId: comment.id,
+                                          isOwnComment,
+                                        });
+                                      }
+                                    }}
+                                    variant="destructive"
+                                  >
+                                    <HugeiconsIcon icon={Delete02Icon} />
+                                    Eliminar
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                         </div>
-                      )}
-                      <CommentContent
-                        content={comment.content}
-                        emojiMap={emojiMap}
-                        stickerMap={stickerMap}
-                      />
+                        {comment.engagementPromptText && (
+                          <div className="rounded-2xl border border-primary/12 bg-primary/6 px-4 py-3">
+                            <div className="mb-2 font-semibold text-[11px] text-primary uppercase tracking-[0.22em]">
+                              Respuesta a la pregunta
+                            </div>
+                            <CommentContent
+                              className="font-medium text-sm text-foreground"
+                              content={comment.engagementPromptText}
+                              emojiMap={emojiMap}
+                              stickerMap={stickerMap}
+                            />
+                          </div>
+                        )}
+                        <CommentContent
+                          content={comment.content}
+                          emojiMap={emojiMap}
+                          stickerMap={stickerMap}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
           </ScrollArea>
         )}

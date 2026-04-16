@@ -1085,6 +1085,68 @@ export default {
       return { success: true };
     }),
 
+  deleteComment: permissionProcedure({ comments: ["delete"] })
+    .input(z.object({ commentId: z.string() }))
+    .handler(async ({ context: { db, ...context }, input, errors }) => {
+      const logger = getLogger(context);
+      logger?.info(`Deleting comment ${input.commentId}`);
+
+      const existingComment = await db.query.comment.findFirst({
+        columns: {
+          id: true,
+        },
+        where: eq(comment.id, input.commentId),
+      });
+
+      if (!existingComment) {
+        throw errors.NOT_FOUND();
+      }
+
+      await db.delete(comment).where(eq(comment.id, input.commentId));
+
+      logger?.debug(`Comment ${input.commentId} deleted`);
+      return { success: true };
+    }),
+
+  deleteOwnComment: protectedProcedure
+    .input(z.object({ commentId: z.string() }))
+    .handler(
+      async ({ context: { db, session, ...context }, input, errors }) => {
+        const logger = getLogger(context);
+        logger?.info(
+          `User ${session.user.id} deleting own comment ${input.commentId}`
+        );
+
+        const existingComment = await db.query.comment.findFirst({
+          columns: {
+            authorId: true,
+            id: true,
+          },
+          where: eq(comment.id, input.commentId),
+        });
+
+        if (!existingComment) {
+          throw errors.NOT_FOUND();
+        }
+
+        if (existingComment.authorId !== session.user.id) {
+          throw errors.FORBIDDEN();
+        }
+
+        await db
+          .delete(comment)
+          .where(
+            and(
+              eq(comment.id, input.commentId),
+              eq(comment.authorId, session.user.id)
+            )
+          );
+
+        logger?.debug(`Own comment ${input.commentId} deleted`);
+        return { success: true };
+      }
+    ),
+
   getComments: publicProcedure
     .input(z.object({ postId: z.string() }))
     .handler(async ({ context: { db, ...context }, input, errors }) => {
