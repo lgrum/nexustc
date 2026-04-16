@@ -41,7 +41,7 @@ const navItems = [
   },
   { href: "/vip", icon: StarIcon, label: "VIP", search: {} },
   { href: "/news", icon: News01Icon, label: "Noticias", search: {} },
-  { href: "/chronos", icon: Clock01Icon, label: "Chronos", search: {} },
+  { href: "/chronos", icon: Clock01Icon, label: "TheChronos", search: {} },
 ] as const;
 
 export function Header() {
@@ -107,7 +107,7 @@ function NavItem({
       aria-current={isItemActive ? "page" : undefined}
       className={cn(
         "relative flex flex-row items-center justify-center gap-1 rounded-lg px-1 py-1 transition-colors duration-200",
-        "text-sm font-bold uppercase tracking-[0.2em] text-white/50 hover:text-primary transition-all relative group py-2",
+        "text-base tracking-[0.2em] text-white/50 hover:text-primary transition-all relative group py-2",
         isItemActive
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"

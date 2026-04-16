@@ -40,7 +40,7 @@ export function ProfileRoleBadges({
           <PopoverTrigger
             render={
               <button
-                className="relative inline-flex min-h-8 items-center gap-2 rounded-full border px-3 py-1.5 font-semibold text-xs"
+                className="relative inline-flex min-h-6 items-center gap-2 rounded-full border px-3 py-1 font-semibold text-xs"
                 type="button"
               />
             }

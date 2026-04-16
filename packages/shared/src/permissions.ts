@@ -82,7 +82,7 @@ const owner = ac.newRole({
   media: ["list"],
   notifications: ["create", "update", "delete", "list"],
   posts: ["create", "list", "update", "delete"],
-  comments: ["pin"],
+  comments: ["create", "self-update", "self-delete", "update", "delete", "pin"],
   ratings: ["create", "self-update", "self-delete", "delete", "pin"],
   shortener: ["use"],
   staticPages: ["update"],

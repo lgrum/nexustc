@@ -30,7 +30,6 @@ import { PostCard } from "../landing/post-card";
 import type { PostProps as PostCardProps } from "../landing/post-card";
 import { Markdown } from "../markdown";
 import { RatingDisplay } from "../ratings";
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
@@ -768,7 +767,11 @@ export function PostInfo() {
     hasContent && (
       <div className="flex flex-col gap-3">
         <div className="section-title">Acerca De</div>
-        <Markdown>{post.content}</Markdown>
+        <Card>
+          <CardContent>
+            <Markdown>{post.content}</Markdown>
+          </CardContent>
+        </Card>
       </div>
     )
   );
@@ -814,7 +817,7 @@ export function PostContent() {
               {hasPremium && (
                 <TabsTrigger className="gap-2" value="premium">
                   <HugeiconsIcon className="size-4" icon={StarIcon} />
-                  Premium
+                  VIP
                 </TabsTrigger>
               )}
             </TabsList>
@@ -1010,31 +1013,19 @@ export function CreatorSupportCard() {
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
-      className="group relative block overflow-hidden border border-border bg-card p-0.5 transition-shadow hover:shadow-lg hover:shadow-primary/10"
+      className="group relative block overflow-hidden animate-pulse rounded-full bg-linear-to-br from-primary/50 via-secondary/50 to-accent/50 p-0.5 transition-shadow hover:shadow-lg hover:shadow-primary/10"
       href={post.creatorLink}
       rel="noopener"
       target="_blank"
     >
-      {/* Animated gradient border */}
-      <div className="absolute inset-0 animate-pulse bg-linear-to-r from-primary via-secondary to-accent" />
-
       {/* Inner content */}
-      <div className="relative flex items-center gap-4 bg-card p-4">
+      <div className="relative flex items-center gap-4">
         {post.creatorAvatarObjectKey ? (
-          <Avatar className="size-12 shrink-0" size="lg">
-            <AvatarImage
-              alt={post.creatorName || "Avatar del creador"}
-              src={getBucketUrl(post.creatorAvatarObjectKey)}
-            />
-            <AvatarFallback>
-              {(post.creatorName || "CR")
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((part) => part[0]?.toUpperCase() ?? "")
-                .join("")}
-            </AvatarFallback>
-          </Avatar>
+          <img
+            alt={post.creatorName || "Avatar del creador"}
+            src={getBucketUrl(post.creatorAvatarObjectKey)}
+            className="shrink-0 size-16 aspect-square rounded-full ring-1 ring-accent"
+          />
         ) : (
           <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
             <HugeiconsIcon
@@ -1044,13 +1035,11 @@ export function CreatorSupportCard() {
           </div>
         )}
         <div className="flex flex-col gap-0.5">
-          <span className="font-[Lexend] font-bold text-base">
+          <span className="font-[Lexend] font-bold uppercase">
             Apoya al Creador
           </span>
           {post.creatorName && (
-            <span className="text-muted-foreground text-sm">
-              {post.creatorName}
-            </span>
+            <span className="text-primary">{post.creatorName}</span>
           )}
         </div>
       </div>

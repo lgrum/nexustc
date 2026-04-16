@@ -280,7 +280,7 @@ function NotificationPanel({
             onClick={onMarkAllRead}
             type="button"
           >
-            Marcar todo
+            Leer todo
           </button>
         </div>
         <div className="py-3 flex items-center gap-2 text-muted-foreground text-xs uppercase tracking-[0.22em]">
@@ -303,12 +303,12 @@ function NotificationPanel({
                 emptyCopy={
                   filter === "unread"
                     ? "Cuando haya alertas nuevas aparecerán aquí, listas para revisar sin ruido."
-                    : "Tu bandeja aparecerá aquí cuando empiecen a publicarse anuncios, noticias y updates del contenido que sigues."
+                    : "Ya sabes… lo bueno siempre llega sin avisar. Anuncios, noticias y updates del contenido que sigues aparecerán por aquí!"
                 }
                 emptyTitle={
                   filter === "unread"
                     ? "No tienes notificaciones pendientes"
-                    : "Tu bandeja está tranquila"
+                    : "Hoy está demasiado calmado..."
                 }
                 isMarking={readActionPending}
                 items={items}

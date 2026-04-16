@@ -40,7 +40,7 @@ export function ProfileNameplate({
 }) {
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="inline-flex min-w-0 items-center flex-row gap-2">
         <p className={cn("truncate font-semibold", nameClassName)}>
           {user.name}
         </p>
