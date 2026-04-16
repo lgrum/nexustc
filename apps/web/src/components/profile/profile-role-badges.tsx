@@ -9,7 +9,6 @@ import { cn, getBucketUrl } from "@/lib/utils";
 
 type ProfileRole = {
   id: string;
-  slug: string;
   name: string;
   description: string;
   visualConfig: {
@@ -19,7 +18,9 @@ type ProfileRole = {
     glowColor: string | null;
   };
   icon?: { objectKey: string; isAnimated: boolean } | null;
+  iconAsset?: { objectKey: string; isAnimated: boolean } | null;
   overlay?: { objectKey: string; isAnimated: boolean } | null;
+  overlayAsset?: { objectKey: string; isAnimated: boolean } | null;
 };
 
 export function ProfileRoleBadges({
@@ -35,53 +36,58 @@ export function ProfileRoleBadges({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {roles.map((role) => (
-        <Popover key={role.id}>
-          <PopoverTrigger
-            render={
-              <button
-                className="relative inline-flex min-h-6 items-center gap-2 rounded-full border px-3 py-1 font-semibold text-xs"
-                type="button"
-              />
-            }
-            style={{
-              background: role.visualConfig.accentColor
-                ? `linear-gradient(135deg, ${role.visualConfig.baseColor}, ${role.visualConfig.accentColor})`
-                : role.visualConfig.baseColor,
-              borderColor:
-                role.visualConfig.glowColor ?? role.visualConfig.baseColor,
-              boxShadow: role.visualConfig.glowColor
-                ? `0 0 0 1px ${role.visualConfig.glowColor}33, 0 6px 18px ${role.visualConfig.glowColor}40`
-                : undefined,
-              color: role.visualConfig.textColor,
-            }}
-          >
-            {role.icon && (
-              <img
-                alt=""
-                aria-hidden="true"
-                className="size-4 rounded-full object-cover"
-                src={getBucketUrl(role.icon.objectKey)}
-              />
-            )}
-            <span>{role.name}</span>
-            {role.overlay && (
-              <img
-                alt=""
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-0 size-full rounded-full object-cover opacity-25"
-                src={getBucketUrl(role.overlay.objectKey)}
-              />
-            )}
-          </PopoverTrigger>
-          <PopoverContent className="w-64">
-            <PopoverHeader>
-              <PopoverTitle>{role.name}</PopoverTitle>
-            </PopoverHeader>
-            {role.description ? <p>{role.description}</p> : null}
-          </PopoverContent>
-        </Popover>
-      ))}
+      {roles.map((role) => {
+        const icon = role.icon ?? role.iconAsset;
+        const overlay = role.overlay ?? role.overlayAsset;
+
+        return (
+          <Popover key={role.id}>
+            <PopoverTrigger
+              render={
+                <button
+                  className="relative inline-flex min-h-6 items-center gap-2 rounded-full border px-3 py-1 font-semibold text-xs"
+                  type="button"
+                />
+              }
+              style={{
+                background: role.visualConfig.accentColor
+                  ? `linear-gradient(135deg, ${role.visualConfig.baseColor}, ${role.visualConfig.accentColor})`
+                  : role.visualConfig.baseColor,
+                borderColor:
+                  role.visualConfig.glowColor ?? role.visualConfig.baseColor,
+                boxShadow: role.visualConfig.glowColor
+                  ? `0 0 0 1px ${role.visualConfig.glowColor}33, 0 6px 18px ${role.visualConfig.glowColor}40`
+                  : undefined,
+                color: role.visualConfig.textColor,
+              }}
+            >
+              {icon && (
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="size-4 rounded-full object-cover"
+                  src={getBucketUrl(icon.objectKey)}
+                />
+              )}
+              <span>{role.name}</span>
+              {overlay && (
+                <img
+                  alt=""
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 size-full rounded-full object-cover opacity-25"
+                  src={getBucketUrl(overlay.objectKey)}
+                />
+              )}
+            </PopoverTrigger>
+            <PopoverContent className="w-64">
+              <PopoverHeader>
+                <PopoverTitle>{role.name}</PopoverTitle>
+              </PopoverHeader>
+              {role.description ? <p>{role.description}</p> : null}
+            </PopoverContent>
+          </Popover>
+        );
+      })}
     </div>
   );
 }

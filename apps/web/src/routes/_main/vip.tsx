@@ -40,7 +40,7 @@ function RouteComponent() {
     <main className="flex flex-col gap-8 px-4 py-6">
       <MembershipUpgradeExperience />
 
-      <section className="overflow-hidden rounded-[36px] border border-amber-400/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.16),transparent_26%),linear-gradient(135deg,rgba(9,13,28,0.98),rgba(41,16,55,0.94))] p-6 shadow-[0_36px_120px_-68px_rgba(251,191,36,0.95)] md:p-8">
+      <section className="animate-scale-pulse overflow-hidden rounded-[36px] ring-2 ring-primary shadow-glow-primary bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.16),transparent_26%),linear-gradient(135deg,rgba(9,13,28,0.98),rgba(41,16,55,0.94))] p-6 md:p-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
           <div className="space-y-5">
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-amber-100 text-xs uppercase tracking-[0.26em]">
@@ -50,9 +50,9 @@ function RouteComponent() {
 
             <div className="space-y-3">
               <h2 className="max-w-3xl font-[Lexend] font-bold text-4xl text-white leading-[1.02] md:text-5xl">
-                Mira lo nuevo primero.
-                <br />
                 Juega antes.
+                <br />
+                Sin anuncios.
               </h2>
             </div>
           </div>

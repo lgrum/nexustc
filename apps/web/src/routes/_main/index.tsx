@@ -25,6 +25,7 @@ import { PostCard } from "@/components/landing/post-card";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { TermBadge } from "@/components/term-badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
 import { useTerms } from "@/hooks/use-terms";
@@ -233,19 +234,21 @@ function ActiveUsersSection() {
       {!!recentUsers.error && (
         <p className="text-red-500 text-sm">Error: {recentUsers.error.code}</p>
       )}
-      <div className="flex flex-wrap gap-2">
-        {recentUsers.data?.map((user) => (
-          <Link
-            className="flex items-center gap-1.5 border rounded-xl border-border bg-card px-2.5 py-1.5"
-            key={user.id}
-            params={{ id: user.id }}
-            to="/user/$id"
-          >
-            <ProfileAvatar className="size-8" user={user} />
-            <UserLabel user={user} />
-          </Link>
-        ))}
-      </div>
+      <Card className="py-2">
+        <CardContent className="flex flex-col gap-2 px-2">
+          {recentUsers.data?.map((user) => (
+            <Link
+              className="relative flex items-center gap-1.5 rounded-md py-1.5 px-2 hover:bg-accent transition-colors data-[active=true]:bg-accent"
+              key={user.id}
+              params={{ id: user.id }}
+              to="/user/$id"
+            >
+              <ProfileAvatar className="size-8" user={user} />
+              <UserLabel user={user} />
+            </Link>
+          ))}
+        </CardContent>
+      </Card>
     </section>
   );
 }

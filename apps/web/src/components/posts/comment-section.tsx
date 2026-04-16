@@ -367,9 +367,6 @@ export function CommentSection({
                         </div>
                         {comment.engagementPromptText && (
                           <div className="rounded-2xl border border-primary/12 bg-primary/6 px-4 py-3">
-                            <div className="mb-2 font-semibold text-[11px] text-primary uppercase tracking-[0.22em]">
-                              Respuesta a la pregunta
-                            </div>
                             <CommentContent
                               className="font-medium text-sm text-foreground"
                               content={comment.engagementPromptText}

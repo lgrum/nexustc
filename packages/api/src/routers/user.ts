@@ -28,19 +28,9 @@ import {
   publicProcedure,
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
-import { buildProfileSummaries } from "../services/profile";
 
-const RECENT_USERS_CACHE_TTL_SECONDS = 60 * 5; // 5 minutes
-
-// Future improvement: tighten the recent-user cache strategy.
-// const recentUserSchema = z.object({
-//   id: z.string(),
-//   name: z.string(),
-//   image: z.string().nullable(),
-//   role: z.string(),
-// });
-
-// const recentUsersListSchema = z.array(recentUserSchema);
+const RECENT_USERS_WINDOW_SECONDS = 60 * 10;
+const RECENT_USERS_LIMIT = 24;
 
 export default {
   getBookmarks: protectedProcedure.handler(
@@ -289,21 +279,8 @@ export default {
     }
   ),
 
-  // Cache recent users in KV to avoid hitting the database too often
-  // This is a best-effort cache, so we don't need to be super strict about it
-  // The list is not guaranteed to be perfectly up-to-date
-  // We use a cutoff window to avoid caching users that are no longer active
-  // We double the cutoff window to account for the fact that the cache might be stale
-  // So we want to make sure we don't miss any users that are still considered "recent"
-  // This is a trade-off between freshness and performance
-  // In practice, this means that if a user was active within the last 10 minutes, they will be included in the list
-  // Even if the cache is up to 5 minutes stale
-  // This should be good enough for our use case
-
   getRecentUsers: publicProcedure.handler(
-    async ({
-      context: { db, session, ...ctx },
-    }): Promise<Awaited<ReturnType<typeof buildProfileSummaries>>> => {
+    async ({ context: { db, session, ...ctx } }) => {
       const logger = getLogger(ctx);
       logger?.info("Fetching recent users list");
 
@@ -317,28 +294,90 @@ export default {
           .where(eq(user.id, currentUser.id));
       }
 
-      logger?.debug(
-        "Cache miss or invalid, fetching recent users from database"
+      logger?.debug("Fetching recent users from database");
+
+      const now = new Date();
+      const recentCutoff = new Date(
+        Date.now() - 1000 * RECENT_USERS_WINDOW_SECONDS
       );
 
-      const users = await db.query.user.findMany({
+      const recentUsers = await db.query.user.findMany({
         columns: {
+          avatarFallbackColor: true,
           id: true,
+          image: true,
+          name: true,
         },
-        where: (u, { gte }) =>
-          gte(
-            u.lastSeenAt,
-            new Date(Date.now() - 1000 * RECENT_USERS_CACHE_TTL_SECONDS * 2)
-          ),
+        limit: RECENT_USERS_LIMIT,
+        orderBy: (users, { desc }) => [desc(users.lastSeenAt)],
+        where: (users, { gte: greaterThanOrEqual }) =>
+          greaterThanOrEqual(users.lastSeenAt, recentCutoff),
+        with: {
+          profileRoleAssignments: {
+            columns: {
+              endsAt: true,
+              id: true,
+              isVisible: true,
+              startsAt: true,
+            },
+            orderBy: (assignments, { desc }) => [desc(assignments.createdAt)],
+            where: (
+              assignments,
+              {
+                and: all,
+                eq: equals,
+                gte: greaterThanOrEqual,
+                isNull,
+                lte: lessThanOrEqual,
+                or: any,
+              }
+            ) =>
+              all(
+                equals(assignments.isVisible, true),
+                any(
+                  isNull(assignments.startsAt),
+                  lessThanOrEqual(assignments.startsAt, now)
+                ),
+                any(
+                  isNull(assignments.endsAt),
+                  greaterThanOrEqual(assignments.endsAt, now)
+                )
+              ),
+            with: {
+              roleDefinition: {
+                columns: {
+                  description: true,
+                  id: true,
+                  isActive: true,
+                  isExclusive: true,
+                  isVisible: true,
+                  name: true,
+                  priority: true,
+                  slug: true,
+                  visualConfig: true,
+                },
+                with: {
+                  iconAsset: {
+                    columns: {
+                      isAnimated: true,
+                      objectKey: true,
+                    },
+                  },
+                  overlayAsset: {
+                    columns: {
+                      isAnimated: true,
+                      objectKey: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
       });
 
-      const summaries = await buildProfileSummaries(
-        db,
-        users.map((current) => current.id)
-      );
-
-      logger?.debug("Fetched recent profile summaries");
-      return summaries;
+      logger?.debug(`Fetched ${recentUsers.length} recent users`);
+      return recentUsers;
     }
   ),
 

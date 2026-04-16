@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "facehash";
 
-import { cn, getBucketUrl, getFacehashProps } from "@/lib/utils";
+import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
 export function ProfileAvatar({
   user,
@@ -12,7 +12,6 @@ export function ProfileAvatar({
     avatar?: {
       objectKey: string;
     } | null;
-    avatarFallbackColor?: string | null;
   };
   className?: string;
 }) {
@@ -25,7 +24,7 @@ export function ProfileAvatar({
       />
       <AvatarFallback
         className="rounded-full"
-        facehashProps={getFacehashProps(user.avatarFallbackColor)}
+        facehashProps={defaultFacehashProps}
         name={user.name}
       />
     </Avatar>

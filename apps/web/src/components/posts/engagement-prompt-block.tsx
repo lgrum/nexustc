@@ -1,3 +1,5 @@
+import { SentIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 
 import type { EngagementPromptType } from "@/lib/types";
@@ -133,15 +135,12 @@ export function EngagementPromptBlock({
 
   return (
     <section aria-label="Disparador de debate" ref={containerRef}>
-      <Card className="flex min-h-28 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-muted/60 via-card to-muted/20">
+      <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-muted/60 via-card to-muted/20">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-1 flex-col gap-3">
-            <div className="font-semibold text-[11px] text-muted-foreground/80 uppercase tracking-[0.22em]">
-              Debate del post
-            </div>
             <p
               className={cn(
-                "max-w-3xl text-balance font-[Outfit] text-base text-foreground leading-relaxed transition-opacity md:text-lg",
+                "max-w-3xl text-balance font-[Lexend] text-base text-foreground leading-relaxed transition-opacity md:text-lg",
                 prefersReducedMotion ? "duration-0" : "duration-250",
                 isFading ? "opacity-0" : "opacity-100"
               )}
@@ -155,8 +154,9 @@ export function EngagementPromptBlock({
               onClick={() => onAnswerPrompt(currentPrompt)}
               type="button"
               variant="secondary"
+              size="lg"
             >
-              Responder
+              <HugeiconsIcon className="size-4" icon={SentIcon} /> Responder
             </Button>
           )}
         </div>
