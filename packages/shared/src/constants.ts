@@ -56,8 +56,10 @@ export type PremiumLinksAccess =
 export type PremiumLinksDescriptor =
   | { status: "no_premium_links" }
   | { status: "granted"; content: string }
-  | { status: "denied_need_patron" }
-  | { status: "denied_need_upgrade"; requiredTierLabel: string };
+  | {
+      status: "denied_need_patron" | "denied_need_upgrade";
+      requiredTierLabel: "LvL 1" | "LvL 3" | "LvL 5";
+    };
 
 export const ROLE_LABELS: Record<string, string> = {
   shortener: "Acortador",
@@ -213,7 +215,7 @@ export function canBookmark(
 export function getRequiredTierLabel(
   userTier: PatronTier,
   postStatusName: string | undefined
-): string {
+): "LvL 1" | "LvL 3" | "LvL 5" {
   if (!postStatusName) {
     return "LvL 5";
   }

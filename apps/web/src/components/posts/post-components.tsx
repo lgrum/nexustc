@@ -209,38 +209,42 @@ export function PostStatsBar() {
             value={updatedAt}
           />
         </CardContent>
-        <CardFooter className="flex flex-wrap items-center justify-around gap-2">
-          <FollowButton contentId={post.id} />
-          <BookmarkButton postId={post.id} />
-          <LikeButton postId={post.id} />
+        <CardFooter className="grid grid-rows-2 lg:grid-rows-1 lg:grid-cols-[1fr_auto] items-center gap-4">
           {!post.earlyAccess.isActive && (
             <Button
-              className="ring-2 ring-yellow-500 bg-yellow-500/50 text-white shadow-glow-[oklch(59.5%_0.184_86.047)] hover:shadow-glow-[oklch(79.5%_0.184_86.047)] hover:scale-105"
+              className="grow h-full lg:text-lg! ring-2 animate-scale-pulse ring-yellow-500 bg-yellow-500/50 text-white shadow-glow-yellow-500/80 hover:shadow-glow-yellow-500 hover:scale-101"
               nativeButton={false}
               render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
+              size="lg"
             >
               <RatingDisplay
                 averageRating={post.averageRating ?? 0}
                 ratingCount={post.ratingCount}
                 variant="compact"
               />
+              Deja tu Opinión
             </Button>
           )}
-          <Tooltip>
-            <TooltipTrigger
-              onClick={handleShare}
-              render={
-                <Button
-                  variant="secondary"
-                  className="ring-2 ring-purple-500 hover:bg-purple-500/80 bg-purple-500/50 text-white shadow-glow-[oklch(62.7%_0.265_303.9)] hover:shadow-glow-[oklch(62.7%_0.265_303.9)] hover:scale-105"
-                />
-              }
-            >
-              <HugeiconsIcon className="size-4" icon={Share08Icon} />
-              Compartir
-            </TooltipTrigger>
-            <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
-          </Tooltip>
+          <div className="shrink grid grid-cols-2 gap-2">
+            <LikeButton postId={post.id} />
+            <BookmarkButton postId={post.id} />
+            <FollowButton contentId={post.id} />
+            <Tooltip>
+              <TooltipTrigger
+                onClick={handleShare}
+                render={
+                  <Button
+                    variant="secondary"
+                    className="ring-2 ring-purple-500 hover:bg-purple-500/80 bg-purple-500/50 text-white shadow-glow-purple-500/80 hover:shadow-glow-purple-500 hover:scale-105"
+                  />
+                }
+              >
+                <HugeiconsIcon className="size-4" icon={Share08Icon} />
+                Compartir
+              </TooltipTrigger>
+              <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
+            </Tooltip>
+          </div>
         </CardFooter>
       </Card>
     </div>
@@ -804,8 +808,8 @@ export function PostContent() {
   return (
     <div className="flex flex-col gap-3">
       <div className="section-title">Descargas</div>
-      <Card>
-        <Tabs className="w-full" defaultValue={defaultTab}>
+      <Card className="pb-6">
+        <Tabs className="w-full gap-6" defaultValue={defaultTab}>
           <CardHeader>
             <TabsList className="w-full justify-start">
               {hasDownloadLinks && (
@@ -899,18 +903,23 @@ function PremiumLinksContent({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded border border-primary/30 border-dashed bg-linear-to-br from-primary/5 to-secondary/5 py-16">
+    <div className="flex flex-col items-center justify-center gap-4 rounded ring-2 ring-primary shadow-glow-primary/50 bg-linear-to-br from-primary/5 to-secondary/5 py-16">
       <div className="rounded-full bg-muted p-4">
         <HugeiconsIcon
           className="size-8 text-muted-foreground"
           icon={StarIcon}
         />
       </div>
-      <p className="text-center text-muted-foreground">
-        {descriptor.status === "denied_need_patron"
-          ? "Hazte patrocinador para acceder a los enlaces premium"
-          : `Necesitas ${descriptor.requiredTierLabel} o superior para acceder a estos enlaces`}
-      </p>
+      <section className="text-center text-muted-foreground">
+        <p className="text-base">
+          Necesitas {descriptor.requiredTierLabel} o superior para acceder a
+          estos enlaces
+        </p>
+        {descriptor.requiredTierLabel !== "LvL 5" && (
+          <p>VIP LvL 5 o superior también funcionan!</p>
+        )}
+      </section>
+      <Button>Comparar Rangos</Button>
     </div>
   );
 }
@@ -1013,7 +1022,7 @@ export function CreatorSupportCard() {
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
-      className="group relative block overflow-hidden animate-pulse rounded-full bg-linear-to-br from-primary/50 via-secondary/50 to-accent/50 p-0.5 transition-shadow hover:shadow-lg hover:shadow-primary/10"
+      className="group relative block overflow-hidden animate-scale-pulse ring-2 ring-secondary shadow-glow-secondary transition-all hover:scale-105 rounded-full bg-linear-to-br from-primary/50 via-secondary/50 to-accent/50 hover:shadow-lg hover:shadow-primary/10"
       href={post.creatorLink}
       rel="noopener"
       target="_blank"
@@ -1024,7 +1033,7 @@ export function CreatorSupportCard() {
           <img
             alt={post.creatorName || "Avatar del creador"}
             src={getBucketUrl(post.creatorAvatarObjectKey)}
-            className="shrink-0 size-16 aspect-square rounded-full ring-1 ring-accent"
+            className="shrink-0 size-16 aspect-square"
           />
         ) : (
           <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">

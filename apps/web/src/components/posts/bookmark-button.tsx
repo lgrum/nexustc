@@ -34,7 +34,7 @@ function BookmarkButtonUI({
   return (
     <Button
       className={cn(
-        "text-white ring-2 hover:bg-blue-600/80 shadow-glow-[oklch(44.6%_0.245_262.881)] hover:shadow-glow-[oklch(54.6%_0.245_262.881)] hover:scale-105",
+        "text-white ring-2 hover:bg-blue-600/80 shadow-glow-blue-600/80 hover:shadow-glow-blue-600 hover:scale-105",
         isBookmarked
           ? "ring-blue-600 bg-blue-600/50"
           : "ring-blue-800 bg-blue-600/30"

@@ -220,13 +220,32 @@
   }
 }
 
+@keyframes scale-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+@utility animate-scale-pulse {
+  animation: scale-pulse 1.5s ease-in-out infinite;
+}
+
 @utility shadow-glow-* {
-  --glow-color: --value([color]);
+  --glow-color: --value(--color-*, [color]);
+
+  --glow-opacity: 100%;
+  --glow-opacity: calc(--modifier(integer) * 1%);
+  --glow-opacity: --modifier([percentage]);
 
   --tw-shadow:
-    0 30px 60px -10px --alpha(var(--glow-color) / 60%),
-    0 0 30px --alpha(var(--glow-color) / 50%),
-    0 0 80px --alpha(var(--glow-color) / 35%);
+    0 30px 60px -10px
+      --alpha(var(--glow-color) / calc(var(--glow-opacity, 100%) * 0.6)),
+    0 0 30px --alpha(var(--glow-color) / calc(var(--glow-opacity, 100%) * 0.5)),
+    0 0 80px --alpha(var(--glow-color) / calc(var(--glow-opacity, 100%) * 0.35));
 
   box-shadow:
     var(--tw-inset-shadow), var(--tw-inset-ring-shadow),

@@ -730,21 +730,18 @@ export default {
         const statusTerm = postData.terms.find((t) => t.taxonomy === "status");
         const statusName = statusTerm?.name;
 
-        if (
-          canAccessPremiumLinks(
-            { role: context.session?.user.role, tier: viewerTier },
-            statusName
-          )
-        ) {
-          premiumLinksAccess = { content: rawPremiumLinks, status: "granted" };
-        } else if (viewerTier === "none") {
-          premiumLinksAccess = { status: "denied_need_patron" };
-        } else {
-          premiumLinksAccess = {
-            requiredTierLabel: getRequiredTierLabel(viewerTier, statusName),
-            status: "denied_need_upgrade",
-          };
-        }
+        premiumLinksAccess = canAccessPremiumLinks(
+          { role: context.session?.user.role, tier: viewerTier },
+          statusName
+        )
+          ? { content: rawPremiumLinks, status: "granted" }
+          : {
+              requiredTierLabel: getRequiredTierLabel(viewerTier, statusName),
+              status:
+                viewerTier === "none"
+                  ? "denied_need_patron"
+                  : "denied_need_upgrade",
+            };
       } else {
         premiumLinksAccess = { status: "no_premium_links" };
       }

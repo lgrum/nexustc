@@ -34,7 +34,7 @@ function LikeButtonUI({
   return (
     <Button
       className={cn(
-        "text-white ring-2 hover:scale-105 hover:bg-rose-600/80 shadow-glow-[oklch(38.6%_0.253_17.585)] hover:shadow-glow-[oklch(58.6%_0.253_17.585)]",
+        "text-white ring-2 hover:scale-105 hover:bg-rose-600/80 shadow-glow-rose-600/80 hover:shadow-glow-rose-600",
         isLiked
           ? "ring-rose-600 bg-rose-600/50"
           : "ring-rose-800 bg-rose-600/30"
