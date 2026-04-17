@@ -739,6 +739,7 @@ export default {
         )
           ? { content: rawPremiumLinks, status: "granted" }
           : {
+              isManualAccessLevel: premiumLinksAccessLevel !== "auto",
               requiredTierLabel: getRequiredTierLabel(
                 viewerTier,
                 statusName,

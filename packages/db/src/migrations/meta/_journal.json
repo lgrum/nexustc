@@ -197,6 +197,13 @@
       "when": 1776343628278,
       "tag": "0027_jazzy_black_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1776423463056,
+      "tag": "0028_sour_human_cannonball",
+      "breakpoints": true
     }
   ]
 }

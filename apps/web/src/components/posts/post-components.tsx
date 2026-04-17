@@ -915,9 +915,10 @@ function PremiumLinksContent({
           Necesitas {descriptor.requiredTierLabel} o superior para acceder a
           estos enlaces
         </p>
-        {descriptor.requiredTierLabel !== "LvL 5" && (
-          <p>VIP LvL 5 o superior también funcionan!</p>
-        )}
+        {!(
+          descriptor.isManualAccessLevel ||
+          descriptor.requiredTierLabel === "LvL 5"
+        ) && <p>VIP LvL 5 o superior también funcionan!</p>}
       </section>
       <Button>Comparar Rangos</Button>
     </div>

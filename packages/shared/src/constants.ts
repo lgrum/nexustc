@@ -41,10 +41,26 @@ export const DOCUMENT_STATUS_LABELS: Record<
 export const RATING_REVIEW_MAX_LENGTH = 512;
 export const MAX_PINNED_ITEMS_PER_POST = 3;
 
-export const PREMIUM_LINK_ACCESS_LEVELS = ["auto", "level1", "level3"] as const;
+export const PREMIUM_LINK_ACCESS_LEVELS = [
+  "auto",
+  "level1",
+  "level3",
+  "level5",
+  "level8",
+  "level12",
+  "level69",
+] as const;
 
 export type PremiumLinkAccessLevel =
   (typeof PREMIUM_LINK_ACCESS_LEVELS)[number];
+
+export type PremiumLinksRequiredTierLabel =
+  | "LvL 1"
+  | "LvL 3"
+  | "LvL 5"
+  | "LvL 8"
+  | "LvL 12"
+  | "LvL 69";
 
 export const PREMIUM_LINK_ACCESS_LEVEL_LABELS: Record<
   PremiumLinkAccessLevel,
@@ -52,7 +68,23 @@ export const PREMIUM_LINK_ACCESS_LEVEL_LABELS: Record<
 > = {
   auto: "Automatico por estado",
   level1: "VIP LvL 1+",
+  level12: "VIP LvL 12+",
   level3: "VIP LvL 3+",
+  level5: "VIP LvL 5+",
+  level69: "VIP LvL 69",
+  level8: "VIP LvL 8+",
+} as const;
+
+const PREMIUM_LINK_ACCESS_REQUIRED_TIER_LABELS: Record<
+  Exclude<PremiumLinkAccessLevel, "auto">,
+  PremiumLinksRequiredTierLabel
+> = {
+  level1: "LvL 1",
+  level12: "LvL 12",
+  level3: "LvL 3",
+  level5: "LvL 5",
+  level69: "LvL 69",
+  level8: "LvL 8",
 } as const;
 
 export const PREMIUM_STATUS_CATEGORIES = {
@@ -71,8 +103,9 @@ export type PremiumLinksDescriptor =
   | { status: "no_premium_links" }
   | { status: "granted"; content: string }
   | {
+      isManualAccessLevel?: boolean;
       status: "denied_need_patron" | "denied_need_upgrade";
-      requiredTierLabel: "LvL 1" | "LvL 3" | "LvL 5";
+      requiredTierLabel: PremiumLinksRequiredTierLabel;
     };
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -235,13 +268,9 @@ export function getRequiredTierLabel(
   userTier: PatronTier,
   postStatusName: string | undefined,
   accessLevel: PremiumLinkAccessLevel = "auto"
-): "LvL 1" | "LvL 3" | "LvL 5" {
-  if (accessLevel === "level1") {
-    return "LvL 1";
-  }
-
-  if (accessLevel === "level3") {
-    return "LvL 3";
+): PremiumLinksRequiredTierLabel {
+  if (accessLevel !== "auto") {
+    return PREMIUM_LINK_ACCESS_REQUIRED_TIER_LABELS[accessLevel];
   }
 
   if (!postStatusName) {

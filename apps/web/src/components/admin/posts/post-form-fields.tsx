@@ -1,6 +1,9 @@
 import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PREMIUM_LINK_ACCESS_LEVEL_LABELS } from "@repo/shared/constants";
+import {
+  PREMIUM_LINK_ACCESS_LEVEL_LABELS,
+  PREMIUM_LINK_ACCESS_LEVELS,
+} from "@repo/shared/constants";
 import type { TAXONOMIES } from "@repo/shared/constants";
 import { useStore } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -71,12 +74,12 @@ const DOCUMENT_STATUS_OPTIONS = [
   { label: "Basura", value: "trash" },
 ] as const;
 
-const PREMIUM_LINK_ACCESS_LEVEL_OPTIONS = Object.entries(
-  PREMIUM_LINK_ACCESS_LEVEL_LABELS
-).map(([value, label]) => ({
-  label,
-  value,
-}));
+const PREMIUM_LINK_ACCESS_LEVEL_OPTIONS = PREMIUM_LINK_ACCESS_LEVELS.map(
+  (value) => ({
+    label: PREMIUM_LINK_ACCESS_LEVEL_LABELS[value],
+    value,
+  })
+);
 
 const mapTermOptions = (terms?: PostTermOption[]) =>
   terms?.map((term) => ({

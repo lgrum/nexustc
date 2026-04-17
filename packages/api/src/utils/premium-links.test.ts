@@ -34,4 +34,38 @@ describe("premium links access helpers", () => {
       "LvL 3"
     );
   });
+
+  it("allows the selected manual VIP level and every tier above it", () => {
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level5" },
+        "Finalizado",
+        "level8"
+      )
+    ).toBe(false);
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level8" },
+        "Finalizado",
+        "level8"
+      )
+    ).toBe(true);
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level12" },
+        "Finalizado",
+        "level8"
+      )
+    ).toBe(true);
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level69" },
+        "Finalizado",
+        "level8"
+      )
+    ).toBe(true);
+    expect(getRequiredTierLabel("level5", "Finalizado", "level8")).toBe(
+      "LvL 8"
+    );
+  });
 });
