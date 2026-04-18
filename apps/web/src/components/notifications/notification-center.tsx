@@ -302,12 +302,12 @@ function NotificationPanel({
               <NotificationFeedList
                 emptyCopy={
                   filter === "unread"
-                    ? "Cuando haya alertas nuevas aparecerán aquí, listas para revisar sin ruido."
-                    : "Ya sabes… lo bueno siempre llega sin avisar. Anuncios, noticias y updates del contenido que sigues aparecerán por aquí!"
+                    ? "Cuando haya nuevas noticias o actualizaciones del contenido que sigues, aparecerán aquí!"
+                    : "Ya sabes… lo bueno siempre llega sin avisar. Anuncios, noticias o actualizaciones del contenido que sigues, aparecerán aquí!"
                 }
                 emptyTitle={
                   filter === "unread"
-                    ? "No tienes notificaciones pendientes"
+                    ? "No Tienes Notificaciones Pendientes"
                     : "Hoy está demasiado calmado..."
                 }
                 isMarking={readActionPending}

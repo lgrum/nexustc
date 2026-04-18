@@ -100,7 +100,7 @@ export function PostCard({ post }: PostCardProps) {
             />
           )}
           {post.type === "post" && count === 2 && (
-            <div className="grid h-full w-full grid-cols-2">
+            <div className="grid h-full w-full grid-cols-2 gap-px bg-border">
               {images.map((img) => (
                 <img
                   alt={post.title}
@@ -112,8 +112,8 @@ export function PostCard({ post }: PostCardProps) {
             </div>
           )}
           {post.type === "post" && count === 3 && (
-            <div className="grid h-full w-full grid-cols-2">
-              <div className="grid min-h-0 grid-rows-2">
+            <div className="grid h-full w-full grid-cols-2 gap-px bg-border">
+              <div className="grid min-h-0 grid-rows-2 gap-px bg-border">
                 <img
                   alt={post.title}
                   className="h-full w-full object-cover"
@@ -133,7 +133,7 @@ export function PostCard({ post }: PostCardProps) {
             </div>
           )}
           {post.type === "post" && count >= 4 && (
-            <div className="grid h-full w-full grid-cols-2 grid-rows-2">
+            <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-px bg-border">
               {images.map((img) => (
                 <img
                   alt={post.title}
@@ -154,17 +154,16 @@ export function PostCard({ post }: PostCardProps) {
               {comicProgressBadge.label}
             </Badge>
           )}
-          {/* Version badge */}
-          {post.version && (
-            <span className="absolute top-2 right-2 rounded bg-black/50 px-1.5 py-0.5 font-medium text-[10px] text-white backdrop-blur-sm">
-              {post.version}
-            </span>
-          )}
         </div>
 
-        <CardHeader className="grow">
+        <CardHeader>
           <CardTitle className="text-center text-pretty">
             {post.title}
+            {post.version && (
+              <span className="ml-2 inline-flex items-center rounded bg-black/50 px-1.5 py-1 text-[12px] leading-none font-medium text-white backdrop-blur-sm">
+                {post.version}
+              </span>
+            )}
           </CardTitle>
         </CardHeader>
         {/* Body */}

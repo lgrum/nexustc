@@ -56,11 +56,10 @@ function RouteComponent() {
           </span>
         </div>
         <h1 className="mt-3 font-[Lexend] font-bold text-3xl">
-          Todas las noticias editoriales en un solo lugar
+          TODAS LAS NOTICIAS — Reunidas En Un Solo Lugar
         </h1>
         <p className="mt-3 max-w-3xl text-muted-foreground text-sm leading-6">
-          Sigue los articulos del staff sobre juegos y comics, con acceso
-          directo a la nota completa y al contenido relacionado.
+          Descubre las últimas noticias y novedades que hemos preparado para ti.
         </p>
       </section>
 
@@ -71,9 +70,9 @@ function RouteComponent() {
               <HugeiconsIcon className="size-5" icon={News01Icon} />
             </div>
             <div className="space-y-1">
-              <p className="font-semibold text-sm">Todavia no hay articulos</p>
+              <p className="font-semibold text-sm">Nada publicado por ahora</p>
               <p className="max-w-sm text-muted-foreground text-sm">
-                Cuando el staff publique nuevas noticias, apareceran aqui.
+                Cuando haya anuncios o novedades interesantes, aparecerán aquí.
               </p>
             </div>
           </CardContent>
