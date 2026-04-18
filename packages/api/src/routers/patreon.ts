@@ -2,7 +2,10 @@ import { getLogger } from "@orpc/experimental-pino";
 import { eq } from "@repo/db";
 import { account, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
-import { PATRON_TIERS } from "@repo/shared/constants";
+import {
+  PATRON_TIERS,
+  resolvePermanentPatronTierStatus,
+} from "@repo/shared/constants";
 
 import { fixedWindowRatelimitMiddleware, protectedProcedure } from "../index";
 import {
@@ -115,42 +118,52 @@ export default {
       const tier = membership
         ? determineTierFromIds(membership.entitledTierIds)
         : "none";
+      const existingPatron = await db.query.patron.findFirst({
+        columns: {
+          patronSince: true,
+          tier: true,
+        },
+        where: (table, { eq: equals }) => equals(table.userId, session.user.id),
+      });
+      const patronStatus = resolvePermanentPatronTierStatus(existingPatron, {
+        isActivePatron: membership?.isActive ?? false,
+        patronSince: membership?.patronSince
+          ? new Date(membership.patronSince)
+          : null,
+        tier,
+      });
 
       // Upsert patron record
       await db
         .insert(patron)
         .values({
-          isActivePatron: membership?.isActive ?? false,
+          isActivePatron: patronStatus.isActivePatron,
           lastSyncAt: new Date(),
           patreonUserId: patreonAccount.accountId,
-          patronSince: membership?.patronSince
-            ? new Date(membership.patronSince)
-            : null,
+          patronSince: patronStatus.patronSince,
           pledgeAmountCents: membership?.pledgeAmountCents ?? 0,
-          tier,
+          tier: patronStatus.tier,
           userId: session.user.id,
         })
         .onConflictDoUpdate({
           set: {
-            isActivePatron: membership?.isActive ?? false,
+            isActivePatron: patronStatus.isActivePatron,
             lastSyncAt: new Date(),
-            patronSince: membership?.patronSince
-              ? new Date(membership.patronSince)
-              : null,
+            patronSince: patronStatus.patronSince,
             pledgeAmountCents: membership?.pledgeAmountCents ?? 0,
-            tier,
+            tier: patronStatus.tier,
           },
           target: patron.userId,
         });
 
       logger?.info(
-        `Patron sync complete for user ${session.user.id}, tier: ${tier}`
+        `Patron sync complete for user ${session.user.id}, tier: ${patronStatus.tier}`
       );
 
       return {
-        benefits: PATRON_TIERS[tier],
-        isActivePatron: membership?.isActive ?? false,
-        tier,
+        benefits: PATRON_TIERS[patronStatus.tier],
+        isActivePatron: patronStatus.isActivePatron,
+        tier: patronStatus.tier,
       };
     }),
 };

@@ -2,7 +2,10 @@ import { verifyWebhookSignature } from "@repo/api/utils/patreon";
 import { db, eq } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
-import { PATREON_TIER_MAPPING, PATRON_TIERS } from "@repo/shared/constants";
+import {
+  getHighestPatronTierFromIds,
+  resolvePermanentPatronTierStatus,
+} from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { createFileRoute } from "@tanstack/react-router";
 
@@ -24,21 +27,7 @@ type PatreonWebhookPayload = {
 };
 
 function determineTierFromIds(tierIds: string[]): PatronTier {
-  let highestTier: PatronTier = "none";
-  let highestLevel = 0;
-
-  for (const tierId of tierIds) {
-    const mappedTier = PATREON_TIER_MAPPING[tierId];
-    if (mappedTier) {
-      const tierConfig = PATRON_TIERS[mappedTier];
-      if (tierConfig.level > highestLevel) {
-        highestLevel = tierConfig.level;
-        highestTier = mappedTier;
-      }
-    }
-  }
-
-  return highestTier;
+  return getHighestPatronTierFromIds(tierIds);
 }
 
 async function handleMemberUpdate(data: PatreonWebhookPayload) {
@@ -75,43 +64,68 @@ async function handleMemberUpdate(data: PatreonWebhookPayload) {
   const patronSince = isActive
     ? data.data.attributes.pledge_relationship_start
     : null;
+  const existingPatron = await db.query.patron.findFirst({
+    columns: {
+      patronSince: true,
+      tier: true,
+    },
+    where: (table, { eq: equals }) =>
+      equals(table.userId, patreonAccount.userId),
+  });
+  const patronStatus = resolvePermanentPatronTierStatus(existingPatron, {
+    isActivePatron: isActive,
+    patronSince: patronSince ? new Date(patronSince) : null,
+    tier,
+  });
 
   await db
     .insert(patron)
     .values({
-      isActivePatron: isActive,
+      isActivePatron: patronStatus.isActivePatron,
       lastSyncAt: new Date(),
       lastWebhookAt: new Date(),
       patreonUserId,
-      patronSince: patronSince ? new Date(patronSince) : null,
+      patronSince: patronStatus.patronSince,
       pledgeAmountCents,
-      tier,
+      tier: patronStatus.tier,
       userId: patreonAccount.userId,
     })
     .onConflictDoUpdate({
       set: {
-        isActivePatron: isActive,
+        isActivePatron: patronStatus.isActivePatron,
         lastWebhookAt: new Date(),
         pledgeAmountCents,
-        tier,
+        tier: patronStatus.tier,
       },
       target: patron.userId,
     });
 
   console.log(
-    `Webhook: Updated patron status for user ${patreonAccount.userId}, tier: ${tier}, active: ${isActive}`
+    `Webhook: Updated patron status for user ${patreonAccount.userId}, tier: ${patronStatus.tier}, active: ${patronStatus.isActivePatron}`
   );
 }
 
 async function handleMemberDelete(data: PatreonWebhookPayload) {
   const patreonUserId = data.data.relationships.user.data.id;
+  const existingPatron = await db.query.patron.findFirst({
+    columns: {
+      patronSince: true,
+      tier: true,
+    },
+    where: (table, { eq: equals }) =>
+      equals(table.patreonUserId, patreonUserId),
+  });
+  const patronStatus = resolvePermanentPatronTierStatus(existingPatron, {
+    isActivePatron: false,
+    tier: "none" as PatronTier,
+  });
 
   await db
     .update(patron)
     .set({
-      isActivePatron: false,
+      isActivePatron: patronStatus.isActivePatron,
       lastWebhookAt: new Date(),
-      tier: "none",
+      tier: patronStatus.tier,
     })
     .where(eq(patron.patreonUserId, patreonUserId));
 

@@ -1,0 +1,1 @@
+ALTER TYPE "public"."premium_links_access_level" ADD VALUE 'level100';

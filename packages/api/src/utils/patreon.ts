@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 
 import { env } from "@repo/env";
 import { PatreonIdentity } from "@repo/patreon";
-import { PATREON_TIER_MAPPING, PATRON_TIERS } from "@repo/shared/constants";
+import { getHighestPatronTierFromIds } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
 export type PatreonTokenResponse = {
@@ -93,21 +93,7 @@ export async function fetchPatreonMembership(
  * Uses the PATREON_TIER_MAPPING to map external tier IDs to our internal tiers.
  */
 export function determineTierFromIds(tierIds: string[]): PatronTier {
-  let highestTier: PatronTier = "none";
-  let highestLevel = 0;
-
-  for (const tierId of tierIds) {
-    const mappedTier = PATREON_TIER_MAPPING[tierId];
-    if (mappedTier) {
-      const tierConfig = PATRON_TIERS[mappedTier];
-      if (tierConfig.level > highestLevel) {
-        highestLevel = tierConfig.level;
-        highestTier = mappedTier;
-      }
-    }
-  }
-
-  return highestTier;
+  return getHighestPatronTierFromIds(tierIds);
 }
 
 /**

@@ -49,6 +49,7 @@ export const PREMIUM_LINK_ACCESS_LEVELS = [
   "level8",
   "level12",
   "level69",
+  "level100",
 ] as const;
 
 export type PremiumLinkAccessLevel =
@@ -60,7 +61,8 @@ export type PremiumLinksRequiredTierLabel =
   | "LvL 5"
   | "LvL 8"
   | "LvL 12"
-  | "LvL 69";
+  | "LvL 69"
+  | "LvL 100";
 
 export const PREMIUM_LINK_ACCESS_LEVEL_LABELS: Record<
   PremiumLinkAccessLevel,
@@ -71,7 +73,8 @@ export const PREMIUM_LINK_ACCESS_LEVEL_LABELS: Record<
   level12: "VIP LvL 12+",
   level3: "VIP LvL 3+",
   level5: "VIP LvL 5+",
-  level69: "VIP LvL 69",
+  level69: "VIP LvL 69+",
+  level100: "VIP LvL 100",
   level8: "VIP LvL 8+",
 } as const;
 
@@ -84,6 +87,7 @@ const PREMIUM_LINK_ACCESS_REQUIRED_TIER_LABELS: Record<
   level3: "LvL 3",
   level5: "LvL 5",
   level69: "LvL 69",
+  level100: "LvL 100",
   level8: "LvL 8",
 } as const;
 
@@ -125,6 +129,7 @@ export const PATRON_TIER_KEYS = [
   "level8",
   "level12",
   "level69",
+  "level100",
 ] as const;
 
 const PATRON_TIER_HIERARCHY = [
@@ -135,6 +140,7 @@ const PATRON_TIER_HIERARCHY = [
   "level8",
   "level12",
   "level69",
+  "level100",
 ] as const;
 
 // Patreon tier configuration
@@ -148,19 +154,19 @@ export const PATRON_TIERS: Record<
     maxBookmarks: number; // Optional: max bookmarks allowed for this tier
   }
 > = {
+  none: {
+    adFree: false,
+    badge: null,
+    level: 0,
+    maxBookmarks: 5,
+    premiumLinks: { type: "none" },
+  },
   level1: {
     adFree: false,
     badge: "LvL 1",
     level: 1,
     maxBookmarks: 10,
     premiumLinks: { categories: ["completed"], type: "category" },
-  },
-  level12: {
-    adFree: true,
-    badge: "LvL 12",
-    level: 3,
-    maxBookmarks: Number.POSITIVE_INFINITY,
-    premiumLinks: { type: "all" },
   },
   level3: {
     adFree: true,
@@ -176,13 +182,6 @@ export const PATRON_TIERS: Record<
     maxBookmarks: 15,
     premiumLinks: { type: "all" },
   },
-  level69: {
-    adFree: true,
-    badge: "LvL 69",
-    level: 3,
-    maxBookmarks: Number.POSITIVE_INFINITY,
-    premiumLinks: { type: "all" },
-  },
   level8: {
     adFree: true,
     badge: "LvL 8",
@@ -190,17 +189,85 @@ export const PATRON_TIERS: Record<
     maxBookmarks: 50,
     premiumLinks: { type: "all" },
   },
-  none: {
-    adFree: false,
-    badge: null,
-    level: 0,
-    maxBookmarks: 5,
-    premiumLinks: { type: "none" },
+  level12: {
+    adFree: true,
+    badge: "LvL 12",
+    level: 3,
+    maxBookmarks: Number.POSITIVE_INFINITY,
+    premiumLinks: { type: "all" },
+  },
+  level69: {
+    adFree: true,
+    badge: "LvL 69",
+    level: 3,
+    maxBookmarks: Number.POSITIVE_INFINITY,
+    premiumLinks: { type: "all" },
+  },
+  level100: {
+    adFree: true,
+    badge: "LvL 100",
+    level: 3,
+    maxBookmarks: Number.POSITIVE_INFINITY,
+    premiumLinks: { type: "all" },
   },
 } as const;
 
 export function getPatronTierRank(tier: PatronTier): number {
   return PATRON_TIER_HIERARCHY.indexOf(tier);
+}
+
+export function getHighestPatronTier(tiers: PatronTier[]): PatronTier {
+  let highestTier: PatronTier = "none";
+  let highestRank = getPatronTierRank(highestTier);
+
+  for (const tier of tiers) {
+    const tierRank = getPatronTierRank(tier);
+
+    if (tierRank > highestRank) {
+      highestRank = tierRank;
+      highestTier = tier;
+    }
+  }
+
+  return highestTier;
+}
+
+export function getHighestPatronTierFromIds(tierIds: string[]): PatronTier {
+  const mappedTiers: PatronTier[] = [];
+
+  for (const tierId of tierIds) {
+    const mappedTier = PATREON_TIER_MAPPING[tierId];
+
+    if (mappedTier) {
+      mappedTiers.push(mappedTier);
+    }
+  }
+
+  return getHighestPatronTier(mappedTiers);
+}
+
+type PatronStatusUpdate = {
+  isActivePatron: boolean;
+  patronSince?: Date | null;
+  tier: PatronTier;
+};
+
+export function resolvePermanentPatronTierStatus<
+  TUpdate extends PatronStatusUpdate,
+>(
+  existing: { patronSince?: Date | null; tier: PatronTier } | null | undefined,
+  next: TUpdate
+): TUpdate {
+  if (existing?.tier !== "level100") {
+    return next;
+  }
+
+  return {
+    ...next,
+    isActivePatron: true,
+    patronSince: existing.patronSince ?? next.patronSince,
+    tier: "level100",
+  };
 }
 
 export function userMeetsTierLevel(
@@ -308,4 +375,5 @@ export const PATREON_TIER_MAPPING: Record<string, PatronTier> = {
   "25898792": "level8",
   "25898869": "level12",
   "25899010": "level69",
+  "28365176": "level100",
 };

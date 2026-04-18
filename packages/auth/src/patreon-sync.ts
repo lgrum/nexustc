@@ -1,25 +1,14 @@
 import { db } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
 import { PatreonIdentity } from "@repo/patreon";
-import { PATREON_TIER_MAPPING, PATRON_TIERS } from "@repo/shared/constants";
+import {
+  getHighestPatronTierFromIds,
+  resolvePermanentPatronTierStatus,
+} from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
 function determineTierFromIds(tierIds: string[]): PatronTier {
-  let highestTier: PatronTier = "none";
-  let highestLevel = 0;
-
-  for (const tierId of tierIds) {
-    const mappedTier = PATREON_TIER_MAPPING[tierId];
-    if (mappedTier) {
-      const tierConfig = PATRON_TIERS[mappedTier];
-      if (tierConfig.level > highestLevel) {
-        highestLevel = tierConfig.level;
-        highestTier = mappedTier;
-      }
-    }
-  }
-
-  return highestTier;
+  return getHighestPatronTierFromIds(tierIds);
 }
 
 /**
@@ -51,32 +40,44 @@ export async function syncPatreonMembership(
     const pledgeAmountCents =
       membership?.attributes?.currently_entitled_amount_cents ?? 0;
     const tier = determineTierFromIds(entitledTiers.map((t) => t.id));
+    const existingPatron = await db.query.patron.findFirst({
+      columns: {
+        patronSince: true,
+        tier: true,
+      },
+      where: (table, { eq }) => eq(table.userId, userId),
+    });
+    const patronStatus = resolvePermanentPatronTierStatus(existingPatron, {
+      isActivePatron: isActive,
+      patronSince: patronSince ? new Date(patronSince) : null,
+      tier,
+    });
 
     // Upsert patron record
     await db
       .insert(patron)
       .values({
-        isActivePatron: isActive,
+        isActivePatron: patronStatus.isActivePatron,
         lastSyncAt: new Date(),
         patreonUserId: patreonAccountId,
-        patronSince: patronSince ? new Date(patronSince) : null,
+        patronSince: patronStatus.patronSince,
         pledgeAmountCents,
-        tier,
+        tier: patronStatus.tier,
         userId,
       })
       .onConflictDoUpdate({
         set: {
-          isActivePatron: isActive,
+          isActivePatron: patronStatus.isActivePatron,
           lastSyncAt: new Date(),
-          patronSince: patronSince ? new Date(patronSince) : null,
+          patronSince: patronStatus.patronSince,
           pledgeAmountCents: 0,
-          tier,
+          tier: patronStatus.tier,
         },
         target: patron.userId,
       });
 
     console.log(
-      `Synced Patreon membership for user ${userId}: tier=${tier}, active=${isActive}`
+      `Synced Patreon membership for user ${userId}: tier=${patronStatus.tier}, active=${patronStatus.isActivePatron}`
     );
   } catch (error) {
     console.error(

@@ -68,4 +68,31 @@ describe("premium links access helpers", () => {
       "LvL 8"
     );
   });
+
+  it("treats VIP level 100 as the highest manual premium tier", () => {
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level69" },
+        "Finalizado",
+        "level100"
+      )
+    ).toBe(false);
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level100" },
+        "Finalizado",
+        "level69"
+      )
+    ).toBe(true);
+    expect(
+      canAccessPremiumLinks(
+        { role: "user", tier: "level100" },
+        "Finalizado",
+        "level100"
+      )
+    ).toBe(true);
+    expect(getRequiredTierLabel("level69", "Finalizado", "level100")).toBe(
+      "LvL 100"
+    );
+  });
 });
