@@ -16,7 +16,7 @@ function RouteComponent() {
   return (
     <div className="flex w-full flex-col gap-4">
       <h1 className="font-bold text-3xl">Cómics</h1>
-      <DataTable columns={columns} data={data} />
+      <DataTable columns={columns} contentType="comics" data={data} />
     </div>
   );
 }

@@ -7,13 +7,13 @@ import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 
+import type { AdminContent } from "@/components/admin/posts/data-table";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { orpc, orpcClient } from "@/lib/orpc";
 
-export type Post = {
-  id: string;
-  title: string;
-  status: string;
+export type Post = AdminContent & {
+  isWeekly: boolean;
 };
 
 export const columns: ColumnDef<Post>[] = [
@@ -27,7 +27,7 @@ export const columns: ColumnDef<Post>[] = [
       ) : (
         info.row.original.title
       ),
-    header: "Título",
+    header: "Titulo",
   },
   {
     accessorKey: "status",
@@ -36,9 +36,41 @@ export const columns: ColumnDef<Post>[] = [
         DOCUMENT_STATUS_LABELS[
           info.row.original.status as keyof typeof DOCUMENT_STATUS_LABELS
         ];
-      return label;
+
+      return <Badge variant="outline">{label}</Badge>;
     },
     header: "Estado",
+  },
+  {
+    accessorKey: "creatorName",
+    cell: (info) => info.row.original.creatorName || "-",
+    header: "Creador",
+  },
+  {
+    accessorKey: "version",
+    cell: (info) => info.row.original.version || "-",
+    header: "Version",
+  },
+  {
+    accessorKey: "views",
+    cell: (info) => info.row.original.views.toLocaleString("es-ES"),
+    header: "Vistas",
+  },
+  {
+    accessorKey: "isWeekly",
+    cell: (info) =>
+      info.row.original.isWeekly ? (
+        <Badge variant="default">Semanal</Badge>
+      ) : (
+        <Badge variant="outline">Normal</Badge>
+      ),
+    header: "Semanal",
+  },
+  {
+    accessorKey: "createdAt",
+    cell: (info) =>
+      new Date(info.row.original.createdAt).toLocaleDateString("es-ES"),
+    header: "Creado",
   },
   {
     cell: function Cell(info) {
@@ -59,7 +91,7 @@ export const columns: ColumnDef<Post>[] = [
                 cancelText: "Cancelar",
                 confirmText: "Eliminar",
                 description:
-                  "¿Estás absolutamente seguro de que quieres eliminar este post? Esta acción no se puede deshacer.",
+                  "Estas absolutamente seguro de que quieres eliminar este post? Esta accion no se puede deshacer.",
                 title: "Eliminar Post",
               });
 

@@ -7,13 +7,14 @@ import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { toast } from "sonner";
 
+import type { AdminContent } from "@/components/admin/posts/data-table";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { orpc, orpcClient } from "@/lib/orpc";
 
-export type Comic = {
-  id: string;
-  title: string;
-  status: string;
+export type Comic = AdminContent & {
+  comicLastUpdateAt: Date | string | null;
+  comicPageCount: number;
 };
 
 export const columns: ColumnDef<Comic>[] = [
@@ -27,7 +28,7 @@ export const columns: ColumnDef<Comic>[] = [
       ) : (
         info.row.original.title
       ),
-    header: "Título",
+    header: "Titulo",
   },
   {
     accessorKey: "status",
@@ -36,9 +37,46 @@ export const columns: ColumnDef<Comic>[] = [
         DOCUMENT_STATUS_LABELS[
           info.row.original.status as keyof typeof DOCUMENT_STATUS_LABELS
         ];
-      return label;
+
+      return <Badge variant="outline">{label}</Badge>;
     },
     header: "Estado",
+  },
+  {
+    accessorKey: "creatorName",
+    cell: (info) => info.row.original.creatorName || "-",
+    header: "Creador",
+  },
+  {
+    accessorKey: "version",
+    cell: (info) => info.row.original.version || "-",
+    header: "Version",
+  },
+  {
+    accessorKey: "comicPageCount",
+    cell: (info) => info.row.original.comicPageCount.toLocaleString("es-ES"),
+    header: "Paginas",
+  },
+  {
+    accessorKey: "comicLastUpdateAt",
+    cell: (info) =>
+      info.row.original.comicLastUpdateAt
+        ? new Date(info.row.original.comicLastUpdateAt).toLocaleDateString(
+            "es-ES"
+          )
+        : "-",
+    header: "Actualizado",
+  },
+  {
+    accessorKey: "views",
+    cell: (info) => info.row.original.views.toLocaleString("es-ES"),
+    header: "Vistas",
+  },
+  {
+    accessorKey: "createdAt",
+    cell: (info) =>
+      new Date(info.row.original.createdAt).toLocaleDateString("es-ES"),
+    header: "Creado",
   },
   {
     cell: function Cell(info) {
@@ -59,8 +97,8 @@ export const columns: ColumnDef<Comic>[] = [
                 cancelText: "Cancelar",
                 confirmText: "Eliminar",
                 description:
-                  "¿Estás absolutamente seguro de que quieres eliminar este cómic? Esta acción no se puede deshacer.",
-                title: "Eliminar Cómic",
+                  "Estas absolutamente seguro de que quieres eliminar este comic? Esta accion no se puede deshacer.",
+                title: "Eliminar Comic",
               });
 
               if (isConfirmed) {
@@ -70,10 +108,10 @@ export const columns: ColumnDef<Comic>[] = [
                     {
                       error: (error) => ({
                         duration: 10_000,
-                        message: `Error al eliminar cómic: ${error}`,
+                        message: `Error al eliminar comic: ${error}`,
                       }),
-                      loading: "Eliminando cómic...",
-                      success: "Cómic eliminado.",
+                      loading: "Eliminando comic...",
+                      success: "Comic eliminado.",
                     }
                   )
                   .unwrap();

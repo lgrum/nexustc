@@ -30,10 +30,25 @@ const filterOptions = [
   { label: "Rol: Sobrino⁺¹⁸", value: "role:user" },
 ];
 
+type UserSearchField = "email" | "name";
+
+const searchFieldOptions: { label: string; value: UserSearchField }[] = [
+  { label: "Email", value: "email" },
+  { label: "Usuario", value: "name" },
+];
+
+function getOptionLabel(
+  options: { label: string; value: string }[],
+  value: string
+) {
+  return options.find((option) => option.value === value)?.label ?? value;
+}
+
 export function UserManagePage() {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  const [searchField, setSearchField] = useState<UserSearchField>("email");
   const [filter, setFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [pagination, setPagination] = useState<PaginationState>({
@@ -66,6 +81,7 @@ export function UserManagePage() {
   const queryKey = [
     "admin-users",
     search,
+    searchField,
     filter,
     pagination.pageIndex,
     pagination.pageSize,
@@ -77,7 +93,7 @@ export function UserManagePage() {
         query: {
           limit: pagination.pageSize,
           offset: pagination.pageIndex * pagination.pageSize,
-          ...(search ? { searchField: "email", searchValue: search } : {}),
+          ...(search ? { searchField, searchValue: search } : {}),
           ...filterParams,
         },
       });
@@ -100,6 +116,8 @@ export function UserManagePage() {
   const users = data?.users ?? [];
   const totalCount = data?.total ?? 0;
   const pageCount = Math.ceil(totalCount / pagination.pageSize);
+  const searchFieldLabel = getOptionLabel(searchFieldOptions, searchField);
+  const filterLabel = getOptionLabel(filterOptions, filter);
 
   return (
     <div className="flex flex-col gap-4">
@@ -112,9 +130,33 @@ export function UserManagePage() {
         <Input
           className="max-w-sm"
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="Buscar por email..."
+          placeholder={
+            searchField === "name"
+              ? "Buscar por nombre de usuario..."
+              : "Buscar por email..."
+          }
           value={searchInput}
         />
+        <Select
+          onValueChange={(value) => {
+            if (value) {
+              setSearchField(value as UserSearchField);
+            }
+            setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+          }}
+          value={searchField}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue>{searchFieldLabel}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {searchFieldOptions.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select
           onValueChange={(value) => {
             setFilter(value ?? "all");
@@ -123,10 +165,7 @@ export function UserManagePage() {
           value={filter}
         >
           <SelectTrigger className="w-50">
-            <SelectValue>
-              {filterOptions.find((opt) => opt.value === filter)?.label ??
-                "Todos"}
-            </SelectValue>
+            <SelectValue>{filterLabel}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {filterOptions.map((opt) => (

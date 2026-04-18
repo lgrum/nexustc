@@ -54,9 +54,16 @@ export default {
 
     return db.query.post.findMany({
       columns: {
+        comicLastUpdateAt: true,
+        comicPageCount: true,
+        createdAt: true,
+        creatorName: true,
         id: true,
         status: true,
         title: true,
+        updatedAt: true,
+        version: true,
+        views: true,
       },
       orderBy: (p, { desc }) => [desc(p.createdAt)],
       where: (p, { eq: equals }) => equals(p.type, "comic"),

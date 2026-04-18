@@ -59,9 +59,15 @@ export default {
 
     return db.query.post.findMany({
       columns: {
+        createdAt: true,
+        creatorName: true,
         id: true,
+        isWeekly: true,
         status: true,
         title: true,
+        updatedAt: true,
+        version: true,
+        views: true,
       },
       orderBy: (p, { desc }) => [desc(p.createdAt)],
       where: (p, { eq: equals }) => equals(p.type, "post"),
