@@ -234,6 +234,23 @@
   animation: scale-pulse 1.5s ease-in-out infinite;
 }
 
+@keyframes scale-pulse-variable {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(var(--pulse-scale));
+  }
+}
+
+@utility animate-scale-pulse-* {
+  --pulse-scale: calc(1 + (--value(number) * 0.01));
+  --pulse-scale: --value([number]);
+
+  animation: scale-pulse-variable 1.5s ease-in-out infinite;
+}
+
 @utility shadow-glow-* {
   --glow-color: --value(--color-*, [color]);
 

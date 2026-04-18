@@ -1,4 +1,4 @@
-import { SentIcon } from "@hugeicons/core-free-icons";
+import { QuestionIcon, SentIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 
@@ -135,12 +135,15 @@ export function EngagementPromptBlock({
 
   return (
     <section aria-label="Disparador de debate" ref={containerRef}>
-      <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-muted/60 via-card to-muted/20">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-900/40 to-rose-600/10 shadow-glow-rose-900 ring-2 ring-rose-800">
+        <div className="flex flex-col gap-3 md:flex-row items-center md:justify-between">
+          <div className="p-2 ring-2 ring-rose-600 rounded-md bg-rose-600/50">
+            <HugeiconsIcon className="size-6" icon={QuestionIcon} />
+          </div>
           <div className="flex flex-1 flex-col gap-3">
             <p
               className={cn(
-                "max-w-3xl text-balance font-[Lexend] text-base text-foreground leading-relaxed transition-opacity md:text-lg",
+                "text-balance font-[Lexend] text-base text-foreground leading-relaxed transition-opacity text-center md:text-left md:text-xl",
                 prefersReducedMotion ? "duration-0" : "duration-250",
                 isFading ? "opacity-0" : "opacity-100"
               )}
@@ -150,10 +153,9 @@ export function EngagementPromptBlock({
           </div>
           {onAnswerPrompt && currentPrompt && (
             <Button
-              className="shrink-0"
+              className="shrink-0 bg-rose-700 text-white ring-1 ring-rose-500 animate-scale-pulse-10"
               onClick={() => onAnswerPrompt(currentPrompt)}
               type="button"
-              variant="secondary"
               size="lg"
             >
               <HugeiconsIcon className="size-4" icon={SentIcon} /> Responder
