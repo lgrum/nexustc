@@ -15,6 +15,7 @@ import post from "./post";
 import profile from "./profile";
 import profileAdmin from "./profile-admin";
 import rating from "./rating";
+import siteConfig from "./site-config";
 import staticPage from "./static-page";
 import sticker from "./sticker";
 import term from "./term";
@@ -36,6 +37,7 @@ export const appRouter = {
   profile,
   profileAdmin,
   rating,
+  siteConfig,
   staticPage,
   sticker,
   term,

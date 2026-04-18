@@ -266,3 +266,65 @@ export const staticPageUpdateSchema = z.object({
   slug: z.enum(["about", "legal", "privacy", "terms"]),
   title: z.string().trim().min(1).max(255),
 });
+
+const isValidMarqueeUrl = (value: string) => {
+  if (value.startsWith("/") && !value.startsWith("//")) {
+    return true;
+  }
+
+  return z.url().safeParse(value).success;
+};
+
+const optionalMarqueeUrlSchema = z
+  .string()
+  .trim()
+  .max(2048, "No puede exceder los 2048 caracteres.")
+  .optional()
+  .transform((value) => value?.trim() || undefined)
+  .refine((value) => !value || isValidMarqueeUrl(value), {
+    message: "Debe ser una URL válida o una ruta interna.",
+  });
+
+export const marqueeItemSchema = z.object({
+  text: z
+    .string()
+    .trim()
+    .min(1, "El texto es obligatorio.")
+    .max(120, "No puede exceder los 120 caracteres.")
+    .transform((val) => val.trim()),
+  url: optionalMarqueeUrlSchema,
+});
+
+export const marqueeItemsSchema = z
+  .array(marqueeItemSchema)
+  .min(1, "Agrega al menos un elemento.")
+  .max(12, "Solo se permiten hasta 12 elementos.")
+  .superRefine((items, ctx) => {
+    const seenItems = new Set<string>();
+
+    for (const [index, item] of items.entries()) {
+      const key = `${item.text}:${item.url ?? ""}`;
+
+      if (seenItems.has(key)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "No puede haber elementos duplicados.",
+          path: [index, "text"],
+        });
+      }
+
+      seenItems.add(key);
+    }
+  });
+
+export const marqueeUpdateSchema = z.object({
+  items: marqueeItemsSchema,
+});
+
+export type MarqueeItem = z.infer<typeof marqueeItemSchema>;
+
+export const DEFAULT_MARQUEE_ITEMS = [
+  { text: "/// SYSTEM_ONLINE ///", url: undefined },
+  { text: "NEXUSTC PROTOCOL V1.0", url: undefined },
+  { text: "EXPLORE NEW REALITIES", url: undefined },
+] as const satisfies MarqueeItem[];

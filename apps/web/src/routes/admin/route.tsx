@@ -194,6 +194,15 @@ const nav = {
     ],
     name: "Páginas",
   },
+  site: {
+    links: [
+      {
+        href: "/admin/site/marquee",
+        name: "Marquesina",
+      },
+    ],
+    name: "Sitio",
+  },
   stickers: {
     links: [
       {
@@ -292,6 +301,9 @@ function AdminLayout() {
               <HasPermissions permissions={{ staticPages: ["update"] }}>
                 <SidebarLinks item={nav.staticPages} />
               </HasPermissions>
+              <HasRole authRole="owner">
+                <SidebarLinks item={nav.site} />
+              </HasRole>
               <HasRole authRole="owner">
                 <SidebarLinks item={nav.profile} />
               </HasRole>

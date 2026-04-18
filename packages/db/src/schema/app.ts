@@ -15,6 +15,7 @@ import type {
   ProfileRoleVisualConfig,
   ProfileVisibilityConfig,
 } from "@repo/shared/profile";
+import type { MarqueeItem as SiteMarqueeItem } from "@repo/shared/schemas";
 import { relations, sql } from "drizzle-orm";
 import {
   boolean,
@@ -569,6 +570,12 @@ export const staticPage = pgTable(
   },
   (table) => [index("static_page_slug_idx").on(table.slug)]
 );
+
+export const siteConfig = pgTable("site_config", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<SiteMarqueeItem[]>().notNull(),
+  ...timestamps,
+});
 
 /** -------------------------------------------------------- */
 

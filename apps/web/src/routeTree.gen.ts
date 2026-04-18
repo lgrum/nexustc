@@ -58,6 +58,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
 import { Route as AdminUsersManageRouteImport } from './routes/admin/users/manage'
 import { Route as AdminTermsCreateRouteImport } from './routes/admin/terms/create'
 import { Route as AdminStickersCreateRouteImport } from './routes/admin/stickers/create'
+import { Route as AdminSiteMarqueeRouteImport } from './routes/admin/site/marquee'
 import { Route as AdminProfileRolesRouteImport } from './routes/admin/profile/roles'
 import { Route as AdminProfileEmblemsRouteImport } from './routes/admin/profile/emblems'
 import { Route as AdminPostsCreateRouteImport } from './routes/admin/posts/create'
@@ -326,6 +327,11 @@ const AdminStickersCreateRoute = AdminStickersCreateRouteImport.update({
   path: '/stickers/create',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminSiteMarqueeRoute = AdminSiteMarqueeRouteImport.update({
+  id: '/site/marquee',
+  path: '/site/marquee',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminProfileRolesRoute = AdminProfileRolesRouteImport.update({
   id: '/profile/roles',
   path: '/profile/roles',
@@ -492,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
   '/admin/profile/roles': typeof AdminProfileRolesRoute
+  '/admin/site/marquee': typeof AdminSiteMarqueeRoute
   '/admin/stickers/create': typeof AdminStickersCreateRoute
   '/admin/terms/create': typeof AdminTermsCreateRoute
   '/admin/users/manage': typeof AdminUsersManageRoute
@@ -564,6 +571,7 @@ export interface FileRoutesByTo {
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
   '/admin/profile/roles': typeof AdminProfileRolesRoute
+  '/admin/site/marquee': typeof AdminSiteMarqueeRoute
   '/admin/stickers/create': typeof AdminStickersCreateRoute
   '/admin/terms/create': typeof AdminTermsCreateRoute
   '/admin/users/manage': typeof AdminUsersManageRoute
@@ -639,6 +647,7 @@ export interface FileRoutesById {
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
   '/admin/profile/roles': typeof AdminProfileRolesRoute
+  '/admin/site/marquee': typeof AdminSiteMarqueeRoute
   '/admin/stickers/create': typeof AdminStickersCreateRoute
   '/admin/terms/create': typeof AdminTermsCreateRoute
   '/admin/users/manage': typeof AdminUsersManageRoute
@@ -714,6 +723,7 @@ export interface FileRouteTypes {
     | '/admin/posts/create'
     | '/admin/profile/emblems'
     | '/admin/profile/roles'
+    | '/admin/site/marquee'
     | '/admin/stickers/create'
     | '/admin/terms/create'
     | '/admin/users/manage'
@@ -786,6 +796,7 @@ export interface FileRouteTypes {
     | '/admin/posts/create'
     | '/admin/profile/emblems'
     | '/admin/profile/roles'
+    | '/admin/site/marquee'
     | '/admin/stickers/create'
     | '/admin/terms/create'
     | '/admin/users/manage'
@@ -860,6 +871,7 @@ export interface FileRouteTypes {
     | '/admin/posts/create'
     | '/admin/profile/emblems'
     | '/admin/profile/roles'
+    | '/admin/site/marquee'
     | '/admin/stickers/create'
     | '/admin/terms/create'
     | '/admin/users/manage'
@@ -1258,6 +1270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminStickersCreateRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/site/marquee': {
+      id: '/admin/site/marquee'
+      path: '/site/marquee'
+      fullPath: '/admin/site/marquee'
+      preLoaderRoute: typeof AdminSiteMarqueeRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/profile/roles': {
       id: '/admin/profile/roles'
       path: '/profile/roles'
@@ -1479,6 +1498,7 @@ interface AdminRouteRouteChildren {
   AdminPostsCreateRoute: typeof AdminPostsCreateRoute
   AdminProfileEmblemsRoute: typeof AdminProfileEmblemsRoute
   AdminProfileRolesRoute: typeof AdminProfileRolesRoute
+  AdminSiteMarqueeRoute: typeof AdminSiteMarqueeRoute
   AdminStickersCreateRoute: typeof AdminStickersCreateRoute
   AdminTermsCreateRoute: typeof AdminTermsCreateRoute
   AdminUsersManageRoute: typeof AdminUsersManageRoute
@@ -1515,6 +1535,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminPostsCreateRoute: AdminPostsCreateRoute,
   AdminProfileEmblemsRoute: AdminProfileEmblemsRoute,
   AdminProfileRolesRoute: AdminProfileRolesRoute,
+  AdminSiteMarqueeRoute: AdminSiteMarqueeRoute,
   AdminStickersCreateRoute: AdminStickersCreateRoute,
   AdminTermsCreateRoute: AdminTermsCreateRoute,
   AdminUsersManageRoute: AdminUsersManageRoute,

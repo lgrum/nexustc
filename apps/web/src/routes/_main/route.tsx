@@ -1,5 +1,7 @@
 import { AlertCircleIcon, Clock01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { DEFAULT_MARQUEE_ITEMS } from "@repo/shared/schemas";
+import type { MarqueeItem } from "@repo/shared/schemas";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { Suspense } from "react";
@@ -28,6 +30,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAdblockDetector } from "@/hooks/use-adblock-detector";
+import { orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/_main")({
   component: MainLayout,
@@ -43,13 +46,21 @@ export const Route = createFileRoute("/_main")({
       },
     ],
   }),
+  loader: async () => {
+    try {
+      return await orpcClient.siteConfig.getMarquee();
+    } catch {
+      return { items: DEFAULT_MARQUEE_ITEMS };
+    }
+  },
 });
 
 function MainLayout() {
+  const { items } = Route.useLoaderData();
   const { detected } = useAdblockDetector();
 
   return (
-    <Wrapper>
+    <Wrapper marqueeItems={items}>
       <AdblockBlockerDialog open={detected} />
       <Suspense fallback={<LoadingSpinner />}>
         <Outlet />
@@ -58,25 +69,40 @@ function MainLayout() {
   );
 }
 
-function Marquee() {
+function Marquee({ items }: { items: readonly MarqueeItem[] }) {
   return (
     <div className="text-black font-[Lexend] font-bold uppercase tracking-widest text-sm flex w-max shrink-0 gap-8 py-2 pr-8">
-      {/* oxlint-disable-next-line react/jsx-no-comment-textnodes */}
-      <span>/// SYSTEM_ONLINE ///</span>
-      <span>NEXUSTC PROTOCOL V1.0</span>
-      <span>EXPLORE NEW REALITIES</span>
+      {items.map((item) =>
+        item.url ? (
+          <a
+            className="underline-offset-4 hover:underline"
+            href={item.url}
+            key={`${item.text}:${item.url}`}
+          >
+            {item.text}
+          </a>
+        ) : (
+          <span key={item.text}>{item.text}</span>
+        )
+      )}
     </div>
   );
 }
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function Wrapper({
+  children,
+  marqueeItems = DEFAULT_MARQUEE_ITEMS,
+}: {
+  children: React.ReactNode;
+  marqueeItems?: readonly MarqueeItem[];
+}) {
   return (
     <>
       <div className="relative min-h-screen w-full min-w-0 overflow-x-clip selection:bg-accent selection:text-accent-foreground">
         <div className="group font-mono w-full bg-primary text-primary-foreground overflow-hidden whitespace-nowrap">
           <div className="flex min-w-[200%] justify-around hover:paused animate-marquee select-none">
-            <Marquee />
-            <Marquee />
+            <Marquee items={marqueeItems} />
+            <Marquee items={marqueeItems} />
           </div>
         </div>
         <div
