@@ -225,6 +225,20 @@
       "when": 1776496447453,
       "tag": "0031_shallow_fenris",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1776522233409,
+      "tag": "0032_massive_onslaught",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1776523804681,
+      "tag": "0033_tired_bedlam",
+      "breakpoints": true
     }
   ]
 }

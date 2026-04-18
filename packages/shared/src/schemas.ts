@@ -52,30 +52,27 @@ export const manualEngagementQuestionsSchema = z
       .max(2, "Solo se permiten hasta 2 preguntas manuales.")
   );
 
-const optionalEngagementTagTermIdSchema = z.preprocess((value) => {
-  if (typeof value !== "string") {
-    return value;
-  }
-
-  const trimmedValue = value.trim();
-  return trimmedValue.length === 0 ? undefined : trimmedValue;
-}, z.string().trim().min(1).optional());
+const engagementTagTermIdsSchema = z
+  .array(z.string().trim().min(1))
+  .transform((value) => [...new Set(value)]);
 
 const engagementQuestionBaseSchema = z.object({
-  isActive: z.boolean().default(true),
-  isGlobal: z.boolean().default(false),
-  locale: z.literal("es").default("es"),
-  tagTermId: optionalEngagementTagTermIdSchema,
+  incompatibleTagTermIds: engagementTagTermIdsSchema,
+  isActive: z.boolean(),
+  isGlobal: z.boolean(),
+  locale: z.literal("es"),
+  tagTermIds: engagementTagTermIdsSchema,
   text: engagementPromptRequiredTextSchema,
 });
 
 export const engagementQuestionCreateSchema =
   engagementQuestionBaseSchema.superRefine((value, ctx) => {
-    if (!(value.isGlobal || value.tagTermId)) {
+    if (!(value.isGlobal || value.tagTermIds.length > 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Debe seleccionar un tag o marcar la pregunta como global.",
-        path: ["tagTermId"],
+        message:
+          "Debe seleccionar al menos un tag o marcar la pregunta como global.",
+        path: ["tagTermIds"],
       });
     }
   });
@@ -85,11 +82,12 @@ export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
     id: z.string(),
   })
   .superRefine((value, ctx) => {
-    if (!(value.isGlobal || value.tagTermId)) {
+    if (!(value.isGlobal || value.tagTermIds.length > 0)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Debe seleccionar un tag o marcar la pregunta como global.",
-        path: ["tagTermId"],
+        message:
+          "Debe seleccionar al menos un tag o marcar la pregunta como global.",
+        path: ["tagTermIds"],
       });
     }
   });

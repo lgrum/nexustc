@@ -1,6 +1,11 @@
 import type { db as database } from "@repo/db";
-import { and, eq } from "@repo/db";
-import { term, termPostRelation } from "@repo/db/schema/app";
+import { and, eq, inArray } from "@repo/db";
+import {
+  engagementQuestion,
+  engagementQuestionTagRelation,
+  term,
+  termPostRelation,
+} from "@repo/db/schema/app";
 
 import { resolveEngagementPrompts } from "./engagement-prompts";
 
@@ -10,6 +15,15 @@ export type CommentEngagementSelection = {
   id: string;
   source: "manual" | "tag";
 };
+
+export function isGlobalEngagementQuestionCompatible(
+  incompatibleTagTermIds: string[],
+  postTagTermIds: string[]
+) {
+  return !incompatibleTagTermIds.some((tagTermId) =>
+    postTagTermIds.includes(tagTermId)
+  );
+}
 
 export async function getResolvedEngagementPromptsForPost(
   db: Database,
@@ -38,32 +52,59 @@ export async function getResolvedEngagementPromptsForPost(
     .where(and(eq(termPostRelation.postId, postId), eq(term.taxonomy, "tag")));
 
   const tagTermIds = tagTerms.map((tagTerm) => tagTerm.id);
-  const automaticQuestions = await db.query.engagementQuestion.findMany({
+  const globalQuestions = await db.query.engagementQuestion.findMany({
     columns: {
       id: true,
-      tagTermId: true,
       text: true,
     },
-    where: (
-      table,
-      { and: andWhere, eq: equals, inArray: inArrayWhere, or: orWhere }
-    ) => {
-      if (tagTermIds.length === 0) {
-        return andWhere(
-          equals(table.isActive, true),
-          equals(table.isGlobal, true)
-        );
-      }
-
-      return andWhere(
-        equals(table.isActive, true),
-        orWhere(
-          equals(table.isGlobal, true),
-          inArrayWhere(table.tagTermId, tagTermIds)
-        )
-      );
+    where: (table, { and: andWhere, eq: equals }) =>
+      andWhere(equals(table.isActive, true), equals(table.isGlobal, true)),
+    with: {
+      incompatibleTagRelations: {
+        columns: {
+          termId: true,
+        },
+      },
     },
   });
+  const taggedQuestions =
+    tagTermIds.length === 0
+      ? []
+      : await db
+          .select({
+            id: engagementQuestion.id,
+            tagTermId: engagementQuestionTagRelation.termId,
+            text: engagementQuestion.text,
+          })
+          .from(engagementQuestionTagRelation)
+          .innerJoin(
+            engagementQuestion,
+            eq(
+              engagementQuestion.id,
+              engagementQuestionTagRelation.engagementQuestionId
+            )
+          )
+          .where(
+            and(
+              eq(engagementQuestion.isActive, true),
+              inArray(engagementQuestionTagRelation.termId, tagTermIds)
+            )
+          );
+  const automaticQuestions = [
+    ...globalQuestions
+      .filter((question) =>
+        isGlobalEngagementQuestionCompatible(
+          question.incompatibleTagRelations.map((relation) => relation.termId),
+          tagTermIds
+        )
+      )
+      .map((question) => ({
+        id: question.id,
+        tagTermId: null,
+        text: question.text,
+      })),
+    ...taggedQuestions,
+  ];
 
   return resolveEngagementPrompts([], automaticQuestions);
 }

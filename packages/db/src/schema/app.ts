@@ -428,6 +428,40 @@ export const engagementQuestion = pgTable(
   ]
 );
 
+export const engagementQuestionTagRelation = pgTable(
+  "engagement_question_tag_relation",
+  {
+    engagementQuestionId: text("engagement_question_id")
+      .notNull()
+      .references(() => engagementQuestion.id, { onDelete: "cascade" }),
+    termId: text("term_id")
+      .notNull()
+      .references(() => term.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.engagementQuestionId, table.termId] }),
+    index("engagement_question_tag_relation_term_id_idx").on(table.termId),
+  ]
+);
+
+export const engagementQuestionIncompatibleTagRelation = pgTable(
+  "engagement_question_incompatible_tag_relation",
+  {
+    engagementQuestionId: text("engagement_question_id")
+      .notNull()
+      .references(() => engagementQuestion.id, { onDelete: "cascade" }),
+    termId: text("term_id")
+      .notNull()
+      .references(() => term.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.engagementQuestionId, table.termId] }),
+    index("engagement_question_incompatible_tag_relation_term_id_idx").on(
+      table.termId
+    ),
+  ]
+);
+
 export const postEngagementOverride = pgTable(
   "post_engagement_override",
   {
@@ -1007,7 +1041,11 @@ export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
 }));
 
 export const termRelations = relations(term, ({ many }) => ({
+  engagementQuestionIncompatibleTagRelations: many(
+    engagementQuestionIncompatibleTagRelation
+  ),
   engagementQuestions: many(engagementQuestion),
+  engagementQuestionTagRelations: many(engagementQuestionTagRelation),
   posts: many(termPostRelation),
 }));
 
@@ -1020,9 +1058,39 @@ export const commentRelations = relations(comment, ({ one }) => ({
 
 export const engagementQuestionRelations = relations(
   engagementQuestion,
-  ({ one }) => ({
+  ({ many, one }) => ({
+    incompatibleTagRelations: many(engagementQuestionIncompatibleTagRelation),
+    tagRelations: many(engagementQuestionTagRelation),
     tagTerm: one(term, {
       fields: [engagementQuestion.tagTermId],
+      references: [term.id],
+    }),
+  })
+);
+
+export const engagementQuestionIncompatibleTagRelationRelations = relations(
+  engagementQuestionIncompatibleTagRelation,
+  ({ one }) => ({
+    engagementQuestion: one(engagementQuestion, {
+      fields: [engagementQuestionIncompatibleTagRelation.engagementQuestionId],
+      references: [engagementQuestion.id],
+    }),
+    term: one(term, {
+      fields: [engagementQuestionIncompatibleTagRelation.termId],
+      references: [term.id],
+    }),
+  })
+);
+
+export const engagementQuestionTagRelationRelations = relations(
+  engagementQuestionTagRelation,
+  ({ one }) => ({
+    engagementQuestion: one(engagementQuestion, {
+      fields: [engagementQuestionTagRelation.engagementQuestionId],
+      references: [engagementQuestion.id],
+    }),
+    term: one(term, {
+      fields: [engagementQuestionTagRelation.termId],
       references: [term.id],
     }),
   })

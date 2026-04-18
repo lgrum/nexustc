@@ -1,4 +1,7 @@
-import { resolveCommentEngagementSelection } from "./comment-engagement";
+import {
+  isGlobalEngagementQuestionCompatible,
+  resolveCommentEngagementSelection,
+} from "./comment-engagement";
 
 const prompts = [
   {
@@ -36,5 +39,25 @@ describe(resolveCommentEngagementSelection, () => {
         source: "tag",
       })
     ).toBeNull();
+  });
+});
+
+describe(isGlobalEngagementQuestionCompatible, () => {
+  it("allows global questions when none of the blacklisted tags are present", () => {
+    expect(
+      isGlobalEngagementQuestionCompatible(
+        ["tag-horror", "tag-comedy"],
+        ["tag-romance"]
+      )
+    ).toBeTruthy();
+  });
+
+  it("blocks global questions when a blacklisted tag is present", () => {
+    expect(
+      isGlobalEngagementQuestionCompatible(
+        ["tag-horror", "tag-comedy"],
+        ["tag-romance", "tag-comedy"]
+      )
+    ).toBeFalsy();
   });
 });
