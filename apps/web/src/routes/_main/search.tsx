@@ -43,6 +43,7 @@ const typeSchema = z.enum(["juegos", "comics"]);
 
 const searchParamsSchema = z.object({
   engine: z.array(z.string()).optional().default([]),
+  graphics: z.array(z.string()).optional().default([]),
   orderBy: orderBySchema.optional().default("views"),
   platform: z.array(z.string()).optional().default([]),
   query: z.string().optional(),
@@ -53,6 +54,7 @@ const searchParamsSchema = z.object({
 
 const postSearchSchema = z.object({
   engine: z.array(z.string()),
+  graphics: z.array(z.string()),
   orderBy: orderBySchema,
   platform: z.array(z.string()),
   query: z.string(),
@@ -75,6 +77,7 @@ export const Route = createFileRoute("/_main/search")({
       ? (deps.tag ?? [])
       : [
           ...(deps.engine ?? []),
+          ...(deps.graphics ?? []),
           ...(deps.status ?? []),
           ...(deps.platform ?? []),
           ...(deps.tag ?? []),
@@ -175,6 +178,7 @@ function PostSearchForm() {
   const form = useAppForm({
     defaultValues: {
       engine: params.engine ?? [],
+      graphics: params.graphics ?? [],
       orderBy: params.orderBy ?? "views",
       platform: params.platform ?? [],
       query: params.query ?? "",
@@ -193,6 +197,8 @@ function PostSearchForm() {
       navigate({
         search: {
           engine: formValues.engine.length > 0 ? formValues.engine : undefined,
+          graphics:
+            formValues.graphics.length > 0 ? formValues.graphics : undefined,
           orderBy: formValues.orderBy,
           platform:
             formValues.platform.length > 0 ? formValues.platform : undefined,
@@ -208,6 +214,7 @@ function PostSearchForm() {
     [
       formValues.query,
       formValues.engine,
+      formValues.graphics,
       formValues.status,
       formValues.platform,
       formValues.tag,
@@ -284,6 +291,19 @@ function PostSearchForm() {
                 label="Motor"
                 options={
                   groupedTerms.engine?.map((term) => ({
+                    label: term.name,
+                    value: term.id,
+                  })) ?? []
+                }
+              />
+            )}
+          </form.AppField>
+          <form.AppField name="graphics">
+            {(field) => (
+              <field.MultiSelectField
+                label="Gráficos"
+                options={
+                  groupedTerms.graphics?.map((term) => ({
                     label: term.name,
                     value: term.id,
                   })) ?? []
