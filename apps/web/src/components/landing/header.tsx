@@ -1,10 +1,11 @@
 import {
-  Home01Icon,
+  Book03Icon,
+  BubbleChatQuestionIcon,
   Clock01Icon,
   CircleLockIcon,
+  GameController03Icon,
+  Home01Icon,
   News01Icon,
-  Search01Icon,
-  Book03Icon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
@@ -28,14 +29,20 @@ import { Button } from "../ui/button";
 const navItems = [
   { href: "/", icon: Home01Icon, label: "Inicio", search: {} },
   {
-    href: "/search",
-    icon: Search01Icon,
-    label: "Buscar",
+    href: "/juegos",
+    icon: GameController03Icon,
+    label: "Juegos",
+    search: {},
+  },
+  {
+    href: "/comics",
+    icon: Book03Icon,
+    label: "Comics",
     search: {},
   },
   {
     href: "/tutorials",
-    icon: Book03Icon,
+    icon: BubbleChatQuestionIcon,
     label: "Tutoriales",
     search: {},
   },

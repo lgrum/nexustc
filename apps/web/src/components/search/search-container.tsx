@@ -20,9 +20,12 @@ const formContext = createContext<{
 
 export function SearchForm({
   children,
+  defaultFiltersOpen = false,
   ...props
-}: React.PropsWithChildren<React.ComponentProps<"form">>) {
-  const [openFilters, setOpenFilters] = useState(false);
+}: React.PropsWithChildren<
+  React.ComponentProps<"form"> & { defaultFiltersOpen?: boolean }
+>) {
+  const [openFilters, setOpenFilters] = useState(defaultFiltersOpen);
 
   const value: ReturnType<typeof useFormContext> = useMemo(
     () => ({ filter: [openFilters, setOpenFilters] }),
@@ -36,7 +39,10 @@ export function SearchForm({
   );
 }
 
-export function SearchFilters({ children }: React.PropsWithChildren<unknown>) {
+export function SearchFilters({
+  children,
+  className,
+}: React.PropsWithChildren<{ className?: string }>) {
   const {
     filter: [openFilters],
   } = useFormContext();
@@ -45,7 +51,7 @@ export function SearchFilters({ children }: React.PropsWithChildren<unknown>) {
     return null;
   }
 
-  return <div className="flex flex-col gap-4">{children}</div>;
+  return <div className={cn("flex flex-col gap-4", className)}>{children}</div>;
 }
 
 function useFormContext() {

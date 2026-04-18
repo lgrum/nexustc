@@ -38,7 +38,9 @@ import { Route as MainResetPasswordRouteImport } from './routes/_main/reset-pass
 import { Route as MainProfileRouteImport } from './routes/_main/profile'
 import { Route as MainPrivacyRouteImport } from './routes/_main/privacy'
 import { Route as MainLegalRouteImport } from './routes/_main/legal'
+import { Route as MainJuegosRouteImport } from './routes/_main/juegos'
 import { Route as MainForgotPasswordRouteImport } from './routes/_main/forgot-password'
+import { Route as MainComicsRouteImport } from './routes/_main/comics'
 import { Route as MainChronosRouteImport } from './routes/_main/chronos'
 import { Route as MainAboutRouteImport } from './routes/_main/about'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin/users/index'
@@ -227,9 +229,19 @@ const MainLegalRoute = MainLegalRouteImport.update({
   path: '/legal',
   getParentRoute: () => MainRouteRoute,
 } as any)
+const MainJuegosRoute = MainJuegosRouteImport.update({
+  id: '/juegos',
+  path: '/juegos',
+  getParentRoute: () => MainRouteRoute,
+} as any)
 const MainForgotPasswordRoute = MainForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
+  getParentRoute: () => MainRouteRoute,
+} as any)
+const MainComicsRoute = MainComicsRouteImport.update({
+  id: '/comics',
+  path: '/comics',
   getParentRoute: () => MainRouteRoute,
 } as any)
 const MainChronosRoute = MainChronosRouteImport.update({
@@ -458,7 +470,9 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/about': typeof MainAboutRoute
   '/chronos': typeof MainChronosRoute
+  '/comics': typeof MainComicsRoute
   '/forgot-password': typeof MainForgotPasswordRoute
+  '/juegos': typeof MainJuegosRoute
   '/legal': typeof MainLegalRoute
   '/privacy': typeof MainPrivacyRoute
   '/profile': typeof MainProfileRoute
@@ -530,7 +544,9 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/about': typeof MainAboutRoute
   '/chronos': typeof MainChronosRoute
+  '/comics': typeof MainComicsRoute
   '/forgot-password': typeof MainForgotPasswordRoute
+  '/juegos': typeof MainJuegosRoute
   '/legal': typeof MainLegalRoute
   '/privacy': typeof MainPrivacyRoute
   '/profile': typeof MainProfileRoute
@@ -606,7 +622,9 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_main/about': typeof MainAboutRoute
   '/_main/chronos': typeof MainChronosRoute
+  '/_main/comics': typeof MainComicsRoute
   '/_main/forgot-password': typeof MainForgotPasswordRoute
+  '/_main/juegos': typeof MainJuegosRoute
   '/_main/legal': typeof MainLegalRoute
   '/_main/privacy': typeof MainPrivacyRoute
   '/_main/profile': typeof MainProfileRoute
@@ -683,7 +701,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/about'
     | '/chronos'
+    | '/comics'
     | '/forgot-password'
+    | '/juegos'
     | '/legal'
     | '/privacy'
     | '/profile'
@@ -755,7 +775,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/about'
     | '/chronos'
+    | '/comics'
     | '/forgot-password'
+    | '/juegos'
     | '/legal'
     | '/privacy'
     | '/profile'
@@ -830,7 +852,9 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_main/about'
     | '/_main/chronos'
+    | '/_main/comics'
     | '/_main/forgot-password'
+    | '/_main/juegos'
     | '/_main/legal'
     | '/_main/privacy'
     | '/_main/profile'
@@ -1130,11 +1154,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainLegalRouteImport
       parentRoute: typeof MainRouteRoute
     }
+    '/_main/juegos': {
+      id: '/_main/juegos'
+      path: '/juegos'
+      fullPath: '/juegos'
+      preLoaderRoute: typeof MainJuegosRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
     '/_main/forgot-password': {
       id: '/_main/forgot-password'
       path: '/forgot-password'
       fullPath: '/forgot-password'
       preLoaderRoute: typeof MainForgotPasswordRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
+    '/_main/comics': {
+      id: '/_main/comics'
+      path: '/comics'
+      fullPath: '/comics'
+      preLoaderRoute: typeof MainComicsRouteImport
       parentRoute: typeof MainRouteRoute
     }
     '/_main/chronos': {
@@ -1444,7 +1482,9 @@ declare module '@tanstack/react-router' {
 interface MainRouteRouteChildren {
   MainAboutRoute: typeof MainAboutRoute
   MainChronosRoute: typeof MainChronosRoute
+  MainComicsRoute: typeof MainComicsRoute
   MainForgotPasswordRoute: typeof MainForgotPasswordRoute
+  MainJuegosRoute: typeof MainJuegosRoute
   MainLegalRoute: typeof MainLegalRoute
   MainPrivacyRoute: typeof MainPrivacyRoute
   MainProfileRoute: typeof MainProfileRoute
@@ -1464,7 +1504,9 @@ interface MainRouteRouteChildren {
 const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainAboutRoute: MainAboutRoute,
   MainChronosRoute: MainChronosRoute,
+  MainComicsRoute: MainComicsRoute,
   MainForgotPasswordRoute: MainForgotPasswordRoute,
+  MainJuegosRoute: MainJuegosRoute,
   MainLegalRoute: MainLegalRoute,
   MainPrivacyRoute: MainPrivacyRoute,
   MainProfileRoute: MainProfileRoute,

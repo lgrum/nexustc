@@ -34,16 +34,16 @@ import { Button } from "./ui/button";
 const navItems = [
   { href: "/", icon: Home01Icon, label: "Inicio", search: {} },
   {
-    href: "/search",
+    href: "/juegos",
     icon: GameController03Icon,
     label: "Juegos",
-    search: { type: "juegos" },
+    search: {},
   },
   {
-    href: "/search",
+    href: "/comics",
     icon: Book03Icon,
     label: "Comics",
-    search: { type: "comics" },
+    search: {},
   },
   {
     href: "/tutorials",

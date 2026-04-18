@@ -1,87 +1,25 @@
-import { DiceFaces05Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { useStore } from "@tanstack/react-form";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import z from "zod";
+import { useCallback } from "react";
 
 import { PostCard } from "@/components/landing/post-card";
 import {
-  SearchFilters,
-  SearchFiltersButton,
-  SearchForm,
-} from "@/components/search/search-container";
-import { Button } from "@/components/ui/button";
+  ComicSearchControls,
+  GameSearchControls,
+  getComicFilterCount,
+  getComicTermIds,
+  getGameFilterCount,
+  getGameTermIds,
+  searchParamsSchema,
+} from "@/components/search/catalog-search";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppForm } from "@/hooks/use-app-form";
-import { useDebounceEffect } from "@/hooks/use-debounce-effect";
-import { useTerms } from "@/hooks/use-terms";
 import { orpcClient } from "@/lib/orpc";
-
-const ORDER_OPTIONS = [
-  { label: "Más Vistos", value: "views" },
-  { label: "Más Recientes", value: "newest" },
-  { label: "Más Antiguos", value: "oldest" },
-  { label: "Título (A-Z)", value: "title_asc" },
-  { label: "Título (Z-A)", value: "title_desc" },
-  { label: "Mejor Valorados", value: "rating_avg" },
-  { label: "Más Valoraciones", value: "rating_count" },
-  { label: "Más Likes", value: "likes" },
-] as const;
-
-const orderBySchema = z.enum([
-  "newest",
-  "oldest",
-  "title_asc",
-  "title_desc",
-  "views",
-  "rating_avg",
-  "rating_count",
-  "likes",
-]);
-
-const typeSchema = z.enum(["juegos", "comics"]);
-
-const searchParamsSchema = z.object({
-  engine: z.array(z.string()).optional().default([]),
-  graphics: z.array(z.string()).optional().default([]),
-  orderBy: orderBySchema.optional().default("views"),
-  platform: z.array(z.string()).optional().default([]),
-  query: z.string().optional(),
-  status: z.array(z.string()).optional().default([]),
-  tag: z.array(z.string()).optional().default([]),
-  type: typeSchema.optional().default("juegos"),
-});
-
-const postSearchSchema = z.object({
-  engine: z.array(z.string()),
-  graphics: z.array(z.string()),
-  orderBy: orderBySchema,
-  platform: z.array(z.string()),
-  query: z.string(),
-  status: z.array(z.string()),
-  tag: z.array(z.string()),
-});
-
-const comicSearchSchema = z.object({
-  orderBy: orderBySchema,
-  query: z.string(),
-  tag: z.array(z.string()),
-});
 
 export const Route = createFileRoute("/_main/search")({
   component: RouteComponent,
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const isComic = deps.type === "comics";
-    const termIds = isComic
-      ? (deps.tag ?? [])
-      : [
-          ...(deps.engine ?? []),
-          ...(deps.graphics ?? []),
-          ...(deps.status ?? []),
-          ...(deps.platform ?? []),
-          ...(deps.tag ?? []),
-        ];
+    const termIds = isComic ? getComicTermIds(deps) : getGameTermIds(deps);
 
     const filteredPosts = await orpcClient.post.search({
       orderBy: deps.orderBy,
@@ -107,343 +45,110 @@ function RouteComponent() {
   const navigate = useNavigate();
   const { filteredPosts } = Route.useLoaderData();
 
-  const handleTabChange = (value: string | null) => {
-    if (value === "juegos" || value === "comics") {
+  const handleTabChange = useCallback(
+    (value: string | null) => {
+      if (value === "juegos" || value === "comics") {
+        navigate({
+          search: { type: value },
+          to: "/search",
+        });
+      }
+    },
+    [navigate]
+  );
+
+  const handleGameSearchChange = useCallback(
+    (search: Omit<typeof params, "type">) => {
       navigate({
-        search: { type: value },
+        search: { ...search, type: "juegos" },
         to: "/search",
       });
-    }
-  };
+    },
+    [navigate]
+  );
 
-  const postCount = params.type === "juegos" ? (filteredPosts?.length ?? 0) : 0;
-  const comicCount =
-    params.type === "comics" ? (filteredPosts?.length ?? 0) : 0;
+  const handleComicSearchChange = useCallback(
+    (search: {
+      orderBy: typeof params.orderBy;
+      query?: string;
+      tag?: string[];
+    }) => {
+      navigate({
+        search: { ...search, type: "comics" },
+        to: "/search",
+      });
+    },
+    [navigate]
+  );
+
+  const handleRandomSelect = useCallback(
+    (id: string) => {
+      navigate({ params: { id }, to: "/post/$id" });
+    },
+    [navigate]
+  );
+
+  const activeFilterCount =
+    params.type === "comics"
+      ? getComicFilterCount(params)
+      : getGameFilterCount(params);
 
   return (
-    <main className="flex w-full flex-col gap-6 px-4 py-8 md:flex-row">
-      {/* Sidebar — first on mobile (top), right on desktop */}
-      <div className="w-full md:order-2 md:w-80 md:shrink-0">
-        <div className="flex flex-col gap-4 md:sticky md:top-22">
-          <Tabs onValueChange={handleTabChange} value={params.type ?? "juegos"}>
-            <TabsList className="w-full">
-              <TabsTrigger value="juegos">
-                Juegos {postCount > 0 && `(${postCount})`}
-              </TabsTrigger>
-              <TabsTrigger value="comics">
-                Cómics {comicCount > 0 && `(${comicCount})`}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="juegos">
-              <PostSearchForm />
-            </TabsContent>
-            <TabsContent value="comics">
-              <ComicSearchForm />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </div>
-
-      {/* Results — second on mobile (below), left on desktop */}
-      <div className="min-w-0 flex-1 md:order-1 md:pt-4">
-        {filteredPosts && filteredPosts.length > 0 && (
-          <div className="mb-4 flex flex-col gap-2">
-            <p className="text-muted-foreground text-xs">
-              Mostrando {filteredPosts.length} resultados
+    <main className="grid w-full gap-6 px-4 py-8 md:grid-cols-[minmax(0,1fr)_minmax(260px,340px)]">
+      <section className="min-w-0 space-y-4 md:order-1">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="font-[Lexend] font-bold text-3xl">Buscar</h1>
+            <p className="text-muted-foreground text-sm">
+              Mostrando {filteredPosts?.length ?? 0} resultados
             </p>
-            <div className="glow-line" />
           </div>
-        )}
+          <p className="rounded-xl border border-white/10 bg-card/70 px-3 py-1.5 text-muted-foreground text-sm">
+            {activeFilterCount === 1
+              ? "1 filtro activo"
+              : `${activeFilterCount} filtros activos`}
+          </p>
+        </div>
+        <div className="glow-line" />
         {filteredPosts?.length === 0 ? (
-          <p className="text-pretty py-8 text-center text-muted-foreground">
+          <p className="rounded-xl border border-dashed border-white/15 bg-card/50 py-8 text-center text-muted-foreground">
             No se encontraron resultados que coincidan con tu búsqueda.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
-            {filteredPosts?.map((r) => (
-              <PostCard key={r.id} post={r} />
+            {filteredPosts?.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
         )}
-      </div>
+      </section>
+
+      <aside className="min-w-0 md:order-2">
+        <div className="rounded-xl border border-white/10 bg-card/70 p-3 backdrop-blur md:sticky md:top-22">
+          <Tabs onValueChange={handleTabChange} value={params.type ?? "juegos"}>
+            <TabsList className="w-full rounded-xl">
+              <TabsTrigger value="juegos">Juegos</TabsTrigger>
+              <TabsTrigger value="comics">Comics</TabsTrigger>
+            </TabsList>
+            <TabsContent value="juegos">
+              <GameSearchControls
+                defaultFiltersOpen={false}
+                onRandomSelect={handleRandomSelect}
+                onSearchChange={handleGameSearchChange}
+                params={params}
+              />
+            </TabsContent>
+            <TabsContent value="comics">
+              <ComicSearchControls
+                defaultFiltersOpen={false}
+                onRandomSelect={handleRandomSelect}
+                onSearchChange={handleComicSearchChange}
+                params={params}
+              />
+            </TabsContent>
+          </Tabs>
+        </div>
+      </aside>
     </main>
-  );
-}
-
-function PostSearchForm() {
-  const params = Route.useSearch();
-  const navigate = useNavigate();
-  const termsQuery = useTerms();
-
-  const form = useAppForm({
-    defaultValues: {
-      engine: params.engine ?? [],
-      graphics: params.graphics ?? [],
-      orderBy: params.orderBy ?? "views",
-      platform: params.platform ?? [],
-      query: params.query ?? "",
-      status: params.status ?? [],
-      tag: params.tag ?? [],
-    },
-    validators: {
-      onSubmit: postSearchSchema,
-    },
-  });
-
-  const formValues = useStore(form.store, (state) => state.values);
-
-  useDebounceEffect(
-    () => {
-      navigate({
-        search: {
-          engine: formValues.engine.length > 0 ? formValues.engine : undefined,
-          graphics:
-            formValues.graphics.length > 0 ? formValues.graphics : undefined,
-          orderBy: formValues.orderBy,
-          platform:
-            formValues.platform.length > 0 ? formValues.platform : undefined,
-          query: formValues.query || undefined,
-          status: formValues.status.length > 0 ? formValues.status : undefined,
-          tag: formValues.tag.length > 0 ? formValues.tag : undefined,
-          type: "juegos",
-        },
-        to: "/search",
-      });
-    },
-    300,
-    [
-      formValues.query,
-      formValues.engine,
-      formValues.graphics,
-      formValues.status,
-      formValues.platform,
-      formValues.tag,
-      formValues.orderBy,
-    ]
-  );
-
-  const handleRandomPost = async () => {
-    const result = await orpcClient.post.getRandom({ type: "post" });
-    if (result) {
-      navigate({ params: { id: result.id }, to: "/post/$id" });
-    }
-  };
-
-  if (termsQuery.isPending) {
-    return <div>Loading...</div>;
-  }
-
-  if (termsQuery.isError) {
-    return <div>Error</div>;
-  }
-
-  const groupedTerms = Object.groupBy(termsQuery.data, (t) => t.taxonomy);
-
-  return (
-    <SearchForm
-      onSubmit={(e) => {
-        e.preventDefault();
-      }}
-    >
-      <div className="flex flex-col gap-3">
-        <div className="flex items-end gap-2">
-          <form.AppField name="query">
-            {(field) => (
-              <field.TextField className="w-full" label="Buscar" type="text" />
-            )}
-          </form.AppField>
-          <Button
-            className="size-12 shrink-0"
-            onClick={handleRandomPost}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <HugeiconsIcon icon={DiceFaces05Icon} />
-          </Button>
-        </div>
-        <SearchFiltersButton />
-        <SearchFilters>
-          <form.AppField name="orderBy">
-            {(field) => (
-              <field.SelectField
-                label="Ordenar por"
-                options={[...ORDER_OPTIONS]}
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="status">
-            {(field) => (
-              <field.MultiSelectField
-                label="Estado"
-                options={
-                  groupedTerms.status?.map((term) => ({
-                    label: term.name,
-                    value: term.id,
-                  })) ?? []
-                }
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="engine">
-            {(field) => (
-              <field.MultiSelectField
-                label="Motor"
-                options={
-                  groupedTerms.engine?.map((term) => ({
-                    label: term.name,
-                    value: term.id,
-                  })) ?? []
-                }
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="graphics">
-            {(field) => (
-              <field.MultiSelectField
-                label="Gráficos"
-                options={
-                  groupedTerms.graphics?.map((term) => ({
-                    label: term.name,
-                    value: term.id,
-                  })) ?? []
-                }
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="platform">
-            {(field) => (
-              <field.MultiSelectField
-                label="Plataformas"
-                options={
-                  groupedTerms.platform?.map((term) => ({
-                    label: term.name,
-                    value: term.id,
-                  })) ?? []
-                }
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="tag">
-            {(field) => (
-              <field.MultiSelectField
-                label="Tags"
-                options={
-                  groupedTerms.tag?.map((term) => ({
-                    label: term.name,
-                    value: term.id,
-                  })) ?? []
-                }
-              />
-            )}
-          </form.AppField>
-        </SearchFilters>
-      </div>
-    </SearchForm>
-  );
-}
-
-function ComicSearchForm() {
-  const params = Route.useSearch();
-  const navigate = useNavigate();
-  const termsQuery = useTerms();
-
-  const form = useAppForm({
-    defaultValues: {
-      orderBy: params.orderBy ?? "views",
-      query: params.query ?? "",
-      tag: params.tag ?? [],
-    },
-    validators: {
-      onSubmit: comicSearchSchema,
-    },
-  });
-
-  const formValues = useStore(form.store, (state) => state.values);
-
-  useDebounceEffect(
-    () => {
-      navigate({
-        search: {
-          orderBy: formValues.orderBy,
-          query: formValues.query || undefined,
-          tag: formValues.tag.length > 0 ? formValues.tag : undefined,
-          type: "comics",
-        },
-        to: "/search",
-      });
-    },
-    300,
-    [formValues.query, formValues.tag, formValues.orderBy]
-  );
-
-  const handleRandomComic = async () => {
-    const result = await orpcClient.post.getRandom({ type: "comic" });
-    if (result) {
-      navigate({ params: { id: result.id }, to: "/post/$id" });
-    }
-  };
-
-  if (termsQuery.isPending) {
-    return <div>Loading...</div>;
-  }
-
-  if (termsQuery.isError) {
-    return <div>Error</div>;
-  }
-
-  const groupedTerms = Object.groupBy(termsQuery.data, (t) => t.taxonomy);
-
-  return (
-    <SearchForm
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        form.handleSubmit();
-      }}
-    >
-      <div className="flex flex-col gap-3">
-        <div className="flex items-end gap-2">
-          <form.AppField name="query">
-            {(field) => (
-              <field.TextField className="w-full" label="Buscar" type="text" />
-            )}
-          </form.AppField>
-          <Button
-            className="size-12 shrink-0"
-            onClick={handleRandomComic}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <HugeiconsIcon icon={DiceFaces05Icon} />
-          </Button>
-        </div>
-        <SearchFiltersButton />
-        <SearchFilters>
-          <form.AppField name="orderBy">
-            {(field) => (
-              <field.SelectField
-                label="Ordenar por"
-                options={[...ORDER_OPTIONS]}
-              />
-            )}
-          </form.AppField>
-          <form.AppField name="tag">
-            {(field) => (
-              <field.MultiSelectField
-                label="Tags"
-                options={
-                  groupedTerms.tag?.map((term) => ({
-                    label: term.name,
-                    value: term.id,
-                  })) ?? []
-                }
-              />
-            )}
-          </form.AppField>
-        </SearchFilters>
-      </div>
-    </SearchForm>
   );
 }

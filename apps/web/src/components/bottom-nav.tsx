@@ -4,9 +4,9 @@ import {
   Home07Icon,
   MoreHorizontalCircle01Icon,
   News01Icon,
-  Search01Icon,
   StarIcon,
   UserIcon,
+  Clock01Icon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -35,7 +35,10 @@ export function BottomNav() {
   };
 
   const isExtrasActive =
-    isActive("/news") || isActive("/profile") || isActive("/auth");
+    isActive("/chronos") ||
+    isActive("/news") ||
+    isActive("/profile") ||
+    isActive("/auth");
 
   return (
     <nav
@@ -51,9 +54,9 @@ export function BottomNav() {
       )}
     >
       <NavItem href="/" icon={Home07Icon} label="Inicio" />
+      <NavItem href="/juegos" icon={GameController03Icon} label="Juegos" />
+      <NavButtonItem href="/comics" icon={Book03Icon} label="Comics" />
       <NavItem href="/vip" icon={StarIcon} label="VIP" />
-      <NavItem href="/chronos" icon={GameController03Icon} label="Chronos" />
-      <NavButtonItem href="/search" icon={Search01Icon} />
       <NavItem href="/tutorials" icon={Book03Icon} label="Tutoriales" />
       <ExtrasNavMenu isActive={isExtrasActive} />
     </nav>
@@ -99,7 +102,15 @@ function NavItem({
   );
 }
 
-function NavButtonItem({ href, icon }: { href: string; icon: IconSvgElement }) {
+function NavButtonItem({
+  href,
+  icon,
+  label,
+}: {
+  href: string;
+  icon: IconSvgElement;
+  label: string;
+}) {
   const location = useLocation();
 
   const isActive =
@@ -115,7 +126,13 @@ function NavButtonItem({ href, icon }: { href: string; icon: IconSvgElement }) {
           "border-white bg-linear-to-br from-primary to-secondary text-white shadow-[0_0_0_1px_hsl(var(--primary)/0.55),0_0_28px_hsl(var(--primary)/0.55),0_20px_48px_-14px_hsl(var(--primary))]"
       )}
       nativeButton={false}
-      render={<Link aria-current={isActive ? "page" : undefined} to={href} />}
+      render={
+        <Link
+          aria-current={isActive ? "page" : undefined}
+          aria-label={label}
+          to={href}
+        />
+      }
       size="icon"
     >
       <HugeiconsIcon
@@ -161,6 +178,10 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
           <span className="font-medium text-[10px]">Extras</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" side="top" sideOffset={8}>
+          <DropdownMenuItem onClick={() => navigate({ to: "/chronos" })}>
+            <HugeiconsIcon icon={Clock01Icon} />
+            Chronos
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({ to: "/news" })}>
             <HugeiconsIcon icon={News01Icon} />
             News
