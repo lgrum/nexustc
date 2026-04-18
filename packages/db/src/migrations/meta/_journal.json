@@ -239,6 +239,13 @@
       "when": 1776523804681,
       "tag": "0033_tired_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1776534279837,
+      "tag": "0034_open_guardian",
+      "breakpoints": true
     }
   ]
 }

@@ -85,6 +85,7 @@ export function PostPage({ post }: { post: PostProps }) {
             <PostContent />
             <PostTagsSection />
             {!showRestrictedView && <PostChangelog />}
+            {!showRestrictedView && <PostPartsSection />}
             {showCreatorSupport && (
               <div className="md:hidden">
                 <CreatorSupportCard />
@@ -891,6 +892,56 @@ export function PostChangelog() {
               variant="outline"
             >
               Ver Cambios
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function PostPartsSection() {
+  const post = usePost();
+  const [isExpanded, setIsExpanded] = useState(false);
+  const parts = post.seriesParts ?? [];
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="section-title">Partes</div>
+      <div className="border border-border bg-card p-4 rounded-xl">
+        {isExpanded ? (
+          <>
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-4">
+              {parts.map((item) => (
+                <PostCard key={item.id} post={item} />
+              ))}
+            </div>
+            <div className="mt-4 flex justify-center">
+              <Button
+                onClick={() => {
+                  setIsExpanded(false);
+                }}
+                type="button"
+                variant="outline"
+              >
+                Ver menos
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="flex justify-center">
+            <Button
+              onClick={() => {
+                setIsExpanded(true);
+              }}
+              type="button"
+              variant="outline"
+            >
+              Ver Partes
             </Button>
           </div>
         )}

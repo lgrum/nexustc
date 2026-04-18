@@ -11,6 +11,24 @@ export type EngagementPromptType = {
   tagTermId: string | null;
 };
 
+export type PostSeriesPart = {
+  averageRating?: number;
+  comicProgressStatus?: "read" | "reading" | "unread" | "updated" | null;
+  coverImageObjectKey?: string | null;
+  favorites: number;
+  id: string;
+  imageObjectKeys: string[] | null;
+  likes: number;
+  terms?: {
+    name: string;
+    taxonomy: string;
+  }[];
+  title: string;
+  type: "post" | "comic";
+  version: string | null;
+  views: number;
+};
+
 export type PostType = Omit<
   typeof post.$inferSelect,
   | "authorId"
@@ -37,6 +55,12 @@ export type PostType = Omit<
   earlyAccess: EarlyAccessView;
   premiumLinksAccess: PremiumLinksDescriptor;
   engagementPrompts: EngagementPromptType[];
+  series: {
+    id: string;
+    title: string;
+    type: "post" | "comic";
+  } | null;
+  seriesParts: PostSeriesPart[];
 };
 
 export type RatingType = typeof postRating.$inferSelect;

@@ -99,6 +99,13 @@ const contentBaseFields = {
   languages: z.array(z.string()),
   manualEngagementQuestions: manualEngagementQuestionsSchema,
   mediaIds: z.array(z.string()),
+  seriesId: z.string().nullable(),
+  seriesOrder: z.number().int().min(0).max(100_000),
+  seriesTitle: z
+    .string()
+    .trim()
+    .max(255)
+    .transform((val) => val.trim()),
   tags: z.array(z.string()),
   title: z
     .string()

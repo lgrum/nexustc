@@ -17,7 +17,7 @@ export const Route = createFileRoute("/admin/comics/create")({
 
 function RouteComponent() {
   const data = Route.useLoaderData();
-  const { terms } = data;
+  const { series, terms } = data;
   const navigate = useNavigate();
 
   const form = useAppForm({
@@ -29,6 +29,9 @@ function RouteComponent() {
       manualEngagementQuestions: [] as string[],
       mediaSelection: createEmptyDeferredMediaSelection(),
       premiumLinks: "",
+      seriesId: null as string | null,
+      seriesOrder: 0,
+      seriesTitle: "",
       status: "",
       tags: [] as string[],
       title: "",
@@ -78,7 +81,7 @@ function RouteComponent() {
       <h1 className="font-semibold text-2xl">Crear Comic</h1>
       <div className="space-y-4">
         <form.AppForm>
-          <ComicFormFields terms={terms} />
+          <ComicFormFields series={series} terms={terms} />
           <div>
             <form.SubmitButton className="w-full">Crear</form.SubmitButton>
           </div>

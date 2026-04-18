@@ -41,6 +41,7 @@ import {
   PostChangelog,
   PostContent,
   PostInfo,
+  PostPartsSection,
   PostSidebarContent,
   PostStatsBar,
   PostTagsSection,
@@ -263,6 +264,7 @@ function ComicInfoPage({
           <PostInfo />
           <PostTagsSection />
           <PostChangelog />
+          <PostPartsSection />
 
           {/* Chapters / Thumbnails */}
           <div className="flex flex-col gap-3">

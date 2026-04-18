@@ -44,6 +44,9 @@ function RouteComponent() {
         oldComic.media?.map((item) => item.id) ?? []
       ),
       premiumLinks: oldComic.premiumLinks ?? "",
+      seriesId: oldComic.seriesId ?? null,
+      seriesOrder: oldComic.seriesOrder ?? 0,
+      seriesTitle: "",
       status: terms.status?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],
       title: oldComic.title,
@@ -83,7 +86,10 @@ function RouteComponent() {
       <h1 className="font-semibold text-2xl">Editar Cómic</h1>
       <div className="space-y-4">
         <form.AppForm>
-          <ComicFormFields terms={prerequisiteTerms} />
+          <ComicFormFields
+            series={data.prerequisites.series}
+            terms={prerequisiteTerms}
+          />
           <div>
             <form.SubmitButton className="w-full">Editar</form.SubmitButton>
           </div>

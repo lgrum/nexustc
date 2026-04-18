@@ -14,6 +14,7 @@ import type { z } from "zod";
 import { CreatorCreateDialog } from "@/components/admin/creators/creator-create-dialog";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
+import { SeriesField } from "@/components/admin/series-field";
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { HasPermissions } from "@/components/auth/has-role";
 import { ErrorField } from "@/components/forms/error-field";
@@ -60,6 +61,11 @@ type GroupedPostTerms = Partial<Record<PostTermTaxonomy, PostFormTerm[]>>;
 type SharedPostFormValues = z.input<typeof postAdminFormSchema>;
 
 type PostFormFieldsProps = {
+  series: {
+    id: string;
+    title: string;
+    type: "post" | "comic";
+  }[];
   terms: PostFormTerm[];
 };
 
@@ -97,7 +103,7 @@ function getInitials(value: string) {
   return words.map((word) => word[0]?.toUpperCase() ?? "").join("");
 }
 
-export function PostFormFields({ terms }: PostFormFieldsProps) {
+export function PostFormFields({ series, terms }: PostFormFieldsProps) {
   const form = useTypedAppFormContext({
     defaultValues: {} as SharedPostFormValues,
   });
@@ -481,6 +487,8 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
           />
         )}
       </form.AppField>
+
+      <SeriesField contentLabel="juego" series={series} />
 
       <section className="col-span-2 space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-4">
         <div className="flex items-start justify-between gap-4">

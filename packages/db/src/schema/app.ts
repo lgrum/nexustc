@@ -28,6 +28,7 @@ import {
   primaryKey,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 import { generateId } from "../utils";
@@ -220,6 +221,24 @@ export const creator = pgTable(
   ]
 );
 
+export const contentSeries = pgTable(
+  "content_series",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    title: text("title").notNull(),
+    type: postTypeEnum("type").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("content_series_type_title_unique").on(table.type, table.title),
+    index("content_series_type_title_idx").on(table.type, table.title),
+    index("content_series_title_gin_idx").using(
+      "gin",
+      table.title.op("gin_trgm_ops")
+    ),
+  ]
+);
+
 export const post = pgTable(
   "post",
   {
@@ -260,6 +279,10 @@ export const post = pgTable(
       .notNull()
       .default("auto"),
     premiumLinks: text("premium_links"),
+    seriesId: text("series_id").references(() => contentSeries.id, {
+      onDelete: "set null",
+    }),
+    seriesOrder: integer("series_order").notNull().default(0),
     status: documentStatusEnum("status").notNull().default("draft"),
     title: text("title").notNull(),
     type: postTypeEnum("type").notNull().default("post"),
@@ -284,6 +307,7 @@ export const post = pgTable(
     index("post_early_access_enabled_idx").on(table.earlyAccessEnabled),
     index("post_early_access_public_at_idx").on(table.earlyAccessPublicAt),
     index("post_title_gin_idx").using("gin", table.title.op("gin_trgm_ops")),
+    index("post_series_id_order_idx").on(table.seriesId, table.seriesOrder),
     index("post_status_idx").on(table.status),
     index("post_created_at_idx").on(table.createdAt),
   ]
@@ -978,6 +1002,10 @@ export const creatorRelations = relations(creator, ({ many, one }) => ({
   posts: many(post),
 }));
 
+export const contentSeriesRelations = relations(contentSeries, ({ many }) => ({
+  posts: many(post),
+}));
+
 export const postRelations = relations(post, ({ many, one }) => ({
   comments: many(comment),
   comicProgress: many(userComicProgress),
@@ -995,6 +1023,10 @@ export const postRelations = relations(post, ({ many, one }) => ({
   likes: many(postLikes),
   mediaRelations: many(postMedia),
   ratings: many(postRating),
+  series: one(contentSeries, {
+    fields: [post.seriesId],
+    references: [contentSeries.id],
+  }),
   terms: many(termPostRelation),
 }));
 

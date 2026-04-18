@@ -8,6 +8,7 @@ import type { z } from "zod";
 
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
+import { SeriesField } from "@/components/admin/series-field";
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { HasPermissions } from "@/components/auth/has-role";
 import { Markdown } from "@/components/markdown";
@@ -43,6 +44,11 @@ type GroupedComicTerms = Partial<
 type SharedComicFormValues = z.input<typeof comicAdminFormSchema>;
 
 type ComicFormFieldsProps = {
+  series: {
+    id: string;
+    title: string;
+    type: "post" | "comic";
+  }[];
   terms: ComicTermOption[];
 };
 
@@ -59,7 +65,7 @@ const mapTermOptions = (terms?: ComicTermOption[]) =>
     value: term.id,
   })) ?? [];
 
-export function ComicFormFields({ terms }: ComicFormFieldsProps) {
+export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
   const form = useTypedAppFormContext({
     defaultValues: {} as SharedComicFormValues,
   });
@@ -242,6 +248,8 @@ export function ComicFormFields({ terms }: ComicFormFieldsProps) {
           />
         )}
       </form.AppField>
+
+      <SeriesField contentLabel="comic" series={series} />
 
       <section className="col-span-2">
         <form.AppField name="manualEngagementQuestions">

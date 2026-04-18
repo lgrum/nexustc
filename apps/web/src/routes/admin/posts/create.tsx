@@ -33,7 +33,7 @@ export const Route = createFileRoute("/admin/posts/create")({
 
 function RouteComponent() {
   const data = Route.useLoaderData();
-  const { terms } = data;
+  const { series, terms } = data;
   const navigate = useNavigate();
   const { data: mediaLibrary } = useSuspenseQuery(
     orpc.media.admin.list.queryOptions()
@@ -62,6 +62,9 @@ function RouteComponent() {
       platforms: [] as string[],
       premiumLinksAccessLevel: "auto" as PremiumLinkAccessLevel,
       premiumLinks: "",
+      seriesId: null as string | null,
+      seriesOrder: 0,
+      seriesTitle: "",
       status: "",
       tags: [] as string[],
       title: "",
@@ -193,7 +196,7 @@ function RouteComponent() {
       </div>
       <div className="space-y-4">
         <form.AppForm>
-          <PostFormFields terms={terms} />
+          <PostFormFields series={series} terms={terms} />
           <div className="flex flex-row gap-4">
             <form.SubmitButton className="flex-1">Crear</form.SubmitButton>
             <Preview
@@ -216,6 +219,8 @@ function RouteComponent() {
                 imageObjectKeys: selectedMediaKeys,
                 likes: 0,
                 premiumLinksAccess: { status: "no_premium_links" as const },
+                series: null,
+                seriesParts: [],
                 terms: [
                   ...post.platforms,
                   ...post.tags,

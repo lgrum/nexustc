@@ -2,6 +2,7 @@ import { getLogger } from "@orpc/experimental-pino";
 import { and, asc, desc, eq, getRedis, isNull, ne, not, sql } from "@repo/db";
 import {
   comment,
+  contentSeries,
   creator,
   featuredPost,
   media,
@@ -737,6 +738,9 @@ export default {
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
           premiumLinksAccessLevel: post.premiumLinksAccessLevel,
           rawPremiumLinks: post.premiumLinks,
+          seriesId: post.seriesId,
+          seriesOrder: post.seriesOrder,
+          seriesTitle: contentSeries.title,
           terms: sql<
             {
               id: string;
@@ -757,6 +761,7 @@ export default {
           views: post.views,
         })
         .from(post)
+        .leftJoin(contentSeries, eq(contentSeries.id, post.seriesId))
         .leftJoin(creator, eq(creator.id, post.creatorId))
         .leftJoin(media, eq(media.id, creator.mediaId))
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
@@ -846,6 +851,46 @@ export default {
         premiumLinksAccess = { status: "no_premium_links" };
       }
 
+      const seriesParts =
+        postData.seriesId && !earlyAccess.isRestrictedView
+          ? await db
+              .select({
+                averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
+                coverImageObjectKey: createPostCoverImageObjectKeySelect(),
+                favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
+                id: post.id,
+                imageObjectKeys: post.imageObjectKeys,
+                likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+                seriesOrder: post.seriesOrder,
+                terms: sql<
+                  {
+                    id: string;
+                    name: string;
+                    taxonomy: (typeof TAXONOMIES)[number];
+                    color: string;
+                  }[]
+                >`COALESCE(${termsAgg.terms}, '[]'::json)`,
+                title: post.title,
+                type: post.type,
+                version: post.version,
+                views: post.views,
+              })
+              .from(post)
+              .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
+              .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
+              .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
+              .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
+              .where(
+                and(
+                  eq(post.status, "publish"),
+                  eq(post.seriesId, postData.seriesId),
+                  eq(post.type, postData.type),
+                  publicCatalogVisibilityCondition()
+                )
+              )
+              .orderBy(asc(post.seriesOrder), asc(post.createdAt), asc(post.id))
+          : [];
+
       return {
         ...postData,
         adsLinks: earlyAccess.isRestrictedView ? "" : postData.adsLinks,
@@ -860,6 +905,14 @@ export default {
           ? []
           : engagementPrompts,
         premiumLinksAccess,
+        series: postData.seriesId
+          ? {
+              id: postData.seriesId,
+              title: postData.seriesTitle ?? "",
+              type: postData.type,
+            }
+          : null,
+        seriesParts,
         terms: postData.terms,
         title: earlyAccess.isRestrictedView
           ? getMaskedPostLabel(postData.id)

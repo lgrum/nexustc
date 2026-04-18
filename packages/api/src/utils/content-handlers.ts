@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { eq, sql } from "@repo/db";
+import { and, eq, sql } from "@repo/db";
 import {
+  contentSeries,
   creator,
   post,
   postEngagementOverride,
@@ -31,6 +32,7 @@ type HandlerParams<T> = {
 
 type MediaSyncDb = Pick<Context["db"], "delete" | "insert" | "select">;
 type OrderedMediaRecord = PersistedMediaRecord;
+type ContentType = ContentCreateInput["type"];
 
 function buildEngagementOverrideRows(postId: string, prompts: string[]) {
   return prompts.map((text, index) => ({
@@ -102,6 +104,76 @@ async function resolveCreatorFields(params: {
   };
 }
 
+async function resolveSeriesFields(params: {
+  db: Pick<Context["db"], "insert" | "select">;
+  seriesId: string | null;
+  seriesOrder: number;
+  seriesTitle: string;
+  type: ContentType;
+}) {
+  const normalizedTitle = params.seriesTitle.trim();
+
+  if (params.seriesId) {
+    const [selectedSeries] = await params.db
+      .select({ id: contentSeries.id })
+      .from(contentSeries)
+      .where(
+        and(
+          eq(contentSeries.id, params.seriesId),
+          eq(contentSeries.type, params.type)
+        )
+      )
+      .limit(1);
+
+    return {
+      seriesId: selectedSeries?.id ?? null,
+      seriesOrder: selectedSeries ? params.seriesOrder : 0,
+    };
+  }
+
+  if (normalizedTitle === "") {
+    return {
+      seriesId: null,
+      seriesOrder: 0,
+    };
+  }
+
+  const [existingSeries] = await params.db
+    .select({ id: contentSeries.id })
+    .from(contentSeries)
+    .where(
+      and(
+        eq(contentSeries.type, params.type),
+        sql`lower(${contentSeries.title}) = lower(${normalizedTitle})`
+      )
+    )
+    .limit(1);
+
+  if (existingSeries) {
+    return {
+      seriesId: existingSeries.id,
+      seriesOrder: params.seriesOrder,
+    };
+  }
+
+  const [createdSeries] = await params.db
+    .insert(contentSeries)
+    .values({
+      title: normalizedTitle,
+      type: params.type,
+    })
+    .returning({ id: contentSeries.id });
+
+  if (!createdSeries) {
+    throw new Error(`Failed to create series "${normalizedTitle}"`);
+  }
+
+  return {
+    seriesId: createdSeries.id,
+    seriesOrder: params.seriesOrder,
+  };
+}
+
 export async function createContent({
   context: { db, session, ...ctx },
   input,
@@ -147,6 +219,13 @@ export async function createContent({
               creatorLink: input.creatorLink ?? "",
               creatorName: input.creatorName ?? "",
             };
+      const seriesFields = await resolveSeriesFields({
+        db: tx,
+        seriesId: input.seriesId,
+        seriesOrder: input.seriesOrder,
+        seriesTitle: input.seriesTitle,
+        type: input.type,
+      });
 
       const [postData] = await tx
         .insert(post)
@@ -173,6 +252,8 @@ export async function createContent({
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
+          seriesId: seriesFields.seriesId,
+          seriesOrder: seriesFields.seriesOrder,
           status: input.documentStatus,
           title: input.title,
           type: input.type,
@@ -310,6 +391,13 @@ export async function editContent({
               creatorLink: input.creatorLink ?? "",
               creatorName: input.creatorName ?? "",
             };
+      const seriesFields = await resolveSeriesFields({
+        db: tx,
+        seriesId: input.seriesId,
+        seriesOrder: input.seriesOrder,
+        seriesTitle: input.seriesTitle,
+        type: input.type,
+      });
 
       const [postData] = await tx
         .update(post)
@@ -340,6 +428,8 @@ export async function editContent({
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
+          seriesId: seriesFields.seriesId,
+          seriesOrder: seriesFields.seriesOrder,
           status: input.documentStatus,
           title: input.title,
           version:

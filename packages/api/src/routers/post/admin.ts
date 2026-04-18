@@ -33,8 +33,14 @@ export default {
 
     const terms = await db.query.term.findMany();
     logger?.debug(`Retrieved ${terms.length} terms for prerequisites`);
+    const series = await db.query.contentSeries.findMany({
+      orderBy: (table, { asc }) => [asc(table.title)],
+      where: (table, { eq: equals }) => equals(table.type, "post"),
+    });
+    logger?.debug(`Retrieved ${series.length} game series for prerequisites`);
 
     return {
+      series,
       terms,
     };
   }),

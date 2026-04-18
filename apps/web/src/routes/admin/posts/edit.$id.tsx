@@ -57,6 +57,9 @@ function RouteComponent() {
       platforms: terms.platform?.map((term) => term.term.id) ?? [],
       premiumLinksAccessLevel: oldPost.premiumLinksAccessLevel ?? "auto",
       premiumLinks: oldPost.premiumLinks ?? "",
+      seriesId: oldPost.seriesId ?? null,
+      seriesOrder: oldPost.seriesOrder ?? 0,
+      seriesTitle: "",
       status: terms.status?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],
       title: oldPost.title,
@@ -101,7 +104,10 @@ function RouteComponent() {
       <h1 className="font-semibold text-2xl">Editar Post</h1>
       <div className="space-y-4">
         <form.AppForm>
-          <PostFormFields terms={prerequisiteTerms} />
+          <PostFormFields
+            series={data.prerequisites.series}
+            terms={prerequisiteTerms}
+          />
           <div>
             <form.SubmitButton className="w-full">Editar</form.SubmitButton>
           </div>
