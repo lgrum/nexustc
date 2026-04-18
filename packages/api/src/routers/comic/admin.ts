@@ -82,6 +82,7 @@ export default {
         .findFirst({
           where: (p, { eq: equals }) => equals(p.id, input),
           with: {
+            coverMedia: true,
             engagementOverrides: {
               orderBy: (table, { asc: ascOrder }) => [
                 ascOrder(table.sortOrder),

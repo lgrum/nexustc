@@ -44,6 +44,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { orpc, queryClient, safeOrpc, safeOrpcClient } from "@/lib/orpc";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/extras/weekly")({
@@ -230,7 +231,12 @@ function RouteComponent() {
             <ItemMedia className="size-12" variant="image">
               <img
                 alt={post.title}
-                src={getBucketUrl(post.imageObjectKeys?.[0] ?? "")}
+                src={getBucketUrl(
+                  getCoverImageObjectKey(
+                    post.imageObjectKeys,
+                    post.coverImageObjectKey
+                  ) ?? ""
+                )}
               />
             </ItemMedia>
             <ItemContent>

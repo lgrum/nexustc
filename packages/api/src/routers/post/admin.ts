@@ -13,7 +13,10 @@ import {
   postCreateInputSchema,
   postEditInputSchema,
 } from "../../utils/deferred-media";
-import { mapPostWithMedia } from "../../utils/post-media";
+import {
+  createPostCoverImageObjectKeySelect,
+  mapPostWithMedia,
+} from "../../utils/post-media";
 
 export default {
   create: permissionProcedure({
@@ -87,6 +90,7 @@ export default {
             engagementOverrides: {
               orderBy: (table, { asc }) => [asc(table.sortOrder)],
             },
+            coverMedia: true,
             mediaRelations: {
               orderBy: (table, { asc }) => [asc(table.sortOrder)],
               with: {
@@ -112,6 +116,7 @@ export default {
     return db
       .select({
         id: featuredPost.id,
+        coverImageObjectKey: createPostCoverImageObjectKeySelect(),
         imageObjectKeys: post.imageObjectKeys,
         order: featuredPost.order,
         position: featuredPost.position,
@@ -146,6 +151,7 @@ export default {
       const posts = await db
         .select({
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           title: post.title,
           version: post.version,
@@ -171,6 +177,7 @@ export default {
     return db
       .select({
         id: post.id,
+        coverImageObjectKey: createPostCoverImageObjectKeySelect(),
         imageObjectKeys: post.imageObjectKeys,
         title: post.title,
         version: post.version,
@@ -199,6 +206,7 @@ export default {
       const posts = await db
         .select({
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
           similarity: sql<number>`similarity(${post.title}, ${input.search?.trim() || ""})`,

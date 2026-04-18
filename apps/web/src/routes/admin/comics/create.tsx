@@ -24,6 +24,7 @@ function RouteComponent() {
     defaultValues: {
       adsLinks: "",
       censorship: "",
+      coverImageSelection: createEmptyDeferredMediaSelection(),
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
       manualEngagementQuestions: [] as string[],
       mediaSelection: createEmptyDeferredMediaSelection(),

@@ -24,6 +24,7 @@ import type { TouchEvent } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient, queryClient } from "@/lib/orpc";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import type { EngagementPromptType, PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
 
@@ -156,7 +157,10 @@ function ComicInfoPage({
   const comic = usePost();
   const [selectedPrompt, setSelectedPrompt] =
     useState<EngagementPromptType | null>(null);
-  const mainImage = comic.imageObjectKeys?.[0];
+  const mainImage = getCoverImageObjectKey(
+    comic.imageObjectKeys,
+    comic.coverImageObjectKey
+  );
   const allImages = comic.imageObjectKeys ?? [];
   const totalPages = allImages.length;
   const progressBadge = getComicProgressBadge(comicProgress?.status);

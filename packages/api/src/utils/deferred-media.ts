@@ -49,26 +49,34 @@ export const optionalSingleDeferredMediaSelectionInputSchema =
   deferredMediaSelectionInputSchema.max(1);
 
 export const postCreateInputSchema = postCreateSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection:
+      optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
   });
 
 export const postEditInputSchema = postEditSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection:
+      optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
   });
 
 export const comicCreateInputSchema = comicCreateSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection:
+      optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
   });
 
 export const comicEditInputSchema = comicEditSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection:
+      optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
   });
 
@@ -307,56 +315,92 @@ export async function withDeferredMediaSelection<T>(params: {
   resourceName: string;
   selection: DeferredMediaSelectionInput;
 }) {
-  const { db, ownerKind, resourceName, selection } = params;
+  return await withDeferredMediaSelections({
+    db: params.db,
+    onComplete: async ({ orderedSelections, tx }) =>
+      await params.onComplete({
+        orderedMedia: orderedSelections[0] ?? [],
+        tx,
+      }),
+    ownerKind: params.ownerKind,
+    resourceName: params.resourceName,
+    selections: [params.selection],
+  });
+}
 
-  if (selection.length === 0) {
+export async function withDeferredMediaSelections<T>(params: {
+  db: Context["db"];
+  onComplete: (params: {
+    orderedSelections: PersistedMediaRecord[][];
+    tx: DeferredMediaTx;
+  }) => Promise<T>;
+  ownerKind: MediaOwnerKind;
+  resourceName: string;
+  selections: DeferredMediaSelectionInput[];
+}) {
+  const { db, ownerKind, resourceName, selections } = params;
+
+  const folderNames = getFolderNames(ownerKind, resourceName);
+  const pendingItemsBySelection = selections.map((selection) =>
+    selection.filter(
+      (item): item is z.infer<typeof deferredPendingMediaItemSchema> =>
+        item.kind === "pending"
+    )
+  );
+  const uploadedObjectKeys: string[] = [];
+  const pendingUploadQueues = selections.map(() => [] as string[]);
+
+  if (selections.every((selection) => selection.length === 0)) {
     return await db.transaction(
       async (tx) =>
         await params.onComplete({
-          orderedMedia: [],
+          orderedSelections: selections.map(() => []),
           tx,
         })
     );
   }
 
-  const folderNames = getFolderNames(ownerKind, resourceName);
-  const pendingItems = selection.filter(
-    (item): item is z.infer<typeof deferredPendingMediaItemSchema> =>
-      item.kind === "pending"
-  );
-  const uploadedObjectKeys: string[] = [];
-  const pendingUploadQueue: string[] = [];
-
   try {
-    for (const pendingItem of pendingItems) {
-      const buffer = await optimizeImageToWebp(pendingItem.file);
-      const objectKey = buildObjectKey(folderNames);
+    for (const [
+      selectionIndex,
+      pendingItems,
+    ] of pendingItemsBySelection.entries()) {
+      for (const pendingItem of pendingItems) {
+        const buffer = await optimizeImageToWebp(pendingItem.file);
+        const objectKey = buildObjectKey(folderNames);
 
-      await getS3Client().send(
-        new PutObjectCommand({
-          Body: buffer,
-          Bucket: env.R2_ASSETS_BUCKET_NAME,
-          ContentLength: buffer.byteLength,
-          ContentType: "image/webp",
-          Key: objectKey,
-        })
-      );
+        await getS3Client().send(
+          new PutObjectCommand({
+            Body: buffer,
+            Bucket: env.R2_ASSETS_BUCKET_NAME,
+            ContentLength: buffer.byteLength,
+            ContentType: "image/webp",
+            Key: objectKey,
+          })
+        );
 
-      uploadedObjectKeys.push(objectKey);
-      pendingUploadQueue.push(objectKey);
+        uploadedObjectKeys.push(objectKey);
+        pendingUploadQueues[selectionIndex]?.push(objectKey);
+      }
     }
 
     return await db.transaction(async (tx) => {
-      const orderedMedia = await materializeDeferredMediaSelection({
-        ownerKind,
-        pendingObjectKeys: pendingUploadQueue,
-        resourceName,
-        selection,
-        tx,
-      });
+      const orderedSelections: PersistedMediaRecord[][] = [];
+
+      for (const [selectionIndex, selection] of selections.entries()) {
+        const orderedMedia = await materializeDeferredMediaSelection({
+          ownerKind,
+          pendingObjectKeys: pendingUploadQueues[selectionIndex] ?? [],
+          resourceName,
+          selection,
+          tx,
+        });
+
+        orderedSelections.push(orderedMedia);
+      }
 
       return await params.onComplete({
-        orderedMedia,
+        orderedSelections,
         tx,
       });
     });

@@ -28,6 +28,7 @@ import {
   publicProcedure,
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
+import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const RECENT_USERS_WINDOW_SECONDS = 60 * 10;
 const RECENT_USERS_LIMIT = 24;
@@ -112,6 +113,7 @@ export default {
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
@@ -473,6 +475,7 @@ export default {
           createdAt: post.createdAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,

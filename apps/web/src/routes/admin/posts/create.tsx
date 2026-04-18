@@ -48,6 +48,7 @@ function RouteComponent() {
       censorship: "",
       changelog: "",
       content: "",
+      coverImageSelection: createEmptyDeferredMediaSelection(),
       creatorId: null as string | null,
       creatorLink: "",
       creatorName: "",
@@ -106,6 +107,9 @@ function RouteComponent() {
     post.mediaSelection,
     mediaMap
   );
+  const selectedCoverImageKey =
+    getDeferredMediaPreviewSources(post.coverImageSelection, mediaMap)[0] ??
+    null;
   const previewEarlyAccess = getEarlyAccessView({
     role: "admin",
     schedule: buildEarlyAccessSchedule({
@@ -208,6 +212,7 @@ function RouteComponent() {
                   })
                 ),
                 id: "0",
+                coverImageObjectKey: selectedCoverImageKey,
                 imageObjectKeys: selectedMediaKeys,
                 likes: 0,
                 premiumLinksAccess: { status: "no_premium_links" as const },

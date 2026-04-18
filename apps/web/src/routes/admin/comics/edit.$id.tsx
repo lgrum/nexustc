@@ -33,6 +33,9 @@ function RouteComponent() {
     defaultValues: {
       adsLinks: oldComic.adsLinks ?? "",
       censorship: terms.censorship?.[0]?.term.id ?? "",
+      coverImageSelection: createDeferredMediaSelectionFromExistingIds(
+        oldComic.coverMedia?.id ? [oldComic.coverMedia.id] : []
+      ),
       documentStatus: oldComic.status,
       id: oldComic.id,
       manualEngagementQuestions:

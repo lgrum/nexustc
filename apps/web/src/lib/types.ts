@@ -16,6 +16,7 @@ export type PostType = Omit<
   | "authorId"
   | "comicLastUpdateAt"
   | "comicPageCount"
+  | "coverMediaId"
   | "earlyAccessEnabled"
   | "earlyAccessPublicAt"
   | "earlyAccessStartedAt"
@@ -28,6 +29,7 @@ export type PostType = Omit<
 > & {
   likes: number;
   favorites: number;
+  coverImageObjectKey?: string | null;
   creatorAvatarObjectKey?: string | null;
   terms: Omit<TermType, "createdAt" | "updatedAt">[];
   averageRating?: number;

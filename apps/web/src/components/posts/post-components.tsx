@@ -22,6 +22,10 @@ import { toast } from "sonner";
 import { TermBadge } from "@/components/term-badge";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
+import {
+  getCoverImageObjectKey,
+  getDisplayImageObjectKeys,
+} from "@/lib/post-images";
 import type { EngagementPromptType, PostType } from "@/lib/types";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -124,7 +128,10 @@ export function PostPage({ post }: { post: PostProps }) {
 
 export function PostHero() {
   const post = usePost();
-  const mainImage = post.imageObjectKeys?.[0];
+  const mainImage = getCoverImageObjectKey(
+    post.imageObjectKeys,
+    post.coverImageObjectKey
+  );
 
   return (
     <div className="relative">
@@ -701,12 +708,15 @@ export function PostCarousel() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const allImages = post.imageObjectKeys ?? [];
+  const allImages = getDisplayImageObjectKeys(
+    post.imageObjectKeys,
+    post.coverImageObjectKey
+  );
   const galleryImages = allImages.map((key, index) => ({
     alt: `${post.title} - Imagen ${index + 1}`,
     src: getBucketUrl(key),
   }));
-  const hasImages = (post.imageObjectKeys?.length ?? 0) > 0;
+  const hasImages = allImages.length > 0;
 
   return (
     hasImages && (

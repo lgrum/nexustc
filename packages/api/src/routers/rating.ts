@@ -17,6 +17,7 @@ import {
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
+import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 async function assertRatingsAreOpen(params: {
   db: Context["db"];
@@ -339,6 +340,7 @@ export default {
         postIds.length > 0
           ? await db
               .select({
+                coverImageObjectKey: createPostCoverImageObjectKeySelect(),
                 id: post.id,
                 imageObjectKeys: post.imageObjectKeys,
                 title: post.title,
@@ -400,6 +402,7 @@ export default {
         postIds.length > 0
           ? await db
               .select({
+                coverImageObjectKey: createPostCoverImageObjectKeySelect(),
                 id: post.id,
                 imageObjectKeys: post.imageObjectKeys,
                 title: post.title,

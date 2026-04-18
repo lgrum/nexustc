@@ -1,5 +1,5 @@
 import { eq, inArray, sql } from "@repo/db";
-import { media, postMedia } from "@repo/db/schema/app";
+import { media, post, postMedia } from "@repo/db/schema/app";
 
 import type { Context } from "../context";
 
@@ -12,6 +12,7 @@ type MediaRow = {
 type Database = Pick<Context["db"], "insert" | "select">;
 
 type PostWithMediaRelations = {
+  coverMedia?: MediaRow | null;
   imageObjectKeys?: string[] | null;
   mediaRelations?: {
     sortOrder: number;
@@ -43,6 +44,15 @@ export function createPostImageKeysAggregate(
     .as("post_image_keys");
 }
 
+export function createPostCoverImageObjectKeySelect() {
+  return sql<string | null>`(
+    SELECT ${media.objectKey}
+    FROM ${media}
+    WHERE ${media.id} = ${post.coverMediaId}
+    LIMIT 1
+  )`;
+}
+
 export function mapPostWithMedia<T extends PostWithMediaRelations>(row: T) {
   const orderedMedia: OrderedMediaItem[] = [...(row.mediaRelations ?? [])]
     .toSorted((left, right) => left.sortOrder - right.sortOrder)
@@ -53,6 +63,7 @@ export function mapPostWithMedia<T extends PostWithMediaRelations>(row: T) {
 
   return {
     ...row,
+    coverImageObjectKey: row.coverMedia?.objectKey ?? null,
     imageObjectKeys: orderedMedia.map((item) => item.objectKey),
     media: orderedMedia,
   };

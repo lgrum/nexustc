@@ -19,6 +19,7 @@ import {
 } from "@repo/db";
 
 import type { Context } from "../context";
+import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const CONTENT_UPDATE_COOLDOWN_MS = 30 * 60 * 1000;
 const MIN_COMIC_PAGE_DELTA = 1;
@@ -779,6 +780,7 @@ export async function getFollowingOverview(
     .select({
       contentId: contentFollower.contentId,
       contentType: contentFollower.contentType,
+      coverImageObjectKey: createPostCoverImageObjectKeySelect(),
       followedAt: contentFollower.createdAt,
       imageObjectKeys: post.imageObjectKeys,
       title: post.title,

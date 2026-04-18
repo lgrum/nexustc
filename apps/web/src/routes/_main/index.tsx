@@ -31,6 +31,7 @@ import { UserLabel } from "@/components/users/user-label";
 import { useTerms } from "@/hooks/use-terms";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
 const RECENT_POSTS_LIMIT = 12;
@@ -136,6 +137,10 @@ function HeroSection() {
 
   const posts = featuredPosts.data;
   const main = posts.find((p) => p.position === "main");
+  const mainImage = getCoverImageObjectKey(
+    main?.imageObjectKeys,
+    main?.coverImageObjectKey
+  );
   const secondary = posts
     .filter((p) => p.position === "secondary")
     .toSorted((a, b) => a.order - b.order);
@@ -151,14 +156,14 @@ function HeroSection() {
           to="/post/$id"
         >
           {/* Image */}
-          {main.imageObjectKeys?.[0] && (
+          {mainImage && (
             <img
               alt={main.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-              src={getBucketUrl(main.imageObjectKeys[0])}
+              src={getBucketUrl(mainImage)}
             />
           )}
-          {!main.imageObjectKeys?.[0] && (
+          {!mainImage && (
             <div className="h-full w-full bg-linear-to-br from-[oklch(0.25_0.05_280)] via-[oklch(0.2_0.08_320)] to-[oklch(0.15_0.04_200)]" />
           )}
 

@@ -7,6 +7,7 @@ import z from "zod";
 import { ComicPage } from "@/components/posts/comic-page";
 import { PostPage } from "@/components/posts/post-components";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 const comicPageSchema = z.object({
@@ -41,8 +42,16 @@ export const Route = createFileRoute("/_main/post/$id")({
   head: ({ loaderData }) => ({
     meta: [
       {
-        media: loaderData?.imageObjectKeys?.[0]
-          ? getBucketUrl(loaderData?.imageObjectKeys?.[0])
+        media: getCoverImageObjectKey(
+          loaderData?.imageObjectKeys,
+          loaderData?.coverImageObjectKey
+        )
+          ? getBucketUrl(
+              getCoverImageObjectKey(
+                loaderData?.imageObjectKeys,
+                loaderData?.coverImageObjectKey
+              )!
+            )
           : undefined,
         title: loaderData?.earlyAccess.isRestrictedView
           ? "NeXusTC - VIP Early Access"

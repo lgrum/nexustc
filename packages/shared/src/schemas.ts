@@ -97,6 +97,7 @@ export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
 const contentBaseFields = {
   censorship: z.string(),
   documentStatus: z.enum(DOCUMENT_STATUSES),
+  coverMediaIds: z.array(z.string()).max(1).default([]),
   languages: z.array(z.string()),
   manualEngagementQuestions: manualEngagementQuestionsSchema,
   mediaIds: z.array(z.string()),

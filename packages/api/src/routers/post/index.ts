@@ -45,6 +45,7 @@ import {
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../../utils/early-access";
+import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -94,6 +95,7 @@ export default {
           createdAt: post.createdAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
 
@@ -166,6 +168,7 @@ export default {
           createdAt: post.createdAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
@@ -242,6 +245,7 @@ export default {
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           order: featuredPost.order,
@@ -398,6 +402,7 @@ export default {
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
 
@@ -520,6 +525,7 @@ export default {
           earlyAccessStartedAt: post.earlyAccessStartedAt,
           earlyAccessVip12EndsAt: post.earlyAccessVip12EndsAt,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           title: post.title,
           type: post.type,
@@ -548,6 +554,7 @@ export default {
 
         return {
           content: item.content,
+          coverImageObjectKey: item.coverImageObjectKey,
           createdAt: item.createdAt,
           earlyAccess,
           id: item.id,
@@ -639,6 +646,7 @@ export default {
           earlyAccessVip12EndsAt: post.earlyAccessVip12EndsAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
@@ -1319,6 +1327,7 @@ export default {
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           score: sql<number>`

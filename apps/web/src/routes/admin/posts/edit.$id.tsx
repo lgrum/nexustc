@@ -36,6 +36,9 @@ function RouteComponent() {
       censorship: terms.censorship?.[0]?.term.id ?? "",
       changelog: oldPost.changelog ?? "",
       content: oldPost.content,
+      coverImageSelection: createDeferredMediaSelectionFromExistingIds(
+        oldPost.coverMedia?.id ? [oldPost.coverMedia.id] : []
+      ),
       creatorId: oldPost.creatorId ?? null,
       creatorLink: oldPost.creatorLink,
       creatorName: oldPost.creatorName,

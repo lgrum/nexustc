@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { MembershipUpgradeExperience } from "@/features/vip-upgrade/upgrade-experience";
 import { orpcClient } from "@/lib/orpc";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/vip")({
@@ -201,7 +202,10 @@ function VipFeedCard({
     item.content.length > 220
       ? `${item.content.slice(0, 217).trimEnd()}...`
       : item.content;
-  const heroImage = item.imageObjectKeys?.[0];
+  const heroImage = getCoverImageObjectKey(
+    item.imageObjectKeys,
+    item.coverImageObjectKey
+  );
 
   return (
     <Link

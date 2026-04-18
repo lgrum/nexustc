@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { orpc, queryClient } from "@/lib/orpc";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 const FOLLOWING_LIMIT = 20;
@@ -128,6 +129,7 @@ function FollowedContentGrid({
   items: {
     contentId: string;
     contentType: "comic" | "post";
+    coverImageObjectKey?: string | null;
     followedAt: Date | string;
     imageObjectKeys: string[] | null;
     title: string;
@@ -144,59 +146,66 @@ function FollowedContentGrid({
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {items.map((item) => (
-        <Link
-          key={item.contentId}
-          params={{ id: item.contentId }}
-          to="/post/$id"
-        >
-          <Card className="h-full rounded-[1.5rem] py-0 transition-transform hover:-translate-y-1">
-            <div className="relative aspect-[2.1/1] overflow-hidden border-border/50 border-b bg-muted">
-              {item.imageObjectKeys?.[0] ? (
-                <img
-                  alt={item.title}
-                  className="h-full w-full object-cover"
-                  src={getBucketUrl(item.imageObjectKeys[0])}
-                />
-              ) : null}
-              <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/10 to-transparent" />
-              <div className="absolute left-3 bottom-3 flex flex-wrap items-center gap-2">
-                <Badge
-                  className="rounded-full border-white/20 bg-black/45 text-white"
-                  variant="outline"
-                >
-                  {item.contentType === "comic" ? "Comic" : "Juego"}
-                </Badge>
-                {item.version ? (
+      {items.map((item) => {
+        const imageObjectKey = getCoverImageObjectKey(
+          item.imageObjectKeys,
+          item.coverImageObjectKey
+        );
+
+        return (
+          <Link
+            key={item.contentId}
+            params={{ id: item.contentId }}
+            to="/post/$id"
+          >
+            <Card className="h-full rounded-[1.5rem] py-0 transition-transform hover:-translate-y-1">
+              <div className="relative aspect-[2.1/1] overflow-hidden border-border/50 border-b bg-muted">
+                {imageObjectKey ? (
+                  <img
+                    alt={item.title}
+                    className="h-full w-full object-cover"
+                    src={getBucketUrl(imageObjectKey)}
+                  />
+                ) : null}
+                <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/10 to-transparent" />
+                <div className="absolute left-3 bottom-3 flex flex-wrap items-center gap-2">
                   <Badge
-                    className="rounded-full border-white/20 bg-primary/40 text-white"
+                    className="rounded-full border-white/20 bg-black/45 text-white"
                     variant="outline"
                   >
-                    {item.version}
+                    {item.contentType === "comic" ? "Comic" : "Juego"}
                   </Badge>
-                ) : null}
+                  {item.version ? (
+                    <Badge
+                      className="rounded-full border-white/20 bg-primary/40 text-white"
+                      variant="outline"
+                    >
+                      {item.version}
+                    </Badge>
+                  ) : null}
+                </div>
               </div>
-            </div>
-            <CardHeader className="space-y-2 px-4 py-4">
-              <h4 className="text-balance font-semibold leading-tight">
-                {item.title}
-              </h4>
-              <p className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
-                Sigues esto{" "}
-                {formatDistanceToNow(new Date(item.followedAt), {
-                  addSuffix: true,
-                  locale: es,
-                })}
-              </p>
-            </CardHeader>
-            <CardContent className="px-4 pb-4">
-              <span className="font-medium text-primary text-sm">
-                Ver página del contenido
-              </span>
-            </CardContent>
-          </Card>
-        </Link>
-      ))}
+              <CardHeader className="space-y-2 px-4 py-4">
+                <h4 className="text-balance font-semibold leading-tight">
+                  {item.title}
+                </h4>
+                <p className="text-muted-foreground text-xs uppercase tracking-[0.2em]">
+                  Sigues esto{" "}
+                  {formatDistanceToNow(new Date(item.followedAt), {
+                    addSuffix: true,
+                    locale: es,
+                  })}
+                </p>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <span className="font-medium text-primary text-sm">
+                  Ver página del contenido
+                </span>
+              </CardContent>
+            </Card>
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -18,7 +18,7 @@ import type {
   ContentEditInput,
   PersistedMediaRecord,
 } from "./deferred-media";
-import { withDeferredMediaSelection } from "./deferred-media";
+import { withDeferredMediaSelections } from "./deferred-media";
 import { resolveEarlyAccessStorageFields } from "./early-access";
 
 type HandlerParams<T> = {
@@ -113,9 +113,12 @@ export async function createContent({
     `User ${session.user?.id} creating new ${contentType}: "${input.title}"`
   );
 
-  return await withDeferredMediaSelection({
+  return await withDeferredMediaSelections({
     db,
-    onComplete: async ({ orderedMedia, tx }) => {
+    onComplete: async ({ orderedSelections, tx }) => {
+      const orderedMedia = orderedSelections[0] ?? [];
+      const coverMedia = orderedSelections[1]?.[0] ?? null;
+
       logger?.info(`Starting transaction for ${contentType} creation`);
       const earlyAccessFields =
         input.type === "post"
@@ -157,6 +160,7 @@ export async function createContent({
           comicPageCount: input.type === "comic" ? orderedMedia.length : 0,
           content:
             input.type === "post" ? input.content : (input.content ?? ""),
+          coverMediaId: coverMedia?.id ?? null,
           creatorId: creatorFields.creatorId,
           creatorLink: creatorFields.creatorLink,
           creatorName: creatorFields.creatorName,
@@ -234,7 +238,7 @@ export async function createContent({
     },
     ownerKind: input.type === "post" ? "Juego" : "Comic",
     resourceName: input.title,
-    selection: input.mediaSelection,
+    selections: [input.mediaSelection, input.coverImageSelection],
   });
 }
 
@@ -247,9 +251,12 @@ export async function editContent({
   const contentType = input.type;
   logger?.info(`Editing ${contentType}: ${input.id}`);
 
-  const updatedPostId = await withDeferredMediaSelection({
+  const updatedPostId = await withDeferredMediaSelections({
     db,
-    onComplete: async ({ orderedMedia, tx }) => {
+    onComplete: async ({ orderedSelections, tx }) => {
+      const orderedMedia = orderedSelections[0] ?? [];
+      const coverMedia = orderedSelections[1]?.[0] ?? null;
+
       const existingPost = await tx.query.post.findFirst({
         columns: {
           comicLastUpdateAt: true,
@@ -321,6 +328,7 @@ export async function editContent({
           comicPageCount: input.type === "comic" ? orderedMedia.length : 0,
           content:
             input.type === "post" ? input.content : (input.content ?? ""),
+          coverMediaId: coverMedia?.id ?? null,
           creatorId: creatorFields.creatorId,
           creatorLink: creatorFields.creatorLink,
           creatorName: creatorFields.creatorName,
@@ -421,7 +429,7 @@ export async function editContent({
     },
     ownerKind: input.type === "post" ? "Juego" : "Comic",
     resourceName: input.title,
-    selection: input.mediaSelection,
+    selections: [input.mediaSelection, input.coverImageSelection],
   });
 
   logger?.info(`${contentType} ${input.id} successfully updated`);

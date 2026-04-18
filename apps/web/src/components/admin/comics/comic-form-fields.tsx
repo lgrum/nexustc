@@ -264,6 +264,17 @@ export function ComicFormFields({ terms }: ComicFormFieldsProps) {
           />
         )}
       </form.AppField>
+
+      <form.AppField name="coverImageSelection">
+        {(field) => (
+          <field.MediaField
+            description="Opcional. Si no eliges una portada, se usara la primera pagina del comic."
+            label="Imagen de portada"
+            maxItems={1}
+            ownerKind="Comic"
+          />
+        )}
+      </form.AppField>
     </div>
   );
 }

@@ -645,6 +645,17 @@ export function PostFormFields({ terms }: PostFormFieldsProps) {
           />
         )}
       </form.AppField>
+
+      <form.AppField name="coverImageSelection">
+        {(field) => (
+          <field.MediaField
+            description="Opcional. Si no eliges una portada, se usara la primera imagen de la media."
+            label="Imagen de portada"
+            maxItems={1}
+            ownerKind="Juego"
+          />
+        )}
+      </form.AppField>
     </div>
   );
 }

@@ -230,6 +230,9 @@ export const post = pgTable(
     }),
     comicPageCount: integer("comic_page_count").notNull().default(0),
     content: text("content").notNull().default(""),
+    coverMediaId: text("cover_media_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     creatorId: text("creator_id").references(() => creator.id, {
       onDelete: "set null",
     }),
@@ -270,6 +273,7 @@ export const post = pgTable(
     ...timestamps,
   },
   (table) => [
+    index("post_cover_media_id_idx").on(table.coverMediaId),
     index("post_creator_id_idx").on(table.creatorId),
     index("post_status_type_early_access_idx").on(
       table.status,
@@ -936,6 +940,10 @@ export const creatorRelations = relations(creator, ({ many, one }) => ({
 export const postRelations = relations(post, ({ many, one }) => ({
   comments: many(comment),
   comicProgress: many(userComicProgress),
+  coverMedia: one(media, {
+    fields: [post.coverMediaId],
+    references: [media.id],
+  }),
   creator: one(creator, {
     fields: [post.creatorId],
     references: [creator.id],
@@ -950,6 +958,7 @@ export const postRelations = relations(post, ({ many, one }) => ({
 }));
 
 export const mediaRelations = relations(media, ({ many, one }) => ({
+  coveredPosts: many(post),
   creators: many(creator),
   folder: one(mediaFolder, {
     fields: [media.folderId],

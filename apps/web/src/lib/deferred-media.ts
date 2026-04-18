@@ -53,26 +53,30 @@ type MediaLibraryLookup = {
 };
 
 export const postAdminFormSchema = postCreateSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection: optionalSingleDeferredMediaSelectionSchema,
     mediaSelection: deferredMediaSelectionSchema,
   });
 
 export const postAdminEditFormSchema = postEditSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection: optionalSingleDeferredMediaSelectionSchema,
     mediaSelection: deferredMediaSelectionSchema,
   });
 
 export const comicAdminFormSchema = comicCreateSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection: optionalSingleDeferredMediaSelectionSchema,
     mediaSelection: deferredMediaSelectionSchema,
   });
 
 export const comicAdminEditFormSchema = comicEditSchema
-  .omit({ mediaIds: true })
+  .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    coverImageSelection: optionalSingleDeferredMediaSelectionSchema,
     mediaSelection: deferredMediaSelectionSchema,
   });
 
