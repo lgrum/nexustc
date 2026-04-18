@@ -70,7 +70,7 @@ export async function getResolvedEngagementPromptsForPost(
 
 export function resolveCommentEngagementSelection(
   prompts: Awaited<ReturnType<typeof getResolvedEngagementPromptsForPost>>,
-  selection: CommentEngagementSelection | undefined
+  selection?: CommentEngagementSelection
 ) {
   if (!selection) {
     return null;
