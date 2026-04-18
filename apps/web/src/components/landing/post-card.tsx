@@ -1,5 +1,6 @@
 import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import { Link } from "@tanstack/react-router";
 
 import { getDisplayImageObjectKeys } from "@/lib/post-images";
@@ -20,11 +21,40 @@ export type PostProps = {
   likes: number;
   views: number;
   averageRating?: number;
+  terms?: {
+    name: string;
+    taxonomy: string;
+  }[];
 };
 
 type PostCardProps = {
   post: PostProps;
 };
+
+const ABANDONED_STATUS_NAME = "Abandonado";
+
+function statusMatches(
+  statusName: string | undefined,
+  names: readonly string[]
+) {
+  return statusName !== undefined && names.includes(statusName);
+}
+
+function getVersionBadgeClassName(statusName: string | undefined) {
+  if (statusName === ABANDONED_STATUS_NAME) {
+    return "bg-red-500/90 text-white";
+  }
+
+  if (statusMatches(statusName, PREMIUM_STATUS_CATEGORIES.ongoing)) {
+    return "bg-yellow-400 text-yellow-950";
+  }
+
+  if (statusMatches(statusName, PREMIUM_STATUS_CATEGORIES.completed)) {
+    return "bg-green-500/90 text-white";
+  }
+
+  return "bg-black/50 text-white";
+}
 
 function getComicProgressBadge(
   status: PostProps["comicProgressStatus"]
@@ -59,6 +89,10 @@ export function PostCard({ post }: PostCardProps) {
     .map(getBucketUrl);
   const count = images.length;
   const comicProgressBadge = getComicProgressBadge(post.comicProgressStatus);
+  const statusName = post.terms?.find(
+    (term) => term.taxonomy === "status"
+  )?.name;
+  const versionBadgeClassName = getVersionBadgeClassName(statusName);
 
   return (
     <Link
@@ -160,7 +194,12 @@ export function PostCard({ post }: PostCardProps) {
           <CardTitle className="text-center text-pretty">
             {post.title}
             {post.version && (
-              <span className="ml-2 inline-flex items-center rounded bg-black/50 px-1.5 py-1 text-[12px] leading-none font-medium text-white backdrop-blur-sm">
+              <span
+                className={cn(
+                  "ml-2 inline-flex items-center rounded px-1.5 py-1 text-[12px] leading-none font-medium backdrop-blur-sm",
+                  versionBadgeClassName
+                )}
+              >
                 {post.version}
               </span>
             )}

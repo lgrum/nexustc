@@ -76,6 +76,25 @@ export default {
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
+      const termsAgg = db
+        .select({
+          postId: termPostRelation.postId,
+          terms: sql`
+            json_agg(
+              json_build_object(
+                'id', ${term.id},
+                'name', ${term.name},
+                'taxonomy', ${term.taxonomy},
+                'color', ${term.color}
+              )
+            )
+          `.as("terms"),
+        })
+        .from(termPostRelation)
+        .innerJoin(term, eq(term.id, termPostRelation.termId))
+        .groupBy(termPostRelation.postId)
+        .as("terms_agg");
+
       const ratingsAgg = db
         .select({
           averageRating:
@@ -100,6 +119,14 @@ export default {
           isWeekly: post.isWeekly,
 
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          terms: sql<
+            {
+              id: string;
+              name: string;
+              taxonomy: (typeof TAXONOMIES)[number];
+              color: string;
+            }[]
+          >`COALESCE(${termsAgg.terms}, '[]'::json)`,
           title: post.title,
           type: post.type,
           version: post.version,
@@ -109,6 +136,7 @@ export default {
         .from(post)
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
+        .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
         .where(
           and(
@@ -148,6 +176,25 @@ export default {
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
+      const termsAgg = db
+        .select({
+          postId: termPostRelation.postId,
+          terms: sql`
+            json_agg(
+              json_build_object(
+                'id', ${term.id},
+                'name', ${term.name},
+                'taxonomy', ${term.taxonomy},
+                'color', ${term.color}
+              )
+            )
+          `.as("terms"),
+        })
+        .from(termPostRelation)
+        .innerJoin(term, eq(term.id, termPostRelation.termId))
+        .groupBy(termPostRelation.postId)
+        .as("terms_agg");
+
       const ratingsAgg = db
         .select({
           averageRating:
@@ -172,6 +219,14 @@ export default {
           imageObjectKeys: post.imageObjectKeys,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          terms: sql<
+            {
+              id: string;
+              name: string;
+              taxonomy: (typeof TAXONOMIES)[number];
+              color: string;
+            }[]
+          >`COALESCE(${termsAgg.terms}, '[]'::json)`,
 
           title: post.title,
           type: post.type,
@@ -182,6 +237,7 @@ export default {
         .from(post)
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
+        .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
         .where(
           and(
@@ -221,6 +277,25 @@ export default {
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
+      const termsAgg = db
+        .select({
+          postId: termPostRelation.postId,
+          terms: sql`
+            json_agg(
+              json_build_object(
+                'id', ${term.id},
+                'name', ${term.name},
+                'taxonomy', ${term.taxonomy},
+                'color', ${term.color}
+              )
+            )
+          `.as("terms"),
+        })
+        .from(termPostRelation)
+        .innerJoin(term, eq(term.id, termPostRelation.termId))
+        .groupBy(termPostRelation.postId)
+        .as("terms_agg");
+
       const ratingsAgg = db
         .select({
           averageRating:
@@ -252,6 +327,14 @@ export default {
           position: featuredPost.position,
 
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          terms: sql<
+            {
+              id: string;
+              name: string;
+              taxonomy: (typeof TAXONOMIES)[number];
+              color: string;
+            }[]
+          >`COALESCE(${termsAgg.terms}, '[]'::json)`,
           title: post.title,
 
           type: post.type,
@@ -263,6 +346,7 @@ export default {
         .innerJoin(post, eq(post.id, featuredPost.postId))
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
+        .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
         .where(
           and(eq(post.status, "publish"), publicCatalogVisibilityCondition())
