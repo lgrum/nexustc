@@ -1,24 +1,13 @@
 import type { ChangeEvent } from "react";
 import { useState } from "react";
 
-import { convertImage } from "@/lib/utils";
-
 export function useMultipleFileUpload() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
-  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      const newFilesArray = [...event.target.files];
-
-      const files = await Promise.all(
-        newFilesArray
-          .filter((file) => file.type.startsWith("image/"))
-          .map((file) => {
-            if (file.type.startsWith("image/gif")) {
-              return file;
-            }
-            return convertImage(file, "webp", 0.8);
-          })
+      const files = [...event.target.files].filter((file) =>
+        file.type.startsWith("image/")
       );
 
       const uniqueNewFiles = files.filter(

@@ -16,7 +16,7 @@ import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
 import z from "zod";
 
 import { permissionProcedure } from "../index";
-import { optimizeImageToWebp } from "../utils/images";
+import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
 
 const mediaUploadSchema = z.object({
@@ -368,10 +368,16 @@ export default {
         }
 
         const optimizedFiles = await Promise.all(
-          input.files.map(async (file) => ({
-            buffer: await optimizeImageToWebp(file),
-            originalName: file.name,
-          }))
+          input.files.map(async (file) => {
+            const { buffer, extension, mimeType } = await optimizeFile(file);
+
+            return {
+              buffer,
+              extension,
+              mimeType,
+              originalName: file.name,
+            };
+          })
         );
 
         const uploadedKeys: string[] = [];
@@ -381,14 +387,14 @@ export default {
             const createdRows = [];
 
             for (const optimizedFile of optimizedFiles) {
-              const objectKey = `media/${generateId()}.webp`;
+              const objectKey = `media/${generateId()}.${optimizedFile.extension}`;
 
               await getS3Client().send(
                 new PutObjectCommand({
                   Body: optimizedFile.buffer,
                   Bucket: env.R2_ASSETS_BUCKET_NAME,
                   ContentLength: optimizedFile.buffer.byteLength,
-                  ContentType: "image/webp",
+                  ContentType: optimizedFile.mimeType,
                   Key: objectKey,
                 })
               );

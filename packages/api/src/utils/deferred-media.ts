@@ -16,7 +16,7 @@ import {
 import z from "zod";
 
 import type { Context } from "../context";
-import { optimizeImageToWebp } from "./images";
+import { optimizeFile } from "./images";
 import { getOrderedMediaRecords } from "./post-media";
 import { getS3Client } from "./s3";
 
@@ -223,12 +223,14 @@ async function cleanupUploadedObjects(objectKeys: string[]) {
   );
 }
 
-function buildObjectKey(folderNames: string[]) {
+function buildObjectKey(folderNames: string[], extension = "webp") {
   const storageSegments = folderNames.map((folderName) =>
     normalizeStorageSegment(folderName)
   );
 
-  return ["media", ...storageSegments, `${generateId()}.webp`].join("/");
+  return ["media", ...storageSegments, `${generateId()}.${extension}`].join(
+    "/"
+  );
 }
 
 export async function persistDeferredMediaSelection(params: {
@@ -366,15 +368,17 @@ export async function withDeferredMediaSelections<T>(params: {
       pendingItems,
     ] of pendingItemsBySelection.entries()) {
       for (const pendingItem of pendingItems) {
-        const buffer = await optimizeImageToWebp(pendingItem.file);
-        const objectKey = buildObjectKey(folderNames);
+        const { buffer, extension, mimeType } = await optimizeFile(
+          pendingItem.file
+        );
+        const objectKey = buildObjectKey(folderNames, extension);
 
         await getS3Client().send(
           new PutObjectCommand({
             Body: buffer,
             Bucket: env.R2_ASSETS_BUCKET_NAME,
             ContentLength: buffer.byteLength,
-            ContentType: "image/webp",
+            ContentType: mimeType,
             Key: objectKey,
           })
         );

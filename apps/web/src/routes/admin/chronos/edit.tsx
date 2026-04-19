@@ -22,11 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useMultipleFileUpload } from "@/hooks/use-multiple-file-upload";
 import { orpcClient, queryClient } from "@/lib/orpc";
-import {
-  convertImage,
-  getBucketUrl,
-  uploadBlobWithProgress,
-} from "@/lib/utils";
+import { getBucketUrl } from "@/lib/utils";
 
 type ChronosData = {
   stickyImageKey: string | null;
@@ -116,27 +112,32 @@ function RouteComponent() {
     }
   }, [blocker.status]);
 
-  const handleStickyImageSelect = async (
+  const handleStickyImageSelect = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (event.target.files?.[0]) {
       const [file] = event.target.files;
-      const converted = await convertImage(file, "webp", 0.8);
-      setStickyImageFile(converted);
-      setStickyImagePreview(URL.createObjectURL(converted));
+      event.target.value = "";
+      setStickyImageFile(file);
+      setStickyImagePreview(URL.createObjectURL(file));
     }
   };
 
-  const handleHeaderImageSelect = async (
+  const handleHeaderImageSelect = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     if (event.target.files?.[0]) {
       const [file] = event.target.files;
-      const converted = await convertImage(file, "webp", 0.8);
-      setHeaderImageFile(converted);
-      setHeaderImagePreview(URL.createObjectURL(converted));
+      event.target.value = "";
+      setHeaderImageFile(file);
+      setHeaderImagePreview(URL.createObjectURL(file));
     }
   };
+
+  const uploadChronosImages = async (
+    type: "sticky" | "header" | "carousel" | "markdown",
+    files: File[]
+  ) => await orpcClient.chronos.uploadImages({ files, type });
 
   const uploadStickyImage = async (): Promise<string | null> => {
     if (!stickyImageFile) {
@@ -145,25 +146,10 @@ function RouteComponent() {
 
     setUploadingStickyImage(true);
     try {
-      const [presignedUrl] = await orpcClient.chronos.getPresignedUrls({
-        objects: [
-          {
-            contentLength: stickyImageFile.size,
-            extension: "webp",
-          },
-        ],
-        type: "sticky",
-      });
-
-      await uploadBlobWithProgress(
+      const [objectKey] = await uploadChronosImages("sticky", [
         stickyImageFile,
-        presignedUrl.presignedUrl,
-        () => {
-          // Intentionally empty
-        }
-      );
-
-      return presignedUrl.objectKey;
+      ]);
+      return objectKey ?? currentData.stickyImageKey;
     } finally {
       setUploadingStickyImage(false);
     }
@@ -176,25 +162,10 @@ function RouteComponent() {
 
     setUploadingHeaderImage(true);
     try {
-      const [presignedUrl] = await orpcClient.chronos.getPresignedUrls({
-        objects: [
-          {
-            contentLength: headerImageFile.size,
-            extension: "webp",
-          },
-        ],
-        type: "header",
-      });
-
-      await uploadBlobWithProgress(
+      const [objectKey] = await uploadChronosImages("header", [
         headerImageFile,
-        presignedUrl.presignedUrl,
-        () => {
-          // Intentionally empty
-        }
-      );
-
-      return presignedUrl.objectKey;
+      ]);
+      return objectKey ?? currentData.headerImageKey;
     } finally {
       setUploadingHeaderImage(false);
     }
@@ -207,35 +178,10 @@ function RouteComponent() {
 
     setUploadingCarouselImages(true);
     try {
-      const presignedUrls = await orpcClient.chronos.getPresignedUrls({
-        objects: carousel.selectedFiles.map((file) => ({
-          contentLength: file.size,
-          extension: file.name.split(".").pop() ?? "webp",
-        })),
-        type: "carousel",
-      });
-
-      await Promise.all(
-        presignedUrls.map((url, index) => {
-          const file = carousel.selectedFiles[index];
-
-          return fetch(url.presignedUrl, {
-            body: file,
-            headers: {
-              "Content-Type": file.type ?? "application/octet-stream",
-            },
-            method: "PUT",
-          }).then((response) => {
-            if (!response.ok) {
-              throw new Error(
-                `Error al subir imagen ${file.name}: ${response.statusText}`
-              );
-            }
-          });
-        })
+      const newKeys = await uploadChronosImages(
+        "carousel",
+        carousel.selectedFiles
       );
-
-      const newKeys = presignedUrls.map((url) => url.objectKey);
       return [...currentData.carouselImageKeys, ...newKeys];
     } finally {
       setUploadingCarouselImages(false);
@@ -253,35 +199,7 @@ function RouteComponent() {
     setUploadingHelperImages(true);
 
     try {
-      const convertedFiles = await Promise.all(
-        files.map((file) =>
-          file.type.startsWith("image/gif")
-            ? file
-            : convertImage(file, "webp", 0.8)
-        )
-      );
-
-      const presignedUrls = await orpcClient.chronos.getPresignedUrls({
-        objects: convertedFiles.map((file) => ({
-          contentLength: file.size,
-          extension: file.name.split(".").pop() ?? "webp",
-        })),
-        type: "markdown",
-      });
-
-      await Promise.all(
-        presignedUrls.map((url, index) =>
-          uploadBlobWithProgress(
-            convertedFiles[index],
-            url.presignedUrl,
-            () => {
-              // Intentionally empty
-            }
-          )
-        )
-      );
-
-      const newKeys = presignedUrls.map((url) => url.objectKey);
+      const newKeys = await uploadChronosImages("markdown", files);
 
       setCurrentData((prev) => ({
         ...prev,

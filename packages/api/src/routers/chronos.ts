@@ -1,17 +1,15 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { chronosPage, eq } from "@repo/db";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
+import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
 import { chronosUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure, publicProcedure } from "../index";
+import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
-
-const CHRONOS_IMAGES_MAX_SIZE_BYTES = 1024 * 1024 * 5; // 5MB
-const validExtensions = new Set(["jpg", "jpeg", "png", "webp", "avif", "gif"]);
 
 export default {
   getCurrent: publicProcedure.handler(async ({ context: { db, ...ctx } }) => {
@@ -74,52 +72,46 @@ export default {
     }
   ),
 
-  getPresignedUrls: permissionProcedure({ chronos: ["update"] })
+  uploadImages: permissionProcedure({ chronos: ["update"] })
     .input(
       z.object({
-        objects: z.array(
-          z.object({
-            contentLength: z.number().max(CHRONOS_IMAGES_MAX_SIZE_BYTES),
-            extension: z
-              .string()
-              .refine((val) => validExtensions.has(val.toLowerCase())),
-          })
-        ),
+        files: z.array(z.file().mime([...MEDIA_IMAGE_MIME_TYPES])).min(1),
         type: z.enum(["sticky", "header", "carousel", "markdown"]),
       })
     )
     .handler(async ({ context: { ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
-        `Generating presigned URLs for ${input.objects.length} chronos ${input.type} images`
+        `Uploading ${input.files.length} optimized chronos ${input.type} images`
       );
 
-      const urls = await Promise.all(
-        input.objects.map(async (object, index) => {
+      const objectKeys = await Promise.all(
+        input.files.map(async (file, index) => {
           logger?.debug(
-            `Generating presigned URL ${index + 1}/${input.objects.length} for extension: ${object.extension}`
+            `Optimizing chronos image ${index + 1}/${input.files.length}: ${file.name}`
           );
 
-          const objectKey = `images/chronos/${input.type}/${generateId()}.${object.extension}`;
-          return {
-            objectKey,
-            presignedUrl: await getSignedUrl(
-              getS3Client(),
-              new PutObjectCommand({
-                Bucket: env.R2_ASSETS_BUCKET_NAME,
-                ContentLength: object.contentLength,
-                Key: objectKey,
-              }),
-              { expiresIn: 3600 }
-            ),
-          };
+          const optimizedFile = await optimizeFile(file);
+          const objectKey = `images/chronos/${input.type}/${generateId()}.${optimizedFile.extension}`;
+
+          await getS3Client().send(
+            new PutObjectCommand({
+              Body: optimizedFile.buffer,
+              Bucket: env.R2_ASSETS_BUCKET_NAME,
+              ContentLength: optimizedFile.buffer.byteLength,
+              ContentType: optimizedFile.mimeType,
+              Key: objectKey,
+            })
+          );
+
+          return objectKey;
         })
       );
 
       logger?.info(
-        `Successfully generated ${urls.length} presigned URLs for chronos ${input.type}`
+        `Successfully uploaded ${objectKeys.length} optimized chronos ${input.type} images`
       );
-      return urls;
+      return objectKeys;
     }),
 
   update: permissionProcedure({ chronos: ["update"] })

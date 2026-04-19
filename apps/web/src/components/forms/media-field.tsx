@@ -5,17 +5,12 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { MediaOwnerKind } from "@repo/shared/media";
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { toast } from "sonner";
 
 import {
-  CreateMediaFolderDialog,
   MediaFolderBreadcrumbs,
   MediaFolderCard,
 } from "@/components/admin/media-browser-shared";
@@ -44,7 +39,7 @@ import type {
   DeferredMediaItem,
   DeferredMediaSelection,
 } from "@/lib/deferred-media";
-import { orpc, orpcClient } from "@/lib/orpc";
+import { orpc } from "@/lib/orpc";
 import { cn, getBucketUrl } from "@/lib/utils";
 
 type MediaFieldProps = {
@@ -107,7 +102,6 @@ export function MediaField({
   required,
 }: MediaFieldProps) {
   const field = useFieldContext<DeferredMediaSelection>();
-  const queryClient = useQueryClient();
   const listQueryOptions = orpc.media.admin.list.queryOptions();
   const { data: library } = useSuspenseQuery(listQueryOptions);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -274,22 +268,22 @@ export function MediaField({
     });
   }, [browseData.items, normalizedSearch, selectedExistingIds]);
 
-  const createFolderMutation = useMutation({
-    mutationFn: async (name: string) =>
-      await orpcClient.media.admin.createFolder({
-        name,
-        parentId: currentFolderId,
-      }),
-    onError: (error) => {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo crear la carpeta."
-      );
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries(browseQueryOptions);
-      toast.success("Carpeta creada.");
-    },
-  });
+  // const createFolderMutation = useMutation({
+  //   mutationFn: async (name: string) =>
+  //     await orpcClient.media.admin.createFolder({
+  //       name,
+  //       parentId: currentFolderId,
+  //     }),
+  //   onError: (error) => {
+  //     toast.error(
+  //       error instanceof Error ? error.message : "No se pudo crear la carpeta."
+  //     );
+  //   },
+  //   onSuccess: async () => {
+  //     await queryClient.invalidateQueries(browseQueryOptions);
+  //     toast.success("Carpeta creada.");
+  //   },
+  // });
 
   const toggleDraftSelection = (mediaId: string) => {
     setDraftSelectedItems((currentSelection) => {
@@ -520,13 +514,13 @@ export function MediaField({
                           </Button>
                         </div>
 
-                        <CreateMediaFolderDialog
+                        {/* <CreateMediaFolderDialog
                           isPending={createFolderMutation.isPending}
                           onCreate={async (name) => {
                             await createFolderMutation.mutateAsync(name);
                           }}
                           parentLabel={browseData.currentFolder?.name}
-                        />
+                        /> */}
                       </div>
                     </div>
                   </div>

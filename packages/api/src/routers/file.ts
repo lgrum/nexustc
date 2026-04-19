@@ -8,7 +8,6 @@ import z from "zod";
 import { permissionProcedure, protectedProcedure } from "../index";
 import { getS3Client } from "../utils/s3";
 
-const POST_IMAGES_MAX_SIZE_BYTES = 1024 * 1024 * 5; // 5MB
 const AVATAR_MAX_SIZE_BYTES = 1024 * 512; // 512KB
 
 const validExtensions = new Set(["jpg", "jpeg", "png", "webp", "avif", "gif"]);
@@ -52,7 +51,7 @@ export default {
       z.object({
         objects: z.array(
           z.object({
-            contentLength: z.number().max(POST_IMAGES_MAX_SIZE_BYTES),
+            contentLength: z.number().int().positive(),
             extension: z
               .string()
               .refine((val) => validExtensions.has(val.toLowerCase())),
