@@ -30,12 +30,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
-import { useTerms } from "@/hooks/use-terms";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
+const POPULAR_TAG_MIN_POST_USAGE = 3;
+const POPULAR_TAGS_LIMIT = 24;
 const RECENT_POSTS_LIMIT = 12;
 
 export const Route = createFileRoute("/_main/")({
@@ -463,8 +464,19 @@ function AuthAction() {
 }
 
 function TagsSection() {
-  const { data: terms } = useTerms();
-  const tags = terms?.filter((term) => term.taxonomy === "tag") ?? [];
+  const { data: tags = [] } = useQuery({
+    queryFn: () =>
+      orpcClient.term.getPopularTags({
+        limit: POPULAR_TAGS_LIMIT,
+        minPostUsage: POPULAR_TAG_MIN_POST_USAGE,
+      }),
+    queryKey: [
+      "terms",
+      "popular-tags",
+      POPULAR_TAG_MIN_POST_USAGE,
+      POPULAR_TAGS_LIMIT,
+    ],
+  });
 
   return (
     <section className="space-y-3">
