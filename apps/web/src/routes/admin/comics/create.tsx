@@ -34,6 +34,7 @@ function RouteComponent() {
       seriesTitle: "",
       status: "",
       tags: [] as string[],
+      thumbnailImageCount: 1 as 1 | 4,
       title: "",
       type: "comic" as const,
     },

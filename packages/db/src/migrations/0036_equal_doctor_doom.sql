@@ -1,0 +1,1 @@
+ALTER TABLE "post" ADD COLUMN "thumbnail_image_count" integer DEFAULT 4 NOT NULL;

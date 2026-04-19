@@ -14,7 +14,6 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { AuthDialog, AuthDialogContent } from "@/components/auth/auth-dialog";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -98,51 +97,6 @@ function NavItem({
       <HugeiconsIcon className="size-5.5" icon={icon} />
       <span className="font-medium text-[10px]">{label}</span>
     </Link>
-  );
-}
-
-// oxlint-disable-next-line no-unused-vars
-function NavButtonItem({
-  href,
-  icon,
-  label,
-}: {
-  href: string;
-  icon: IconSvgElement;
-  label: string;
-}) {
-  const location = useLocation();
-
-  const isActive =
-    href === "/"
-      ? location.pathname === "/"
-      : location.pathname.startsWith(href);
-
-  return (
-    <Button
-      className={cn(
-        "size-14 -translate-y-4 rounded-full border border-primary/35 bg-linear-to-br from-20% from-primary to-80% to-accent text-primary-foreground shadow-[0_14px_34px_-18px_hsl(var(--primary))] transition-all duration-300 hover:scale-[1.03] hover:border-primary/55 hover:shadow-[0_18px_42px_-16px_hsl(var(--primary))] active:scale-[0.98]",
-        isActive &&
-          "border-white bg-linear-to-br from-primary to-secondary text-white shadow-[0_0_0_1px_hsl(var(--primary)/0.55),0_0_28px_hsl(var(--primary)/0.55),0_20px_48px_-14px_hsl(var(--primary))]"
-      )}
-      nativeButton={false}
-      render={
-        <Link
-          aria-current={isActive ? "page" : undefined}
-          aria-label={label}
-          to={href}
-        />
-      }
-      size="icon"
-    >
-      <HugeiconsIcon
-        className={cn(
-          "size-6 transition-transform duration-300",
-          isActive && "scale-110 text-white"
-        )}
-        icon={icon}
-      />
-    </Button>
   );
 }
 

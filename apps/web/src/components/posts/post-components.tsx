@@ -27,7 +27,7 @@ import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
 import {
   getCoverImageObjectKey,
-  getDisplayImageObjectKeys,
+  getGalleryImageObjectKeys,
 } from "@/lib/post-images";
 import type { EngagementPromptType, PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
@@ -764,7 +764,7 @@ export function PostCarousel() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [galleryOpen, setGalleryOpen] = useState(false);
 
-  const allImages = getDisplayImageObjectKeys(
+  const allImages = getGalleryImageObjectKeys(
     post.imageObjectKeys,
     post.coverImageObjectKey
   );

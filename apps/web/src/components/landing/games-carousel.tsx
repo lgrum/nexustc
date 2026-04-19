@@ -16,7 +16,7 @@ import {
   CarouselItem,
 } from "@/components/ui/carousel";
 import type { CarouselApi } from "@/components/ui/carousel";
-import { getDisplayImageObjectKeys } from "@/lib/post-images";
+import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
 
 import type { PostProps } from "./post-card";
@@ -44,12 +44,11 @@ function getVersionBadgeClassName(statusName: string | undefined) {
 }
 
 function GameSpotlightCard({ post, rank }: { post: PostProps; rank: number }) {
-  const [cover] = getDisplayImageObjectKeys(
+  const [cover] = getThumbnailImageObjectKeys(
     post.imageObjectKeys,
+    1,
     post.coverImageObjectKey
-  )
-    .slice(0, 1)
-    .map(getBucketUrl);
+  ).map(getBucketUrl);
 
   const statusName = post.terms?.find(
     (term) => term.taxonomy === "status"

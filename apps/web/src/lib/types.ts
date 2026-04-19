@@ -18,6 +18,7 @@ export type PostSeriesPart = {
   favorites: number;
   id: string;
   imageObjectKeys: string[] | null;
+  thumbnailImageCount?: number | null;
   likes: number;
   terms?: {
     name: string;

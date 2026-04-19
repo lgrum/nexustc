@@ -43,7 +43,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { orpc, queryClient, safeOrpc, safeOrpcClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
+import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 type FeaturedSelection = {
@@ -303,10 +303,11 @@ function RouteComponent() {
                 <img
                   alt={displayedMainPost.title}
                   src={getBucketUrl(
-                    getCoverImageObjectKey(
+                    getThumbnailImageObjectKeys(
                       displayedMainPost.imageObjectKeys,
+                      1,
                       displayedMainPost.coverImageObjectKey
-                    ) ?? ""
+                    )[0] ?? ""
                   )}
                 />
               </ItemMedia>
@@ -335,10 +336,11 @@ function RouteComponent() {
                   <img
                     alt={post.title}
                     src={getBucketUrl(
-                      getCoverImageObjectKey(
+                      getThumbnailImageObjectKeys(
                         post.imageObjectKeys,
+                        1,
                         post.coverImageObjectKey
-                      ) ?? ""
+                      )[0] ?? ""
                     )}
                   />
                 </ItemMedia>

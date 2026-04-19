@@ -12,6 +12,7 @@ import {
   newsArticleCreateSchema,
   postCreateSchema,
   postEditSchema,
+  thumbnailImageCountSchema,
 } from "@repo/shared/schemas";
 import z from "zod";
 
@@ -54,6 +55,7 @@ export const postCreateInputSchema = postCreateSchema
     coverImageSelection:
       optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
+    thumbnailImageCount: thumbnailImageCountSchema.default(4),
   });
 
 export const postEditInputSchema = postEditSchema
@@ -62,6 +64,7 @@ export const postEditInputSchema = postEditSchema
     coverImageSelection:
       optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
+    thumbnailImageCount: thumbnailImageCountSchema.default(4),
   });
 
 export const comicCreateInputSchema = comicCreateSchema
@@ -70,6 +73,7 @@ export const comicCreateInputSchema = comicCreateSchema
     coverImageSelection:
       optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
+    thumbnailImageCount: thumbnailImageCountSchema.default(1),
   });
 
 export const comicEditInputSchema = comicEditSchema
@@ -78,6 +82,7 @@ export const comicEditInputSchema = comicEditSchema
     coverImageSelection:
       optionalSingleDeferredMediaSelectionInputSchema.default([]),
     mediaSelection: deferredMediaSelectionInputSchema,
+    thumbnailImageCount: thumbnailImageCountSchema.default(1),
   });
 
 export const contentCreateInputSchema = z.discriminatedUnion("type", [

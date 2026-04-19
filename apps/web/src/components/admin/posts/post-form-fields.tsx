@@ -655,6 +655,42 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
         </form.AppField>
       </section>
 
+      <form.AppField name="thumbnailImageCount">
+        {(field) => {
+          const usesFourImages = (field.state.value ?? 4) === 4;
+
+          return (
+            <div className="space-y-2 rounded-xl border border-border/70 bg-muted/30 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor={field.name}>Miniaturas de tarjeta</Label>
+                  <FieldDescription>
+                    Usa la primera imagen de Media o arma el mosaico con hasta
+                    cuatro imagenes. La portada no se usa aqui.
+                  </FieldDescription>
+                </div>
+                <div className="flex shrink-0 items-center gap-3 rounded-full border border-border bg-background px-3 py-2">
+                  <span className="font-medium text-muted-foreground text-xs">
+                    1
+                  </span>
+                  <Switch
+                    checked={usesFourImages}
+                    id={field.name}
+                    onCheckedChange={(checked) =>
+                      field.handleChange(checked ? 4 : 1)
+                    }
+                  />
+                  <span className="font-medium text-muted-foreground text-xs">
+                    4
+                  </span>
+                </div>
+              </div>
+              <ErrorField field={field} />
+            </div>
+          );
+        }}
+      </form.AppField>
+
       <form.AppField name="mediaSelection">
         {(field) => (
           <field.MediaField
@@ -668,6 +704,12 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
       <form.AppField name="coverImageSelection">
         {(field) => (
           <field.MediaField
+            crop={{
+              aspect: 21 / 9,
+              description:
+                "Ajusta el encuadre de la portada para el hero del post.",
+              title: "Recortar portada",
+            }}
             description="Opcional. Si no eliges una portada, se usara la primera imagen de la media."
             label="Imagen de portada"
             maxItems={1}

@@ -246,6 +246,8 @@ export async function createContent({
           ...earlyAccessFields,
           imageObjectKeys: orderedMedia.map((item) => item.objectKey),
           isWeekly: false,
+          thumbnailImageCount:
+            input.type === "post" ? input.thumbnailImageCount : 1,
           premiumLinksAccessLevel:
             input.type === "post" ? input.premiumLinksAccessLevel : "auto",
           premiumLinks:
@@ -422,6 +424,8 @@ export async function editContent({
           creatorName: creatorFields.creatorName,
           ...earlyAccessFields,
           imageObjectKeys: orderedMedia.map((item) => item.objectKey),
+          thumbnailImageCount:
+            input.type === "post" ? input.thumbnailImageCount : 1,
           premiumLinksAccessLevel:
             input.type === "post" ? input.premiumLinksAccessLevel : "auto",
           premiumLinks:

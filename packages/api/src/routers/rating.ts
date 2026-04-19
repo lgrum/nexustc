@@ -438,6 +438,7 @@ export default {
                 coverImageObjectKey: createPostCoverImageObjectKeySelect(),
                 id: post.id,
                 imageObjectKeys: post.imageObjectKeys,
+                thumbnailImageCount: post.thumbnailImageCount,
                 title: post.title,
                 type: post.type,
               })
@@ -500,6 +501,7 @@ export default {
                 coverImageObjectKey: createPostCoverImageObjectKeySelect(),
                 id: post.id,
                 imageObjectKeys: post.imageObjectKeys,
+                thumbnailImageCount: post.thumbnailImageCount,
                 title: post.title,
                 type: post.type,
               })

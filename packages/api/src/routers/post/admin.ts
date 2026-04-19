@@ -130,6 +130,7 @@ export default {
         id: featuredPost.id,
         coverImageObjectKey: createPostCoverImageObjectKeySelect(),
         imageObjectKeys: post.imageObjectKeys,
+        thumbnailImageCount: post.thumbnailImageCount,
         order: featuredPost.order,
         position: featuredPost.position,
         postId: featuredPost.postId,
@@ -165,6 +166,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           title: post.title,
           version: post.version,
         })
@@ -191,6 +193,7 @@ export default {
         id: post.id,
         coverImageObjectKey: createPostCoverImageObjectKeySelect(),
         imageObjectKeys: post.imageObjectKeys,
+        thumbnailImageCount: post.thumbnailImageCount,
         title: post.title,
         version: post.version,
       })
@@ -220,6 +223,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
           similarity: sql<number>`similarity(${post.title}, ${input.search?.trim() || ""})`,
           title: post.title,

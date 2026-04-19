@@ -3,7 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import { Link } from "@tanstack/react-router";
 
-import { getDisplayImageObjectKeys } from "@/lib/post-images";
+import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
@@ -17,6 +17,7 @@ export type PostProps = {
   type: "post" | "comic";
   coverImageObjectKey?: string | null;
   imageObjectKeys: string[] | null;
+  thumbnailImageCount?: number | null;
   favorites: number;
   likes: number;
   views: number;
@@ -80,13 +81,13 @@ function getComicProgressBadge(
 }
 
 export function PostCard({ post }: PostCardProps) {
-  const imageLimit = post.type === "comic" ? 1 : 4;
-  const images = getDisplayImageObjectKeys(
+  const thumbnailImageCount =
+    post.type === "comic" ? 1 : (post.thumbnailImageCount ?? 4);
+  const images = getThumbnailImageObjectKeys(
     post.imageObjectKeys,
+    thumbnailImageCount,
     post.coverImageObjectKey
-  )
-    .slice(0, imageLimit)
-    .map(getBucketUrl);
+  ).map(getBucketUrl);
   const count = images.length;
   const comicProgressBadge = getComicProgressBadge(post.comicProgressStatus);
   const statusName = post.terms?.find(

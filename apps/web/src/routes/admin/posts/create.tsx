@@ -72,6 +72,7 @@ function RouteComponent() {
       seriesTitle: "",
       status: "",
       tags: [] as string[],
+      thumbnailImageCount: 4 as 1 | 4,
       title: "",
       type: "post" as const,
       vip12EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip12Hours),

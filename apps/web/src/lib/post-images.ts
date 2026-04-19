@@ -1,17 +1,29 @@
-export function getDisplayImageObjectKeys(
+export type ThumbnailImageCount = 1 | 4;
+
+export function getThumbnailImageObjectKeys(
+  imageObjectKeys: string[] | null | undefined,
+  thumbnailImageCount: number | null | undefined = 4,
+  coverImageObjectKey?: string | null
+) {
+  const imageLimit = thumbnailImageCount === 1 ? 1 : 4;
+
+  return getGalleryImageObjectKeys(imageObjectKeys, coverImageObjectKey).slice(
+    0,
+    imageLimit
+  );
+}
+
+export function getGalleryImageObjectKeys(
   imageObjectKeys: string[] | null | undefined,
   coverImageObjectKey?: string | null
 ) {
-  const images = imageObjectKeys ?? [];
-
   if (!coverImageObjectKey) {
-    return images;
+    return imageObjectKeys ?? [];
   }
 
-  return [
-    coverImageObjectKey,
-    ...images.filter((image) => image !== coverImageObjectKey),
-  ];
+  return (imageObjectKeys ?? []).filter(
+    (image) => image !== coverImageObjectKey
+  );
 }
 
 export function getCoverImageObjectKey(

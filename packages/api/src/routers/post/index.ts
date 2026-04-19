@@ -119,6 +119,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
 
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
@@ -220,6 +221,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           terms: sql<
@@ -325,6 +327,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           order: featuredPost.order,
           position: featuredPost.position,
@@ -491,6 +494,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
 
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
@@ -614,6 +618,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           title: post.title,
           type: post.type,
           vip12EarlyAccessHours: post.vip12EarlyAccessHours,
@@ -735,6 +740,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
@@ -862,6 +868,7 @@ export default {
                 favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
                 id: post.id,
                 imageObjectKeys: post.imageObjectKeys,
+                thumbnailImageCount: post.thumbnailImageCount,
                 likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
                 seriesOrder: post.seriesOrder,
                 terms: sql<
@@ -1584,6 +1591,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          thumbnailImageCount: post.thumbnailImageCount,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           score: sql<number>`
             COALESCE(${termWeightSubquery.weightedCount}, 0) * 10

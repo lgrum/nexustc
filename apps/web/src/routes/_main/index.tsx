@@ -32,7 +32,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
+import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
 const POPULAR_TAG_MIN_POST_USAGE = 3;
@@ -142,8 +142,9 @@ function HeroSection() {
 
   const posts = featuredPosts.data;
   const main = posts.find((p) => p.position === "main");
-  const mainImage = getCoverImageObjectKey(
+  const [mainImage] = getThumbnailImageObjectKeys(
     main?.imageObjectKeys,
+    1,
     main?.coverImageObjectKey
   );
   const secondary = posts
@@ -253,8 +254,9 @@ function getSecondaryStatusClassName(statusName: string | undefined) {
 }
 
 function HeroSecondaryCard({ post }: { post: PostProps }) {
-  const cover = getCoverImageObjectKey(
+  const [cover] = getThumbnailImageObjectKeys(
     post.imageObjectKeys,
+    1,
     post.coverImageObjectKey
   );
   const statusName = post.terms?.find(

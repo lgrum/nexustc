@@ -62,6 +62,7 @@ function RouteComponent() {
       seriesTitle: "",
       status: terms.status?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],
+      thumbnailImageCount: (oldPost.thumbnailImageCount === 1 ? 1 : 4) as 1 | 4,
       title: oldPost.title,
       type: "post" as const,
       vip12EarlyAccessHours:

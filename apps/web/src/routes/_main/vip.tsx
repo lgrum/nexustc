@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { orpcClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
+import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/vip")({
@@ -568,8 +568,9 @@ function VipFeedCard({
     item.content.length > 220
       ? `${item.content.slice(0, 217).trimEnd()}...`
       : item.content;
-  const heroImage = getCoverImageObjectKey(
+  const [heroImage] = getThumbnailImageObjectKeys(
     item.imageObjectKeys,
+    1,
     item.coverImageObjectKey
   );
 

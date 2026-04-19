@@ -6,7 +6,15 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { MediaOwnerKind } from "@repo/shared/media";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type React from "react";
 import { toast } from "sonner";
 
@@ -40,10 +48,20 @@ import type {
   DeferredMediaSelection,
 } from "@/lib/deferred-media";
 import { orpc } from "@/lib/orpc";
-import { cn, getBucketUrl } from "@/lib/utils";
+import { cn, cropImage, getBucketUrl } from "@/lib/utils";
+import type { ImagePercentCrop } from "@/lib/utils";
+
+const MediaCropDialog = lazy(
+  () => import("@/components/profile/media-crop-dialog")
+);
 
 type MediaFieldProps = {
   className?: string;
+  crop?: {
+    aspect: number;
+    description: string;
+    title: string;
+  };
   description?: string;
   label: string;
   maxItems?: number;
@@ -59,6 +77,11 @@ type SelectedMediaDisplayItem = {
   selection: DeferredMediaItem;
   usageCount: number | null;
   valueLabel: string;
+};
+
+type PendingCrop = {
+  file: File;
+  previewUrl: string;
 };
 
 function normalizeValue(value: DeferredMediaSelection | null | undefined) {
@@ -95,6 +118,7 @@ function getSelectionLabel(count: number, isSingle: boolean) {
 
 export function MediaField({
   className,
+  crop,
   description,
   label,
   maxItems,
@@ -114,6 +138,7 @@ export function MediaField({
   const deferredSearch = useDeferredValue(search);
   const [draftSelectedItems, setDraftSelectedItems] =
     useState<DeferredMediaSelection>([]);
+  const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
   const previewUrlsRef = useRef<Set<string>>(new Set());
 
   const selectionLimit = maxItems ?? Number.POSITIVE_INFINITY;
@@ -236,6 +261,15 @@ export function MediaField({
     []
   );
 
+  useEffect(
+    () => () => {
+      if (pendingCrop?.previewUrl) {
+        URL.revokeObjectURL(pendingCrop.previewUrl);
+      }
+    },
+    [pendingCrop]
+  );
+
   const normalizedSearch = deferredSearch.trim().toLowerCase();
   const visibleFolders = useMemo(
     () =>
@@ -322,17 +356,7 @@ export function MediaField({
     setDialogOpen(false);
   };
 
-  const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = [...(event.target.files ?? [])].filter((file) =>
-      file.type.startsWith("image/")
-    );
-
-    event.target.value = "";
-
-    if (files.length === 0) {
-      return;
-    }
-
+  const addFilesToDraftSelection = (files: File[]) => {
     setDraftSelectedItems((currentSelection) => {
       if (isSingle) {
         return createDeferredMediaItemsFromFiles(files.slice(0, 1));
@@ -360,6 +384,37 @@ export function MediaField({
         ...createDeferredMediaItemsFromFiles(filesToAdd),
       ];
     });
+  };
+
+  const clearPendingCrop = () => {
+    if (pendingCrop?.previewUrl) {
+      URL.revokeObjectURL(pendingCrop.previewUrl);
+    }
+
+    setPendingCrop(null);
+  };
+
+  const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.target.files ?? [])].filter((file) =>
+      file.type.startsWith("image/")
+    );
+
+    event.target.value = "";
+
+    if (files.length === 0) {
+      return;
+    }
+
+    const [firstFile] = files;
+    if (crop && isSingle && firstFile && firstFile.type !== "image/gif") {
+      setPendingCrop({
+        file: firstFile,
+        previewUrl: URL.createObjectURL(firstFile),
+      });
+      return;
+    }
+
+    addFilesToDraftSelection(files);
   };
 
   const selectedCountLabel = getSelectionLabel(selectedMedia.length, isSingle);
@@ -734,6 +789,36 @@ export function MediaField({
       ) : null}
 
       <ErrorField field={field} />
+
+      {crop && pendingCrop ? (
+        <Suspense fallback={null}>
+          <MediaCropDialog
+            aspect={crop.aspect}
+            description={crop.description}
+            imageSrc={pendingCrop.previewUrl}
+            onConfirm={async (nextCrop: ImagePercentCrop) => {
+              try {
+                const croppedFile = await cropImage(pendingCrop.file, nextCrop);
+                addFilesToDraftSelection([croppedFile]);
+                clearPendingCrop();
+              } catch (error) {
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "No se pudo recortar la imagen."
+                );
+              }
+            }}
+            onOpenChange={(open) => {
+              if (!open) {
+                clearPendingCrop();
+              }
+            }}
+            open={!!pendingCrop}
+            title={crop.title}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

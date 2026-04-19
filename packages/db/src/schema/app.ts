@@ -286,6 +286,7 @@ export const post = pgTable(
     id: text("id").primaryKey().$defaultFn(generateId),
     imageObjectKeys: jsonb("image_object_keys").$type<string[]>(),
     isWeekly: boolean("is_weekly").notNull().default(false),
+    thumbnailImageCount: integer("thumbnail_image_count").notNull().default(4),
     premiumLinksAccessLevel: premiumLinksAccessLevelEnum(
       "premium_links_access_level"
     )

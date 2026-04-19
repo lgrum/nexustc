@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { orpc, queryClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
+import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 const FOLLOWING_LIMIT = 20;
@@ -147,8 +147,9 @@ function FollowedContentGrid({
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => {
-        const imageObjectKey = getCoverImageObjectKey(
+        const [imageObjectKey] = getThumbnailImageObjectKeys(
           item.imageObjectKeys,
+          1,
           item.coverImageObjectKey
         );
 

@@ -92,6 +92,8 @@ export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
     }
   });
 
+export const thumbnailImageCountSchema = z.union([z.literal(1), z.literal(4)]);
+
 const contentBaseFields = {
   censorship: z.string(),
   documentStatus: z.enum(DOCUMENT_STATUSES),
@@ -113,6 +115,7 @@ const contentBaseFields = {
     .min(1)
     .max(255)
     .transform((val) => val.trim()),
+  thumbnailImageCount: thumbnailImageCountSchema,
 };
 
 const earlyAccessFields = {

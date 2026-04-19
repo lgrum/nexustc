@@ -783,6 +783,7 @@ export async function getFollowingOverview(
       coverImageObjectKey: createPostCoverImageObjectKeySelect(),
       followedAt: contentFollower.createdAt,
       imageObjectKeys: post.imageObjectKeys,
+      thumbnailImageCount: post.thumbnailImageCount,
       title: post.title,
       version: post.version,
     })
