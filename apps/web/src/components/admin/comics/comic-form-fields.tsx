@@ -65,6 +65,11 @@ const mapTermOptions = (terms?: ComicTermOption[]) =>
     value: term.id,
   })) ?? [];
 
+const appendUniqueValues = (
+  currentValues: string[],
+  valuesToAppend: string[]
+) => [...new Set([...currentValues, ...valuesToAppend])];
+
 export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
   const form = useTypedAppFormContext({
     defaultValues: {} as SharedComicFormValues,
@@ -102,7 +107,13 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
       }
     }
 
-    form.setFieldValue("tags", foundTags);
+    if (foundTags.length > 0) {
+      form.setFieldValue(
+        "tags",
+        appendUniqueValues(form.getFieldValue("tags"), foundTags)
+      );
+    }
+
     setTagsContent("");
     setTagsDialogVisible(false);
     if (notFoundTags.length > 0) {

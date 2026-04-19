@@ -93,6 +93,11 @@ const mapTermOptions = (terms?: PostTermOption[]) =>
     value: term.id,
   })) ?? [];
 
+const appendUniqueValues = (
+  currentValues: string[],
+  valuesToAppend: string[]
+) => [...new Set([...currentValues, ...valuesToAppend])];
+
 function getInitials(value: string) {
   const words = value.trim().split(/\s+/).filter(Boolean).slice(0, 2);
 
@@ -176,7 +181,13 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
       }
     }
 
-    form.setFieldValue("tags", foundTags);
+    if (foundTags.length > 0) {
+      form.setFieldValue(
+        "tags",
+        appendUniqueValues(form.getFieldValue("tags"), foundTags)
+      );
+    }
+
     setTagsContent("");
     setTagsDialogVisible(false);
     if (notFoundTags.length > 0) {

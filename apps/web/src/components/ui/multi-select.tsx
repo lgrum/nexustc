@@ -60,22 +60,27 @@ export function MultiSelect({
     new Set<string>(values ?? defaultValues)
   );
   const [items, setItems] = useState<Map<string, ReactNode>>(new Map());
+  const currentSelectedValues = useMemo(
+    () => new Set(values ?? selectedValues),
+    [values, selectedValues]
+  );
 
   const toggleValue = useCallback(
     (value: string) => {
-      const getNewSet = (prev: Set<string>) => {
-        const newSet = new Set(prev);
-        if (newSet.has(value)) {
-          newSet.delete(value);
-        } else {
-          newSet.add(value);
-        }
-        return newSet;
-      };
-      setSelectedValues(getNewSet);
-      onValuesChange?.([...getNewSet(selectedValues)]);
+      const nextSelectedValues = new Set(currentSelectedValues);
+      if (nextSelectedValues.has(value)) {
+        nextSelectedValues.delete(value);
+      } else {
+        nextSelectedValues.add(value);
+      }
+
+      if (values === undefined) {
+        setSelectedValues(nextSelectedValues);
+      }
+
+      onValuesChange?.([...nextSelectedValues]);
     },
-    [onValuesChange, selectedValues]
+    [currentSelectedValues, onValuesChange, values]
   );
 
   const onItemAdded = useCallback((value: string, label: ReactNode) => {
@@ -92,11 +97,11 @@ export function MultiSelect({
       items,
       onItemAdded,
       open,
-      selectedValues: values ? new Set(values) : selectedValues,
+      selectedValues: currentSelectedValues,
       setOpen,
       toggleValue,
     }),
-    [values, items, selectedValues, toggleValue, open, onItemAdded]
+    [items, currentSelectedValues, toggleValue, open, onItemAdded]
   );
 
   return (

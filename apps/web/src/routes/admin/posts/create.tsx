@@ -26,6 +26,11 @@ import {
 import { orpc, orpcClient } from "@/lib/orpc";
 import { parseTemplate } from "@/lib/post-template";
 
+const appendUniqueValues = (
+  currentValues: string[],
+  valuesToAppend: string[]
+) => [...new Set([...currentValues, ...valuesToAppend])];
+
 export const Route = createFileRoute("/admin/posts/create")({
   component: RouteComponent,
   loader: async () => await orpcClient.post.admin.createPostPrerequisites(),
@@ -173,7 +178,12 @@ function RouteComponent() {
 
       form.setFieldValue("content", content || values.content);
       form.setFieldValue("premiumLinks", premiumLinks || values.premiumLinks);
-      form.setFieldValue("tags", tagIds.length > 0 ? tagIds : values.tags);
+      form.setFieldValue(
+        "tags",
+        tagIds.length > 0
+          ? appendUniqueValues(values.tags, tagIds)
+          : values.tags
+      );
     } catch (error) {
       toast.error(`No se pudo leer el portapapeles: ${error}`);
     }
