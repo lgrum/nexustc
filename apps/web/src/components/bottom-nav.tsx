@@ -1,12 +1,13 @@
 import {
   Book03Icon,
+  Clock01Icon,
+  Crown02Icon,
   GameController03Icon,
   Home07Icon,
   MoreHorizontalCircle01Icon,
   News01Icon,
   StarIcon,
   UserIcon,
-  Clock01Icon,
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -36,6 +37,7 @@ export function BottomNav() {
   const isExtrasActive =
     isActive("/chronos") ||
     isActive("/news") ||
+    isActive("/memberships") ||
     isActive("/profile") ||
     isActive("/auth");
 
@@ -143,6 +145,10 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
           <DropdownMenuItem onClick={() => navigate({ to: "/tutorials" })}>
             <HugeiconsIcon icon={Book03Icon} />
             Tutoriales
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate({ to: "/memberships" })}>
+            <HugeiconsIcon icon={Crown02Icon} />
+            Membresías
           </DropdownMenuItem>
           {auth?.session ? (
             <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>

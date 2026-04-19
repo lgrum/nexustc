@@ -30,6 +30,7 @@ const navItems = [
   { href: "/comics", label: "Comics", search: {} },
   { href: "/tutorials", label: "Tutoriales", search: {} },
   { href: "/vip", label: "VIP", search: {} },
+  { href: "/memberships", label: "Membresías", search: {} },
   { href: "/news", label: "Noticias", search: {} },
   { href: "/chronos", label: "TheChronos", search: {} },
 ] as const;

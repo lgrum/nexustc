@@ -441,6 +441,19 @@
   }
 }
 
+@keyframes track-flow {
+  0% {
+    transform: translate3d(-100%, 0, 0);
+  }
+  100% {
+    transform: translate3d(300%, 0, 0);
+  }
+}
+
+@utility animate-track-flow {
+  animation: track-flow 2.6s linear infinite;
+}
+
 @keyframes membership-glow {
   0%,
   100% {

@@ -37,6 +37,7 @@ import { Route as MainSearchRouteImport } from './routes/_main/search'
 import { Route as MainResetPasswordRouteImport } from './routes/_main/reset-password'
 import { Route as MainProfileRouteImport } from './routes/_main/profile'
 import { Route as MainPrivacyRouteImport } from './routes/_main/privacy'
+import { Route as MainMembershipsRouteImport } from './routes/_main/memberships'
 import { Route as MainLegalRouteImport } from './routes/_main/legal'
 import { Route as MainJuegosRouteImport } from './routes/_main/juegos'
 import { Route as MainForgotPasswordRouteImport } from './routes/_main/forgot-password'
@@ -223,6 +224,11 @@ const MainProfileRoute = MainProfileRouteImport.update({
 const MainPrivacyRoute = MainPrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
+  getParentRoute: () => MainRouteRoute,
+} as any)
+const MainMembershipsRoute = MainMembershipsRouteImport.update({
+  id: '/memberships',
+  path: '/memberships',
   getParentRoute: () => MainRouteRoute,
 } as any)
 const MainLegalRoute = MainLegalRouteImport.update({
@@ -481,6 +487,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof MainForgotPasswordRoute
   '/juegos': typeof MainJuegosRoute
   '/legal': typeof MainLegalRoute
+  '/memberships': typeof MainMembershipsRoute
   '/privacy': typeof MainPrivacyRoute
   '/profile': typeof MainProfileRoute
   '/reset-password': typeof MainResetPasswordRoute
@@ -556,6 +563,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof MainForgotPasswordRoute
   '/juegos': typeof MainJuegosRoute
   '/legal': typeof MainLegalRoute
+  '/memberships': typeof MainMembershipsRoute
   '/privacy': typeof MainPrivacyRoute
   '/profile': typeof MainProfileRoute
   '/reset-password': typeof MainResetPasswordRoute
@@ -635,6 +643,7 @@ export interface FileRoutesById {
   '/_main/forgot-password': typeof MainForgotPasswordRoute
   '/_main/juegos': typeof MainJuegosRoute
   '/_main/legal': typeof MainLegalRoute
+  '/_main/memberships': typeof MainMembershipsRoute
   '/_main/privacy': typeof MainPrivacyRoute
   '/_main/profile': typeof MainProfileRoute
   '/_main/reset-password': typeof MainResetPasswordRoute
@@ -715,6 +724,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/juegos'
     | '/legal'
+    | '/memberships'
     | '/privacy'
     | '/profile'
     | '/reset-password'
@@ -790,6 +800,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/juegos'
     | '/legal'
+    | '/memberships'
     | '/privacy'
     | '/profile'
     | '/reset-password'
@@ -868,6 +879,7 @@ export interface FileRouteTypes {
     | '/_main/forgot-password'
     | '/_main/juegos'
     | '/_main/legal'
+    | '/_main/memberships'
     | '/_main/privacy'
     | '/_main/profile'
     | '/_main/reset-password'
@@ -1158,6 +1170,13 @@ declare module '@tanstack/react-router' {
       path: '/privacy'
       fullPath: '/privacy'
       preLoaderRoute: typeof MainPrivacyRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
+    '/_main/memberships': {
+      id: '/_main/memberships'
+      path: '/memberships'
+      fullPath: '/memberships'
+      preLoaderRoute: typeof MainMembershipsRouteImport
       parentRoute: typeof MainRouteRoute
     }
     '/_main/legal': {
@@ -1506,6 +1525,7 @@ interface MainRouteRouteChildren {
   MainForgotPasswordRoute: typeof MainForgotPasswordRoute
   MainJuegosRoute: typeof MainJuegosRoute
   MainLegalRoute: typeof MainLegalRoute
+  MainMembershipsRoute: typeof MainMembershipsRoute
   MainPrivacyRoute: typeof MainPrivacyRoute
   MainProfileRoute: typeof MainProfileRoute
   MainResetPasswordRoute: typeof MainResetPasswordRoute
@@ -1528,6 +1548,7 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainForgotPasswordRoute: MainForgotPasswordRoute,
   MainJuegosRoute: MainJuegosRoute,
   MainLegalRoute: MainLegalRoute,
+  MainMembershipsRoute: MainMembershipsRoute,
   MainPrivacyRoute: MainPrivacyRoute,
   MainProfileRoute: MainProfileRoute,
   MainResetPasswordRoute: MainResetPasswordRoute,

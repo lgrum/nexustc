@@ -1,30 +1,16 @@
-import {
-  ArrowRightBigIcon,
-  Cancel01Icon,
-  CheckmarkCircle02Icon,
-  Clock01Icon,
-  Crown02Icon,
-  InfinityIcon,
-  StarIcon,
-} from "@hugeicons/core-free-icons";
+import { Clock01Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  PATRON_TIER_GRADIENTS,
-  PATRON_TIER_KEYS,
-  PATRON_TIER_PROFILE_BADGES,
-  PATRON_TIERS,
-} from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { TierShape } from "@/components/tier-shape";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { orpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
-import { cn, getBucketUrl } from "@/lib/utils";
+import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/vip")({
   component: RouteComponent,
@@ -50,61 +36,7 @@ function RouteComponent() {
 
   return (
     <main className="flex flex-col gap-8 px-4 py-6">
-      <TierComparison />
-
-      <section className="animate-scale-pulse overflow-hidden rounded-[36px] ring-2 ring-primary shadow-glow-primary bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.16),transparent_26%),linear-gradient(135deg,rgba(9,13,28,0.98),rgba(41,16,55,0.94))] p-6 md:p-8">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-          <div className="space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/25 bg-amber-300/10 px-3 py-1 text-amber-100 text-xs uppercase tracking-[0.26em]">
-              <HugeiconsIcon className="size-3.5" icon={StarIcon} />
-              VIP Games
-            </div>
-
-            <div className="space-y-3">
-              <h2 className="max-w-3xl font-[Lexend] font-bold text-4xl text-white leading-[1.02] md:text-5xl">
-                Juega antes.
-                <br />
-                Sin anuncios.
-              </h2>
-            </div>
-          </div>
-
-          <div className="grid items-center gap-3 md:grid-cols-1 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
-            <div className="rounded-2xl border border-white/10 bg-black/22 p-4">
-              <div className="text-[11px] text-amber-200 uppercase tracking-[0.24em]">
-                Fase 01
-              </div>
-              <div className="mt-2 font-[Lexend] font-semibold text-white text-xl">
-                VIP 12
-              </div>
-            </div>
-            <HugeiconsIcon
-              className="text-amber-200"
-              icon={ArrowRightBigIcon}
-            />
-            <div className="rounded-2xl border border-white/10 bg-black/22 p-4">
-              <div className="text-[11px] text-amber-200 uppercase tracking-[0.24em]">
-                Fase 02
-              </div>
-              <div className="mt-2 font-[Lexend] font-semibold text-white text-xl">
-                VIP 8
-              </div>
-            </div>
-            <HugeiconsIcon
-              className="text-amber-200"
-              icon={ArrowRightBigIcon}
-            />
-            <div className="rounded-2xl border border-white/10 bg-black/22 p-4">
-              <div className="text-[11px] text-amber-200 uppercase tracking-[0.24em]">
-                Fase 03
-              </div>
-              <div className="mt-2 font-[Lexend] font-semibold text-white text-xl">
-                PÚBLICO
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <VipHero />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
@@ -144,6 +76,118 @@ function RouteComponent() {
         )}
       </section>
     </main>
+  );
+}
+
+function VipHero() {
+  return (
+    <section className="relative overflow-hidden rounded-[36px] border border-amber-300/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_38%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.12),transparent_34%),linear-gradient(135deg,rgba(11,15,28,0.96),rgba(34,16,48,0.92))] p-6 md:p-8">
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/40 to-transparent"
+      />
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:items-center">
+        <header className="flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <span
+              aria-hidden
+              className="inline-flex size-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_2px] shadow-amber-300/60"
+            />
+            <span className="font-medium text-[11px] text-amber-200/90 uppercase tracking-[0.28em]">
+              <HugeiconsIcon
+                className="mr-1.5 inline size-3.5 align-[-2px]"
+                icon={StarIcon}
+              />
+              VIP Games
+            </span>
+          </div>
+          <h1 className="display-heading max-w-2xl text-[34px] text-white sm:text-[42px] md:text-[46px]">
+            Juega antes.
+            <br />
+            <span className="bg-gradient-to-r from-amber-200 via-amber-100 to-pink-200 bg-clip-text text-transparent">
+              Sin anuncios.
+            </span>
+          </h1>
+          <p className="max-w-md text-[13.5px] text-white/70 leading-relaxed text-balance">
+            Cada lanzamiento avanza por tres fases — primero los VIP 12, luego
+            los VIP 8, y al final, todo el público.
+          </p>
+          <div className="glow-line mt-1 w-full max-w-sm" />
+        </header>
+
+        <EarlyAccessProgression />
+      </div>
+    </section>
+  );
+}
+
+const PHASES: readonly {
+  index: string;
+  tier: PatronTier;
+  name: string;
+  hint: string;
+}[] = [
+  {
+    hint: "Adelanto exclusivo",
+    index: "01",
+    name: "VIP 12",
+    tier: "level12",
+  },
+  {
+    hint: "Acceso intermedio",
+    index: "02",
+    name: "VIP 8",
+    tier: "level8",
+  },
+  {
+    hint: "Para todos",
+    index: "03",
+    name: "Público",
+    tier: "none",
+  },
+];
+
+function EarlyAccessProgression() {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden
+        className="-translate-y-1/2 pointer-events-none absolute top-8 right-[16.66%] left-[16.66%] h-1.5 overflow-hidden rounded-full border border-amber-300/15 bg-amber-300/[0.04] sm:top-10"
+      >
+        <div className="absolute inset-y-0 left-0 w-1/3 animate-track-flow bg-gradient-to-r from-transparent via-amber-300/80 to-transparent" />
+      </div>
+
+      <ol className="relative grid grid-cols-3 gap-2">
+        {PHASES.map((phase) => (
+          <PhaseNode key={phase.index} phase={phase} />
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+function PhaseNode({ phase }: { phase: (typeof PHASES)[number] }) {
+  return (
+    <li className="flex flex-col items-center gap-3 text-center">
+      <div className="relative">
+        <span
+          aria-hidden
+          className="-inset-3 absolute rounded-full bg-amber-300/20 blur-2xl"
+        />
+        <TierShape className="relative size-16 sm:size-20" tier={phase.tier} />
+      </div>
+      <div className="flex flex-col items-center gap-0.5">
+        <span className="font-medium text-[10px] text-amber-200/70 uppercase tracking-[0.24em]">
+          Fase {phase.index}
+        </span>
+        <span className="display-heading text-[18px] text-white">
+          {phase.name}
+        </span>
+        <span className="text-[11px] text-white/55 leading-snug">
+          {phase.hint}
+        </span>
+      </div>
+    </li>
   );
 }
 
@@ -201,363 +245,6 @@ function VipCountdown({
         <span>{String(countdown.minutes).padStart(2, "0")}m</span>
       </div>
     </div>
-  );
-}
-
-// Polygon sides per tier — free starts at triangle and grows by one side per tier.
-const TIER_SIDES: Record<PatronTier, number> = {
-  none: 3,
-  level1: 4,
-  level3: 5,
-  level5: 6,
-  level8: 7,
-  level12: 8,
-  level69: 9,
-  level100: 10,
-};
-
-// Placeholder monthly prices — fill in with real Patreon amounts.
-const TIER_PRICE_LABELS: Record<PatronTier, string> = {
-  none: "Gratis",
-  level1: "—",
-  level3: "—",
-  level5: "—",
-  level8: "—",
-  level12: "—",
-  level69: "—",
-  level100: "—",
-};
-
-const TIER_NAMES: Record<PatronTier, string> = {
-  none: "Free",
-  level1: "LvL 1",
-  level3: "LvL 3",
-  level5: "LvL 5",
-  level8: "LvL 8",
-  level12: "LvL 12",
-  level69: "LvL 69",
-  level100: "LvL 100",
-};
-
-const TIER_TAGLINES: Record<PatronTier, string> = {
-  none: "Para empezar a explorar.",
-  level1: "Un paso dentro del mundo VIP.",
-  level3: "Adiós a los anuncios.",
-  level5: "Acceso completo a los links.",
-  level8: "Más favoritos y más fases.",
-  level12: "VIP total, sin límites.",
-  level69: "Nivel élite, para los dedicados.",
-  level100: "Para toda la vida — la corona.",
-};
-
-function polygonClipPath(sides: number): string {
-  const isEven = sides % 2 === 0;
-  const startAngle = -Math.PI / 2 - (isEven ? Math.PI / sides : 0);
-  const points: string[] = [];
-  for (let i = 0; i < sides; i += 1) {
-    const angle = startAngle + (Math.PI * 2 * i) / sides;
-    const x = 50 + 50 * Math.cos(angle);
-    const y = 50 + 50 * Math.sin(angle);
-    points.push(`${x.toFixed(3)}% ${y.toFixed(3)}%`);
-  }
-  return `polygon(${points.join(", ")})`;
-}
-
-function TierShape({
-  className,
-  tier,
-}: {
-  className?: string;
-  tier: PatronTier;
-}) {
-  const sides = TIER_SIDES[tier];
-  const gradient = PATRON_TIER_GRADIENTS[tier];
-  const clip = polygonClipPath(sides);
-  return (
-    <div
-      aria-hidden
-      className={cn("relative isolate", className)}
-      style={{ filter: "drop-shadow(0 10px 24px rgba(0,0,0,0.45))" }}
-    >
-      <div
-        className="h-full w-full"
-        style={{ background: gradient, clipPath: clip }}
-      />
-      <div
-        className="absolute inset-0 mix-blend-overlay"
-        style={{
-          background:
-            "linear-gradient(160deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 45%, rgba(0,0,0,0.25) 100%)",
-          clipPath: clip,
-        }}
-      />
-    </div>
-  );
-}
-
-type CellValue =
-  | { kind: "check" }
-  | { kind: "cross" }
-  | { kind: "text"; label: string; emphasis?: boolean }
-  | { kind: "infinity" };
-
-type FeatureRow = {
-  label: string;
-  hint?: string;
-  render: (tier: PatronTier) => CellValue;
-};
-
-const CATEGORY_LABELS = {
-  completed: "Finalizados",
-  ongoing: "En progreso",
-} as const;
-
-const FEATURE_ROWS: FeatureRow[] = [
-  {
-    label: "Precio",
-    render: (tier) => ({
-      emphasis: true,
-      kind: "text",
-      label: TIER_PRICE_LABELS[tier],
-    }),
-  },
-  {
-    label: "Sin anuncios",
-    render: (tier) =>
-      PATRON_TIERS[tier].adFree ? { kind: "check" } : { kind: "cross" },
-  },
-  {
-    hint: "Qué categorías desbloquea para ti",
-    label: "Links premium",
-    render: (tier) => {
-      const access = PATRON_TIERS[tier].premiumLinks;
-      if (access.type === "none") {
-        return { kind: "cross" };
-      }
-      if (access.type === "all") {
-        return { kind: "text", label: "Todos los estados" };
-      }
-      return {
-        kind: "text",
-        label: access.categories
-          .map((category) => CATEGORY_LABELS[category])
-          .join(" · "),
-      };
-    },
-  },
-  {
-    label: "Early access a juegos",
-    render: (tier) => {
-      const { level } = PATRON_TIERS[tier];
-      if (level >= 3) {
-        return { kind: "text", label: "Fase VIP 12 + VIP 8" };
-      }
-      if (level >= 1) {
-        return { kind: "text", label: "Fase VIP 8" };
-      }
-      return { kind: "cross" };
-    },
-  },
-  {
-    label: "Favoritos máximos",
-    render: (tier) => {
-      const max = PATRON_TIERS[tier].maxBookmarks;
-      if (!Number.isFinite(max)) {
-        return { kind: "infinity" };
-      }
-      return { kind: "text", label: String(max) };
-    },
-  },
-  {
-    label: "Badge de perfil",
-    render: (tier) => {
-      const { badge } = PATRON_TIERS[tier];
-      const profileBadge = PATRON_TIER_PROFILE_BADGES[tier] ?? badge;
-      if (!profileBadge) {
-        return { kind: "cross" };
-      }
-      return { kind: "text", label: profileBadge };
-    },
-  },
-  {
-    label: "Status de por vida",
-    render: (tier) =>
-      tier === "level100" ? { kind: "check" } : { kind: "cross" },
-  },
-];
-
-function TierHeaderCell({ tier }: { tier: PatronTier }) {
-  const isTop = tier === "level100";
-  return (
-    <th
-      className={cn(
-        "relative w-32 border-border/50 border-b bg-card/40 px-3 pt-5 pb-4 text-center align-top font-normal",
-        isTop && "bg-card/70"
-      )}
-      scope="col"
-    >
-      <div className="flex flex-col items-center gap-3">
-        {isTop && (
-          <span className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-300/15 px-2 py-0.5 font-semibold text-[9.5px] text-amber-100 uppercase tracking-[0.18em]">
-            <HugeiconsIcon className="size-3" icon={Crown02Icon} />
-            Lifetime
-          </span>
-        )}
-        <TierShape className="size-16" tier={tier} />
-        <div className="flex flex-col gap-0.5">
-          <span className="display-heading text-[17px] text-foreground">
-            {TIER_NAMES[tier]}
-          </span>
-          <span className="font-medium text-[10.5px] text-muted-foreground uppercase tracking-[0.18em]">
-            {TIER_PRICE_LABELS[tier]}
-          </span>
-        </div>
-        <p className="min-h-8 text-[11.5px] text-muted-foreground leading-snug">
-          {TIER_TAGLINES[tier]}
-        </p>
-        <Button
-          className={cn(
-            "h-8 w-full rounded-md text-[12px]",
-            isTop &&
-              "bg-amber-400 text-amber-950 shadow-glow-amber-400/30 hover:bg-amber-300"
-          )}
-          render={<Link to="/vip" />}
-          variant={
-            tier === "none"
-              ? "outline"
-              : tier === "level69"
-                ? "destructive"
-                : "default"
-          }
-          disabled={tier === "level69"}
-        >
-          {tier === "none"
-            ? "Tu plan"
-            : tier === "level69"
-              ? "Agotado"
-              : "Elegir"}
-        </Button>
-      </div>
-    </th>
-  );
-}
-
-function FeatureCell({ value }: { value: CellValue }) {
-  if (value.kind === "check") {
-    return (
-      <HugeiconsIcon
-        aria-label="Incluido"
-        className="size-5 text-emerald-400"
-        icon={CheckmarkCircle02Icon}
-      />
-    );
-  }
-  if (value.kind === "cross") {
-    return (
-      <HugeiconsIcon
-        aria-label="No incluido"
-        className="size-4 text-muted-foreground/40"
-        icon={Cancel01Icon}
-      />
-    );
-  }
-  if (value.kind === "infinity") {
-    return (
-      <HugeiconsIcon
-        aria-label="Ilimitado"
-        className="size-5 text-primary"
-        icon={InfinityIcon}
-      />
-    );
-  }
-  return (
-    <span
-      className={cn(
-        "text-[12px] text-foreground leading-snug",
-        value.emphasis &&
-          "display-heading font-semibold text-[14px] text-foreground tracking-tight"
-      )}
-    >
-      {value.label}
-    </span>
-  );
-}
-
-function TierComparison() {
-  return (
-    <section className="space-y-4">
-      <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-2.5">
-          <span
-            aria-hidden
-            className="inline-flex size-1.5 rounded-full bg-primary shadow-[0_0_10px_2px] shadow-primary/50"
-          />
-          <h1 className="display-heading text-[24px] text-foreground sm:text-[28px]">
-            Elige tu tier
-          </h1>
-        </div>
-        <p className="max-w-2xl text-[13.5px] text-muted-foreground leading-relaxed">
-          Desde Free hasta Lvl 100. Cada tier abre un nuevo polígono de
-          beneficios — literalmente.
-        </p>
-        <div className="glow-line mt-2 w-full max-w-md" />
-      </header>
-
-      <div className="-mx-4 overflow-x-auto overscroll-x-contain pb-2 sm:mx-0 sm:rounded-2xl sm:border sm:border-border/70 sm:bg-card/50 sm:shadow-md">
-        <table className="w-full min-w-240 border-separate border-spacing-0 text-left">
-          <thead>
-            <tr>
-              <th
-                className="sticky left-0 z-10 w-45 border-border/50 border-r border-r-border/60 border-b bg-card"
-                scope="col"
-              />
-              {PATRON_TIER_KEYS.map((tier) => (
-                <TierHeaderCell key={tier} tier={tier} />
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {FEATURE_ROWS.map((row, rowIndex) => (
-              <tr key={row.label}>
-                <th
-                  className="sticky left-0 z-10 w-45 border-border/40 border-r border-r-border/60 border-b bg-card px-4 py-3 text-left align-middle font-normal"
-                  scope="row"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-[12px] text-foreground uppercase tracking-wider">
-                      {row.label}
-                    </span>
-                    {row.hint && (
-                      <span className="text-[10.5px] text-muted-foreground leading-snug">
-                        {row.hint}
-                      </span>
-                    )}
-                  </div>
-                </th>
-                {PATRON_TIER_KEYS.map((tier) => (
-                  <td
-                    className={cn(
-                      "border-border/40 border-b px-2 py-3 text-center align-middle",
-                      rowIndex % 2 === 0 ? "bg-card/30" : "bg-transparent",
-                      tier === "level100" && "bg-amber-400/4"
-                    )}
-                    key={tier}
-                  >
-                    <FeatureCell value={row.render(tier)} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="text-[11.5px] text-muted-foreground/80 leading-snug">
-        Los precios y algunos detalles se actualizan según los tiers activos de
-        Patreon. Si un beneficio no está disponible en tu tier, aparecerá
-        bloqueado cuando intentes usarlo.
-      </p>
-    </section>
   );
 }
 
