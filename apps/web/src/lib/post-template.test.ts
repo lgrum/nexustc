@@ -104,4 +104,52 @@ describe(parseTemplate, () => {
       tags: ["Tag One", "Tag Two"],
     });
   });
+
+  it("extracts links and lore from the updated post template", () => {
+    const template = [
+      "**CREADOR:  New Creator  **",
+      "*Apoya a El CREADOR:* [Provider](https://example.com/provider)",
+      "",
+      "**G\u00C9NEROS / TAGS:**",
+      "```Action, Story Rich```",
+      "",
+      "**Los LINKS Son (Azules)** \uD83D\uDD35",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "",
+      "**\uD83D\uDCBB JUEGO PC:** [PC](https://example.com/pc)",
+      "",
+      "**\uD83D\uDCF1Link Android:** [ANDROID](https://example.com/android)",
+      "",
+      "**SINOPSIS / RESUMEN / LORE <:NexuraRisa:1383204054829633557> : **",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "First lore paragraph.",
+      "",
+      "Second lore paragraph.",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "- **Soluci\u00F3n de Problemas:** \u2060",
+      "https://discord.com/channels/1341543718187958272/1354553658993283297",
+      "https://discord.com/channels/1341543718187958272/1354553672419512451",
+      "- **Pide Ayuda En:**",
+      "https://discord.com/channels/1341543718187958272/1374529836911034398",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "",
+      "**S\u00EDguenos en:**",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "<:kofi:1383202798463619252>  [Ko-Fi](https://ko-fi.com/nexustc2)",
+    ].join("\n");
+
+    expect(parseTemplate(template)).toStrictEqual({
+      content: ["First lore paragraph.", "", "Second lore paragraph."].join(
+        "\n"
+      ),
+      creatorName: "New Creator",
+      creatorUrl: "https://example.com/provider",
+      premiumLinks: [
+        "**\uD83D\uDCBB JUEGO PC:** [PC](https://example.com/pc)",
+        "",
+        "**\uD83D\uDCF1Link Android:** [ANDROID](https://example.com/android)",
+      ].join("\n"),
+      tags: ["Action", "Story Rich"],
+    });
+  });
 });

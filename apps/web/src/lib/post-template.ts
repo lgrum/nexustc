@@ -14,11 +14,11 @@ const separatorEdgesRegex =
 const urlRegex = /https?:\/\/\S+/i;
 
 const creatorHeadingRegex = /^\s*\*\*CREADOR:\s*(.+?)\*\*\s*$/im;
-const linksHeadingRegex = /^\s*\*\*Los LINKS Son Los.*$/im;
+const linksHeadingRegex = /^\s*\*\*Los LINKS Son\b.*$/im;
 const supportHeadingRegex =
   /^\s*-\s*\*\*(?:Soluci(?:o|\u00F3)n de Problemas|Pide Ayuda En):\s*\*\*/im;
 const synopsisHeadingRegex =
-  /^\s*\*\*SINOPSIS\s*\/\s*RESUMEN\s*\/\s*LORE:\s*\*\*\s*$/im;
+  /^\s*\*\*SINOPSIS\s*\/\s*RESUMEN\s*\/\s*LORE\b.*\*\*\s*$/im;
 const tagsHeadingRegex = /^\s*\*\*.*TAGS:\s*\*\*\s*$/im;
 const followHeadingRegex = /^\s*\*\*S(?:i|\u00ED)guenos en:\*\*\s*$/im;
 
