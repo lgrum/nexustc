@@ -1,7 +1,5 @@
 import { Link } from "@tanstack/react-router";
 
-import { DiscordLogo } from "../icons/discord";
-
 const exploreLinks = [
   { href: "/", label: "Inicio" },
   { href: "/juegos", label: "Juegos" },
@@ -21,13 +19,24 @@ const legalLinks = [
 
 const communityLinks = [
   {
-    href: "https://discord.nexustc18.com/",
-    label: "Discord",
-    icon: <DiscordLogo className="size-4" />,
+    href: "https://www.patreon.com/c/NeXusTC18",
+    label: "Patreon",
   },
   {
-    href: "https://www.patreon.com/NeXusTC18",
-    label: "Patreon",
+    href: "https://ko-fi.com/nexustc2",
+    label: "Kofi",
+  },
+  {
+    href: "https://x.com/NeXusTC18",
+    label: "X",
+  },
+  {
+    href: "https://www.youtube.com/@CUBAHUB",
+    label: "Youtube",
+  },
+  {
+    href: "https://discord.nexustc18.com/",
+    label: "Discord",
   },
 ] as const;
 
