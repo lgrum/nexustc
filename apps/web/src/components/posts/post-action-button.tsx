@@ -7,27 +7,31 @@ export type PostActionTone = "rose" | "blue" | "emerald" | "purple";
 
 const TONE_CLASSES: Record<
   PostActionTone,
-  { base: string; active: string; inactive: string }
+  { inactive: string; active: string }
 > = {
   rose: {
-    base: "shadow-glow-rose-600/80 hover:bg-rose-600/80 hover:shadow-glow-rose-600",
-    active: "ring-rose-600 bg-rose-600/50",
-    inactive: "ring-rose-800 bg-rose-600/30",
+    inactive:
+      "border-rose-500/25 bg-rose-500/[0.04] text-rose-100/90 hover:border-rose-500/55 hover:bg-rose-500/[0.1] hover:shadow-glow-rose-500/25",
+    active:
+      "border-rose-500/70 bg-rose-500/15 text-rose-50 shadow-glow-rose-500/45",
   },
   blue: {
-    base: "shadow-glow-blue-600/80 hover:bg-blue-600/80 hover:shadow-glow-blue-600",
-    active: "ring-blue-600 bg-blue-600/50",
-    inactive: "ring-blue-800 bg-blue-600/30",
+    inactive:
+      "border-blue-500/25 bg-blue-500/[0.04] text-blue-100/90 hover:border-blue-500/55 hover:bg-blue-500/[0.1] hover:shadow-glow-blue-500/25",
+    active:
+      "border-blue-500/70 bg-blue-500/15 text-blue-50 shadow-glow-blue-500/45",
   },
   emerald: {
-    base: "shadow-glow-emerald-500/80 hover:bg-emerald-500/80 hover:shadow-glow-emerald-500",
-    active: "ring-emerald-500 bg-emerald-500/50",
-    inactive: "ring-emerald-800 bg-emerald-500/30",
+    inactive:
+      "border-emerald-500/25 bg-emerald-500/[0.04] text-emerald-100/90 hover:border-emerald-500/55 hover:bg-emerald-500/[0.1] hover:shadow-glow-emerald-500/25",
+    active:
+      "border-emerald-500/70 bg-emerald-500/15 text-emerald-50 shadow-glow-emerald-500/45",
   },
   purple: {
-    base: "shadow-glow-purple-500/80 hover:bg-purple-500/80 hover:shadow-glow-purple-500",
-    active: "ring-purple-500 bg-purple-500/50",
-    inactive: "ring-purple-800 bg-purple-500/30",
+    inactive:
+      "border-purple-500/25 bg-purple-500/[0.04] text-purple-100/90 hover:border-purple-500/55 hover:bg-purple-500/[0.1] hover:shadow-glow-purple-500/25",
+    active:
+      "border-purple-500/70 bg-purple-500/15 text-purple-50 shadow-glow-purple-500/45",
   },
 };
 
@@ -47,8 +51,7 @@ export function PostActionButton({
   return (
     <Button
       className={cn(
-        "text-white ring-2 transition-transform hover:scale-105",
-        tones.base,
+        "h-10 w-full justify-center gap-2 rounded-lg border px-3 font-medium text-[13px] transition-[color,background-color,border-color,box-shadow] duration-200",
         active ? tones.active : tones.inactive,
         className
       )}

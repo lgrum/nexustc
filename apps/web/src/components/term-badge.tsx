@@ -40,14 +40,17 @@ export function TermBadge({
     return (
       <span
         className={cn(
-          "inline-flex grow items-center justify-center rounded-full border px-3.5 py-1.5 text-center font-semibold text-sm transition-colors",
+          "inline-flex grow items-center justify-center rounded-full border px-3.5 py-1 text-center font-semibold text-[13px] leading-5 transition-colors duration-200 hover:[background:oklch(0.3_0.1_var(--tb-hue)/0.55)]",
           className
         )}
-        style={{
-          background: `oklch(0.25 0.12 ${hue} / 0.5)`,
-          borderColor: `oklch(0.45 0.12 ${hue} / 0.3)`,
-          color: `oklch(0.82 0.12 ${hue})`,
-        }}
+        style={
+          {
+            "--tb-hue": hue,
+            background: `oklch(0.24 0.06 ${hue} / 0.45)`,
+            borderColor: `oklch(0.55 0.08 ${hue} / 0.35)`,
+            color: `oklch(0.86 0.16 ${hue})`,
+          } as React.CSSProperties
+        }
         {...props}
       >
         {tag.name}
@@ -60,7 +63,7 @@ export function TermBadge({
   return (
     <span
       className={cn(
-        "inline-flex grow items-center justify-center rounded-full border px-3.5 py-1.5 text-center font-semibold text-sm transition-colors",
+        "inline-flex grow items-center justify-center rounded-full border px-3.5 py-1 text-center font-semibold text-[13px] leading-5 transition-colors duration-200",
         className
       )}
       key={tag.name}

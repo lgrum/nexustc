@@ -30,7 +30,7 @@ import {
   getDisplayImageObjectKeys,
 } from "@/lib/post-images";
 import type { EngagementPromptType, PostType } from "@/lib/types";
-import { getBucketUrl } from "@/lib/utils";
+import { cn, getBucketUrl } from "@/lib/utils";
 
 import { DiscordLogo } from "../icons/discord";
 import { PostCard } from "../landing/post-card";
@@ -197,105 +197,141 @@ export function PostStatsBar() {
     post.ratingCount > 0;
 
   return (
-    <div className="p-4">
-      <div className="flex justify-between gap-4 flex-col md:flex-row">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
-          <PostMetric
-            icon={ViewIcon}
-            label="Vistas"
-            value={String(post.views)}
-          />
-          <MetricDot />
-          <PostMetric
-            icon={FavouriteIcon}
-            label="Me gusta"
-            value={String(post.likes)}
-          />
-          {showRating && (
-            <>
-              <MetricDot />
-              <PostMetric
-                icon={StarIcon}
-                label="Rating"
-                value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
-              />
-            </>
-          )}
-          <MetricDot />
-          <PostMetric
-            icon={Clock01Icon}
-            label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
-            value={updatedAt}
-          />
-        </div>
-        <div className="flex gap-2 flex-col md:flex-row">
-          {!post.earlyAccess.isActive && (
-            <Button
-              className="grow min-h-20 h-full lg:text-lg! ring-1 ring-primary/50 bg-primary/30 text-white hover:bg-primary/45 hover:ring-primary shadow-glow-primary/20 hover:shadow-glow-primary/70 transition-all"
-              nativeButton={false}
-              render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
-              size="lg"
-            >
-              <RatingDisplay
-                averageRating={post.averageRating ?? 0}
-                ratingCount={post.ratingCount}
-                variant="compact"
-              />
-              Deja tu Opinión
-            </Button>
-          )}
-          <div className="shrink grid grid-cols-2 gap-2">
-            <LikeButton postId={post.id} />
-            <BookmarkButton postId={post.id} />
-            <FollowButton contentId={post.id} />
-            <Tooltip>
-              <TooltipTrigger
-                onClick={handleShare}
-                render={<PostActionButton tone="purple" />}
-              >
-                <HugeiconsIcon className="size-4" icon={Share08Icon} />
-                Compartir
-              </TooltipTrigger>
-              <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
-            </Tooltip>
+    <section className="px-4 pt-4">
+      <div className="overflow-hidden rounded-2xl border border-border/70 bg-card/70 shadow-md backdrop-blur-sm">
+        {/* Top row: stats cluster (left) + rating CTA (right) */}
+        <div className="flex flex-col gap-5 p-3 md:flex-row md:items-stretch md:justify-between md:gap-4 md:pl-8">
+          <div className="flex flex-wrap items-center justify-evenly gap-x-4 gap-y-3 px-4 md:justify-start md:gap-x-8 md:px-1">
+            <StatCell
+              icon={ViewIcon}
+              label="Vistas"
+              value={String(post.views)}
+            />
+            <StatDivider />
+            <StatCell
+              icon={FavouriteIcon}
+              iconClassName="text-rose-400"
+              label="Me gusta"
+              value={String(post.likes)}
+            />
+            {showRating && (
+              <>
+                <StatDivider />
+                <StatCell
+                  icon={StarIcon}
+                  iconClassName="fill-amber-300 text-amber-300"
+                  label="Rating"
+                  value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
+                  valueClassName="text-amber-100"
+                />
+              </>
+            )}
+            <StatDivider />
+            <StatCell
+              icon={Clock01Icon}
+              label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
+              value={updatedAt}
+            />
           </div>
+
+          {!post.earlyAccess.isActive && (
+            <Link
+              className="group relative flex items-center gap-3 rounded-xl border border-amber-400/40 bg-linear-to-r from-amber-400/10 via-amber-400/6 to-transparent px-4 py-3 shadow-glow-amber-400/10 transition-[background-color,border-color,box-shadow] duration-200 hover:border-amber-400/65 hover:bg-amber-400/15 hover:shadow-glow-amber-400/35 md:shrink-0"
+              params={{ id: post.id }}
+              to="/post/reviews/$id"
+            >
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
+                <HugeiconsIcon
+                  className="size-4 fill-amber-300 text-amber-300"
+                  icon={StarIcon}
+                />
+              </div>
+              <div className="flex min-w-0 flex-col leading-tight">
+                <span className="font-semibold text-[13px] text-amber-50">
+                  Deja tu Opinión
+                </span>
+                <span className="text-[11.5px] tabular-nums text-amber-200/75">
+                  <RatingDisplay
+                    averageRating={post.averageRating ?? 0}
+                    ratingCount={post.ratingCount}
+                    variant="compact"
+                  />
+                </span>
+              </div>
+              <HugeiconsIcon
+                className="ml-1 size-3.5 text-amber-200/50 transition-[transform,color] duration-200 group-hover:translate-x-0.5 group-hover:text-amber-200"
+                icon={ArrowRight01Icon}
+              />
+            </Link>
+          )}
+        </div>
+
+        {/* Divider */}
+        <div className="h-px bg-border/60" />
+
+        {/* Action buttons row */}
+        <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-4">
+          <LikeButton postId={post.id} />
+          <BookmarkButton postId={post.id} />
+          <FollowButton contentId={post.id} />
+          <Tooltip>
+            <TooltipTrigger
+              onClick={handleShare}
+              render={<PostActionButton tone="purple" />}
+            >
+              <HugeiconsIcon className="size-4" icon={Share08Icon} />
+              Compartir
+            </TooltipTrigger>
+            <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
+          </Tooltip>
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-function PostMetric({
+function StatCell({
   icon,
   value,
   label,
+  iconClassName,
+  valueClassName,
 }: {
   icon: IconSvgElement;
   value: string;
   label: string;
+  iconClassName?: string;
+  valueClassName?: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
-            <HugeiconsIcon className="size-4" icon={icon} />
-            <span className="whitespace-nowrap font-semibold text-foreground">
-              {value}
-            </span>
-          </span>
-        }
-      />
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <span className="inline-flex flex-col items-start gap-0.5 leading-none">
+      <span className="inline-flex items-center gap-1.5">
+        <HugeiconsIcon
+          className={cn("size-3.5 text-muted-foreground", iconClassName)}
+          icon={icon}
+        />
+        <span
+          className={cn(
+            "whitespace-nowrap font-semibold text-foreground text-[15px] tabular-nums",
+            valueClassName
+          )}
+        >
+          {value}
+        </span>
+      </span>
+      <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
+        {label}
+      </span>
+    </span>
   );
 }
 
-function MetricDot() {
+function StatDivider() {
   return (
-    <span aria-hidden="true" className="select-none text-muted-foreground/40">
-      ·
-    </span>
+    <span
+      aria-hidden="true"
+      className="w-px shrink-0 self-stretch select-none bg-border/70 md:-my-3"
+    />
   );
 }
 

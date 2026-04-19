@@ -55,9 +55,8 @@ export function BottomNav() {
     >
       <NavItem href="/" icon={Home07Icon} label="Inicio" />
       <NavItem href="/juegos" icon={GameController03Icon} label="Juegos" />
-      <NavButtonItem href="/comics" icon={Book03Icon} label="Comics" />
+      <NavItem href="/comics" icon={Book03Icon} label="Comics" />
       <NavItem href="/vip" icon={StarIcon} label="VIP" />
-      <NavItem href="/tutorials" icon={Book03Icon} label="Tutoriales" />
       <ExtrasNavMenu isActive={isExtrasActive} />
     </nav>
   );
@@ -102,6 +101,7 @@ function NavItem({
   );
 }
 
+// oxlint-disable-next-line no-unused-vars
 function NavButtonItem({
   href,
   icon,
@@ -180,11 +180,15 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
         <DropdownMenuContent align="center" side="top" sideOffset={8}>
           <DropdownMenuItem onClick={() => navigate({ to: "/chronos" })}>
             <HugeiconsIcon icon={Clock01Icon} />
-            Chronos
+            TheChronos
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({ to: "/news" })}>
             <HugeiconsIcon icon={News01Icon} />
-            News
+            Noticias
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate({ to: "/tutorials" })}>
+            <HugeiconsIcon icon={Book03Icon} />
+            Tutoriales
           </DropdownMenuItem>
           {auth?.session ? (
             <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>

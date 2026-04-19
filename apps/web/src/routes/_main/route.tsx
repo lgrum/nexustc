@@ -71,20 +71,32 @@ function MainLayout() {
 
 function Marquee({ items }: { items: readonly MarqueeItem[] }) {
   return (
-    <div className="font-[Lexend] font-semibold uppercase tracking-widest text-sm flex w-max shrink-0 gap-8 py-2.5 pr-8">
-      {items.map((item) =>
-        item.url ? (
+    <div className="font-[Lexend] font-semibold uppercase tracking-[0.22em] text-[11px] flex w-max shrink-0 gap-10 py-2 pr-10 items-center">
+      {items.map((item, idx) => {
+        const content = item.url ? (
           <a
-            className="underline-offset-4 hover:underline"
+            className="text-primary/80 transition-colors hover:text-primary underline-offset-4 hover:underline"
             href={item.url}
             key={`${item.text}:${item.url}`}
           >
             {item.text}
           </a>
         ) : (
-          <span key={item.text}>{item.text}</span>
-        )
-      )}
+          <span className="text-muted-foreground" key={item.text}>
+            {item.text}
+          </span>
+        );
+        return (
+          <span
+            className="flex items-center gap-10"
+            // oxlint-disable-next-line react/no-array-index-key
+            key={`${item.text}:${idx}`}
+          >
+            {content}
+            <span aria-hidden className="size-1 rounded-full bg-primary/40" />
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -99,7 +111,9 @@ function Wrapper({
   return (
     <>
       <div className="relative min-h-screen w-full min-w-0 overflow-x-clip selection:bg-accent selection:text-accent-foreground">
-        <div className="group font-mono w-full bg-primary/10 text-primary border-y border-primary/25 overflow-hidden whitespace-nowrap">
+        <div className="group relative w-full overflow-hidden whitespace-nowrap border-b border-border/60 bg-linear-to-r from-background via-[oklch(0.2_0.03_285)] to-background">
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-linear-to-r from-background to-transparent z-10" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-linear-to-l from-background to-transparent z-10" />
           <div className="flex min-w-[200%] justify-around hover:paused animate-marquee select-none">
             <Marquee items={marqueeItems} />
             <Marquee items={marqueeItems} />

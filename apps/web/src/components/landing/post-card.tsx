@@ -42,18 +42,18 @@ function statusMatches(
 
 function getVersionBadgeClassName(statusName: string | undefined) {
   if (statusName === ABANDONED_STATUS_NAME) {
-    return "bg-red-500/90 text-white";
+    return "bg-red-500/15 text-red-300 border border-red-500/30";
   }
 
   if (statusMatches(statusName, PREMIUM_STATUS_CATEGORIES.ongoing)) {
-    return "bg-yellow-400 text-yellow-950";
+    return "bg-amber-400/15 text-amber-200 border border-amber-400/30";
   }
 
   if (statusMatches(statusName, PREMIUM_STATUS_CATEGORIES.completed)) {
-    return "bg-green-500/90 text-white";
+    return "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30";
   }
 
-  return "bg-black/50 text-white";
+  return "bg-white/10 text-white/80 border border-white/15";
 }
 
 function getComicProgressBadge(
@@ -96,13 +96,13 @@ export function PostCard({ post }: PostCardProps) {
 
   return (
     <Link
-      className="group w-full transition-transform hover:scale-[1.02]"
+      className="group block w-full h-full"
       params={{ id: post.id }}
       preload={false}
       to="/post/$id"
     >
       <Card
-        className="relative rounded-t-xl h-full pb-0.75"
+        className="card-hover relative rounded-t-xl h-full pb-0.75"
         style={{
           paddingBlock: "0px", // pt-0 gets overridden for some reason
         }}
@@ -122,14 +122,14 @@ export function PostCard({ post }: PostCardProps) {
           {post.type === "comic" && count > 0 && (
             <img
               alt={post.title}
-              className="h-full w-full object-cover transition-transform duration-300"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               src={images[0]}
             />
           )}
           {post.type === "post" && count === 1 && (
             <img
               alt={post.title}
-              className="h-full w-full object-cover transition-transform duration-300"
+              className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               src={images[0]}
             />
           )}
@@ -191,12 +191,12 @@ export function PostCard({ post }: PostCardProps) {
         </div>
 
         <CardHeader className="grow">
-          <CardTitle className="text-center text-pretty">
-            {post.title}
+          <CardTitle className="text-center text-pretty text-[15px] leading-tight tracking-tight">
+            <span className="align-middle">{post.title}</span>
             {post.version && (
               <span
                 className={cn(
-                  "ml-2 inline-flex items-center rounded px-1.5 py-1 text-[12px] leading-none font-medium backdrop-blur-sm",
+                  "ml-2 inline-flex items-center align-middle rounded-md px-1.5 py-0.75 text-[10.5px] leading-none font-semibold uppercase tracking-wider backdrop-blur-sm",
                   versionBadgeClassName
                 )}
               >
@@ -209,22 +209,25 @@ export function PostCard({ post }: PostCardProps) {
         <CardFooter className="relative flex flex-col border-t-0 gap-1.5 p-3">
           {/* Tier bar */}
           <div
-            className={`absolute -top-1 h-0.75 w-full z-50 ${getTierColor(post.likes)}`}
+            className={`absolute -top-1 h-0.75 w-full z-50 opacity-80 ${getTierColor(post.likes)}`}
           />
           {/* Stats row */}
-          <div className="flex items-center justify-center gap-3 text-muted-foreground text-sm">
+          <div className="flex items-center justify-center gap-3.5 text-muted-foreground text-[13px] tabular-nums">
             <span className="inline-flex items-center gap-1">
-              <HugeiconsIcon className="size-4" icon={FavouriteIcon} />
+              <HugeiconsIcon
+                className="size-3.5 opacity-80"
+                icon={FavouriteIcon}
+              />
               {post.likes}
             </span>
             {post.averageRating !== 0 && post.averageRating !== undefined && (
-              <span className="inline-flex items-center gap-1">
-                <HugeiconsIcon className="size-4" icon={StarIcon} />
+              <span className="inline-flex items-center gap-1 text-amber-300/90">
+                <HugeiconsIcon className="size-3.5" icon={StarIcon} />
                 {post.averageRating.toFixed(1)}
               </span>
             )}
             <span className="inline-flex items-center gap-1">
-              <HugeiconsIcon className="size-4" icon={ViewIcon} />
+              <HugeiconsIcon className="size-3.5 opacity-80" icon={ViewIcon} />
               {post.views}
             </span>
           </div>
