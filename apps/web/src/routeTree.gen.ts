@@ -65,6 +65,7 @@ import { Route as AdminProfileRolesRouteImport } from './routes/admin/profile/ro
 import { Route as AdminProfileEmblemsRouteImport } from './routes/admin/profile/emblems'
 import { Route as AdminPostsCreateRouteImport } from './routes/admin/posts/create'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin/pages/$slug'
+import { Route as AdminModerationForbiddenContentRouteImport } from './routes/admin/moderation/forbidden-content'
 import { Route as AdminExtrasWeeklyRouteImport } from './routes/admin/extras/weekly'
 import { Route as AdminExtrasTutorialsRouteImport } from './routes/admin/extras/tutorials'
 import { Route as AdminExtrasFeaturedRouteImport } from './routes/admin/extras/featured'
@@ -364,6 +365,12 @@ const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
   path: '/pages/$slug',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminModerationForbiddenContentRoute =
+  AdminModerationForbiddenContentRouteImport.update({
+    id: '/moderation/forbidden-content',
+    path: '/moderation/forbidden-content',
+    getParentRoute: () => AdminRouteRoute,
+  } as any)
 const AdminExtrasWeeklyRoute = AdminExtrasWeeklyRouteImport.update({
   id: '/extras/weekly',
   path: '/extras/weekly',
@@ -508,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
+  '/admin/moderation/forbidden-content': typeof AdminModerationForbiddenContentRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
@@ -583,6 +591,7 @@ export interface FileRoutesByTo {
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
+  '/admin/moderation/forbidden-content': typeof AdminModerationForbiddenContentRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
@@ -661,6 +670,7 @@ export interface FileRoutesById {
   '/admin/extras/featured': typeof AdminExtrasFeaturedRoute
   '/admin/extras/tutorials': typeof AdminExtrasTutorialsRoute
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
+  '/admin/moderation/forbidden-content': typeof AdminModerationForbiddenContentRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
@@ -739,6 +749,7 @@ export interface FileRouteTypes {
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
+    | '/admin/moderation/forbidden-content'
     | '/admin/pages/$slug'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
@@ -814,6 +825,7 @@ export interface FileRouteTypes {
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
+    | '/admin/moderation/forbidden-content'
     | '/admin/pages/$slug'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
@@ -891,6 +903,7 @@ export interface FileRouteTypes {
     | '/admin/extras/featured'
     | '/admin/extras/tutorials'
     | '/admin/extras/weekly'
+    | '/admin/moderation/forbidden-content'
     | '/admin/pages/$slug'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
@@ -1343,6 +1356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPagesSlugRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/moderation/forbidden-content': {
+      id: '/admin/moderation/forbidden-content'
+      path: '/moderation/forbidden-content'
+      fullPath: '/admin/moderation/forbidden-content'
+      preLoaderRoute: typeof AdminModerationForbiddenContentRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/extras/weekly': {
       id: '/admin/extras/weekly'
       path: '/extras/weekly'
@@ -1536,6 +1556,7 @@ interface AdminRouteRouteChildren {
   AdminExtrasFeaturedRoute: typeof AdminExtrasFeaturedRoute
   AdminExtrasTutorialsRoute: typeof AdminExtrasTutorialsRoute
   AdminExtrasWeeklyRoute: typeof AdminExtrasWeeklyRoute
+  AdminModerationForbiddenContentRoute: typeof AdminModerationForbiddenContentRoute
   AdminPagesSlugRoute: typeof AdminPagesSlugRoute
   AdminPostsCreateRoute: typeof AdminPostsCreateRoute
   AdminProfileEmblemsRoute: typeof AdminProfileEmblemsRoute
@@ -1573,6 +1594,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminExtrasFeaturedRoute: AdminExtrasFeaturedRoute,
   AdminExtrasTutorialsRoute: AdminExtrasTutorialsRoute,
   AdminExtrasWeeklyRoute: AdminExtrasWeeklyRoute,
+  AdminModerationForbiddenContentRoute: AdminModerationForbiddenContentRoute,
   AdminPagesSlugRoute: AdminPagesSlugRoute,
   AdminPostsCreateRoute: AdminPostsCreateRoute,
   AdminProfileEmblemsRoute: AdminProfileEmblemsRoute,

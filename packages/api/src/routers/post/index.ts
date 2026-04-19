@@ -2,6 +2,7 @@ import { getLogger } from "@orpc/experimental-pino";
 import { and, asc, desc, eq, getRedis, isNull, ne, not, sql } from "@repo/db";
 import {
   comment,
+  commentLikes,
   contentSeries,
   creator,
   featuredPost,
@@ -46,6 +47,7 @@ import {
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../../utils/early-access";
+import { assertContentHasNoForbiddenTerms } from "../../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
 import admin from "./admin";
 
@@ -1046,6 +1048,7 @@ export default {
             source: z.enum(["manual", "tag"]),
           })
           .optional(),
+        parentId: z.string().optional(),
         postId: z.string(),
       })
     )
@@ -1081,6 +1084,36 @@ export default {
           );
           throw errors.FORBIDDEN();
         }
+
+        if (input.parentId) {
+          const parentComment = await db.query.comment.findFirst({
+            columns: {
+              id: true,
+              parentId: true,
+              postId: true,
+            },
+            where: eq(comment.id, input.parentId),
+          });
+
+          if (!parentComment || parentComment.postId !== input.postId) {
+            throw errors.BAD_REQUEST({
+              message:
+                "No se pudo encontrar el comentario que quieres responder.",
+            });
+          }
+
+          if (parentComment.parentId !== null) {
+            throw errors.BAD_REQUEST({
+              message: "Solo se puede responder a comentarios principales.",
+            });
+          }
+        }
+
+        await assertContentHasNoForbiddenTerms({
+          content: input.content,
+          db,
+          errors,
+        });
 
         const resolvedEngagementPrompts =
           input.engagementPrompt === undefined
@@ -1167,6 +1200,7 @@ export default {
           engagementPromptId: selectedEngagementPrompt?.id ?? null,
           engagementPromptSource: selectedEngagementPrompt?.source ?? null,
           engagementPromptText: selectedEngagementPrompt?.text ?? null,
+          parentId: input.parentId ?? null,
           postId: input.postId,
         });
         logger?.info(
@@ -1186,6 +1220,7 @@ export default {
       const existingComment = await db.query.comment.findFirst({
         columns: {
           id: true,
+          parentId: true,
           pinnedAt: true,
           postId: true,
         },
@@ -1199,6 +1234,12 @@ export default {
       if (existingComment.postId === null) {
         throw errors.BAD_REQUEST({
           message: "El comentario no esta asociado a ningun post.",
+        });
+      }
+
+      if (existingComment.parentId !== null) {
+        throw errors.BAD_REQUEST({
+          message: "Solo se pueden fijar comentarios principales.",
         });
       }
 
@@ -1297,6 +1338,49 @@ export default {
       }
     ),
 
+  toggleCommentLike: protectedProcedure
+    .input(z.object({ commentId: z.string(), liked: z.boolean() }))
+    .handler(
+      async ({ context: { db, session, ...context }, input, errors }) => {
+        const logger = getLogger(context);
+        logger?.info(
+          `User ${session.user.id} toggling comment like ${input.commentId} to ${input.liked}`
+        );
+
+        const existingComment = await db.query.comment.findFirst({
+          columns: {
+            id: true,
+          },
+          where: eq(comment.id, input.commentId),
+        });
+
+        if (!existingComment) {
+          throw errors.NOT_FOUND();
+        }
+
+        const toggleLikeQuery = input.liked
+          ? db
+              .insert(commentLikes)
+              .values({
+                commentId: input.commentId,
+                userId: session.user.id,
+              })
+              .onConflictDoNothing()
+          : db
+              .delete(commentLikes)
+              .where(
+                and(
+                  eq(commentLikes.commentId, input.commentId),
+                  eq(commentLikes.userId, session.user.id)
+                )
+              );
+
+        await toggleLikeQuery;
+
+        return { success: true };
+      }
+    ),
+
   getComments: publicProcedure
     .input(z.object({ postId: z.string() }))
     .handler(async ({ context: { db, ...context }, input, errors }) => {
@@ -1338,9 +1422,43 @@ export default {
         where: (c, { eq: equals }) => equals(c.postId, input.postId),
       });
 
+      const commentIds = comments.map((item) => item.id);
+      const commentLikeRows =
+        commentIds.length > 0
+          ? await db
+              .select({
+                commentId: commentLikes.commentId,
+                likedByViewer: context.session?.user
+                  ? sql<boolean>`BOOL_OR(${commentLikes.userId} = ${context.session.user.id})`
+                  : sql<boolean>`false`,
+                likeCount: sql<number>`COUNT(*)::integer`,
+              })
+              .from(commentLikes)
+              .where(
+                sql`${commentLikes.commentId} IN (${sql.join(
+                  commentIds.map((id) => sql`${id}`),
+                  sql`, `
+                )})`
+              )
+              .groupBy(commentLikes.commentId)
+          : [];
+
+      const commentLikeMap = new Map(
+        commentLikeRows.map((row) => [row.commentId, row])
+      );
+      const commentsWithLikes = comments.map((item) => {
+        const likeStats = commentLikeMap.get(item.id);
+
+        return {
+          ...item,
+          likedByViewer: likeStats?.likedByViewer ?? false,
+          likeCount: likeStats?.likeCount ?? 0,
+        };
+      });
+
       const authorIds = [
         ...new Set(
-          comments
+          commentsWithLikes
             .map((c) => c.authorId)
             .filter((id): id is string => id !== null)
         ),
@@ -1356,10 +1474,10 @@ export default {
         .where(eq(post.id, input.postId));
 
       logger?.debug(
-        `Retrieved ${comments.length} comments for post ${input.postId} with ${authors.length} unique authors`
+        `Retrieved ${commentsWithLikes.length} comments for post ${input.postId} with ${authors.length} unique authors`
       );
       logger?.info(`View count incremented for post ${input.postId}`);
-      return { authors, comments };
+      return { authors, comments: commentsWithLikes };
     }),
 
   getRelated: publicProcedure

@@ -9,6 +9,7 @@ import engagementQuestion from "./engagement-question";
 import extras from "./extras";
 import file from "./file";
 import media from "./media";
+import moderation from "./moderation";
 import notification from "./notification";
 import patreon from "./patreon";
 import post from "./post";
@@ -31,6 +32,7 @@ export const appRouter = {
   extras,
   file,
   media,
+  moderation,
   notification,
   patreon,
   post,

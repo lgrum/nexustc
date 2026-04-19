@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, desc, eq, isNull, not, sql } from "@repo/db";
-import { post, postRating } from "@repo/db/schema/app";
+import { post, postRating, postRatingLikes } from "@repo/db/schema/app";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
@@ -17,6 +17,7 @@ import {
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
+import { assertContentHasNoForbiddenTerms } from "../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 async function assertRatingsAreOpen(params: {
@@ -71,6 +72,11 @@ export default {
         postId: input.postId,
         session,
       });
+      await assertContentHasNoForbiddenTerms({
+        content: review,
+        db,
+        errors,
+      });
 
       await db
         .insert(postRating)
@@ -111,6 +117,11 @@ export default {
         errors,
         postId: input.postId,
         session,
+      });
+      await assertContentHasNoForbiddenTerms({
+        content: review,
+        db,
+        errors,
       });
 
       await db
@@ -185,6 +196,59 @@ export default {
       logger?.debug(
         `Rating deleted by admin for user ${input.userId} on post ${input.postId}`
       );
+      return { success: true };
+    }),
+
+  toggleReviewLike: protectedProcedure
+    .input(
+      z.object({
+        liked: z.boolean(),
+        postId: z.string(),
+        ratingUserId: z.string(),
+      })
+    )
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const logger = getLogger(ctx);
+      logger?.info(
+        `User ${session.user.id} toggling review like for ${input.ratingUserId} on post ${input.postId} to ${input.liked}`
+      );
+
+      const existingRating = await db.query.postRating.findFirst({
+        columns: {
+          postId: true,
+          userId: true,
+        },
+        where: and(
+          eq(postRating.postId, input.postId),
+          eq(postRating.userId, input.ratingUserId)
+        ),
+      });
+
+      if (!existingRating) {
+        throw errors.NOT_FOUND();
+      }
+
+      const toggleLikeQuery = input.liked
+        ? db
+            .insert(postRatingLikes)
+            .values({
+              postId: input.postId,
+              ratingUserId: input.ratingUserId,
+              userId: session.user.id,
+            })
+            .onConflictDoNothing()
+        : db
+            .delete(postRatingLikes)
+            .where(
+              and(
+                eq(postRatingLikes.postId, input.postId),
+                eq(postRatingLikes.ratingUserId, input.ratingUserId),
+                eq(postRatingLikes.userId, session.user.id)
+              )
+            );
+
+      await toggleLikeQuery;
+
       return { success: true };
     }),
 
@@ -289,14 +353,45 @@ export default {
           desc(postRating.createdAt)
         );
 
-      const userIds = [...new Set(ratings.map((r) => r.userId))];
+      const ratingLikeRows =
+        ratings.length > 0
+          ? await db
+              .select({
+                likedByViewer: session?.user
+                  ? sql<boolean>`BOOL_OR(${postRatingLikes.userId} = ${session.user.id})`
+                  : sql<boolean>`false`,
+                likeCount: sql<number>`COUNT(*)::integer`,
+                postId: postRatingLikes.postId,
+                ratingUserId: postRatingLikes.ratingUserId,
+              })
+              .from(postRatingLikes)
+              .where(eq(postRatingLikes.postId, input.postId))
+              .groupBy(postRatingLikes.postId, postRatingLikes.ratingUserId)
+          : [];
+
+      const ratingLikeMap = new Map(
+        ratingLikeRows.map((row) => [`${row.postId}:${row.ratingUserId}`, row])
+      );
+      const ratingsWithLikes = ratings.map((rating) => {
+        const likeStats = ratingLikeMap.get(
+          `${rating.postId}:${rating.userId}`
+        );
+
+        return {
+          ...rating,
+          likedByViewer: likeStats?.likedByViewer ?? false,
+          likeCount: likeStats?.likeCount ?? 0,
+        };
+      });
+
+      const userIds = [...new Set(ratingsWithLikes.map((r) => r.userId))];
 
       const authors = await buildProfileSummaries(db, userIds);
 
       logger?.debug(
-        `Retrieved ${ratings.length} ratings with ${authors.length} unique authors for post ${input.postId}`
+        `Retrieved ${ratingsWithLikes.length} ratings with ${authors.length} unique authors for post ${input.postId}`
       );
-      return { authors, ratings };
+      return { authors, ratings: ratingsWithLikes };
     }),
 
   // Get recent ratings across all posts (paginated)

@@ -1,6 +1,7 @@
 import { RATING_REVIEW_MAX_LENGTH } from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +69,13 @@ export function RatingDialog({
         rating,
         review,
       }),
+    onError: (error) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No pudimos guardar tu valoracion.";
+      toast.error(message);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rating", "user", postId] });
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });

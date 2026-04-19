@@ -246,6 +246,13 @@
       "when": 1776534279837,
       "tag": "0034_open_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1776602309168,
+      "tag": "0035_social_moderation",
+      "breakpoints": true
     }
   ]
 }

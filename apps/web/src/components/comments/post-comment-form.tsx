@@ -30,6 +30,7 @@ const commentFormSchema = z.object({
 
 type PostCommentFormProps = {
   onSubmitted?: () => void;
+  parentId?: string;
   placeholder: string;
   postId: string;
   prompt?: EngagementPromptType | null;
@@ -38,6 +39,7 @@ type PostCommentFormProps = {
 
 export function PostCommentForm({
   onSubmitted,
+  parentId,
   placeholder,
   postId,
   prompt,
@@ -59,6 +61,7 @@ export function PostCommentForm({
                 source: prompt.source,
               }
             : undefined,
+          parentId,
           postId,
         });
 
@@ -69,7 +72,11 @@ export function PostCommentForm({
         form.reset();
         onSubmitted?.();
       } catch (error) {
-        toast.error(`Ocurrió un error. ${error}`);
+        const message =
+          error instanceof Error
+            ? error.message
+            : "No pudimos publicar tu comentario.";
+        toast.error(message);
       }
     },
     validators: {

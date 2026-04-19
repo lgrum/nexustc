@@ -1,11 +1,11 @@
 CREATE TABLE "engagement_question_tag_relation" (
 	"engagement_question_id" text NOT NULL,
 	"term_id" text NOT NULL,
-	CONSTRAINT "engagement_question_tag_relation_engagement_question_id_term_id_pk" PRIMARY KEY("engagement_question_id","term_id")
+	CONSTRAINT "eq_tag_relation_pk" PRIMARY KEY("engagement_question_id","term_id")
 );
 --> statement-breakpoint
-ALTER TABLE "engagement_question_tag_relation" ADD CONSTRAINT "engagement_question_tag_relation_engagement_question_id_engagement_question_id_fk" FOREIGN KEY ("engagement_question_id") REFERENCES "public"."engagement_question"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "engagement_question_tag_relation" ADD CONSTRAINT "engagement_question_tag_relation_term_id_term_id_fk" FOREIGN KEY ("term_id") REFERENCES "public"."term"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "engagement_question_tag_relation" ADD CONSTRAINT "eq_tag_relation_question_fk" FOREIGN KEY ("engagement_question_id") REFERENCES "public"."engagement_question"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "engagement_question_tag_relation" ADD CONSTRAINT "eq_tag_relation_term_fk" FOREIGN KEY ("term_id") REFERENCES "public"."term"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 INSERT INTO "engagement_question_tag_relation" ("engagement_question_id", "term_id")
 SELECT "id", "tag_term_id"
 FROM "engagement_question"

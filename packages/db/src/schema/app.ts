@@ -149,8 +149,16 @@ export const patron = pgTable(
 
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
+  commentLikes: many(commentLikes),
   comicProgress: many(userComicProgress),
+  forbiddenContentRulesCreated: many(forbiddenContentRule, {
+    relationName: "forbidden_content_rule_created_by",
+  }),
+  forbiddenContentRulesUpdated: many(forbiddenContentRule, {
+    relationName: "forbidden_content_rule_updated_by",
+  }),
   patron: one(patron),
+  postRatingLikes: many(postRatingLikes),
   profileEmblemAssignments: many(profileEmblemAssignment),
   profileMediaAssets: many(profileMediaAsset),
   profileRoleAssignments: many(profileRoleAssignment),
@@ -194,6 +202,11 @@ export const engagementPromptSourceEnum = pgEnum("engagement_prompt_source", [
 export const featuredPositionEnum = pgEnum("featured_position", [
   "main",
   "secondary",
+]);
+export const forbiddenContentKindEnum = pgEnum("forbidden_content_kind", [
+  "term",
+  "word",
+  "url",
 ]);
 
 export const term = pgTable("term", {
@@ -403,11 +416,43 @@ export const comment = pgTable(
     ),
     engagementPromptText: text("engagement_prompt_text"),
     id: text("id").primaryKey().$defaultFn(generateId),
+    parentId: text("parent_id"),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     postId: text("post_id").references(() => post.id, { onDelete: "cascade" }),
     ...timestamps,
   },
-  (table) => [index("comment_post_id_idx").on(table.postId)]
+  (table) => [
+    foreignKey({
+      columns: [table.parentId],
+      foreignColumns: [table.id],
+      name: "comment_parent_id_comment_id_fk",
+    }).onDelete("cascade"),
+    index("comment_post_id_idx").on(table.postId),
+    index("comment_parent_id_idx").on(table.parentId),
+    index("comment_post_id_parent_id_idx").on(table.postId, table.parentId),
+  ]
+);
+
+export const commentLikes = pgTable(
+  "comment_like",
+  {
+    commentId: text("comment_id")
+      .references(() => comment.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    userId: text("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.commentId],
+      name: "comment_like_user_id_comment_id_pk",
+    }),
+    index("comment_like_comment_id_idx").on(table.commentId),
+  ]
 );
 
 export const termPostRelation = pgTable(
@@ -455,15 +500,24 @@ export const engagementQuestion = pgTable(
 export const engagementQuestionTagRelation = pgTable(
   "engagement_question_tag_relation",
   {
-    engagementQuestionId: text("engagement_question_id")
-      .notNull()
-      .references(() => engagementQuestion.id, { onDelete: "cascade" }),
-    termId: text("term_id")
-      .notNull()
-      .references(() => term.id, { onDelete: "cascade" }),
+    engagementQuestionId: text("engagement_question_id").notNull(),
+    termId: text("term_id").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.engagementQuestionId, table.termId] }),
+    primaryKey({
+      columns: [table.engagementQuestionId, table.termId],
+      name: "eq_tag_relation_pk",
+    }),
+    foreignKey({
+      columns: [table.engagementQuestionId],
+      foreignColumns: [engagementQuestion.id],
+      name: "eq_tag_relation_question_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.termId],
+      foreignColumns: [term.id],
+      name: "eq_tag_relation_term_fk",
+    }).onDelete("cascade"),
     index("engagement_question_tag_relation_term_id_idx").on(table.termId),
   ]
 );
@@ -471,15 +525,24 @@ export const engagementQuestionTagRelation = pgTable(
 export const engagementQuestionIncompatibleTagRelation = pgTable(
   "engagement_question_incompatible_tag_relation",
   {
-    engagementQuestionId: text("engagement_question_id")
-      .notNull()
-      .references(() => engagementQuestion.id, { onDelete: "cascade" }),
-    termId: text("term_id")
-      .notNull()
-      .references(() => term.id, { onDelete: "cascade" }),
+    engagementQuestionId: text("engagement_question_id").notNull(),
+    termId: text("term_id").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.engagementQuestionId, table.termId] }),
+    primaryKey({
+      columns: [table.engagementQuestionId, table.termId],
+      name: "eq_incompat_tag_relation_pk",
+    }),
+    foreignKey({
+      columns: [table.engagementQuestionId],
+      foreignColumns: [engagementQuestion.id],
+      name: "eq_incompat_tag_question_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.termId],
+      foreignColumns: [term.id],
+      name: "eq_incompat_tag_term_fk",
+    }).onDelete("cascade"),
     index("engagement_question_incompatible_tag_relation_term_id_idx").on(
       table.termId
     ),
@@ -555,9 +618,61 @@ export const postRating = pgTable(
     ...timestamps,
   },
   (table) => [
-    primaryKey({ columns: [table.userId, table.postId] }),
+    primaryKey({
+      columns: [table.userId, table.postId],
+      name: "post_rating_user_id_post_id_pk",
+    }),
     index("post_rating_post_id_idx").on(table.postId),
     index("post_rating_created_at_idx").on(table.createdAt),
+  ]
+);
+
+export const postRatingLikes = pgTable(
+  "post_rating_like",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    postId: text("post_id").notNull(),
+    ratingUserId: text("rating_user_id").notNull(),
+    userId: text("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.ratingUserId, table.postId],
+      name: "post_rating_like_user_id_rating_user_id_post_id_pk",
+    }),
+    index("post_rating_like_rating_idx").on(table.postId, table.ratingUserId),
+  ]
+);
+
+export const forbiddenContentRule = pgTable(
+  "forbidden_content_rule",
+  {
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isActive: boolean("is_active").notNull().default(true),
+    kind: forbiddenContentKindEnum("kind").notNull().default("term"),
+    normalizedValue: text("normalized_value").notNull(),
+    updatedBy: text("updated_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    value: text("value").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("forbidden_content_rule_kind_normalized_unique").on(
+      table.kind,
+      table.normalizedValue
+    ),
+    index("forbidden_content_rule_active_kind_idx").on(
+      table.isActive,
+      table.kind
+    ),
   ]
 );
 
@@ -1081,10 +1196,30 @@ export const termRelations = relations(term, ({ many }) => ({
   posts: many(termPostRelation),
 }));
 
-export const commentRelations = relations(comment, ({ one }) => ({
+export const commentRelations = relations(comment, ({ many, one }) => ({
+  likes: many(commentLikes),
+  parent: one(comment, {
+    fields: [comment.parentId],
+    references: [comment.id],
+    relationName: "comment_replies",
+  }),
   post: one(post, {
     fields: [comment.postId],
     references: [post.id],
+  }),
+  replies: many(comment, {
+    relationName: "comment_replies",
+  }),
+}));
+
+export const commentLikesRelations = relations(commentLikes, ({ one }) => ({
+  comment: one(comment, {
+    fields: [commentLikes.commentId],
+    references: [comment.id],
+  }),
+  user: one(user, {
+    fields: [commentLikes.userId],
+    references: [user.id],
   }),
 }));
 
@@ -1159,7 +1294,8 @@ export const postBookmarkRelations = relations(postBookmark, ({ one }) => ({
   }),
 }));
 
-export const postRatingRelations = relations(postRating, ({ one }) => ({
+export const postRatingRelations = relations(postRating, ({ many, one }) => ({
+  likes: many(postRatingLikes),
   post: one(post, {
     fields: [postRating.postId],
     references: [post.id],
@@ -1169,6 +1305,36 @@ export const postRatingRelations = relations(postRating, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const postRatingLikesRelations = relations(
+  postRatingLikes,
+  ({ one }) => ({
+    postRating: one(postRating, {
+      fields: [postRatingLikes.ratingUserId, postRatingLikes.postId],
+      references: [postRating.userId, postRating.postId],
+    }),
+    user: one(user, {
+      fields: [postRatingLikes.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const forbiddenContentRuleRelations = relations(
+  forbiddenContentRule,
+  ({ one }) => ({
+    createdByUser: one(user, {
+      fields: [forbiddenContentRule.createdBy],
+      references: [user.id],
+      relationName: "forbidden_content_rule_created_by",
+    }),
+    updatedByUser: one(user, {
+      fields: [forbiddenContentRule.updatedBy],
+      references: [user.id],
+      relationName: "forbidden_content_rule_updated_by",
+    }),
+  })
+);
 
 export const userComicProgressRelations = relations(
   userComicProgress,

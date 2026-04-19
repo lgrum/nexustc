@@ -1,5 +1,6 @@
 import {
   Delete02Icon,
+  FavouriteIcon,
   MoreHorizontalIcon,
   PinIcon,
   StarIcon,
@@ -105,6 +106,33 @@ export function RatingList({ postId }: RatingListProps) {
           ? message
           : `Ocurrio un error. ${message}`
       );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
+    },
+  });
+
+  const toggleReviewLikeMutation = useMutation({
+    mutationFn: ({
+      liked,
+      postId: targetPostId,
+      ratingUserId,
+    }: {
+      liked: boolean;
+      postId: string;
+      ratingUserId: string;
+    }) =>
+      orpcClient.rating.toggleReviewLike({
+        liked,
+        postId: targetPostId,
+        ratingUserId,
+      }),
+    onError: (error) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el like.";
+      toast.error(message);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
@@ -288,6 +316,38 @@ export function RatingList({ postId }: RatingListProps) {
                   <ReviewMarkdown>{rating.review}</ReviewMarkdown>
                 </div>
               )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  className="h-8 gap-1 px-2 text-xs"
+                  disabled={toggleReviewLikeMutation.isPending}
+                  onClick={() => {
+                    if (!session?.user) {
+                      toast.info("Inicia sesion para dar like.");
+                      return;
+                    }
+
+                    toggleReviewLikeMutation.mutate({
+                      liked: !rating.likedByViewer,
+                      postId: rating.postId,
+                      ratingUserId: rating.userId,
+                    });
+                  }}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <HugeiconsIcon
+                    className={
+                      rating.likedByViewer
+                        ? "size-4 fill-rose-600 text-rose-600"
+                        : "size-4"
+                    }
+                    icon={FavouriteIcon}
+                  />
+                  {rating.likeCount}
+                </Button>
+              </div>
             </div>
           </div>
         );

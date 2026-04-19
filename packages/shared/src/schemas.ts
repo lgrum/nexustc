@@ -248,6 +248,33 @@ export const ratingUpdateSchema = z.object({
     .default(""),
 });
 
+export const forbiddenContentKindSchema = z.enum(["term", "word", "url"]);
+
+const forbiddenContentRuleValueSchema = z
+  .string()
+  .trim()
+  .min(1, "Ingresa al menos un valor.")
+  .max(2048, "No puede exceder los 2048 caracteres.")
+  .transform((val) => val.trim());
+
+export const forbiddenContentRuleCreateSchema = z.object({
+  kind: forbiddenContentKindSchema,
+  values: z
+    .array(forbiddenContentRuleValueSchema)
+    .min(1, "Agrega al menos un termino prohibido.")
+    .max(100, "Solo se pueden agregar hasta 100 elementos a la vez.")
+    .transform((values) => [...new Set(values)]),
+});
+
+export const forbiddenContentRuleUpdateSchema = z.object({
+  id: z.string().min(1),
+  isActive: z.boolean(),
+});
+
+export const forbiddenContentRuleDeleteSchema = z.object({
+  id: z.string().min(1),
+});
+
 export const comicProgressComicSchema = z.object({
   comicId: z.string().min(1),
 });

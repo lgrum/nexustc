@@ -122,6 +122,15 @@ const nav = {
     ],
     name: "Media",
   },
+  moderation: {
+    links: [
+      {
+        href: "/admin/moderation/forbidden-content",
+        name: "Contenido prohibido",
+      },
+    ],
+    name: "Moderacion",
+  },
   notifications: {
     links: [
       {
@@ -285,6 +294,9 @@ function AdminLayout() {
               </HasPermissions>
               <HasPermissions permissions={{ media: ["list"] }}>
                 <SidebarLinks item={nav.media} />
+              </HasPermissions>
+              <HasPermissions permissions={{ moderation: ["list"] }}>
+                <SidebarLinks item={nav.moderation} />
               </HasPermissions>
               <HasPermissions permissions={{ notifications: ["list"] }}>
                 <SidebarLinks item={nav.notifications} />

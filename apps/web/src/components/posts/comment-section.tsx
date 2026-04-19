@@ -1,6 +1,7 @@
 import {
   Comment01Icon,
   Delete02Icon,
+  FavouriteIcon,
   MoreHorizontalIcon,
   PinIcon,
 } from "@hugeicons/core-free-icons";
@@ -61,6 +62,9 @@ export function CommentSection({
   const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const [visible, setVisible] = useState(false);
+  const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(
+    null
+  );
   const ref = useRef<HTMLDivElement | null>(null);
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
   const confirm = useConfirm();
@@ -126,6 +130,23 @@ export function CommentSection({
     },
   });
 
+  const toggleCommentLikeMutation = useMutation({
+    mutationFn: ({ commentId, liked }: { commentId: string; liked: boolean }) =>
+      orpcClient.post.toggleCommentLike({ commentId, liked }),
+    onError: (error) => {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el like.";
+      toast.error(message);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["comments", post.id],
+      });
+    },
+  });
+
   const commentsQuery = useQuery({
     enabled: visible,
     queryFn: async () => {
@@ -168,6 +189,202 @@ export function CommentSection({
   const comments = commentsQuery.data ?? [];
   const commentCount = comments.length;
   const isLoadingComments = !commentsQuery.data;
+  const commentsWithAuthors = comments.filter(
+    (
+      comment
+    ): comment is typeof comment & {
+      author: NonNullable<typeof comment.author>;
+    } => comment.author !== null
+  );
+  const repliesByParentId = new Map<string, typeof commentsWithAuthors>();
+  const topLevelComments: typeof commentsWithAuthors = [];
+
+  for (const comment of commentsWithAuthors) {
+    if (comment.parentId === null) {
+      topLevelComments.push(comment);
+      continue;
+    }
+
+    const replies = repliesByParentId.get(comment.parentId) ?? [];
+    replies.push(comment);
+    repliesByParentId.set(comment.parentId, replies);
+  }
+
+  const renderCommentItem = (
+    comment: (typeof commentsWithAuthors)[number],
+    isReply = false
+  ) => {
+    const isOwnComment = session?.user.id === comment.author.id;
+    const canDeleteComment = canDeleteComments || isOwnComment;
+    const canPinComment = canPinComments && !isReply;
+    const replies = isReply ? [] : (repliesByParentId.get(comment.id) ?? []);
+
+    return (
+      <div
+        className="group flex gap-4 border-border border-t p-4 first:border-t-0"
+        key={comment.id}
+      >
+        <Link params={{ id: comment.author.id }} to="/user/$id">
+          <ProfileAvatar
+            className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105"
+            user={comment.author}
+          />
+        </Link>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link params={{ id: comment.author.id }} to="/user/$id">
+              <ProfileNameplate
+                className="font-semibold transition-colors hover:text-primary"
+                user={comment.author}
+              />
+            </Link>
+            <span className="text-muted-foreground text-xs">-</span>
+            <time className="text-muted-foreground text-xs">
+              {format(comment.createdAt, "d MMM yyyy", {
+                locale: es,
+              })}
+            </time>
+            {comment.pinnedAt && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1 py-1 font-medium text-muted-foreground text-xs">
+                <HugeiconsIcon className="size-5" icon={PinIcon} />
+              </span>
+            )}
+            {(canPinComment || canDeleteComment) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button className="ml-auto" size="icon" variant="ghost" />
+                  }
+                >
+                  <HugeiconsIcon icon={MoreHorizontalIcon} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {canPinComment && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setPinnedMutation.mutate({
+                          commentId: comment.id,
+                          pinned: comment.pinnedAt === null,
+                        })
+                      }
+                      variant={comment.pinnedAt ? "destructive" : "default"}
+                    >
+                      <HugeiconsIcon icon={PinIcon} />
+                      {comment.pinnedAt ? "Desfijar" : "Fijar"}
+                    </DropdownMenuItem>
+                  )}
+                  {canDeleteComment && canPinComment && (
+                    <DropdownMenuSeparator />
+                  )}
+                  {canDeleteComment && (
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            description:
+                              "Estas seguro de que quieres eliminar este comentario? Esta accion no se puede deshacer.",
+                            title: "Eliminar Comentario",
+                          })
+                        ) {
+                          deleteCommentMutation.mutate({
+                            commentId: comment.id,
+                            isOwnComment,
+                          });
+                        }
+                      }}
+                      variant="destructive"
+                    >
+                      <HugeiconsIcon icon={Delete02Icon} />
+                      Eliminar
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+          {comment.engagementPromptText && (
+            <div className="rounded-2xl border border-primary/12 bg-primary/6 px-4 py-3">
+              <CommentContent
+                className="font-medium text-sm text-foreground"
+                content={comment.engagementPromptText}
+                emojiMap={emojiMap}
+                stickerMap={stickerMap}
+              />
+            </div>
+          )}
+          <CommentContent
+            content={comment.content}
+            emojiMap={emojiMap}
+            stickerMap={stickerMap}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              className="h-8 gap-1 px-2 text-xs"
+              disabled={toggleCommentLikeMutation.isPending}
+              onClick={() => {
+                if (!session?.user) {
+                  toast.info("Inicia sesion para dar like.");
+                  return;
+                }
+
+                toggleCommentLikeMutation.mutate({
+                  commentId: comment.id,
+                  liked: !comment.likedByViewer,
+                });
+              }}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <HugeiconsIcon
+                className={
+                  comment.likedByViewer
+                    ? "size-4 fill-rose-600 text-rose-600"
+                    : "size-4"
+                }
+                icon={FavouriteIcon}
+              />
+              {comment.likeCount}
+            </Button>
+            {!isReply && (
+              <SignedIn>
+                <Button
+                  className="h-8 px-2 text-xs"
+                  onClick={() =>
+                    setReplyingToCommentId((current) =>
+                      current === comment.id ? null : comment.id
+                    )
+                  }
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <HugeiconsIcon className="size-4" icon={Comment01Icon} />
+                  Responder
+                </Button>
+              </SignedIn>
+            )}
+          </div>
+          {replyingToCommentId === comment.id && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <PostCommentForm
+                onSubmitted={() => setReplyingToCommentId(null)}
+                parentId={comment.id}
+                placeholder="Escribe tu respuesta..."
+                postId={post.id}
+                submitLabel="Responder"
+              />
+            </div>
+          )}
+          {replies.length > 0 && (
+            <div className="ml-2 flex flex-col border-border border-l pl-3">
+              {replies.map((reply) => renderCommentItem(reply, true))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Card ref={ref}>
@@ -254,7 +471,7 @@ export function CommentSection({
         ) : (
           <ScrollArea className="h-150">
             <div className="flex flex-col">
-              {comments
+              {topLevelComments
                 .filter(
                   (
                     comment
@@ -380,6 +597,74 @@ export function CommentSection({
                           emojiMap={emojiMap}
                           stickerMap={stickerMap}
                         />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            className="h-8 gap-1 px-2 text-xs"
+                            disabled={toggleCommentLikeMutation.isPending}
+                            onClick={() => {
+                              if (!session?.user) {
+                                toast.info("Inicia sesion para dar like.");
+                                return;
+                              }
+
+                              toggleCommentLikeMutation.mutate({
+                                commentId: comment.id,
+                                liked: !comment.likedByViewer,
+                              });
+                            }}
+                            size="sm"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <HugeiconsIcon
+                              className={
+                                comment.likedByViewer
+                                  ? "size-4 fill-rose-600 text-rose-600"
+                                  : "size-4"
+                              }
+                              icon={FavouriteIcon}
+                            />
+                            {comment.likeCount}
+                          </Button>
+                          <SignedIn>
+                            <Button
+                              className="h-8 px-2 text-xs"
+                              onClick={() =>
+                                setReplyingToCommentId((current) =>
+                                  current === comment.id ? null : comment.id
+                                )
+                              }
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              <HugeiconsIcon
+                                className="size-4"
+                                icon={Comment01Icon}
+                              />
+                              Responder
+                            </Button>
+                          </SignedIn>
+                        </div>
+                        {replyingToCommentId === comment.id && (
+                          <div className="rounded-lg border bg-muted/20 p-3">
+                            <PostCommentForm
+                              onSubmitted={() => setReplyingToCommentId(null)}
+                              parentId={comment.id}
+                              placeholder="Escribe tu respuesta..."
+                              postId={post.id}
+                              submitLabel="Responder"
+                            />
+                          </div>
+                        )}
+                        {(repliesByParentId.get(comment.id) ?? []).length >
+                          0 && (
+                          <div className="ml-2 flex flex-col border-border border-l pl-3">
+                            {(repliesByParentId.get(comment.id) ?? []).map(
+                              (reply) => renderCommentItem(reply, true)
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
