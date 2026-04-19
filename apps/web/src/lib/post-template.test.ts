@@ -152,4 +152,51 @@ describe(parseTemplate, () => {
       tags: ["Action", "Story Rich"],
     });
   });
+
+  it("extracts links and inline lore from the legacy post template", () => {
+    const template = [
+      "**CREADOR: Legacy Creator**",
+      "Apoya a El CREADOR: [APOYA!](https://example.com/legacy-creator)",
+      "",
+      "**G\u00C9NEROS / TAGS:**",
+      "``` Old, Template ```",
+      "",
+      "**Los LINKS Son Los** (Azules)",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "",
+      "**\uD83D\uDCBB JUEGO PC:** [PC](https://example.com/legacy-pc)",
+      "",
+      "**\uD83D\uDCF1Link Android:** [ANDROID](https://example.com/legacy-android)",
+      "",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "Parche En Espa\u00F1ol Por: **NeXusTC\u207A\u00B9\u2078**",
+      "**+999 JUEGOS H POR 1$**: [Patreon NeXusTC\u207A\u00B9\u2078 ](https://www.patreon.com/c/nexustc18/membership)",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "",
+      "**SINOPSIS / RESUMEN / LORE: Legacy lore lives in the heading.**",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "",
+      "\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+      "- **Soluci\u00F3n de Problemas:** \u2060",
+      "https://discord.com/channels/1341543718187958272/1354553658993283297",
+      "https://discord.com/channels/1341543718187958272/1354553672419512451",
+      "- **Pide Ayuda En:**",
+      "https://discord.com/channels/1341543718187958272/1374529836911034398",
+      "",
+      "**S\u00EDguenos en:**",
+      "<:kofi:1383202798463619252>  [Ko-Fi](https://ko-fi.com/nexustc2)",
+    ].join("\n");
+
+    expect(parseTemplate(template)).toStrictEqual({
+      content: "Legacy lore lives in the heading.",
+      creatorName: "Legacy Creator",
+      creatorUrl: "https://example.com/legacy-creator",
+      premiumLinks: [
+        "**\uD83D\uDCBB JUEGO PC:** [PC](https://example.com/legacy-pc)",
+        "",
+        "**\uD83D\uDCF1Link Android:** [ANDROID](https://example.com/legacy-android)",
+      ].join("\n"),
+      tags: ["Old", "Template"],
+    });
+  });
 });

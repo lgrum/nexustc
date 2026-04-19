@@ -14,9 +14,13 @@ const separatorEdgesRegex =
 const urlRegex = /https?:\/\/\S+/i;
 
 const creatorHeadingRegex = /^\s*\*\*CREADOR:\s*(.+?)\*\*\s*$/im;
+const linksFooterStartRegex =
+  /^\s*(?:Parche En Espa(?:n|\u00F1)ol Por:|\*\*\+999 JUEGOS H POR 1\$)/im;
 const linksHeadingRegex = /^\s*\*\*Los LINKS Son\b.*$/im;
 const supportHeadingRegex =
   /^\s*-\s*\*\*(?:Soluci(?:o|\u00F3)n de Problemas|Pide Ayuda En):\s*\*\*/im;
+const synopsisHeadingInlineContentRegex =
+  /^\s*\*\*SINOPSIS\s*\/\s*RESUMEN\s*\/\s*LORE(?:\s*<:[^>]+>)?\s*:\s*(.*?)\s*\*\*\s*$/im;
 const synopsisHeadingRegex =
   /^\s*\*\*SINOPSIS\s*\/\s*RESUMEN\s*\/\s*LORE\b.*\*\*\s*$/im;
 const tagsHeadingRegex = /^\s*\*\*.*TAGS:\s*\*\*\s*$/im;
@@ -92,6 +96,15 @@ function cleanDecoratedBlock(section: string): string {
     .trim();
 }
 
+function removeLinksFooter(section: string): string {
+  const footerMatch = execWithIndex(section, linksFooterStartRegex);
+  if (footerMatch?.index === undefined) {
+    return section;
+  }
+
+  return section.slice(0, footerMatch.index).trim();
+}
+
 function extractFirstUrl(text: string): string {
   const markdownLinkMatch = text.match(markdownLinkUrlRegex);
   if (markdownLinkMatch?.[1]) {
@@ -115,6 +128,15 @@ function parseTags(section: string): string[] {
     .filter(Boolean);
 }
 
+function extractInlineSynopsisContent(text: string): string {
+  const match = execWithIndex(text, synopsisHeadingInlineContentRegex);
+  return match?.[1]?.trim() ?? "";
+}
+
+function combineContentParts(parts: string[]): string {
+  return parts.filter(Boolean).join("\n\n");
+}
+
 export function parseTemplate(md: string): ParsedTemplate {
   const normalizedTemplate = normalizeTemplate(md);
   const creatorMatch = normalizedTemplate.match(creatorHeadingRegex);
@@ -135,12 +157,16 @@ export function parseTemplate(md: string): ParsedTemplate {
     synopsisHeadingRegex,
     [supportHeadingRegex, followHeadingRegex]
   );
+  const inlineContent = cleanDecoratedBlock(
+    extractInlineSynopsisContent(normalizedTemplate)
+  );
+  const blockContent = cleanDecoratedBlock(contentSection);
 
   return {
-    content: cleanDecoratedBlock(contentSection),
+    content: combineContentParts([inlineContent, blockContent]),
     creatorName: creatorMatch?.[1]?.trim() ?? "",
     creatorUrl: extractFirstUrl(creatorSection),
-    premiumLinks: cleanDecoratedBlock(linksSection),
+    premiumLinks: cleanDecoratedBlock(removeLinksFooter(linksSection)),
     tags: parseTags(tagsSection),
   };
 }
