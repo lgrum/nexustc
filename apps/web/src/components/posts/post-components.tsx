@@ -5,9 +5,12 @@ import {
   Clock01Icon,
   Download04Icon,
   FavouriteCircleIcon,
+  FavouriteIcon,
   Share08Icon,
   StarIcon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
@@ -36,7 +39,7 @@ import { Markdown } from "../markdown";
 import { RatingDisplay } from "../ratings";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardFooter, CardHeader } from "../ui/card";
+import { Card, CardContent, CardHeader } from "../ui/card";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import type { CarouselApi } from "../ui/carousel";
 import {
@@ -57,6 +60,7 @@ import { CommentSection } from "./comment-section";
 import { EngagementPromptBlock } from "./engagement-prompt-block";
 import { FollowButton } from "./follow-button";
 import { LikeButton } from "./like-button";
+import { PostActionButton } from "./post-action-button";
 import { PostProvider, usePost } from "./post-context";
 
 export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
@@ -137,8 +141,8 @@ export function PostHero() {
   return (
     <div className="relative">
       {mainImage ? (
-        <div className="relative">
-          <div className="aspect-video w-full overflow-hidden md:aspect-21/9 rounded-xl">
+        <div className="relative rounded-xl overflow-hidden">
+          <div className="aspect-video w-full md:aspect-21/9">
             <img
               alt={`Portada de ${post.title}`}
               className="h-full w-full object-cover"
@@ -187,40 +191,47 @@ export function PostStatsBar() {
 
   const createdAt = format(post.createdAt, "PP", { locale: es });
   const updatedAt = format(post.updatedAt, "PP", { locale: es });
+  const showRating =
+    !post.earlyAccess.isActive &&
+    post.ratingCount !== undefined &&
+    post.ratingCount > 0;
 
   return (
-    <div className="space-y-4 p-4">
-      <Card>
-        <CardContent className="flex flex-row gap-1">
-          <PostStat
-            color="text-foreground"
+    <div className="p-4">
+      <div className="flex justify-between gap-4 flex-col md:flex-row">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
+          <PostMetric
+            icon={ViewIcon}
             label="Vistas"
             value={String(post.views)}
           />
-          <PostStat
-            color="text-accent"
+          <MetricDot />
+          <PostMetric
+            icon={FavouriteIcon}
             label="Me gusta"
             value={String(post.likes)}
           />
-          {!post.earlyAccess.isActive &&
-            post.ratingCount !== undefined &&
-            post.ratingCount > 0 && (
-              <PostStat
-                color="text-primary"
+          {showRating && (
+            <>
+              <MetricDot />
+              <PostMetric
+                icon={StarIcon}
                 label="Rating"
-                value={`${(post.averageRating ?? 0).toFixed(1)}/10.0`}
+                value={`${(post.averageRating ?? 0).toFixed(1)}/10`}
               />
-            )}
-          <PostStat
-            color="text-secondary"
+            </>
+          )}
+          <MetricDot />
+          <PostMetric
+            icon={Clock01Icon}
             label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
             value={updatedAt}
           />
-        </CardContent>
-        <CardFooter className="grid grid-rows-2 lg:grid-rows-1 lg:grid-cols-[1fr_auto] items-center gap-4">
+        </div>
+        <div className="flex gap-2 flex-col md:flex-row">
           {!post.earlyAccess.isActive && (
             <Button
-              className="grow h-full lg:text-lg! ring-2 animate-scale-pulse ring-yellow-500 bg-yellow-500/50 text-white shadow-glow-yellow-500/80 hover:shadow-glow-yellow-500 hover:scale-101"
+              className="grow min-h-20 h-full lg:text-lg! ring-1 ring-primary/50 bg-primary/30 text-white hover:bg-primary/45 hover:ring-primary shadow-glow-primary/20 hover:shadow-glow-primary/70 transition-all"
               nativeButton={false}
               render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
               size="lg"
@@ -240,12 +251,7 @@ export function PostStatsBar() {
             <Tooltip>
               <TooltipTrigger
                 onClick={handleShare}
-                render={
-                  <Button
-                    variant="secondary"
-                    className="ring-2 ring-purple-500 hover:bg-purple-500/80 bg-purple-500/50 text-white shadow-glow-purple-500/80 hover:shadow-glow-purple-500 hover:scale-105"
-                  />
-                }
+                render={<PostActionButton tone="purple" />}
               >
                 <HugeiconsIcon className="size-4" icon={Share08Icon} />
                 Compartir
@@ -253,30 +259,43 @@ export function PostStatsBar() {
               <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
             </Tooltip>
           </div>
-        </CardFooter>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }
 
-function PostStat({
-  label,
+function PostMetric({
+  icon,
   value,
-  color,
+  label,
 }: {
-  label: string;
+  icon: IconSvgElement;
   value: string;
-  color: string;
+  label: string;
 }) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-0.5 py-2">
-      <span className={`whitespace-nowrap font-bold text-sm ${color}`}>
-        {value}
-      </span>
-      <span className="whitespace-nowrap font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
-        {label}
-      </span>
-    </div>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground text-sm">
+            <HugeiconsIcon className="size-4" icon={icon} />
+            <span className="whitespace-nowrap font-semibold text-foreground">
+              {value}
+            </span>
+          </span>
+        }
+      />
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+function MetricDot() {
+  return (
+    <span aria-hidden="true" className="select-none text-muted-foreground/40">
+      ·
+    </span>
   );
 }
 

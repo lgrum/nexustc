@@ -4,13 +4,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { PostActionButton } from "./post-action-button";
 
 type BookmarkRecord = {
   postId: string;
@@ -32,15 +32,11 @@ function BookmarkButtonUI({
   onClick?: () => void;
 }) {
   return (
-    <Button
-      className={cn(
-        "text-white ring-2 hover:bg-blue-600/80 shadow-glow-blue-600/80 hover:shadow-glow-blue-600 hover:scale-105",
-        isBookmarked
-          ? "ring-blue-600 bg-blue-600/50"
-          : "ring-blue-800 bg-blue-600/30"
-      )}
+    <PostActionButton
+      active={isBookmarked}
       disabled={isLoading || isDisabled}
       onClick={onClick}
+      tone="blue"
     >
       <HugeiconsIcon
         className={cn(
@@ -50,7 +46,7 @@ function BookmarkButtonUI({
         icon={Bookmark02Icon}
       />
       {isBookmarked ? "Guardado" : "Guardar"}
-    </Button>
+    </PostActionButton>
   );
 }
 

@@ -8,10 +8,11 @@ import {
   AuthDialogContent,
   AuthDialogTrigger,
 } from "@/components/auth/auth-dialog";
-import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
+
+import { PostActionButton } from "./post-action-button";
 
 type FollowButtonProps = {
   contentId: string;
@@ -27,22 +28,18 @@ function FollowButtonUI({
   onClick?: () => void;
 }) {
   return (
-    <Button
-      className={cn(
-        "text-white ring-2 hover:bg-emerald-500/80 hover:scale-105 shadow-glow-emerald-500/80 hover:shadow-glow-emerald-500",
-        isFollowing
-          ? "ring-emerald-500 bg-emerald-500/50"
-          : "ring-emerald-500/35 bg-emerald-500/30"
-      )}
+    <PostActionButton
+      active={isFollowing}
       disabled={isLoading}
       onClick={onClick}
+      tone="emerald"
     >
       <HugeiconsIcon
         className={cn(isFollowing && "text-emerald-500")}
         icon={Notification03Icon}
       />
       {isFollowing ? "Siguiendo" : "Seguir"}
-    </Button>
+    </PostActionButton>
   );
 }
 

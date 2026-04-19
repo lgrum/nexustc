@@ -135,10 +135,13 @@ export function EngagementPromptBlock({
 
   return (
     <section aria-label="Disparador de debate" ref={containerRef}>
-      <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-900/40 to-rose-600/10 shadow-glow-rose-900 ring-2 ring-rose-800">
+      <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-950/40 to-transparent ring-1 ring-rose-800/50">
         <div className="flex flex-col gap-3 md:flex-row items-center md:justify-between">
-          <div className="p-2 ring-2 ring-rose-600 rounded-md bg-rose-600/50">
-            <HugeiconsIcon className="size-6" icon={QuestionIcon} />
+          <div className="p-2 ring-1 ring-rose-600/60 rounded-md bg-rose-600/20">
+            <HugeiconsIcon
+              className="size-6 text-rose-400"
+              icon={QuestionIcon}
+            />
           </div>
           <div className="flex flex-1 flex-col gap-3">
             <p
@@ -153,7 +156,7 @@ export function EngagementPromptBlock({
           </div>
           {onAnswerPrompt && currentPrompt && (
             <Button
-              className="shrink-0 bg-rose-700 text-white ring-1 ring-rose-500 animate-scale-pulse-10"
+              className="shrink-0 bg-rose-700/80 text-white ring-1 ring-rose-500/60 hover:bg-rose-600"
               onClick={() => onAnswerPrompt(currentPrompt)}
               type="button"
               size="lg"

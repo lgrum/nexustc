@@ -328,7 +328,7 @@ function AuthAction() {
         render={
           <Button
             className={cn(
-              "min-h-14 cursor-pointer rounded-xl border border-primary/30 bg-linear-to-r from-primary/20 via-accent/15 to-primary/5 px-3 py-3 shadow-[0_14px_35px_-24px_hsl(var(--primary))] transition-all duration-200 hover:border-primary/50 hover:from-primary/30 hover:via-accent/20 hover:to-primary/10",
+              "min-h-14 cursor-pointer rounded-xl border border-primary/30 bg-card/60 px-3 py-3 transition-all duration-200 hover:border-primary/60 hover:bg-card",
               "group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:p-0!"
             )}
             size="lg"

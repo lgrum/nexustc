@@ -71,7 +71,7 @@ function MainLayout() {
 
 function Marquee({ items }: { items: readonly MarqueeItem[] }) {
   return (
-    <div className="text-black font-[Lexend] font-bold uppercase tracking-widest text-sm flex w-max shrink-0 gap-8 py-2 pr-8">
+    <div className="font-[Lexend] font-semibold uppercase tracking-widest text-sm flex w-max shrink-0 gap-8 py-2.5 pr-8">
       {items.map((item) =>
         item.url ? (
           <a
@@ -99,7 +99,7 @@ function Wrapper({
   return (
     <>
       <div className="relative min-h-screen w-full min-w-0 overflow-x-clip selection:bg-accent selection:text-accent-foreground">
-        <div className="group font-mono w-full bg-primary text-primary-foreground overflow-hidden whitespace-nowrap">
+        <div className="group font-mono w-full bg-primary/10 text-primary border-y border-primary/25 overflow-hidden whitespace-nowrap">
           <div className="flex min-w-[200%] justify-around hover:paused animate-marquee select-none">
             <Marquee items={marqueeItems} />
             <Marquee items={marqueeItems} />

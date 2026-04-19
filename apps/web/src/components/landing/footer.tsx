@@ -1,36 +1,109 @@
 import { Link } from "@tanstack/react-router";
 
-import { Button } from "../ui/button";
+import { DiscordLogo } from "../icons/discord";
 
-const footerLinks = [
+const exploreLinks = [
+  { href: "/", label: "Inicio" },
+  { href: "/juegos", label: "Juegos" },
+  { href: "/comics", label: "Comics" },
+  { href: "/tutorials", label: "Tutoriales" },
+  { href: "/vip", label: "VIP" },
+  { href: "/news", label: "Noticias" },
+  { href: "/chronos", label: "TheChronos" },
+] as const;
+
+const legalLinks = [
   { href: "/about", label: "Acerca" },
   { href: "/privacy", label: "Política de Privacidad" },
   { href: "/terms", label: "Términos y Condiciones" },
   { href: "/legal", label: "Aviso Legal" },
 ] as const;
 
+const communityLinks = [
+  {
+    href: "https://discord.nexustc18.com/",
+    label: "Discord",
+    icon: <DiscordLogo className="size-4" />,
+  },
+  {
+    href: "https://www.patreon.com/NeXusTC18",
+    label: "Patreon",
+  },
+] as const;
+
 export function Footer() {
   return (
-    <footer className="flex w-full flex-wrap items-center justify-around gap-6 border-t p-10">
-      <h1 className="font-bold text-3xl text-primary/80">
-        NeXusTC
-        <span className="align-super font-normal text-sm">+18</span>
-        <span className="font-normal text-sm"> BETA</span>
-        <span className="text-sm"> &copy; 2026</span>
-      </h1>
-      <div className="flex flex-wrap justify-center gap-4 text-muted-foreground">
-        {footerLinks.map((link) => (
-          <FooterLink key={link.label} {...link} />
-        ))}
+    <footer className="mt-16 w-full border-t border-border/60 bg-background/40 px-6 py-12 md:px-10">
+      <div className="mx-auto flex max-w-6xl flex-col gap-10 md:grid md:grid-cols-4">
+        <div className="flex flex-col gap-3">
+          <h2 className="font-bold text-2xl text-primary/80">
+            NeXusTC
+            <span className="align-super font-normal text-xs">+18</span>
+          </h2>
+          <p className="text-muted-foreground text-sm leading-relaxed">
+            Explora nuevas realidades. Juegos, comics y comunidad para adultos.
+          </p>
+          <span className="text-muted-foreground/70 text-xs">
+            BETA &copy; 2026
+          </span>
+        </div>
+
+        <FooterColumn title="Explorar">
+          {exploreLinks.map((link) => (
+            <Link
+              className="text-muted-foreground text-sm transition-colors hover:text-primary"
+              key={link.href}
+              to={link.href}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </FooterColumn>
+
+        <FooterColumn title="Comunidad">
+          {communityLinks.map((link) => (
+            <a
+              className="inline-flex items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-primary"
+              href={link.href}
+              key={link.href}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              {"icon" in link ? link.icon : null}
+              {link.label}
+            </a>
+          ))}
+        </FooterColumn>
+
+        <FooterColumn title="Legal">
+          {legalLinks.map((link) => (
+            <Link
+              className="text-muted-foreground text-sm transition-colors hover:text-primary"
+              key={link.href}
+              to={link.href}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </FooterColumn>
       </div>
     </footer>
   );
 }
 
-function FooterLink({ href, label }: { href: string; label: string }) {
+function FooterColumn({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Button className="text-muted-foreground" variant="link">
-      <Link to={href}>{label}</Link>
-    </Button>
+    <div className="flex flex-col gap-3">
+      <h3 className="font-semibold text-foreground text-sm uppercase tracking-wider">
+        {title}
+      </h3>
+      <div className="flex flex-col gap-2">{children}</div>
+    </div>
   );
 }

@@ -4,13 +4,13 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { PostActionButton } from "./post-action-button";
 
 type LikeRecord = {
   postId: string;
@@ -32,22 +32,18 @@ function LikeButtonUI({
   onClick?: () => void;
 }) {
   return (
-    <Button
-      className={cn(
-        "text-white ring-2 hover:scale-105 hover:bg-rose-600/80 shadow-glow-rose-600/80 hover:shadow-glow-rose-600",
-        isLiked
-          ? "ring-rose-600 bg-rose-600/50"
-          : "ring-rose-800 bg-rose-600/30"
-      )}
+    <PostActionButton
+      active={isLiked}
       disabled={isLoading || isDisabled}
       onClick={onClick}
+      tone="rose"
     >
       <HugeiconsIcon
         className={cn("text-rose-600", isLiked ? "fill-rose-600" : "fill-none")}
         icon={FavouriteIcon}
       />
       Me Gusta
-    </Button>
+    </PostActionButton>
   );
 }
 

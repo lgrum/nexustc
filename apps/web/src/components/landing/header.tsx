@@ -1,14 +1,4 @@
-import {
-  Book03Icon,
-  BubbleChatQuestionIcon,
-  Clock01Icon,
-  CircleLockIcon,
-  GameController03Icon,
-  Home01Icon,
-  News01Icon,
-  StarIcon,
-} from "@hugeicons/core-free-icons";
-import type { IconSvgElement } from "@hugeicons/react";
+import { CircleLockIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
@@ -27,28 +17,13 @@ import { NotificationCenter } from "../notifications/notification-center";
 import { Button } from "../ui/button";
 
 const navItems = [
-  { href: "/", icon: Home01Icon, label: "Inicio", search: {} },
-  {
-    href: "/juegos",
-    icon: GameController03Icon,
-    label: "Juegos",
-    search: {},
-  },
-  {
-    href: "/comics",
-    icon: Book03Icon,
-    label: "Comics",
-    search: {},
-  },
-  {
-    href: "/tutorials",
-    icon: BubbleChatQuestionIcon,
-    label: "Tutoriales",
-    search: {},
-  },
-  { href: "/vip", icon: StarIcon, label: "VIP", search: {} },
-  { href: "/news", icon: News01Icon, label: "Noticias", search: {} },
-  { href: "/chronos", icon: Clock01Icon, label: "TheChronos", search: {} },
+  { href: "/", label: "Inicio", search: {} },
+  { href: "/juegos", label: "Juegos", search: {} },
+  { href: "/comics", label: "Comics", search: {} },
+  { href: "/tutorials", label: "Tutoriales", search: {} },
+  { href: "/vip", label: "VIP", search: {} },
+  { href: "/news", label: "Noticias", search: {} },
+  { href: "/chronos", label: "TheChronos", search: {} },
 ] as const;
 
 export function Header() {
@@ -65,12 +40,7 @@ export function Header() {
           <div className="hidden md:block">
             <div className="flex items-center gap-4">
               {navItems.map((item) => (
-                <NavItem
-                  key={item.href}
-                  href={item.href}
-                  icon={item.icon}
-                  label={item.label}
-                />
+                <NavItem key={item.href} href={item.href} label={item.label} />
               ))}
             </div>
           </div>
@@ -93,12 +63,10 @@ export function Header() {
 function NavItem({
   href,
   label,
-  icon,
   active,
 }: {
   href: string;
   label: string;
-  icon: IconSvgElement;
   active?: boolean;
 }) {
   const location = useLocation();
@@ -113,15 +81,14 @@ function NavItem({
     <Link
       aria-current={isItemActive ? "page" : undefined}
       className={cn(
-        "relative flex flex-row items-center justify-center gap-1 rounded-lg px-1 py-1 transition-colors duration-200",
-        "text-base tracking-[0.2em] text-white/50 hover:text-primary transition-all relative group py-2",
+        "relative flex flex-row items-center justify-center rounded-lg px-1 py-2 transition-colors duration-200",
+        "text-base tracking-[0.2em] hover:text-primary transition-all relative group",
         isItemActive
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
       )}
       to={href}
     >
-      <HugeiconsIcon className="size-4" icon={icon} />
       <span className="tracking-wider">{label}</span>
       <span
         className={cn(

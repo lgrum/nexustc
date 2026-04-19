@@ -190,7 +190,7 @@ export function PostCard({ post }: PostCardProps) {
           )}
         </div>
 
-        <CardHeader>
+        <CardHeader className="grow">
           <CardTitle className="text-center text-pretty">
             {post.title}
             {post.version && (
@@ -214,18 +214,12 @@ export function PostCard({ post }: PostCardProps) {
           {/* Stats row */}
           <div className="flex items-center justify-center gap-3 text-muted-foreground text-sm">
             <span className="inline-flex items-center gap-1">
-              <HugeiconsIcon
-                className="size-4 fill-red-500 text-red-500"
-                icon={FavouriteIcon}
-              />
+              <HugeiconsIcon className="size-4" icon={FavouriteIcon} />
               {post.likes}
             </span>
             {post.averageRating !== 0 && post.averageRating !== undefined && (
-              <span className="inline-flex items-center gap-1 text-primary">
-                <HugeiconsIcon
-                  className="size-4 fill-amber-400 text-amber-400"
-                  icon={StarIcon}
-                />
+              <span className="inline-flex items-center gap-1">
+                <HugeiconsIcon className="size-4" icon={StarIcon} />
                 {post.averageRating.toFixed(1)}
               </span>
             )}
