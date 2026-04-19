@@ -1139,7 +1139,7 @@ export function CreatorSupportCard() {
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
-      className="group relative block overflow-hidden animate-scale-pulse ring-2 ring-secondary shadow-glow-secondary transition-all hover:scale-105 rounded-full bg-linear-to-br from-primary/50 via-secondary/50 to-accent/50 hover:shadow-lg hover:shadow-primary/10"
+      className="group relative block overflow-hidden animate-scale-pulse ring-2 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 rounded-full bg-linear-to-br from-primary/30 via-secondary/30 to-accent/30 hover:shadow-lg hover:shadow-primary/10"
       href={post.creatorLink}
       rel="noopener"
       target="_blank"
@@ -1153,9 +1153,9 @@ export function CreatorSupportCard() {
             className="shrink-0 size-16 aspect-square"
           />
         ) : (
-          <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
+          <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
             <HugeiconsIcon
-              className="size-6 text-primary"
+              className="size-10 text-primary"
               icon={FavouriteCircleIcon}
             />
           </div>
