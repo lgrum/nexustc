@@ -2,6 +2,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import type {
   DOCUMENT_STATUSES,
   PremiumLinkAccessLevel,
+  TAXONOMIES,
 } from "@repo/shared/constants";
 import {
   buildEarlyAccessSchedule,
@@ -31,6 +32,80 @@ const appendUniqueValues = (
   valuesToAppend: string[]
 ) => [...new Set([...currentValues, ...valuesToAppend])];
 
+type TermTaxonomy = (typeof TAXONOMIES)[number];
+
+type DefaultTerm = {
+  taxonomy: TermTaxonomy;
+  name: string;
+};
+
+type DefaultTermList = {
+  taxonomy: TermTaxonomy;
+  names: string[];
+};
+
+type FormDefaultTerm = {
+  id: string;
+  name: string;
+  taxonomy: TermTaxonomy;
+};
+
+const DEFAULT_CENSORSHIP_TERM: DefaultTerm = {
+  name: "Ninguna",
+  taxonomy: "censorship",
+};
+const DEFAULT_ENGINE_TERM: DefaultTerm = {
+  name: "Ren'Py",
+  taxonomy: "engine",
+};
+const DEFAULT_PLATFORM_TERMS: DefaultTermList = {
+  names: ["Android", "PC"],
+  taxonomy: "platform",
+};
+const DEFAULT_LANGUAGE_TERMS: DefaultTermList = {
+  names: ["Español", "Ingles"],
+  taxonomy: "language",
+};
+
+const normalizeTermName = (name: string) =>
+  name
+    .trim()
+    .toLocaleLowerCase("es")
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036F]/g, "");
+
+const findDefaultTermId = (
+  terms: FormDefaultTerm[],
+  defaultTerm: DefaultTerm
+) =>
+  terms.find(
+    (term) =>
+      term.taxonomy === defaultTerm.taxonomy &&
+      normalizeTermName(term.name) === normalizeTermName(defaultTerm.name)
+  )?.id ?? "";
+
+const findDefaultTermIds = (
+  terms: FormDefaultTerm[],
+  defaultTermList: DefaultTermList
+) => {
+  const termIds: string[] = [];
+
+  for (const defaultTermName of defaultTermList.names) {
+    const normalizedDefaultTermName = normalizeTermName(defaultTermName);
+    const foundTerm = terms.find(
+      (term) =>
+        term.taxonomy === defaultTermList.taxonomy &&
+        normalizeTermName(term.name) === normalizedDefaultTermName
+    );
+
+    if (foundTerm) {
+      termIds.push(foundTerm.id);
+    }
+  }
+
+  return termIds;
+};
+
 export const Route = createFileRoute("/admin/posts/create")({
   component: RouteComponent,
   loader: async () => await orpcClient.post.admin.createPostPrerequisites(),
@@ -50,7 +125,7 @@ function RouteComponent() {
   const form = useAppForm({
     defaultValues: {
       adsLinks: "",
-      censorship: "",
+      censorship: findDefaultTermId(terms, DEFAULT_CENSORSHIP_TERM),
       changelog: "",
       content: "",
       coverImageSelection: createEmptyDeferredMediaSelection(),
@@ -59,12 +134,12 @@ function RouteComponent() {
       creatorName: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
       earlyAccessEnabled: Boolean(EARLY_ACCESS_DEFAULTS.enabled),
-      engine: "",
+      engine: findDefaultTermId(terms, DEFAULT_ENGINE_TERM),
       graphics: "",
-      languages: [] as string[],
+      languages: findDefaultTermIds(terms, DEFAULT_LANGUAGE_TERMS),
       manualEngagementQuestions: [] as string[],
       mediaSelection: createEmptyDeferredMediaSelection(),
-      platforms: [] as string[],
+      platforms: findDefaultTermIds(terms, DEFAULT_PLATFORM_TERMS),
       premiumLinksAccessLevel: "auto" as PremiumLinkAccessLevel,
       premiumLinks: "",
       seriesId: null as string | null,
