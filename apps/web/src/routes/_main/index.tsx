@@ -342,26 +342,45 @@ function ActiveUsersSection() {
   const { recentUsers } = Route.useLoaderData();
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-3 relative">
       <SectionTitle title="Usuarios Activos" icon={UserGroupIcon} />
       {!!recentUsers.error && (
         <p className="text-red-500 text-sm">Error: {recentUsers.error.code}</p>
       )}
-      <Card className="py-2">
-        <CardContent className="flex flex-col gap-2 px-2">
-          {recentUsers.data?.map((user) => (
-            <Link
-              className="relative flex items-center gap-1.5 rounded-md py-1.5 px-2 hover:bg-accent transition-colors data-[active=true]:bg-accent"
-              key={user.id}
-              params={{ id: user.id }}
-              to="/user/$id"
-            >
-              <ProfileAvatar className="size-8" user={user} />
-              <UserLabel user={user} />
-            </Link>
-          ))}
-        </CardContent>
-      </Card>
+      <div className="relative">
+        {recentUsers.data && recentUsers.data.length > 0 && (
+          <div className="-top-2.5 absolute -right-3 z-10 inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 backdrop-blur-md">
+            <span className="relative inline-flex size-1.5">
+              <span
+                aria-hidden
+                className="absolute inset-0 animate-ping rounded-full bg-emerald-400/60"
+              />
+              <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px] shadow-emerald-400/60" />
+            </span>
+            <span className="font-semibold text-[11px] text-emerald-100 tabular-nums">
+              {recentUsers.data.length}
+            </span>
+            <span className="font-medium text-[9.5px] text-emerald-200/80 uppercase tracking-[0.2em]">
+              En línea
+            </span>
+          </div>
+        )}
+        <Card className="py-2">
+          <CardContent className="flex flex-col gap-2 px-2">
+            {recentUsers.data?.map((user) => (
+              <Link
+                className="relative flex items-center gap-1.5 rounded-md py-1.5 px-2 hover:bg-accent transition-colors data-[active=true]:bg-accent"
+                key={user.id}
+                params={{ id: user.id }}
+                to="/user/$id"
+              >
+                <ProfileAvatar className="size-8" user={user} />
+                <UserLabel user={user} />
+              </Link>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
     </section>
   );
 }
