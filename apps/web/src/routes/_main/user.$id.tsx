@@ -54,6 +54,7 @@ function RouteComponent() {
             <ProfileNameplate
               nameClassName="text-3xl font-black tracking-tight"
               showEmblems
+              showProfileRoles
               user={profile}
             />
             <p className="text-muted-foreground text-sm">

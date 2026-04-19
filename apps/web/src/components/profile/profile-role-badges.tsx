@@ -14,6 +14,7 @@ type ProfileRole = {
   visualConfig: {
     baseColor: string;
     accentColor: string | null;
+    gradient?: string | null;
     textColor: string;
     glowColor: string | null;
   };
@@ -50,15 +51,20 @@ export function ProfileRoleBadges({
                 />
               }
               style={{
-                background: role.visualConfig.accentColor
-                  ? `linear-gradient(135deg, ${role.visualConfig.baseColor}, ${role.visualConfig.accentColor})`
-                  : role.visualConfig.baseColor,
+                background:
+                  role.visualConfig.gradient ??
+                  (role.visualConfig.accentColor
+                    ? `linear-gradient(135deg, ${role.visualConfig.baseColor}, ${role.visualConfig.accentColor})`
+                    : role.visualConfig.baseColor),
                 borderColor:
                   role.visualConfig.glowColor ?? role.visualConfig.baseColor,
                 boxShadow: role.visualConfig.glowColor
                   ? `0 0 0 1px ${role.visualConfig.glowColor}33, 0 6px 18px ${role.visualConfig.glowColor}40`
                   : undefined,
                 color: role.visualConfig.textColor,
+                textShadow: role.visualConfig.gradient
+                  ? "0 1px 2px rgba(0, 0, 0, 0.45)"
+                  : undefined,
               }}
             >
               {icon && (

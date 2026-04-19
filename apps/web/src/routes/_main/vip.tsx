@@ -11,6 +11,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   PATRON_TIER_GRADIENTS,
   PATRON_TIER_KEYS,
+  PATRON_TIER_PROFILE_BADGES,
   PATRON_TIERS,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
@@ -371,10 +372,11 @@ const FEATURE_ROWS: FeatureRow[] = [
     label: "Badge de perfil",
     render: (tier) => {
       const { badge } = PATRON_TIERS[tier];
-      if (!badge) {
+      const profileBadge = PATRON_TIER_PROFILE_BADGES[tier] ?? badge;
+      if (!profileBadge) {
         return { kind: "cross" };
       }
-      return { kind: "text", label: badge };
+      return { kind: "text", label: profileBadge };
     },
   },
   {

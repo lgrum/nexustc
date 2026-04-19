@@ -223,6 +223,17 @@ export const PATRON_TIER_GRADIENTS: Record<PatronTier, string> = {
   level100: "linear-gradient(135deg, #A9C9FF 10%, #FFC3A0 50%, #FFBBEC 90%)",
 } as const;
 
+export const PATRON_TIER_PROFILE_BADGES: Record<PatronTier, string | null> = {
+  none: null,
+  level1: "VipTC⁺¹⁸ LvL 1",
+  level3: "VipTC⁺¹⁸ LvL 3",
+  level5: "VipTC⁺¹⁸ LvL 5",
+  level8: "VipTC⁺¹⁸ LvL 8",
+  level12: "VipTC⁺¹⁸ LvL 12",
+  level69: "VipTC⁺¹⁸ LvL 69 PERMA OG",
+  level100: "VipTC⁺¹⁸ LvL 100 PERMA",
+} as const;
+
 export function getPatronTierRank(tier: PatronTier): number {
   return PATRON_TIER_HIERARCHY.indexOf(tier);
 }

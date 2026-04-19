@@ -272,6 +272,7 @@ export function AppearanceSection() {
           <ProfileNameplate
             nameClassName="text-2xl font-black"
             showEmblems
+            showProfileRoles
             user={previewUser}
           />
         </div>

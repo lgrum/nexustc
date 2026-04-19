@@ -11,7 +11,10 @@ import {
   termPostRelation,
   user,
 } from "@repo/db/schema/app";
-import { canBookmark, PATRON_TIERS } from "@repo/shared/constants";
+import {
+  canBookmark,
+  PATRON_TIER_PROFILE_BADGES,
+} from "@repo/shared/constants";
 import type { PatronTier, TAXONOMIES } from "@repo/shared/constants";
 import {
   getAllowedRoles,
@@ -393,7 +396,7 @@ export default {
 
         return {
           ...recentUser,
-          patronBadge: PATRON_TIERS[patronTier].badge,
+          patronBadge: PATRON_TIER_PROFILE_BADGES[patronTier],
           patronTier,
         };
       });

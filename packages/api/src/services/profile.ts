@@ -13,7 +13,10 @@ import {
   user,
 } from "@repo/db/schema/app";
 import { env } from "@repo/env";
-import { PATRON_TIERS } from "@repo/shared/constants";
+import {
+  PATRON_TIER_PROFILE_BADGES,
+  PATRON_TIERS,
+} from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { PROFILE_DEFAULTS } from "@repo/shared/profile";
 import type { ProfileMediaSlot } from "@repo/shared/profile";
@@ -680,7 +683,7 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
       id: currentUser.id,
       image: currentUser.image,
       name: currentUser.name,
-      patronBadge: PATRON_TIERS[patronTier].badge,
+      patronBadge: PATRON_TIER_PROFILE_BADGES[patronTier],
       patronTier,
       profileEmblems: clampVisibleEmblems(
         emblemGroups.get(currentUser.id) ?? [],

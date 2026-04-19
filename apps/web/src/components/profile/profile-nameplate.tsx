@@ -1,4 +1,7 @@
-import { PATRON_TIER_GRADIENTS } from "@repo/shared/constants";
+import {
+  PATRON_TIER_GRADIENTS,
+  PATRON_TIER_PROFILE_BADGES,
+} from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
 import { ProfileEmblemStrip } from "@/components/profile/profile-emblem-strip";
@@ -17,6 +20,7 @@ type ProfileRole = {
   visualConfig: {
     baseColor: string;
     accentColor: string | null;
+    gradient?: string | null;
     textColor: string;
     glowColor: string | null;
   };
@@ -74,21 +78,64 @@ function getVisibleProfileRoles(user: ProfileNameplateUser) {
   );
 }
 
+function getPatronTierRole(
+  tier: PatronTier,
+  badgeName: string | null | undefined,
+  gradient: string | null
+) {
+  if (tier === "none") {
+    return null;
+  }
+
+  const name = badgeName ?? PATRON_TIER_PROFILE_BADGES[tier];
+
+  if (!name) {
+    return null;
+  }
+
+  return {
+    description: "Badge de perfil de Patreon.",
+    id: `patreon-${tier}`,
+    isExclusive: false,
+    name,
+    priority: Number.MAX_SAFE_INTEGER,
+    slug: `patreon-${tier}`,
+    visualConfig: {
+      accentColor: null,
+      baseColor: "transparent",
+      glowColor: null,
+      gradient,
+      textColor: "#ffffff",
+    },
+  } satisfies ProfileRole;
+}
+
 export function ProfileNameplate({
   user,
   className,
   nameClassName,
   showEmblems = false,
+  showProfileRoles = false,
 }: {
   user: ProfileNameplateUser;
   className?: string;
   nameClassName?: string;
   showEmblems?: boolean;
+  showProfileRoles?: boolean;
 }) {
   const profileRoles = getVisibleProfileRoles(user);
   const patronTier = user.patronTier ?? "none";
   const nameGradient =
     patronTier === "none" ? null : PATRON_TIER_GRADIENTS[patronTier];
+  const patronTierRole = getPatronTierRole(
+    patronTier,
+    user.patronBadge,
+    nameGradient
+  );
+  const badges = [
+    ...(patronTierRole ? [patronTierRole] : []),
+    ...(showProfileRoles ? profileRoles : []),
+  ];
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
@@ -103,7 +150,7 @@ export function ProfileNameplate({
         >
           {user.name}
         </p>
-        <ProfileRoleBadges roles={profileRoles} />
+        <ProfileRoleBadges roles={badges} />
       </div>
       {showEmblems ? (
         <ProfileEmblemStrip emblems={user.profileEmblems} />
