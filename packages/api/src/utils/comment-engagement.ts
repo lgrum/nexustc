@@ -7,7 +7,11 @@ import {
   termPostRelation,
 } from "@repo/db/schema/app";
 
-import { resolveEngagementPrompts } from "./engagement-prompts";
+import {
+  resolveEngagementPrompts,
+  resolveSelectableEngagementPrompts,
+} from "./engagement-prompts";
+import type { EngagementPrompt } from "./engagement-prompts";
 
 type Database = typeof database;
 
@@ -29,6 +33,29 @@ export async function getResolvedEngagementPromptsForPost(
   db: Database,
   postId: string
 ) {
+  const { automaticQuestions, manualOverrides } =
+    await getEngagementPromptCandidatesForPost(db, postId);
+
+  return resolveEngagementPrompts(manualOverrides, automaticQuestions);
+}
+
+export async function getSelectableEngagementPromptsForPost(
+  db: Database,
+  postId: string
+) {
+  const { automaticQuestions, manualOverrides } =
+    await getEngagementPromptCandidatesForPost(db, postId);
+
+  return resolveSelectableEngagementPrompts(
+    manualOverrides,
+    automaticQuestions
+  );
+}
+
+async function getEngagementPromptCandidatesForPost(
+  db: Database,
+  postId: string
+) {
   const manualOverrides = await db.query.postEngagementOverride.findMany({
     columns: {
       id: true,
@@ -40,7 +67,10 @@ export async function getResolvedEngagementPromptsForPost(
   });
 
   if (manualOverrides.length > 0) {
-    return resolveEngagementPrompts(manualOverrides, []);
+    return {
+      automaticQuestions: [],
+      manualOverrides,
+    };
   }
 
   const tagTerms = await db
@@ -106,11 +136,14 @@ export async function getResolvedEngagementPromptsForPost(
     ...taggedQuestions,
   ];
 
-  return resolveEngagementPrompts([], automaticQuestions);
+  return {
+    automaticQuestions,
+    manualOverrides,
+  };
 }
 
 export function resolveCommentEngagementSelection(
-  prompts: Awaited<ReturnType<typeof getResolvedEngagementPromptsForPost>>,
+  prompts: EngagementPrompt[],
   selection?: CommentEngagementSelection
 ) {
   if (!selection) {

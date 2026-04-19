@@ -39,6 +39,7 @@ import { attachComicCatalogProgress } from "../../services/comic-progress";
 import { buildProfileSummaries } from "../../services/profile";
 import {
   getResolvedEngagementPromptsForPost,
+  getSelectableEngagementPromptsForPost,
   resolveCommentEngagementSelection,
 } from "../../utils/comment-engagement";
 import {
@@ -1122,12 +1123,12 @@ export default {
           errors,
         });
 
-        const resolvedEngagementPrompts =
+        const selectableEngagementPrompts =
           input.engagementPrompt === undefined
             ? []
-            : await getResolvedEngagementPromptsForPost(db, input.postId);
+            : await getSelectableEngagementPromptsForPost(db, input.postId);
         const selectedEngagementPrompt = resolveCommentEngagementSelection(
-          resolvedEngagementPrompts,
+          selectableEngagementPrompts,
           input.engagementPrompt
         );
 

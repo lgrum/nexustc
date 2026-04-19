@@ -1,5 +1,6 @@
 import {
   resolveEngagementPrompts,
+  resolveSelectableEngagementPrompts,
   selectAutomaticEngagementPrompts,
 } from "./engagement-prompts";
 
@@ -43,6 +44,79 @@ describe(resolveEngagementPrompts, () => {
 
   it("returns an empty array when there are no eligible prompts", () => {
     expect(resolveEngagementPrompts([], [])).toStrictEqual([]);
+  });
+});
+
+describe(resolveSelectableEngagementPrompts, () => {
+  it("keeps every eligible automatic prompt selectable", () => {
+    const prompts = resolveSelectableEngagementPrompts(
+      [],
+      [
+        {
+          id: "auto-1",
+          tagTermId: null,
+          text: "Seamos honestos... este post vive o muere por la primera impresion.",
+        },
+        {
+          id: "auto-2",
+          tagTermId: "tag-1",
+          text: "Quitando el morbo... que vende mejor este tag: tension o fantasia?",
+        },
+        {
+          id: "auto-3",
+          tagTermId: "tag-2",
+          text: "Nadie lo dice, pero... este giro suma tension o solo ruido?",
+        },
+      ]
+    );
+
+    expect(prompts).toStrictEqual([
+      {
+        id: "auto-1",
+        source: "tag",
+        tagTermId: null,
+        text: "Seamos honestos... este post vive o muere por la primera impresion.",
+      },
+      {
+        id: "auto-2",
+        source: "tag",
+        tagTermId: "tag-1",
+        text: "Quitando el morbo... que vende mejor este tag: tension o fantasia?",
+      },
+      {
+        id: "auto-3",
+        source: "tag",
+        tagTermId: "tag-2",
+        text: "Nadie lo dice, pero... este giro suma tension o solo ruido?",
+      },
+    ]);
+  });
+
+  it("keeps manual overrides as the only selectable prompts when present", () => {
+    const prompts = resolveSelectableEngagementPrompts(
+      [
+        {
+          id: "manual-1",
+          text: "Seamos honestos... que sostiene de verdad este post?",
+        },
+      ],
+      [
+        {
+          id: "auto-1",
+          tagTermId: null,
+          text: "Nadie lo dice, pero... este prompt global no deberia aplicar.",
+        },
+      ]
+    );
+
+    expect(prompts).toStrictEqual([
+      {
+        id: "manual-1",
+        source: "manual",
+        tagTermId: null,
+        text: "Seamos honestos... que sostiene de verdad este post?",
+      },
+    ]);
   });
 });
 

@@ -43,6 +43,28 @@ function dedupePromptsByText<T extends { text: string }>(items: T[]): T[] {
   return deduped;
 }
 
+function resolveManualEngagementPrompts(
+  manualOverrides: ManualOverrideCandidate[]
+): EngagementPrompt[] {
+  return dedupePromptsByText(manualOverrides).map((item) => ({
+    id: item.id,
+    source: "manual" as const,
+    tagTermId: null,
+    text: item.text,
+  }));
+}
+
+function resolveAutomaticEngagementPrompts(
+  automaticQuestions: AutomaticQuestionCandidate[]
+): EngagementPrompt[] {
+  return dedupePromptsByText(automaticQuestions).map((item) => ({
+    id: item.id,
+    source: "tag" as const,
+    tagTermId: item.tagTermId,
+    text: item.text,
+  }));
+}
+
 function pickRandomItems<T>(items: T[], random: () => number): T[] {
   const pool = [...items];
 
@@ -128,18 +150,26 @@ export function resolveEngagementPrompts(
   automaticQuestions: AutomaticQuestionCandidate[],
   random: () => number = Math.random
 ): EngagementPrompt[] {
-  const normalizedManualOverrides = dedupePromptsByText(manualOverrides).map(
-    (item) => ({
-      id: item.id,
-      source: "manual" as const,
-      tagTermId: null,
-      text: item.text,
-    })
-  );
+  const normalizedManualOverrides =
+    resolveManualEngagementPrompts(manualOverrides);
 
   if (normalizedManualOverrides.length > 0) {
     return normalizedManualOverrides;
   }
 
   return selectAutomaticEngagementPrompts(automaticQuestions, random);
+}
+
+export function resolveSelectableEngagementPrompts(
+  manualOverrides: ManualOverrideCandidate[],
+  automaticQuestions: AutomaticQuestionCandidate[]
+): EngagementPrompt[] {
+  const normalizedManualOverrides =
+    resolveManualEngagementPrompts(manualOverrides);
+
+  if (normalizedManualOverrides.length > 0) {
+    return normalizedManualOverrides;
+  }
+
+  return resolveAutomaticEngagementPrompts(automaticQuestions);
 }
