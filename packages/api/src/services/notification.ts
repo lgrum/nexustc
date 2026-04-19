@@ -73,6 +73,7 @@ type FeedParams = {
   allowedAudiences?: ("broadcast" | "content_followers" | "user")[];
   cursor?: Date;
   limit: number;
+  readOnly?: boolean;
   unreadOnly?: boolean;
   userId: string;
 };
@@ -348,7 +349,11 @@ async function fetchNotificationFeed(db: NotificationDb, params: FeedParams) {
     .where(
       and(
         ...conditions,
-        params.unreadOnly ? isNull(notificationRead.userId) : sql`TRUE`
+        params.unreadOnly
+          ? isNull(notificationRead.userId)
+          : params.readOnly
+            ? sql`${notificationRead.userId} IS NOT NULL`
+            : sql`TRUE`
       )
     )
     .orderBy(desc(notification.publishedAt))
@@ -428,9 +433,17 @@ export async function publishContentNewsArticle(
   const content = await db.query.post.findFirst({
     columns: {
       id: true,
+      imageObjectKeys: true,
       status: true,
       title: true,
       type: true,
+    },
+    with: {
+      coverMedia: {
+        columns: {
+          objectKey: true,
+        },
+      },
     },
     where: eq(post.id, params.contentId),
   });
@@ -474,7 +487,10 @@ export async function publishContentNewsArticle(
     audienceType: "content_followers",
     description: params.summary,
     expirationAt: params.expirationAt,
-    imageObjectKey: params.bannerImageObjectKey,
+    imageObjectKey:
+      params.bannerImageObjectKey ??
+      content.coverMedia?.objectKey ??
+      content.imageObjectKeys?.[0],
     metadata: {
       articleType: "manual_news",
       contentId: params.contentId,

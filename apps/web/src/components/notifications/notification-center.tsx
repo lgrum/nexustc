@@ -30,6 +30,7 @@ type NotificationFeedResponse = Awaited<
   ReturnType<(typeof orpcClient.notification)["getFeed"]>
 >;
 type NotificationFeedItem = NotificationFeedResponse["items"][number];
+type NotificationFilter = "all" | "unread" | "read";
 
 const FEED_PAGE_SIZE = 12;
 
@@ -37,7 +38,8 @@ export function NotificationCenter() {
   const { data: auth } = authClient.useSession();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const readOnly = filter === "read";
   const unreadOnly = filter === "unread";
 
   useEffect(() => {
@@ -68,9 +70,10 @@ export function NotificationCenter() {
       orpcClient.notification.getFeed({
         cursor: pageParam ? new Date(pageParam) : undefined,
         limit: FEED_PAGE_SIZE,
+        readOnly,
         unreadOnly,
       }),
-    queryKey: ["notification-feed", unreadOnly],
+    queryKey: ["notification-feed", filter],
     staleTime: 15_000,
   });
 
@@ -239,12 +242,12 @@ function NotificationPanel({
   wasError,
 }: {
   canMarkAllRead: boolean;
-  filter: "all" | "unread";
+  filter: NotificationFilter;
   hasMore: boolean;
   isFetchingMore: boolean;
   isLoading: boolean;
   items: NotificationFeedItem[];
-  onFilterChange: (value: "all" | "unread") => void;
+  onFilterChange: (value: NotificationFilter) => void;
   onLoadMore: () => void;
   onMarkAllRead: () => void;
   onMarkRead: (notificationId: string) => void;
@@ -252,12 +255,16 @@ function NotificationPanel({
   unreadCount: number;
   wasError: boolean;
 }) {
+  const emptyState = getNotificationEmptyState(filter);
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="relative overflow-hidden border-border/60 border-b bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.18),transparent_58%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))] px-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Tabs
-            onValueChange={(value) => onFilterChange(value as "all" | "unread")}
+            onValueChange={(value) =>
+              onFilterChange(value as NotificationFilter)
+            }
             value={filter}
           >
             <TabsList className="rounded-full p-1 shadow-none" variant="line">
@@ -266,6 +273,9 @@ function NotificationPanel({
               </TabsTrigger>
               <TabsTrigger className="rounded-full px-4" value="unread">
                 Sin leer
+              </TabsTrigger>
+              <TabsTrigger className="rounded-full px-4" value="read">
+                Leídos
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -300,16 +310,8 @@ function NotificationPanel({
           ) : (
             <>
               <NotificationFeedList
-                emptyCopy={
-                  filter === "unread"
-                    ? "Cuando haya nuevas noticias o actualizaciones del contenido que sigues, aparecerán aquí!"
-                    : "Ya sabes… lo bueno siempre llega sin avisar. Anuncios, noticias o actualizaciones del contenido que sigues, aparecerán aquí!"
-                }
-                emptyTitle={
-                  filter === "unread"
-                    ? "No Tienes Notificaciones Pendientes"
-                    : "Hoy está demasiado calmado..."
-                }
+                emptyCopy={emptyState.copy}
+                emptyTitle={emptyState.title}
                 isMarking={readActionPending}
                 items={items}
                 onMarkRead={onMarkRead}
@@ -330,6 +332,30 @@ function NotificationPanel({
       </ScrollArea>
     </div>
   );
+}
+
+function getNotificationEmptyState(filter: NotificationFilter): {
+  copy: string;
+  title: string;
+} {
+  if (filter === "unread") {
+    return {
+      copy: "Cuando haya nuevas noticias o actualizaciones del contenido que sigues, aparecerán aquí!",
+      title: "No Tienes Notificaciones Pendientes",
+    };
+  }
+
+  if (filter === "read") {
+    return {
+      copy: "Cuando abras o marques novedades como leídas, quedarán guardadas aquí.",
+      title: "Aún no hay notificaciones leídas",
+    };
+  }
+
+  return {
+    copy: "Ya sabes… lo bueno siempre llega sin avisar. Anuncios, noticias o actualizaciones del contenido que sigues, aparecerán aquí!",
+    title: "Hoy está demasiado calmado...",
+  };
 }
 
 function NotificationFeedSkeleton() {

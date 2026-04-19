@@ -189,6 +189,7 @@ export const contentEditSchema = z.discriminatedUnion("type", [
 export const notificationFeedSchema = z.object({
   cursor: z.coerce.date().optional(),
   limit: z.number().int().min(1).max(50).default(20),
+  readOnly: z.boolean().default(false),
   unreadOnly: z.boolean().default(false),
 });
 

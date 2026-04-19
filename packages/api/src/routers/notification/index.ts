@@ -64,6 +64,7 @@ export default {
       getNotificationFeed(db, {
         cursor: input.cursor,
         limit: input.limit,
+        readOnly: input.readOnly,
         unreadOnly: input.unreadOnly,
         userId: session.user.id,
       })
