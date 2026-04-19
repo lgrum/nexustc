@@ -1038,7 +1038,7 @@ export default {
     }),
 
   createComment: protectedProcedure
-    .use(fixedWindowRatelimitMiddleware({ limit: 10, windowSeconds: 60 }))
+    .use(fixedWindowRatelimitMiddleware({ limit: 3, windowSeconds: 600 }))
     .input(
       z.object({
         content: z.string().min(10).max(2048),
