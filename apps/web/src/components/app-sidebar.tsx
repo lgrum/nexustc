@@ -8,6 +8,7 @@ import {
   Login03Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import { useState } from "react";
@@ -25,7 +26,9 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { UserLabel } from "@/components/users/user-label";
 import { authClient } from "@/lib/auth-client";
+import { orpc } from "@/lib/orpc";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
 import { AuthDialog, AuthDialogContent } from "./auth/auth-dialog";
@@ -137,10 +140,18 @@ function SidebarAuthAction({
   isPending: boolean;
   onLoginClick: () => void;
   user?: {
+    id: string;
     image?: string | null;
     name: string;
   };
 }) {
+  const profileSummaryQuery = useQuery({
+    ...orpc.profile.getSummary.queryOptions({
+      input: { userId: user?.id ?? "" },
+    }),
+    enabled: Boolean(user?.id),
+  });
+
   if (isPending) {
     return (
       <SidebarMenu>
@@ -165,6 +176,8 @@ function SidebarAuthAction({
   }
 
   if (user) {
+    const labelUser = profileSummaryQuery.data ?? user;
+
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -185,9 +198,7 @@ function SidebarAuthAction({
               />
             </Avatar>
             <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
-              <span className="truncate font-semibold text-sm">
-                {user.name}
-              </span>
+              <UserLabel className="font-semibold text-sm" user={labelUser} />
               <span className="truncate text-sidebar-foreground/70 text-xs">
                 Ver perfil
               </span>

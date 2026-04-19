@@ -308,6 +308,7 @@ export function CommentSection({
                 className="font-medium text-sm text-foreground"
                 content={comment.engagementPromptText}
                 emojiMap={emojiMap}
+                patronTier={comment.author.patronTier}
                 stickerMap={stickerMap}
               />
             </div>
@@ -315,6 +316,7 @@ export function CommentSection({
           <CommentContent
             content={comment.content}
             emojiMap={emojiMap}
+            patronTier={comment.author.patronTier}
             stickerMap={stickerMap}
           />
           <div className="flex flex-wrap items-center gap-2">
@@ -588,6 +590,7 @@ export function CommentSection({
                               className="font-medium text-sm text-foreground"
                               content={comment.engagementPromptText}
                               emojiMap={emojiMap}
+                              patronTier={comment.author.patronTier}
                               stickerMap={stickerMap}
                             />
                           </div>
@@ -595,6 +598,7 @@ export function CommentSection({
                         <CommentContent
                           content={comment.content}
                           emojiMap={emojiMap}
+                          patronTier={comment.author.patronTier}
                           stickerMap={stickerMap}
                         />
                         <div className="flex flex-wrap items-center gap-2">

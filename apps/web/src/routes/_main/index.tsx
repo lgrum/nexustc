@@ -31,7 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
 import { authClient } from "@/lib/auth-client";
-import { orpcClient, safeOrpcClient } from "@/lib/orpc";
+import { orpc, orpcClient, safeOrpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
@@ -371,6 +371,12 @@ function AuthAction() {
   const user = auth.data?.user;
   const imageSrc = user?.image ? getBucketUrl(user.image) : undefined;
   const [mounted, setMounted] = useState(false);
+  const profileSummaryQuery = useQuery({
+    ...orpc.profile.getSummary.queryOptions({
+      input: { userId: user?.id ?? "" },
+    }),
+    enabled: Boolean(user?.id),
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -401,6 +407,8 @@ function AuthAction() {
   }
 
   if (user) {
+    const labelUser = profileSummaryQuery.data ?? user;
+
     return (
       <Button
         className={cn(
@@ -421,7 +429,7 @@ function AuthAction() {
           />
         </Avatar>
         <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
-          <span className="truncate font-semibold text-base">{user.name}</span>
+          <UserLabel className="font-semibold text-base" user={labelUser} />
           <span className="truncate text-sidebar-foreground/70 text-sm">
             Ver perfil
           </span>

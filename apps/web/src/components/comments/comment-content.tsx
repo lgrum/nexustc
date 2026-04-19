@@ -1,6 +1,9 @@
+import { PATRON_TIER_GRADIENTS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 import { renderTokenizedContent } from "@repo/shared/token-parser";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import type { CSSProperties } from "react";
 
 import { orpcClient } from "@/lib/orpc";
 import { cn, getBucketUrl } from "@/lib/utils";
@@ -18,19 +21,47 @@ type CommentContentProps = {
     string,
     { assetKey: string; type: string; displayName: string }
   >;
+  patronTier?: PatronTier | null;
 };
+
+function getTierContentStyle(tier: PatronTier | null | undefined) {
+  if (!(tier && tier !== "none")) {
+    return;
+  }
+
+  const gradient = PATRON_TIER_GRADIENTS[tier ?? "none"];
+
+  return {
+    background: [
+      "linear-gradient(oklch(from var(--background) l c h / 0.66), oklch(from var(--background) l c h / 0.78)) padding-box",
+      `${gradient} padding-box`,
+      `${gradient} border-box`,
+    ].join(", "),
+  } satisfies CSSProperties;
+}
 
 export function CommentContent({
   className,
   content,
   emojiMap,
+  patronTier,
   stickerMap,
 }: CommentContentProps) {
   const segments = useMemo(() => renderTokenizedContent(content), [content]);
+  const tierContentStyle = useMemo(
+    () => getTierContentStyle(patronTier),
+    [patronTier]
+  );
 
   return (
     <div
-      className={cn("text-foreground/90 text-sm leading-relaxed", className)}
+      className={cn(
+        "text-foreground/90 text-base leading-relaxed",
+        tierContentStyle &&
+          "rounded-xl border-2 border-transparent p-4 shadow-sm",
+        className
+      )}
+      style={tierContentStyle}
     >
       {segments.map((segment, i) => {
         const key =
@@ -62,7 +93,7 @@ export function CommentContent({
           return (
             <img
               alt={emojiData.displayName}
-              className="inline size-6 align-middle"
+              className="inline size-8 align-middle"
               key={key}
               loading="lazy"
               src={src}

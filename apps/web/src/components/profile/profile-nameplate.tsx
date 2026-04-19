@@ -95,7 +95,7 @@ export function ProfileNameplate({
       <div className="inline-flex min-w-0 items-center flex-row gap-2">
         <p
           className={cn(
-            "truncate font-semibold",
+            "truncate font-semibold text-lg",
             nameClassName,
             nameGradient && "bg-clip-text text-transparent"
           )}
