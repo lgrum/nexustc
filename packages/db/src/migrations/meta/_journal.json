@@ -260,6 +260,13 @@
       "when": 1776610559565,
       "tag": "0036_equal_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1776637373002,
+      "tag": "0037_special_mephistopheles",
+      "breakpoints": true
     }
   ]
 }

@@ -1,13 +1,18 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { eq } from "@repo/db";
-import { account, patron } from "@repo/db/schema/app";
+import { eq, sql } from "@repo/db";
+import { account, patreonWebhookRequest, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import {
   PATRON_TIERS,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
+import * as z from "zod";
 
-import { fixedWindowRatelimitMiddleware, protectedProcedure } from "../index";
+import {
+  fixedWindowRatelimitMiddleware,
+  ownerProcedure,
+  protectedProcedure,
+} from "../index";
 import {
   determineTierFromIds,
   fetchPatreonMembership,
@@ -15,6 +20,42 @@ import {
 } from "../utils/patreon";
 
 export default {
+  admin: {
+    listWebhookRequests: ownerProcedure
+      .input(
+        z.object({
+          limit: z.number().int().min(1).max(100),
+          offset: z.number().int().min(0),
+        })
+      )
+      .handler(async ({ context: { db, ...ctx }, input }) => {
+        const logger = getLogger(ctx);
+        logger?.info("Fetching Patreon webhook request log");
+
+        const totalPromise = db
+          .select({
+            count: sql<number>`count(*)::integer`,
+          })
+          .from(patreonWebhookRequest);
+
+        const requestsPromise = db.query.patreonWebhookRequest.findMany({
+          limit: input.limit,
+          offset: input.offset,
+          orderBy: (table, { desc }) => [desc(table.createdAt)],
+        });
+
+        const [total, requests] = await Promise.all([
+          totalPromise,
+          requestsPromise,
+        ]);
+
+        return {
+          requests,
+          total: total[0]?.count ?? 0,
+        };
+      }),
+  },
+
   /**
    * Get current user's patron status and benefits
    */

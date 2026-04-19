@@ -152,6 +152,15 @@ const nav = {
     ],
     name: "Notificaciones",
   },
+  patreon: {
+    links: [
+      {
+        href: "/admin/patreon/webhooks",
+        name: "Webhooks",
+      },
+    ],
+    name: "Patreon",
+  },
   posts: {
     links: [
       {
@@ -315,6 +324,9 @@ function AdminLayout() {
               </HasPermissions>
               <HasRole authRole="owner">
                 <SidebarLinks item={nav.site} />
+              </HasRole>
+              <HasRole authRole="owner">
+                <SidebarLinks item={nav.patreon} />
               </HasRole>
               <HasRole authRole="owner">
                 <SidebarLinks item={nav.profile} />

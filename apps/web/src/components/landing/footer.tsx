@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 
 const exploreLinks = [
   { href: "/", label: "Inicio" },
@@ -17,7 +18,11 @@ const legalLinks = [
   { href: "/legal", label: "Aviso Legal" },
 ] as const;
 
-const communityLinks = [
+const communityLinks: readonly {
+  href: string;
+  icon?: ReactNode;
+  label: string;
+}[] = [
   {
     href: "https://www.patreon.com/c/NeXusTC18",
     label: "Patreon",
@@ -78,7 +83,7 @@ export function Footer() {
               rel="noopener noreferrer"
               target="_blank"
             >
-              {"icon" in link ? link.icon : null}
+              {link.icon}
               {link.label}
             </a>
           ))}
@@ -105,7 +110,7 @@ function FooterColumn({
   children,
 }: {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-3">

@@ -147,6 +147,33 @@ export const patron = pgTable(
   ]
 );
 
+export const patreonWebhookRequest = pgTable(
+  "patreon_webhook_request",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    body: text("body").notNull(),
+    event: text("event"),
+    headers: jsonb("headers").$type<Record<string, string>>().notNull(),
+    method: text("method").notNull(),
+    processingError: text("processing_error"),
+    processingStatus: text("processing_status", {
+      enum: ["stored", "processed", "ignored", "invalid", "failed"],
+    })
+      .default("stored")
+      .notNull(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+    responseStatus: integer("response_status"),
+    signature: text("signature"),
+    url: text("url").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    index("patreon_webhook_request_created_at_idx").on(table.createdAt),
+    index("patreon_webhook_request_event_idx").on(table.event),
+    index("patreon_webhook_request_status_idx").on(table.processingStatus),
+  ]
+);
+
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
   commentLikes: many(commentLikes),

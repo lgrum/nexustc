@@ -65,6 +65,7 @@ import { Route as AdminSiteMarqueeRouteImport } from './routes/admin/site/marque
 import { Route as AdminProfileRolesRouteImport } from './routes/admin/profile/roles'
 import { Route as AdminProfileEmblemsRouteImport } from './routes/admin/profile/emblems'
 import { Route as AdminPostsCreateRouteImport } from './routes/admin/posts/create'
+import { Route as AdminPatreonWebhooksRouteImport } from './routes/admin/patreon/webhooks'
 import { Route as AdminPagesSlugRouteImport } from './routes/admin/pages/$slug'
 import { Route as AdminModerationForbiddenContentRouteImport } from './routes/admin/moderation/forbidden-content'
 import { Route as AdminExtrasWeeklyRouteImport } from './routes/admin/extras/weekly'
@@ -366,6 +367,11 @@ const AdminPostsCreateRoute = AdminPostsCreateRouteImport.update({
   path: '/posts/create',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminPatreonWebhooksRoute = AdminPatreonWebhooksRouteImport.update({
+  id: '/patreon/webhooks',
+  path: '/patreon/webhooks',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminPagesSlugRoute = AdminPagesSlugRouteImport.update({
   id: '/pages/$slug',
   path: '/pages/$slug',
@@ -524,6 +530,7 @@ export interface FileRoutesByFullPath {
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
   '/admin/moderation/forbidden-content': typeof AdminModerationForbiddenContentRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
+  '/admin/patreon/webhooks': typeof AdminPatreonWebhooksRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
   '/admin/profile/roles': typeof AdminProfileRolesRoute
@@ -601,6 +608,7 @@ export interface FileRoutesByTo {
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
   '/admin/moderation/forbidden-content': typeof AdminModerationForbiddenContentRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
+  '/admin/patreon/webhooks': typeof AdminPatreonWebhooksRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
   '/admin/profile/roles': typeof AdminProfileRolesRoute
@@ -681,6 +689,7 @@ export interface FileRoutesById {
   '/admin/extras/weekly': typeof AdminExtrasWeeklyRoute
   '/admin/moderation/forbidden-content': typeof AdminModerationForbiddenContentRoute
   '/admin/pages/$slug': typeof AdminPagesSlugRoute
+  '/admin/patreon/webhooks': typeof AdminPatreonWebhooksRoute
   '/admin/posts/create': typeof AdminPostsCreateRoute
   '/admin/profile/emblems': typeof AdminProfileEmblemsRoute
   '/admin/profile/roles': typeof AdminProfileRolesRoute
@@ -761,6 +770,7 @@ export interface FileRouteTypes {
     | '/admin/extras/weekly'
     | '/admin/moderation/forbidden-content'
     | '/admin/pages/$slug'
+    | '/admin/patreon/webhooks'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
     | '/admin/profile/roles'
@@ -838,6 +848,7 @@ export interface FileRouteTypes {
     | '/admin/extras/weekly'
     | '/admin/moderation/forbidden-content'
     | '/admin/pages/$slug'
+    | '/admin/patreon/webhooks'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
     | '/admin/profile/roles'
@@ -917,6 +928,7 @@ export interface FileRouteTypes {
     | '/admin/extras/weekly'
     | '/admin/moderation/forbidden-content'
     | '/admin/pages/$slug'
+    | '/admin/patreon/webhooks'
     | '/admin/posts/create'
     | '/admin/profile/emblems'
     | '/admin/profile/roles'
@@ -1368,6 +1380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPostsCreateRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/patreon/webhooks': {
+      id: '/admin/patreon/webhooks'
+      path: '/patreon/webhooks'
+      fullPath: '/admin/patreon/webhooks'
+      preLoaderRoute: typeof AdminPatreonWebhooksRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/pages/$slug': {
       id: '/admin/pages/$slug'
       path: '/pages/$slug'
@@ -1579,6 +1598,7 @@ interface AdminRouteRouteChildren {
   AdminExtrasWeeklyRoute: typeof AdminExtrasWeeklyRoute
   AdminModerationForbiddenContentRoute: typeof AdminModerationForbiddenContentRoute
   AdminPagesSlugRoute: typeof AdminPagesSlugRoute
+  AdminPatreonWebhooksRoute: typeof AdminPatreonWebhooksRoute
   AdminPostsCreateRoute: typeof AdminPostsCreateRoute
   AdminProfileEmblemsRoute: typeof AdminProfileEmblemsRoute
   AdminProfileRolesRoute: typeof AdminProfileRolesRoute
@@ -1617,6 +1637,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminExtrasWeeklyRoute: AdminExtrasWeeklyRoute,
   AdminModerationForbiddenContentRoute: AdminModerationForbiddenContentRoute,
   AdminPagesSlugRoute: AdminPagesSlugRoute,
+  AdminPatreonWebhooksRoute: AdminPatreonWebhooksRoute,
   AdminPostsCreateRoute: AdminPostsCreateRoute,
   AdminProfileEmblemsRoute: AdminProfileEmblemsRoute,
   AdminProfileRolesRoute: AdminProfileRolesRoute,
