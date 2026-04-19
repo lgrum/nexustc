@@ -308,7 +308,6 @@ export function CommentSection({
                 className="font-medium text-sm text-foreground"
                 content={comment.engagementPromptText}
                 emojiMap={emojiMap}
-                patronTier={comment.author.patronTier}
                 stickerMap={stickerMap}
               />
             </div>
@@ -590,7 +589,6 @@ export function CommentSection({
                               className="font-medium text-sm text-foreground"
                               content={comment.engagementPromptText}
                               emojiMap={emojiMap}
-                              patronTier={comment.author.patronTier}
                               stickerMap={stickerMap}
                             />
                           </div>
