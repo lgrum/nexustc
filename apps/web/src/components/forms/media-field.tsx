@@ -1,4 +1,5 @@
 import {
+  Cancel01Icon,
   ImageAdd02Icon,
   ImageDone01Icon,
   Search01Icon,
@@ -356,6 +357,29 @@ export function MediaField({
     setDialogOpen(false);
   };
 
+  const removeSelectedItem = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    selectionId: string
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    field.handleChange(
+      selectedItems.filter((item) => item.selectionId !== selectionId)
+    );
+    field.handleBlur();
+  };
+
+  const removeDraftItem = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    selectionId: string
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDraftSelectedItems((currentSelection) =>
+      currentSelection.filter((item) => item.selectionId !== selectionId)
+    );
+  };
+
   const addFilesToDraftSelection = (files: File[]) => {
     setDraftSelectedItems((currentSelection) => {
       if (isSingle) {
@@ -493,6 +517,16 @@ export function MediaField({
                         </Badge>
                       </div>
                     ) : null}
+                    <button
+                      aria-label={`Quitar ${item.valueLabel}`}
+                      className="absolute top-2 left-2 inline-flex size-7 items-center justify-center rounded-full border border-white/20 bg-rose-600/65 text-white shadow-sm transition-colors hover:bg-black/85"
+                      onClick={(event) =>
+                        removeSelectedItem(event, item.selection.selectionId)
+                      }
+                      type="button"
+                    >
+                      <HugeiconsIcon className="size-4" icon={Cancel01Icon} />
+                    </button>
                   </div>
                   <div className="space-y-1 p-2 text-xs text-muted-foreground">
                     <div>Imagen {index + 1}</div>
@@ -748,6 +782,19 @@ export function MediaField({
                               Nuevo
                             </Badge>
                           ) : null}
+                          <button
+                            aria-label={`Quitar ${item.valueLabel}`}
+                            className="absolute bottom-2 right-2 inline-flex size-7 items-center justify-center rounded-full border border-white/20 bg-rose-600/65 text-white shadow-sm transition-colors hover:bg-black/85"
+                            onClick={(event) =>
+                              removeDraftItem(event, item.selection.selectionId)
+                            }
+                            type="button"
+                          >
+                            <HugeiconsIcon
+                              className="size-4"
+                              icon={Cancel01Icon}
+                            />
+                          </button>
                         </div>
                         <div className="space-y-1 p-2">
                           <div className="line-clamp-2 text-xs text-muted-foreground">
