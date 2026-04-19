@@ -34,13 +34,13 @@ const shortener = ac.newRole({
 });
 
 const uploader = ac.newRole({
-  comics: ["create", "list"],
+  comics: ["create", "update", "list"],
   comments: ["create", "self-update", "self-delete"],
-  creators: ["create", "list"],
+  creators: ["create", "update", "list"],
   dashboard: ["view"],
   files: ["upload"],
   media: ["list"],
-  posts: ["create", "list"],
+  posts: ["create", "update", "list"],
   ratings: ["create", "self-update", "self-delete"],
   shortener: ["use"],
 });
