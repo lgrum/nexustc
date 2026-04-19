@@ -11,7 +11,7 @@ import {
   termPostRelation,
   user,
 } from "@repo/db/schema/app";
-import { canBookmark } from "@repo/shared/constants";
+import { canBookmark, PATRON_TIERS } from "@repo/shared/constants";
 import type { PatronTier, TAXONOMIES } from "@repo/shared/constants";
 import {
   getAllowedRoles,
@@ -315,6 +315,12 @@ export default {
         where: (users, { gte: greaterThanOrEqual }) =>
           greaterThanOrEqual(users.lastSeenAt, recentCutoff),
         with: {
+          patron: {
+            columns: {
+              isActivePatron: true,
+              tier: true,
+            },
+          },
           profileRoleAssignments: {
             columns: {
               endsAt: true,
@@ -379,7 +385,17 @@ export default {
       });
 
       logger?.debug(`Fetched ${recentUsers.length} recent users`);
-      return recentUsers;
+      return recentUsers.map(({ patron: patronRecord, ...recentUser }) => {
+        const patronTier = patronRecord?.isActivePatron
+          ? patronRecord.tier
+          : ("none" as PatronTier);
+
+        return {
+          ...recentUser,
+          patronBadge: PATRON_TIERS[patronTier].badge,
+          patronTier,
+        };
+      });
     }
   ),
 

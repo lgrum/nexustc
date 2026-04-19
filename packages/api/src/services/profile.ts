@@ -70,6 +70,8 @@ export type ProfileSummary = {
   } | null;
   avatarFallbackColor: string;
   href: string;
+  patronBadge: string | null;
+  patronTier: PatronTier;
   profileRoles: PublicProfileRole[];
   profileEmblems: PublicProfileEmblem[];
 };
@@ -411,7 +413,7 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
   }
 
   const uniqueUserIds = [...new Set(userIds)];
-  const [users, systemConfig, settings, roleRows, emblemRows] =
+  const [users, systemConfig, settings, patronRows, roleRows, emblemRows] =
     await Promise.all([
       db.query.user.findMany({
         columns: {
@@ -432,6 +434,14 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
           userId: true,
         },
         where: inArray(profileSettings.userId, uniqueUserIds),
+      }),
+      db.query.patron.findMany({
+        columns: {
+          isActivePatron: true,
+          tier: true,
+          userId: true,
+        },
+        where: inArray(patron.userId, uniqueUserIds),
       }),
       db
         .select({
@@ -520,6 +530,12 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
     avatarAssets.map((asset) => [asset.objectKey, asset])
   );
   const roleDefinitionMap = new Map(roleRows.map((row) => [row.slug, row]));
+  const patronTierMap = new Map(
+    patronRows.map((row) => [
+      row.userId,
+      row.isActivePatron ? row.tier : ("none" as PatronTier),
+    ])
+  );
   const now = Date.now();
   const roleGroups = new Map<string, PublicProfileRole[]>();
   const emblemGroups = new Map<string, PublicProfileEmblem[]>();
@@ -639,6 +655,8 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
             ]
           : [];
 
+    const patronTier = patronTierMap.get(currentUser.id) ?? "none";
+
     return {
       avatar: currentUser.image
         ? (() => {
@@ -662,6 +680,8 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
       id: currentUser.id,
       image: currentUser.image,
       name: currentUser.name,
+      patronBadge: PATRON_TIERS[patronTier].badge,
+      patronTier,
       profileEmblems: clampVisibleEmblems(
         emblemGroups.get(currentUser.id) ?? [],
         systemConfig.maxVisibleEmblems

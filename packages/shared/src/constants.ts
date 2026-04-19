@@ -212,6 +212,17 @@ export const PATRON_TIERS: Record<
   },
 } as const;
 
+export const PATRON_TIER_GRADIENTS: Record<PatronTier, string> = {
+  none: "linear-gradient(135deg, #94a3b8 0%, #64748b 100%)",
+  level1: "linear-gradient(135deg, #00c590 0%, #58d2b2 100%)",
+  level3: "linear-gradient(135deg, #ffe800 0%, #f3a200 100%)",
+  level5: "linear-gradient(135deg, #00c5ff 0%, #2767de 100%)",
+  level8: "linear-gradient(135deg, #de5aa5 0%, #e300be 100%)",
+  level12: "linear-gradient(135deg, #e32346 0%, #dd0081 100%)",
+  level69: "linear-gradient(135deg, #a644ec 0%, #17fdc7 100%)",
+  level100: "linear-gradient(135deg, #A9C9FF 10%, #FFC3A0 50%, #FFBBEC 90%)",
+} as const;
+
 export function getPatronTierRank(tier: PatronTier): number {
   return PATRON_TIER_HIERARCHY.indexOf(tier);
 }

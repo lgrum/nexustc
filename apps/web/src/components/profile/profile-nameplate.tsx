@@ -1,3 +1,6 @@
+import { PATRON_TIER_GRADIENTS } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
+
 import { ProfileEmblemStrip } from "@/components/profile/profile-emblem-strip";
 import { ProfileRoleBadges } from "@/components/profile/profile-role-badges";
 import { cn } from "@/lib/utils";
@@ -37,6 +40,8 @@ type ProfileEmblem = {
 
 export type ProfileNameplateUser = {
   name: string;
+  patronBadge?: string | null;
+  patronTier?: PatronTier | null;
   profileRoles?: ProfileRole[];
   profileRoleAssignments?: ProfileRoleAssignment[];
   profileEmblems?: ProfileEmblem[];
@@ -81,11 +86,21 @@ export function ProfileNameplate({
   showEmblems?: boolean;
 }) {
   const profileRoles = getVisibleProfileRoles(user);
+  const patronTier = user.patronTier ?? "none";
+  const nameGradient =
+    patronTier === "none" ? null : PATRON_TIER_GRADIENTS[patronTier];
 
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
       <div className="inline-flex min-w-0 items-center flex-row gap-2">
-        <p className={cn("truncate font-semibold", nameClassName)}>
+        <p
+          className={cn(
+            "truncate font-semibold",
+            nameClassName,
+            nameGradient && "bg-clip-text text-transparent"
+          )}
+          style={nameGradient ? { backgroundImage: nameGradient } : undefined}
+        >
           {user.name}
         </p>
         <ProfileRoleBadges roles={profileRoles} />

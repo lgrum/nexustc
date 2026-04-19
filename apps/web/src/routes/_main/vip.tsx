@@ -8,7 +8,11 @@ import {
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { PATRON_TIER_KEYS, PATRON_TIERS } from "@repo/shared/constants";
+import {
+  PATRON_TIER_GRADIENTS,
+  PATRON_TIER_KEYS,
+  PATRON_TIERS,
+} from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -211,19 +215,6 @@ const TIER_SIDES: Record<PatronTier, number> = {
   level100: 10,
 };
 
-// Placeholder gradients per tier — fill in later with brand-matching colors.
-const TIER_GRADIENTS: Record<PatronTier, string> = {
-  none: "linear-gradient(135deg, #94a3b8 0%, #475569 55%, #1e293b 100%)",
-  level1: "linear-gradient(135deg, #7dd3fc 0%, #2563eb 55%, #1e3a8a 100%)",
-  level3: "linear-gradient(135deg, #6ee7b7 0%, #10b981 55%, #065f46 100%)",
-  level5: "linear-gradient(135deg, #c4b5fd 0%, #8b5cf6 55%, #4c1d95 100%)",
-  level8: "linear-gradient(135deg, #fdba74 0%, #f97316 55%, #7c2d12 100%)",
-  level12: "linear-gradient(135deg, #f9a8d4 0%, #ec4899 55%, #831843 100%)",
-  level69: "linear-gradient(135deg, #fde68a 0%, #f59e0b 55%, #78350f 100%)",
-  level100:
-    "linear-gradient(135deg, #f1f5f9 0%, #f59e0b 40%, #831843 75%, #0f172a 100%)",
-};
-
 // Placeholder monthly prices — fill in with real Patreon amounts.
 const TIER_PRICE_LABELS: Record<PatronTier, string> = {
   none: "Gratis",
@@ -279,7 +270,7 @@ function TierShape({
   tier: PatronTier;
 }) {
   const sides = TIER_SIDES[tier];
-  const gradient = TIER_GRADIENTS[tier];
+  const gradient = PATRON_TIER_GRADIENTS[tier];
   const clip = polygonClipPath(sides);
   return (
     <div
@@ -387,7 +378,6 @@ const FEATURE_ROWS: FeatureRow[] = [
     },
   },
   {
-    hint: "Permanente al darte de alta en el tier tope",
     label: "Status de por vida",
     render: (tier) =>
       tier === "level100" ? { kind: "check" } : { kind: "cross" },
@@ -430,9 +420,20 @@ function TierHeaderCell({ tier }: { tier: PatronTier }) {
               "bg-amber-400 text-amber-950 shadow-glow-amber-400/30 hover:bg-amber-300"
           )}
           render={<Link to="/vip" />}
-          variant={tier === "none" ? "outline" : "default"}
+          variant={
+            tier === "none"
+              ? "outline"
+              : tier === "level69"
+                ? "destructive"
+                : "default"
+          }
+          disabled={tier === "level69"}
         >
-          {tier === "none" ? "Tu plan" : "Elegir"}
+          {tier === "none"
+            ? "Tu plan"
+            : tier === "level69"
+              ? "Agotado"
+              : "Elegir"}
         </Button>
       </div>
     </th>
