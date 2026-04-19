@@ -1,4 +1,5 @@
 export const MEDIA_IMAGE_MIME_TYPES = [
+  "image/avif",
   "image/gif",
   "image/jpeg",
   "image/png",

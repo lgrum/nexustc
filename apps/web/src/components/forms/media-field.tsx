@@ -505,7 +505,7 @@ export function MediaField({
                       <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
                         <div className="relative w-full md:w-auto">
                           <Input
-                            accept="image/gif,image/jpeg,image/png,image/webp"
+                            accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
                             className="absolute inset-0 cursor-pointer opacity-0"
                             multiple={!isSingle}
                             onChange={handleFileSelection}

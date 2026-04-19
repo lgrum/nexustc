@@ -12,6 +12,7 @@ import {
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
+import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
 import z from "zod";
 
 import { permissionProcedure } from "../index";
@@ -21,9 +22,7 @@ import { getS3Client } from "../utils/s3";
 const mediaUploadSchema = z.object({
   folderId: z.string().nullable().optional(),
   files: z
-    .array(
-      z.file().mime(["image/gif", "image/jpeg", "image/png", "image/webp"])
-    )
+    .array(z.file().mime([...MEDIA_IMAGE_MIME_TYPES]))
     .min(1)
     .max(12),
 });

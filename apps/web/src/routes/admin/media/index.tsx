@@ -195,7 +195,7 @@ function RouteComponent() {
           <div className="flex flex-col gap-3 sm:flex-row">
             <div className="relative">
               <Input
-                accept="image/gif,image/jpeg,image/png,image/webp"
+                accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
                 className="absolute inset-0 cursor-pointer opacity-0"
                 disabled={uploadMutation.isPending}
                 multiple
