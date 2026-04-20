@@ -126,22 +126,26 @@ const PHASES: readonly {
   tier: PatronTier;
   name: string;
   hint: string;
+  leadLabel: string;
 }[] = [
   {
     hint: "Adelanto exclusivo",
     index: "01",
+    leadLabel: "72h antes",
     name: "VIP 12",
     tier: "level12",
   },
   {
     hint: "Acceso intermedio",
     index: "02",
+    leadLabel: "48h antes",
     name: "VIP 8",
     tier: "level8",
   },
   {
     hint: "Para todos",
     index: "03",
+    leadLabel: "Lanzamiento",
     name: "Público",
     tier: "none",
   },
@@ -176,7 +180,11 @@ function PhaseNode({ phase }: { phase: (typeof PHASES)[number] }) {
         />
         <TierShape className="relative size-16 sm:size-20" tier={phase.tier} />
       </div>
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex flex-col items-center gap-1">
+        <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 font-medium text-[10px] text-amber-100">
+          <HugeiconsIcon className="size-3" icon={Clock01Icon} />
+          {phase.leadLabel}
+        </span>
         <span className="font-medium text-[10px] text-amber-200/70 uppercase tracking-[0.24em]">
           Fase {phase.index}
         </span>
