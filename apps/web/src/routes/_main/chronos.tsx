@@ -26,7 +26,7 @@ function RouteComponent() {
   const data = Route.useLoaderData();
 
   return (
-    <main className="relative grid w-full md:grid-cols-4">
+    <main className="relative grid w-full min-w-0 grid-cols-1 overflow-x-clip md:grid-cols-4">
       {/* Left sticky image */}
       {data.stickyImageKey && (
         <aside className="col-span-1 hidden md:block">
@@ -41,19 +41,20 @@ function RouteComponent() {
       )}
 
       {/* Central scrollable content */}
-      <article className="col-span-2 flex min-h-screen w-full flex-col items-center gap-8 px-4 py-4">
+      <article className="flex min-h-screen w-full min-w-0 max-w-full flex-col items-center gap-8 px-4 py-4 md:col-span-2">
         {data.headerImageKey && (
           <img
             alt="Header"
-            className="w-full rounded-lg object-cover shadow-lg"
+            className="h-auto w-full max-w-full rounded-lg object-cover shadow-lg"
             src={getBucketUrl(data.headerImageKey)}
           />
         )}
 
         {/* Mobile horizontal carousel */}
         {data.carouselImageKeys && data.carouselImageKeys.length > 0 && (
-          <div className="w-full md:hidden">
+          <div className="w-full min-w-0 max-w-full overflow-hidden md:hidden">
             <Carousel
+              className="w-full max-w-full"
               opts={{
                 align: "start",
                 loop: true,
@@ -71,7 +72,7 @@ function RouteComponent() {
                   <CarouselItem className="basis-4/5" key={key}>
                     <img
                       alt={`Carousel ${i + 1}`}
-                      className="aspect-video w-full rounded-md border object-cover"
+                      className="aspect-video h-auto w-full max-w-full rounded-md border object-cover"
                       src={getBucketUrl(key)}
                     />
                   </CarouselItem>
@@ -81,8 +82,24 @@ function RouteComponent() {
           </div>
         )}
 
-        <div className="prose dark:prose-invert w-full max-w-none">
-          <ReactMarkdown>{data.markdownContent}</ReactMarkdown>
+        <div
+          className="prose dark:prose-invert w-full min-w-0 max-w-full wrap-break-word [overflow-wrap:anywhere] [&_a]:text-primary [&_iframe]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:w-full"
+          role="document"
+        >
+          <ReactMarkdown
+            components={{
+              img: ({ alt, src }) => (
+                <img alt={alt ?? ""} loading="lazy" src={src ?? ""} />
+              ),
+              table: ({ children }) => (
+                <div className="w-full max-w-full overflow-x-auto">
+                  <table>{children}</table>
+                </div>
+              ),
+            }}
+          >
+            {data.markdownContent}
+          </ReactMarkdown>
         </div>
       </article>
 
