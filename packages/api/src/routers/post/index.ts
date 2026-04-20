@@ -50,6 +50,11 @@ import {
 } from "../../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
+import {
+  getPostViewDedupeKey,
+  getPostViewViewerKey,
+  POST_VIEW_DEDUPE_TTL_SECONDS,
+} from "../../utils/post-views";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -802,18 +807,6 @@ export default {
         }
       );
 
-      try {
-        await db
-          .update(post)
-          .set({ views: sql`${post.views} + 1` })
-          .where(eq(post.id, input));
-
-        logger?.info(`View count incremented for post ${input}`);
-      } catch (error) {
-        logger?.error(`Failed to increment view count for post ${input}`);
-        logger?.error(error);
-      }
-
       const {
         earlyAccessEnabled: _earlyAccessEnabled,
         earlyAccessPublicAt: _earlyAccessPublicAt,
@@ -929,6 +922,78 @@ export default {
           : postData.title,
         version: earlyAccess.isRestrictedView ? null : postData.version,
       };
+    }),
+
+  recordView: publicProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
+    .input(
+      z.object({
+        anonymousViewerId: z.string().uuid().optional(),
+        postId: z.string(),
+      })
+    )
+    .handler(async ({ context: { db, ...context }, input, errors }) => {
+      const logger = getLogger(context);
+      logger?.info(`Recording post view for: ${input.postId}`);
+
+      const targetPost = await db.query.post.findFirst({
+        columns: {
+          earlyAccessEnabled: true,
+          earlyAccessStartedAt: true,
+          id: true,
+          status: true,
+          type: true,
+          vip12EarlyAccessHours: true,
+          vip8EarlyAccessHours: true,
+        },
+        where: eq(post.id, input.postId),
+      });
+
+      if (!targetPost || targetPost.status !== "publish") {
+        throw errors.NOT_FOUND();
+      }
+
+      const viewerTier = await getViewerPatronTier(db, context.session);
+      const earlyAccess = getPostEarlyAccessView(targetPost, {
+        role: context.session?.user.role,
+        tier: viewerTier,
+      });
+
+      if (earlyAccess.isRestrictedView) {
+        logger?.debug(`View skipped for restricted post view: ${input.postId}`);
+        return { counted: false };
+      }
+
+      const viewerKey = getPostViewViewerKey({
+        anonymousViewerId: input.anonymousViewerId,
+        headers: context.headers,
+        session: context.session,
+      });
+
+      if (!viewerKey) {
+        logger?.debug(`View skipped without viewer key: ${input.postId}`);
+        return { counted: false };
+      }
+
+      const redis = await getRedis();
+      const dedupeKey = getPostViewDedupeKey(input.postId, viewerKey);
+      const firstView = await redis.set(dedupeKey, "1", {
+        EX: POST_VIEW_DEDUPE_TTL_SECONDS,
+        NX: true,
+      });
+
+      if (firstView !== "OK") {
+        logger?.debug(`Duplicate view skipped for post ${input.postId}`);
+        return { counted: false };
+      }
+
+      await db
+        .update(post)
+        .set({ views: sql`${post.views} + 1` })
+        .where(eq(post.id, input.postId));
+
+      logger?.info(`View count incremented for post ${input.postId}`);
+      return { counted: true };
     }),
 
   getLikes: publicProcedure
@@ -1474,17 +1539,9 @@ export default {
 
       const authors = await buildProfileSummaries(db, authorIds);
 
-      // getComments is a good heuristic that the user is actually scrolling though the post
-      // so we take the opportunity to increment the view count here while not blocking the response
-      await db
-        .update(post)
-        .set({ views: sql`${post.views} + 1` })
-        .where(eq(post.id, input.postId));
-
       logger?.debug(
         `Retrieved ${commentsWithLikes.length} comments for post ${input.postId} with ${authors.length} unique authors`
       );
-      logger?.info(`View count incremented for post ${input.postId}`);
       return { authors, comments: commentsWithLikes };
     }),
 

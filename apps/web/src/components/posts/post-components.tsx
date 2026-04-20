@@ -19,10 +19,11 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { TermBadge } from "@/components/term-badge";
+import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
 import {
@@ -74,6 +75,13 @@ export function PostPage({ post }: { post: PostProps }) {
   const showCreatorSupport = !post.earlyAccess.hideCreatorSupport;
   const [selectedPrompt, setSelectedPrompt] =
     useState<EngagementPromptType | null>(null);
+  const viewTargetRef = useRef<HTMLDivElement | null>(null);
+
+  usePostViewTracker({
+    enabled: !showRestrictedView,
+    postId: post.id,
+    targetRef: viewTargetRef,
+  });
 
   return (
     <PostProvider post={post}>
@@ -84,6 +92,9 @@ export function PostPage({ post }: { post: PostProps }) {
           <EarlyAccessStatusBanner />
           {!showRestrictedView && <PostStatsBar />}
           <div className="flex flex-col gap-4 px-4 pt-4">
+            {!showRestrictedView && (
+              <div aria-hidden="true" className="h-px" ref={viewTargetRef} />
+            )}
             <PostCarousel />
             <PostInfo />
             <PostContent />

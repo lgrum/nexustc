@@ -22,6 +22,7 @@ import { es } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
 
+import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient, queryClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
@@ -162,10 +163,17 @@ function ComicInfoPage({
     comic.imageObjectKeys,
     comic.coverImageObjectKey
   );
+  const viewTargetRef = useRef<HTMLDivElement | null>(null);
   const allImages = comic.imageObjectKeys ?? [];
   const totalPages = allImages.length;
   const progressBadge = getComicProgressBadge(comicProgress?.status);
   const resumePage = comicProgress?.resumePage ?? null;
+
+  usePostViewTracker({
+    enabled: !comic.earlyAccess.isRestrictedView,
+    postId: comic.id,
+    targetRef: viewTargetRef,
+  });
 
   return (
     <div className="relative flex gap-6 pb-4">
@@ -225,6 +233,9 @@ function ComicInfoPage({
         <PostStatsBar />
 
         <div className="flex flex-col gap-4 px-4 pt-4">
+          {!comic.earlyAccess.isRestrictedView && (
+            <div aria-hidden="true" className="h-px" ref={viewTargetRef} />
+          )}
           {comicProgress?.resumePromptEnabled && resumePage !== null && (
             <div className="rounded-2xl border border-primary/20 bg-primary/10 p-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -363,6 +374,12 @@ function ComicReader({
     null
   );
   const lastTouchDistanceRef = useRef<number | null>(null);
+
+  usePostViewTracker({
+    enabled: !comic.earlyAccess.isRestrictedView,
+    postId: comic.id,
+    targetRef: containerRef,
+  });
 
   const totalPages = images.length;
   const currentImage = images[page];
