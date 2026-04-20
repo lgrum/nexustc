@@ -3,7 +3,7 @@ import type { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export type PostActionTone = "rose" | "blue" | "emerald" | "purple";
+export type PostActionTone = "rose" | "blue" | "emerald" | "purple" | "amber";
 
 const TONE_CLASSES: Record<
   PostActionTone,
@@ -32,6 +32,12 @@ const TONE_CLASSES: Record<
       "border-purple-500/25 bg-purple-500/[0.04] text-purple-100/90 hover:border-purple-500/55 hover:bg-purple-500/[0.1] hover:shadow-glow-purple-500/25",
     active:
       "border-purple-500/70 bg-purple-500/15 text-purple-50 shadow-glow-purple-500/45",
+  },
+  amber: {
+    inactive:
+      "border-amber-500/25 bg-amber-500/[0.04] text-amber-100/90 hover:border-amber-500/55 hover:bg-amber-500/[0.1] hover:shadow-glow-amber-500/25",
+    active:
+      "border-amber-500/70 bg-amber-500/15 text-amber-50 shadow-glow-amber-500/45",
   },
 };
 

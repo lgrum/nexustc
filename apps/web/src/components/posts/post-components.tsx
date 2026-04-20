@@ -1,3 +1,4 @@
+import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import {
   ArrowLeft01Icon,
   ArrowRight01Icon,
@@ -54,7 +55,7 @@ import {
 import { ImageViewer } from "../ui/image-viewer";
 import { ShinyButton } from "../ui/shiny-button";
 import { Skeleton } from "../ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Tabs, TabsContent } from "../ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { BookmarkButton } from "./bookmark-button";
 import { CommentSection } from "./comment-section";
@@ -864,6 +865,11 @@ export function PostContent() {
   const hasChangelog = !!post.changelog;
   const hasPremium = post.premiumLinksAccess.status !== "no_premium_links";
   const hasAnyDownloadSurface = hasDownloadLinks || hasPremium;
+  const [tab, setTab] = useState<"downloads" | "premium">(
+    hasPremium && post.premiumLinksAccess.status === "granted"
+      ? "premium"
+      : "downloads"
+  );
 
   if (!(hasDownloadLinks || hasChangelog || hasPremium)) {
     return null;
@@ -873,35 +879,41 @@ export function PostContent() {
     return hasAnyDownloadSurface ? <EarlyAccessDownloadGate /> : null;
   }
 
-  const defaultTab =
-    hasPremium && post.premiumLinksAccess.status === "granted"
-      ? "premium"
-      : hasDownloadLinks
-        ? "downloads"
-        : hasChangelog
-          ? "changelog"
-          : "downloads";
-
   return (
     <div className="flex flex-col gap-3">
       <div className="section-title">Descargas</div>
       <Card className="pb-6">
-        <Tabs className="w-full gap-6" defaultValue={defaultTab}>
+        <Tabs className="w-full gap-6" onValueChange={setTab} value={tab}>
           <CardHeader>
-            <TabsList className="w-full justify-start">
+            <TabsPrimitive.List className="w-full inline-flex gap-4 items-center justify-center">
               {hasDownloadLinks && (
-                <TabsTrigger className="gap-2" value="downloads">
+                <TabsPrimitive.Tab
+                  className="gap-2 flex-1"
+                  value="downloads"
+                  render={
+                    <PostActionButton
+                      tone="purple"
+                      active={tab === "downloads"}
+                    />
+                  }
+                >
                   <HugeiconsIcon className="size-4" icon={Download04Icon} />
                   Anuncios
-                </TabsTrigger>
+                </TabsPrimitive.Tab>
               )}
               {hasPremium && (
-                <TabsTrigger className="gap-2" value="premium">
+                <TabsPrimitive.Tab
+                  className="gap-2 flex-1"
+                  value="premium"
+                  render={
+                    <PostActionButton tone="amber" active={tab === "premium"} />
+                  }
+                >
                   <HugeiconsIcon className="size-4" icon={StarIcon} />
                   VIP
-                </TabsTrigger>
+                </TabsPrimitive.Tab>
               )}
-            </TabsList>
+            </TabsPrimitive.List>
           </CardHeader>
           <CardContent className="px-6">
             {hasDownloadLinks && (
@@ -1030,24 +1042,42 @@ function PremiumLinksContent({
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 rounded ring-2 ring-primary shadow-glow-primary/50 bg-linear-to-br from-primary/5 to-secondary/5 py-16">
-      <div className="rounded-full bg-muted p-4">
+    <div className="flex flex-col items-center justify-center gap-4 rounded-md ring-1 ring-primary shadow-glow-primary/20 bg-linear-to-br from-amber-400/20 via-amber-400/10 to-transparent py-16">
+      <div className="flex size-16 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
         <HugeiconsIcon
-          className="size-8 text-muted-foreground"
+          className="size-8 fill-amber-300 text-amber-300"
           icon={StarIcon}
         />
       </div>
-      <section className="text-center text-muted-foreground">
+      <section className="text-center text-amber-50">
         <p className="text-base">
-          Necesitas {descriptor.requiredTierLabel} o superior para acceder a
+          Necesitas VIP {descriptor.requiredTierLabel} o superior para acceder a
           estos enlaces
         </p>
         {!(
           descriptor.isManualAccessLevel ||
           descriptor.requiredTierLabel === "LvL 5"
-        ) && <p>VIP LvL 5 o superior también funcionan!</p>}
+        ) && (
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <span
+              aria-hidden
+              className="inline-flex size-1.5 rounded-full bg-amber-300 shadow-[0_0_10px_2px] shadow-amber-300/60"
+            />
+            <p>VIP LvL 5 o superior también funcionan!</p>
+          </div>
+        )}
       </section>
-      <Button>Comparar Rangos</Button>
+      <PostActionButton
+        tone="amber"
+        render={<Link to="/memberships" />}
+        className="w-auto pl-7"
+      >
+        Comparar Rangos
+        <HugeiconsIcon
+          className="ml-1 size-3.5 text-amber-200/50 transition-[transform,color] duration-200 group-hover:translate-x-0.5 group-hover:text-amber-200"
+          icon={ArrowRight01Icon}
+        />
+      </PostActionButton>
     </div>
   );
 }
@@ -1150,7 +1180,7 @@ export function CreatorSupportCard() {
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
-      className="group relative block overflow-hidden animate-scale-pulse ring-2 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 rounded-full bg-linear-to-br from-primary/30 via-secondary/30 to-accent/30 hover:shadow-lg hover:shadow-primary/10"
+      className="group relative block overflow-hidden animate-scale-pulse ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 rounded-full bg-linear-to-br from-secondary/30 to-transparent hover:shadow-glow-secondary/50"
       href={post.creatorLink}
       rel="noopener"
       target="_blank"
