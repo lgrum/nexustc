@@ -1,17 +1,18 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { columns } from "@/components/admin/comics/columns";
 import { DataTable } from "@/components/admin/posts/data-table";
-import { orpcClient } from "@/lib/orpc";
+import { orpc } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/")({
   component: RouteComponent,
-  gcTime: 0,
-  loader: () => orpcClient.comic.admin.getDashboardList(),
 });
 
 function RouteComponent() {
-  const data = Route.useLoaderData();
+  const { data } = useSuspenseQuery(
+    orpc.comic.admin.getDashboardList.queryOptions()
+  );
 
   return (
     <div className="flex w-full flex-col gap-4">

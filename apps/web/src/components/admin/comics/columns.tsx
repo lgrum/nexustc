@@ -116,9 +116,9 @@ export const columns: ColumnDef<Comic>[] = [
                   )
                   .unwrap();
 
-                await queryClient.invalidateQueries(
-                  orpc.comic.admin.getDashboardList.queryOptions()
-                );
+                await queryClient.invalidateQueries({
+                  queryKey: orpc.comic.admin.getDashboardList.queryKey(),
+                });
               }
             }}
             size="icon"
