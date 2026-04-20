@@ -1,7 +1,7 @@
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
-import { eq } from "@repo/db";
+import { eq, getRedis } from "@repo/db";
 import { profileMediaAsset, profileSettings, user } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
@@ -18,6 +18,11 @@ import {
   inspectProfileMediaAsset,
   validateProfileMediaUpload,
 } from "../services/profile";
+import {
+  getProfileMediaUploadCooldownKey,
+  getProfileMediaUploadRetryAfter,
+  reserveProfileMediaUploadCooldown,
+} from "../utils/profile-media-cooldown";
 import { getS3Client } from "../utils/s3";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
@@ -79,40 +84,66 @@ export default {
         });
       }
 
-      const [asset] = await db
-        .insert(profileMediaAsset)
-        .values({
-          durationMs: validation.durationMs,
-          fileSizeBytes: validation.fileSizeBytes,
-          height: validation.height,
-          isAnimated: validation.isAnimated,
-          mimeType: input.contentType,
-          objectKey: input.objectKey,
-          ownerUserId: session.user.id,
-          slot: input.slot,
-          validationStatus: "ready",
-          width: validation.width,
-        })
-        .returning();
+      const cache = await getRedis();
+      const cooldownKey = getProfileMediaUploadCooldownKey(
+        session.user.id,
+        input.slot
+      );
+      const cooldown = await reserveProfileMediaUploadCooldown(
+        cache,
+        cooldownKey
+      );
 
-      if (input.slot === "avatar") {
-        await db
-          .update(user)
-          .set({ image: input.objectKey })
-          .where(eq(user.id, session.user.id));
-      } else {
-        await getOrCreateProfileSettings(db, session.user.id);
-        await db
-          .update(profileSettings)
-          .set({ bannerAssetId: asset!.id, bannerMode: "image" })
-          .where(eq(profileSettings.userId, session.user.id));
+      if (!cooldown.reserved) {
+        throw errors.RATE_LIMITED({
+          data: { retryAfter: cooldown.retryAfter },
+        });
       }
 
-      return {
-        assetId: asset!.id,
-        isAnimated: asset!.isAnimated,
-        objectKey: asset!.objectKey,
-      };
+      try {
+        const [asset] = await db
+          .insert(profileMediaAsset)
+          .values({
+            durationMs: validation.durationMs,
+            fileSizeBytes: validation.fileSizeBytes,
+            height: validation.height,
+            isAnimated: validation.isAnimated,
+            mimeType: input.contentType,
+            objectKey: input.objectKey,
+            ownerUserId: session.user.id,
+            slot: input.slot,
+            validationStatus: "ready",
+            width: validation.width,
+          })
+          .returning();
+
+        if (input.slot === "avatar") {
+          await db
+            .update(user)
+            .set({ image: input.objectKey })
+            .where(eq(user.id, session.user.id));
+        } else {
+          await getOrCreateProfileSettings(db, session.user.id);
+          await db
+            .update(profileSettings)
+            .set({ bannerAssetId: asset!.id, bannerMode: "image" })
+            .where(eq(profileSettings.userId, session.user.id));
+        }
+
+        return {
+          assetId: asset!.id,
+          isAnimated: asset!.isAnimated,
+          objectKey: asset!.objectKey,
+        };
+      } catch (error) {
+        try {
+          await cache.del(cooldownKey);
+        } catch (cleanupError) {
+          logger?.warn("Failed to clear profile media upload cooldown");
+          logger?.warn(cleanupError);
+        }
+        throw error;
+      }
     }),
 
   getMySettings: protectedProcedure.handler(
@@ -201,6 +232,17 @@ export default {
 
       if (input.slot === "banner" && !entitlements.canUseUploadedBanner) {
         throw errors.FORBIDDEN({ message: "No puedes subir banners." });
+      }
+
+      const retryAfter = await getProfileMediaUploadRetryAfter(
+        await getRedis(),
+        getProfileMediaUploadCooldownKey(session.user.id, input.slot)
+      );
+
+      if (retryAfter !== null) {
+        throw errors.RATE_LIMITED({
+          data: { retryAfter },
+        });
       }
 
       const objectKey = getUploadObjectKey(
