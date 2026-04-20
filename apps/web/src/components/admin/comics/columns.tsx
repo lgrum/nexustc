@@ -1,6 +1,5 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useConfirm } from "@omit/react-confirm-dialog";
 import { DOCUMENT_STATUS_LABELS } from "@repo/shared/constants";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -10,6 +9,7 @@ import { toast } from "sonner";
 import type { AdminContent } from "@/components/admin/posts/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { orpc, orpcClient } from "@/lib/orpc";
 
 export type Comic = AdminContent & {

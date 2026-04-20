@@ -6,7 +6,6 @@ import {
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useConfirm } from "@omit/react-confirm-dialog";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import type { Role } from "@repo/shared/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,6 +17,7 @@ import { toast } from "sonner";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,

@@ -1,6 +1,5 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useConfirm } from "@omit/react-confirm-dialog";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -11,6 +10,7 @@ import { DataTable } from "@/components/admin/data-table";
 import { HasPermissions } from "@/components/auth/has-role";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 

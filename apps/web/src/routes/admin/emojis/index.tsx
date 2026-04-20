@@ -1,6 +1,5 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useConfirm } from "@omit/react-confirm-dialog";
 import { PATRON_TIERS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
@@ -10,6 +9,7 @@ import { toast } from "sonner";
 
 import { DataTable } from "@/components/admin/data-table";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 

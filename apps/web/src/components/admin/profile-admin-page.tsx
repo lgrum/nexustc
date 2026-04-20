@@ -1,6 +1,5 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useConfirm } from "@omit/react-confirm-dialog";
 import { useStore } from "@tanstack/react-form";
 import {
   useMutation,
@@ -26,6 +25,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ColorPickerField } from "@/components/ui/color-picker-field";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";

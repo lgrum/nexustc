@@ -1,4 +1,3 @@
-import { ConfirmDialogProvider } from "@omit/react-confirm-dialog";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { formDevtoolsPlugin } from "@tanstack/react-form-devtools";
 import {
@@ -10,6 +9,7 @@ import {
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 
 import { AgeVerificationDialog } from "@/components/age-verification-dialog";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
