@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { Logo } from "../logo";
+
 const exploreLinks = [
   { href: "/", label: "Inicio" },
   { href: "/juegos", label: "Juegos" },
@@ -50,10 +52,7 @@ export function Footer() {
     <footer className="mt-16 w-full border-t border-border/60 bg-background/40 px-6 py-12 md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-10 md:grid md:grid-cols-4">
         <div className="flex flex-col gap-3">
-          <h2 className="font-bold text-2xl text-primary/80">
-            NeXusTC
-            <span className="align-super font-normal text-xs">+18</span>
-          </h2>
+          <Logo />
           <p className="text-muted-foreground text-sm leading-relaxed">
             Explora nuevas realidades. Juegos, comics y comunidad para adultos.
           </p>

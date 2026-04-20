@@ -201,7 +201,7 @@ export function AuthDialogContent() {
           <span className="sr-only">Cerrar</span>
         </Dialog.Close>
 
-        <header className="relative flex flex-col items-center gap-3 px-6 pt-8 pb-4">
+        <header className="relative flex flex-col items-center gap-1 px-6 pt-8 pb-4">
           <div className="flex items-center gap-2.5">
             <Dialog.Title
               className="display-heading text-[26px] text-foreground"
@@ -215,11 +215,6 @@ export function AuthDialogContent() {
             className="inline-flex items-center gap-2 font-medium text-[10.5px] text-muted-foreground uppercase tracking-[0.22em]"
             render={<p />}
           >
-            <span>+18 Only</span>
-            <span
-              aria-hidden
-              className="size-1 rounded-full bg-muted-foreground/40"
-            />
             <span className="text-primary/80">Beta</span>
           </Dialog.Description>
           <div className="glow-line mt-1 w-full" />
