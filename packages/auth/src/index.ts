@@ -1,6 +1,7 @@
 import { db } from "@repo/db";
 import { env } from "@repo/env";
 import { betterAuth } from "better-auth";
+import { emailHarmony } from "better-auth-harmony";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
@@ -82,6 +83,7 @@ export const auth = betterAuth({
     adminPlugin(),
     patreonPlugin(),
     turnstilePlugin(),
+    emailHarmony(),
     tanstackStartCookies(), // this must be the last plugin in the array
   ],
   secret: env.BETTER_AUTH_SECRET,
