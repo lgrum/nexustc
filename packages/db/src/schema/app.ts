@@ -58,6 +58,7 @@ export const user = pgTable(
     image: text("image"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     name: text("name").notNull(),
+    newsletterOptIn: boolean("newsletter_opt_in").default(false).notNull(),
     role: text("role").default("user").notNull(),
     ...timestamps,
   },

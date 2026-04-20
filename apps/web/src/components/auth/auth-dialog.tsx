@@ -21,6 +21,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
@@ -108,6 +109,7 @@ export function AuthDialogContent() {
       confirmPassword: "",
       email: "",
       name: "",
+      newsletterOptIn: false,
       password: "",
       turnstileToken: "",
     },
@@ -126,6 +128,7 @@ export function AuthDialogContent() {
             },
           },
           name: value.name,
+          newsletterOptIn: value.newsletterOptIn,
           password: value.password,
         });
 
@@ -143,6 +146,7 @@ export function AuthDialogContent() {
         setTab("login");
         registerForm.resetField("password");
         registerForm.resetField("confirmPassword");
+        registerForm.resetField("newsletterOptIn");
         registerForm.resetField("turnstileToken");
       } catch (error) {
         toast.dismiss("auth");
@@ -352,6 +356,9 @@ export function AuthDialogContent() {
                     />
                   )}
                 </registerForm.AppField>
+                <registerForm.AppField name="newsletterOptIn">
+                  {(field) => <NewsletterOptInField field={field} />}
+                </registerForm.AppField>
                 <registerForm.AppField name="turnstileToken">
                   {(field) => (
                     <TurnstileContainer
@@ -376,6 +383,25 @@ export function AuthDialogContent() {
         </div>
       </Dialog.Popup>
     </Dialog.Portal>
+  );
+}
+
+function NewsletterOptInField({ field }: { field: AnyFieldApi }) {
+  return (
+    <label
+      className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 bg-input/20 px-3 py-2.5 text-[12.5px] text-muted-foreground leading-snug transition-[border-color,background-color] hover:border-primary/40 hover:bg-input/30 has-data-checked:border-primary/50 has-data-checked:bg-primary/8"
+      htmlFor={field.name}
+    >
+      <Checkbox
+        checked={Boolean(field.state.value)}
+        className="mt-0.5 rounded-md"
+        id={field.name}
+        onCheckedChange={(checked) => field.handleChange(checked)}
+      />
+      <span>
+        Quiero recibir novedades, actualizaciones y noticias por email.
+      </span>
+    </label>
   );
 }
 
@@ -508,6 +534,7 @@ const registerSchema = z
     confirmPassword: z.string(),
     email: z.email("Email inválido"),
     name: z.string(),
+    newsletterOptIn: z.boolean(),
     password: z
       .string()
       .min(8, "Debe tener al menos 8 caracteres")

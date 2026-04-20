@@ -11,6 +11,53 @@ import { adminPlugin } from "./plugins/admin";
 import { patreonPlugin } from "./plugins/patreon";
 import { turnstilePlugin } from "./plugins/turnstile";
 
+type NewsletterOptInUser = {
+  email: string;
+  id: string;
+  name?: string | null;
+  newsletterOptIn?: boolean | null;
+};
+
+const subscribeVerifiedNewsletterContact = async (
+  user: NewsletterOptInUser
+) => {
+  if (!user.newsletterOptIn) {
+    return;
+  }
+
+  const contact = {
+    email: user.email,
+    firstName: user.name ?? undefined,
+    properties: {
+      source: "registration",
+      userId: user.id,
+    },
+    unsubscribed: false,
+  };
+
+  const { error } = await resend.contacts.create(contact);
+
+  if (!error) {
+    return;
+  }
+
+  if (error.name === "validation_error") {
+    const { error: updateError } = await resend.contacts.update({
+      ...contact,
+      email: user.email,
+    });
+
+    if (!updateError) {
+      return;
+    }
+
+    console.error("Failed to update Resend newsletter contact", updateError);
+    return;
+  }
+
+  console.error("Failed to create Resend newsletter contact", error);
+};
+
 export const auth = betterAuth({
   account: {
     accountLinking: {
@@ -63,6 +110,7 @@ export const auth = betterAuth({
   },
 
   emailVerification: {
+    afterEmailVerification: subscribeVerifiedNewsletterContact,
     autoSignInAfterVerification: true,
     sendOnSignIn: true,
     sendOnSignUp: true,
@@ -100,6 +148,13 @@ export const auth = betterAuth({
         input: false,
         required: false,
         type: "string",
+      },
+      newsletterOptIn: {
+        defaultValue: false,
+        input: true,
+        required: false,
+        returned: false,
+        type: "boolean",
       },
       role: {
         defaultValue: "user",
