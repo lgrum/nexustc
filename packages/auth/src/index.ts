@@ -75,7 +75,11 @@ export const auth = betterAuth({
     },
   },
 
-  baseURL: env.BETTER_AUTH_URL,
+  baseURL: {
+    allowedHosts: ["nexustc18.com", "*.nexustc18.com"],
+    protocol: "https",
+    fallback: env.BETTER_AUTH_URL,
+  },
 
   database: drizzleAdapter(db, {
     provider: "pg",
