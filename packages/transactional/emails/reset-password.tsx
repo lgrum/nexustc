@@ -18,10 +18,10 @@ import {
 import tailwindConfig from "../tailwind.config";
 
 type ConfirmEmailProps = {
-  verificationUrl: string;
+  resetUrl: string;
 };
 
-export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
+export const ResetPassword = ({ resetUrl }: ConfirmEmailProps) => (
   <Html>
     <Head>
       <Font
@@ -37,7 +37,7 @@ export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
     </Head>
     <Tailwind config={tailwindConfig}>
       <Body className="mx-auto my-0 bg-slate-950 font-sans text-stone-300">
-        <Preview>Confirma tu Correo Electrónico</Preview>
+        <Preview>Reestablece tu contraseña</Preview>
         <Container className="mx-auto my-0 px-5 py-0">
           <Section className="mt-8 text-center">
             <Heading className="mx-0 my-7.5 inline-block p-0 font-bold text-3xl text-white leading-10.5">
@@ -46,18 +46,19 @@ export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
             </Heading>
           </Section>
           <Heading className="mx-0 my-7.5 p-0 font-bold text-3xl leading-10.5 text-center text-balance">
-            Miles de Juegos y Comics H Te Esperan
+            Reestablece tu Contraseña
           </Heading>
           <Text className="mb-7.5 text-center text-xl">
-            Solo un pequeño paso más...
+            No te preocupes, solo haz click en el botón de abajo y podrás crear
+            una nueva contraseña para tu cuenta.
           </Text>
 
           <Section className="px-0 py-6.75 text-center">
             <Button
               className="inline-block rounded-full bg-amber-500/10 px-5.75 py-2.75 text-center font-semibold text-[15px] text-amber-400 border border-amber-400 no-underline"
-              href={verificationUrl}
+              href={resetUrl}
             >
-              Verificar Mi Correo
+              Reestablecer Contraseña
             </Button>
           </Section>
 
@@ -68,9 +69,9 @@ export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
             en tu navegador:{" "}
             <Link
               className="text-sm text-white leading-6 underline"
-              href={verificationUrl}
+              href={resetUrl}
             >
-              {verificationUrl}
+              {resetUrl}
             </Link>
           </Text>
 
@@ -94,8 +95,8 @@ export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
   </Html>
 );
 
-ConfirmEmail.PreviewProps = {
-  verificationUrl: "https://nexustc18.com",
+ResetPassword.PreviewProps = {
+  resetUrl: "https://nexustc18.com",
 } as ConfirmEmailProps;
 
-export default ConfirmEmail;
+export default ResetPassword;

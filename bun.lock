@@ -151,6 +151,7 @@
         "@repo/env": "workspace:*",
         "@repo/patreon": "workspace:*",
         "@repo/shared": "workspace:*",
+        "@repo/transactional": "workspace:*",
         "better-auth": "catalog:",
         "better-auth-harmony": "^1.3.2",
         "dotenv": "catalog:",

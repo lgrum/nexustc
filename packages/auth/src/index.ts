@@ -1,5 +1,7 @@
 import { db } from "@repo/db";
 import { env } from "@repo/env";
+import { ConfirmEmail } from "@repo/transactional/emails/confirm-email";
+import { ResetPassword } from "@repo/transactional/emails/reset-password";
 import { betterAuth } from "better-auth";
 import { emailHarmony } from "better-auth-harmony";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -102,9 +104,9 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await resend.emails.send({
         from: "NeXusTC <noreply@accounts.nexustc18.com>",
-        html: `<p>Haz click <a href="${url}">aquí</a> para restablecer tu contraseña</p>`,
-        subject: "Restablece tu contraseña",
         to: user.email,
+        subject: "Reestablece tu contraseña",
+        react: ResetPassword({ resetUrl: url }),
       });
     },
   },
@@ -117,8 +119,9 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       await resend.emails.send({
         from: "NeXusTC <noreply@accounts.nexustc18.com>",
-        template: { id: "confirm-email", variables: { VERIFICATION_URL: url } },
         to: user.email,
+        subject: "Confirma tu correo electrónico",
+        react: ConfirmEmail({ verificationUrl: url }),
       });
     },
   },
