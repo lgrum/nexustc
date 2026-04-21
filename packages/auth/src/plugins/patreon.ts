@@ -15,6 +15,7 @@ export const patreonPlugin = () =>
         clientId: env.PATREON_CLIENT_ID,
         clientSecret: env.PATREON_CLIENT_SECRET,
         scopes,
+        redirectURI: "https://nexustc18.com/api/auth/oauth2/callback/patreon",
       }),
     ],
   });
