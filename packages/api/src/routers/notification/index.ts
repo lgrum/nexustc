@@ -51,12 +51,26 @@ export default {
 
   followContent: protectedProcedure
     .input(contentFollowSchema)
-    .handler(({ context: { db, session }, input }) =>
-      followContent(db, {
-        contentId: input.contentId,
-        userId: session.user.id,
-      })
-    ),
+    .handler(async ({ context: { db, session }, input, errors }) => {
+      try {
+        return await followContent(db, {
+          contentId: input.contentId,
+          role: session.user.role,
+          userId: session.user.id,
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === "FOLLOW_LIMIT_REACHED"
+        ) {
+          throw errors.FORBIDDEN({
+            message: "Limite de seguidos alcanzado para tu nivel.",
+          });
+        }
+
+        throw error;
+      }
+    }),
 
   getFeed: protectedProcedure
     .input(notificationFeedSchema)

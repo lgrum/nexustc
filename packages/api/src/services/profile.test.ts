@@ -1,4 +1,7 @@
-import { validateProfileMediaUpload } from "./profile";
+import {
+  getProfileEntitlementsForTier,
+  validateProfileMediaUpload,
+} from "./profile";
 import type { ProfileEntitlements } from "./profile";
 
 const unrestrictedEntitlements: ProfileEntitlements = {
@@ -44,5 +47,22 @@ describe(validateProfileMediaUpload, () => {
         },
       })
     ).not.toThrow();
+  });
+});
+
+describe(getProfileEntitlementsForTier, () => {
+  it("keeps uploaded and animated banner thresholds distinct", () => {
+    const level3 = getProfileEntitlementsForTier("level3");
+    const level5 = getProfileEntitlementsForTier("level5");
+    const level8 = getProfileEntitlementsForTier("level8");
+
+    expect(level3.canUseAnimatedAvatar).toBe(true);
+    expect(level3.canUseUploadedBanner).toBe(false);
+
+    expect(level5.canUseUploadedBanner).toBe(true);
+    expect(level5.canUseAnimatedBanner).toBe(false);
+
+    expect(level8.canUseUploadedBanner).toBe(true);
+    expect(level8.canUseAnimatedBanner).toBe(true);
   });
 });

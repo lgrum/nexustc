@@ -10,8 +10,10 @@ import {
   PATRON_TIER_KEYS,
   PATRON_TIER_PROFILE_BADGES,
   PATRON_TIERS,
+  userMeetsTierLevel,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
+import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { TierShape } from "@/components/tier-shape";
@@ -37,38 +39,82 @@ function RouteComponent() {
   );
 }
 
-const TIER_PRICE_LABELS: Record<PatronTier, string> = {
-  none: "Gratis",
-  level1: "$1.25/mes",
-  level3: "$3.25/mes",
-  level5: "$5.99/mes",
-  level8: "$8.99/mes",
-  level12: "$12.34/mes",
-  level69: "—",
-  level100: "$199.00 único",
+const TIER_SETTINGS: Record<
+  PatronTier,
+  {
+    price: string;
+    name: string;
+    activeCheckout: boolean;
+    emojis: number;
+    avatar: "static" | "animated";
+    banner: "none" | "static" | "animated";
+  }
+> = {
+  none: {
+    price: "Gratis",
+    name: "Free",
+    activeCheckout: true,
+    emojis: 0,
+    avatar: "static",
+    banner: "none",
+  },
+  level1: {
+    price: "$1.25/mes",
+    name: "LvL 1",
+    activeCheckout: true,
+    emojis: 3,
+    avatar: "static",
+    banner: "none",
+  },
+  level3: {
+    price: "$3.25/mes",
+    name: "LvL 3",
+    activeCheckout: true,
+    emojis: 7,
+    avatar: "animated",
+    banner: "none",
+  },
+  level5: {
+    price: "$5.99/mes",
+    name: "LvL 5",
+    activeCheckout: true,
+    emojis: 13,
+    avatar: "animated",
+    banner: "static",
+  },
+  level8: {
+    price: "$8.99/mes",
+    name: "LvL 8",
+    activeCheckout: true,
+    emojis: 22,
+    avatar: "animated",
+    banner: "animated",
+  },
+  level12: {
+    price: "$12.34/mes",
+    name: "LvL 12",
+    activeCheckout: true,
+    emojis: Number.POSITIVE_INFINITY,
+    avatar: "animated",
+    banner: "animated",
+  },
+  level69: {
+    price: "—",
+    name: "LvL 69",
+    activeCheckout: false,
+    emojis: Number.POSITIVE_INFINITY,
+    avatar: "animated",
+    banner: "animated",
+  },
+  level100: {
+    price: "$199.00 único",
+    name: "LvL 100",
+    activeCheckout: true,
+    emojis: Number.POSITIVE_INFINITY,
+    avatar: "animated",
+    banner: "animated",
+  },
 };
-
-const TIER_NAMES: Record<PatronTier, string> = {
-  none: "Free",
-  level1: "LvL 1",
-  level3: "LvL 3",
-  level5: "LvL 5",
-  level8: "LvL 8",
-  level12: "LvL 12",
-  level69: "LvL 69",
-  level100: "LvL 100",
-};
-
-// Tiers with an active Patreon checkout. `none` is the implicit free tier and
-// `level69` is permanently sold out.
-const PATREON_CHECKOUT_TIERS: ReadonlySet<PatronTier> = new Set([
-  "level1",
-  "level3",
-  "level5",
-  "level8",
-  "level12",
-  "level100",
-]);
 
 const TIER_TO_PATREON_ID: Partial<Record<PatronTier, string>> =
   Object.fromEntries(
@@ -76,7 +122,7 @@ const TIER_TO_PATREON_ID: Partial<Record<PatronTier, string>> =
   );
 
 function patreonCheckoutUrl(tier: PatronTier): string | null {
-  if (!PATREON_CHECKOUT_TIERS.has(tier)) {
+  if (!TIER_SETTINGS[tier].activeCheckout) {
     return null;
   }
   const id = TIER_TO_PATREON_ID[tier];
@@ -110,9 +156,24 @@ type FeatureRow = {
 };
 
 const CATEGORY_LABELS = {
-  completed: "Finalizados",
-  ongoing: "En progreso",
+  completed: "Finalizados/Abandonados",
+  ongoing: "En Progreso",
 } as const;
+
+function getTierEarlyAccessValue(tier: PatronTier): CellValue {
+  if (userMeetsTierLevel({ tier }, "level12")) {
+    return {
+      kind: "text",
+      label: `${EARLY_ACCESS_DEFAULTS.vip12Hours + EARLY_ACCESS_DEFAULTS.vip8Hours} hs`,
+    };
+  }
+
+  if (userMeetsTierLevel({ tier }, "level8")) {
+    return { kind: "text", label: `${EARLY_ACCESS_DEFAULTS.vip8Hours} hs` };
+  }
+
+  return { kind: "cross" };
+}
 
 const FEATURE_ROWS: FeatureRow[] = [
   {
@@ -120,7 +181,7 @@ const FEATURE_ROWS: FeatureRow[] = [
     render: (tier) => ({
       emphasis: true,
       kind: "text",
-      label: TIER_PRICE_LABELS[tier],
+      label: TIER_SETTINGS[tier].price,
     }),
   },
   {
@@ -129,7 +190,6 @@ const FEATURE_ROWS: FeatureRow[] = [
       PATRON_TIERS[tier].adFree ? { kind: "check" } : { kind: "cross" },
   },
   {
-    hint: "Qué categorías desbloquea para ti",
     label: "Links premium",
     render: (tier) => {
       const access = PATRON_TIERS[tier].premiumLinks;
@@ -137,7 +197,7 @@ const FEATURE_ROWS: FeatureRow[] = [
         return { kind: "cross" };
       }
       if (access.type === "all") {
-        return { kind: "text", label: "Todos los estados" };
+        return { kind: "text", label: "Todos" };
       }
       return {
         kind: "text",
@@ -149,16 +209,7 @@ const FEATURE_ROWS: FeatureRow[] = [
   },
   {
     label: "Early access a juegos",
-    render: (tier) => {
-      const { level } = PATRON_TIERS[tier];
-      if (level >= 3) {
-        return { kind: "text", label: "Fase VIP 12 + VIP 8" };
-      }
-      if (level >= 1) {
-        return { kind: "text", label: "Fase VIP 8" };
-      }
-      return { kind: "cross" };
-    },
+    render: getTierEarlyAccessValue,
   },
   {
     label: "Favoritos máximos",
@@ -171,6 +222,42 @@ const FEATURE_ROWS: FeatureRow[] = [
     },
   },
   {
+    label: "Emojis desbloqueados",
+    render: (tier) => {
+      const max = TIER_SETTINGS[tier].emojis;
+      if (max === 0) {
+        return { kind: "cross" };
+      }
+      if (!Number.isFinite(max)) {
+        return { kind: "infinity" };
+      }
+      return { kind: "text", label: String(max) };
+    },
+  },
+  {
+    label: "Avatar",
+    render: (tier) => {
+      const { avatar } = TIER_SETTINGS[tier];
+      if (avatar === "static") {
+        return { kind: "text", label: "Estático" };
+      }
+      return { kind: "text", label: "Animado" };
+    },
+  },
+  {
+    label: "Banner",
+    render: (tier) => {
+      const { banner } = TIER_SETTINGS[tier];
+      if (banner === "none") {
+        return { kind: "cross" };
+      }
+      if (banner === "static") {
+        return { kind: "text", label: "Estático" };
+      }
+      return { kind: "text", label: "Animado" };
+    },
+  },
+  {
     label: "Badge de perfil",
     render: (tier) => {
       const { badge } = PATRON_TIERS[tier];
@@ -179,6 +266,15 @@ const FEATURE_ROWS: FeatureRow[] = [
         return { kind: "cross" };
       }
       return { kind: "text", label: profileBadge };
+    },
+  },
+  {
+    label: "TextBox Exclusivo",
+    render: (tier) => {
+      if (tier === "none") {
+        return { kind: "cross" };
+      }
+      return { kind: "check" };
     },
   },
   {
@@ -213,10 +309,10 @@ function TierHeaderCell({ tier }: { tier: PatronTier }) {
         <TierShape className="size-16" tier={tier} />
         <div className="flex flex-col gap-0.5">
           <span className="display-heading text-[17px] text-foreground">
-            {TIER_NAMES[tier]}
+            {TIER_SETTINGS[tier].name}
           </span>
           <span className="font-medium text-[10.5px] text-muted-foreground uppercase tracking-[0.18em]">
-            {TIER_PRICE_LABELS[tier]}
+            {TIER_SETTINGS[tier].price}
           </span>
         </div>
         <p className="min-h-8 text-[11.5px] text-muted-foreground leading-snug">
@@ -232,7 +328,7 @@ function TierHeaderCell({ tier }: { tier: PatronTier }) {
           render={
             checkoutUrl ? (
               <a
-                aria-label={`Comprar ${TIER_NAMES[tier]} en Patreon`}
+                aria-label={`Comprar ${TIER_SETTINGS[tier].name} en Patreon`}
                 href={checkoutUrl}
                 rel="noopener noreferrer"
                 target="_blank"

@@ -14,9 +14,12 @@ import {
   notificationRead,
   notificationTarget,
   or,
+  patron,
   post,
   sql,
 } from "@repo/db";
+import { canFollow } from "@repo/shared/constants";
+import type { PatronTier } from "@repo/shared/constants";
 
 import type { Context } from "../context";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
@@ -887,6 +890,7 @@ export async function followContent(
   db: NotificationDb,
   params: {
     contentId: string;
+    role?: string | null;
     userId: string;
   }
 ) {
@@ -902,6 +906,35 @@ export async function followContent(
 
   if (!content || content.status !== "publish") {
     throw new Error("FOLLOW_TARGET_NOT_FOUND");
+  }
+
+  const existingFollow = await db.query.contentFollower.findFirst({
+    columns: { contentId: true },
+    where: and(
+      eq(contentFollower.contentId, content.id),
+      eq(contentFollower.userId, params.userId)
+    ),
+  });
+
+  if (existingFollow) {
+    return content;
+  }
+
+  const patronRecord = await db.query.patron.findFirst({
+    columns: { isActivePatron: true, tier: true },
+    where: eq(patron.userId, params.userId),
+  });
+  const tier: PatronTier = patronRecord?.isActivePatron
+    ? patronRecord.tier
+    : "none";
+  const follows = await db
+    .select({ count: sql<number>`count(*)`.as("count") })
+    .from(contentFollower)
+    .where(eq(contentFollower.userId, params.userId));
+  const followCount = follows[0]?.count ?? 0;
+
+  if (!canFollow({ role: params.role ?? "user", tier }, followCount)) {
+    throw new Error("FOLLOW_LIMIT_REACHED");
   }
 
   await db

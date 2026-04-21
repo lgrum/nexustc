@@ -165,7 +165,7 @@ export const PATRON_TIERS: Record<
     adFree: false,
     badge: "LvL 1",
     level: 1,
-    maxBookmarks: 10,
+    maxBookmarks: 7,
     premiumLinks: { categories: ["completed"], type: "category" },
   },
   level3: {
@@ -351,6 +351,13 @@ export function canBookmark(
 
   const { maxBookmarks } = PATRON_TIERS[user.tier];
   return currentBookmarks < maxBookmarks;
+}
+
+export function canFollow(
+  user: { role?: string; tier: PatronTier },
+  currentFollows: number
+): boolean {
+  return canBookmark(user, currentFollows);
 }
 
 export function getRequiredTierLabel(

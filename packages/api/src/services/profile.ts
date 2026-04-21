@@ -15,7 +15,7 @@ import {
 import { env } from "@repo/env";
 import {
   PATRON_TIER_PROFILE_BADGES,
-  PATRON_TIERS,
+  userMeetsTierLevel,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { PROFILE_DEFAULTS } from "@repo/shared/profile";
@@ -175,10 +175,6 @@ function clampVisibleEmblems(
     .slice(0, maxVisibleEmblems);
 }
 
-function getEffectiveTierLevel(tier: PatronTier) {
-  return PATRON_TIERS[tier].level;
-}
-
 export async function getUserPatronTier(db: Database, userId: string) {
   const patronRecord = await db.query.patron.findFirst({
     columns: { isActivePatron: true, tier: true },
@@ -190,6 +186,31 @@ export async function getUserPatronTier(db: Database, userId: string) {
   }
 
   return patronRecord.tier;
+}
+
+export function getProfileEntitlementsForTier(
+  tier: PatronTier
+): Omit<ProfileEntitlements, "overrideSource"> {
+  return {
+    animatedAvatarRequiredTier:
+      PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier,
+    animatedBannerRequiredTier:
+      PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier,
+    canUseAnimatedAvatar: userMeetsTierLevel(
+      { tier },
+      PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier
+    ),
+    canUseAnimatedBanner: userMeetsTierLevel(
+      { tier },
+      PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier
+    ),
+    canUseUploadedBanner: userMeetsTierLevel(
+      { tier },
+      PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier
+    ),
+    uploadedBannerRequiredTier:
+      PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier,
+  };
 }
 
 export async function getProfileEntitlements(
@@ -213,31 +234,10 @@ export async function getProfileEntitlements(
   }
 
   const tier = await getUserPatronTier(db, userId);
-  const tierLevel = getEffectiveTierLevel(tier);
 
   return {
-    animatedAvatarRequiredTier:
-      PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier,
-    animatedBannerRequiredTier:
-      PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier,
-    canUseAnimatedAvatar:
-      tierLevel >=
-      getEffectiveTierLevel(
-        PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier
-      ),
-    canUseAnimatedBanner:
-      tierLevel >=
-      getEffectiveTierLevel(
-        PROFILE_ENTITLEMENT_RULES.animatedBannerRequiredTier
-      ),
-    canUseUploadedBanner:
-      tierLevel >=
-      getEffectiveTierLevel(
-        PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier
-      ),
+    ...getProfileEntitlementsForTier(tier),
     overrideSource: "none",
-    uploadedBannerRequiredTier:
-      PROFILE_ENTITLEMENT_RULES.uploadedBannerRequiredTier,
   };
 }
 
