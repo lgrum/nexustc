@@ -5,10 +5,7 @@ const scopes = [
   "identity",
   "identity[email]",
   "identity.memberships",
-  "campaigns",
   "campaigns.members[email]",
-  "campaigns.members.address",
-  "campaigns.posts",
 ];
 
 export const patreonPlugin = () =>
