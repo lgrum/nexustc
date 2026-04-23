@@ -38,6 +38,16 @@ export const DOCUMENT_STATUS_LABELS: Record<
   trash: "Basura",
 } as const;
 
+export const ALLOWED_EMAIL_DOMAINS = new Set([
+  "gmail.com",
+  "yahoo.com",
+  "outlook.com",
+  "icloud.com",
+  "protonmail.com",
+  "msn.com",
+  "live.com",
+]);
+
 export const RATING_REVIEW_MAX_LENGTH = 512;
 export const MAX_PINNED_ITEMS_PER_POST = 3;
 

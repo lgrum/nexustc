@@ -29,6 +29,7 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  varchar,
 } from "drizzle-orm/pg-core";
 
 import { generateId } from "../utils";
@@ -57,7 +58,7 @@ export const user = pgTable(
     id: text("id").primaryKey(),
     image: text("image"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
-    name: text("name").notNull(),
+    name: varchar("name", { length: 16 }).notNull(),
     newsletterOptIn: boolean("newsletter_opt_in").default(false).notNull(),
     role: text("role").default("user").notNull(),
     ...timestamps,

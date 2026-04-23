@@ -6,6 +6,7 @@ import {
   ArrowRight01Icon,
   Cancel01Icon,
   Mail01Icon,
+  ShieldQuestionMarkIcon,
   SquareLock01Icon,
   UserIcon,
 } from "@hugeicons/core-free-icons";
@@ -13,10 +14,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import type { TurnstileInstance } from "@marsidev/react-turnstile";
 import { env } from "@repo/env/client";
+import { ALLOWED_EMAIL_DOMAINS } from "@repo/shared/constants";
 import { useStore } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Facehash } from "facehash";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -25,7 +26,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
-import { cn, defaultFacehashProps } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+
+import {
+  Item,
+  ItemContent,
+  ItemDescription,
+  ItemMedia,
+  ItemTitle,
+} from "../ui/item";
 
 export function AuthDialog({ ...props }: Dialog.Root.Props) {
   return <Dialog.Root {...props} />;
@@ -163,11 +172,6 @@ export function AuthDialogContent() {
     },
   });
 
-  const registerName = useStore(
-    registerForm.store,
-    (state) => state.values.name
-  );
-
   const handleTabChange = (newTab: string | number | null) => {
     if (newTab === null) {
       return;
@@ -183,7 +187,7 @@ export function AuthDialogContent() {
   return (
     <Dialog.Portal>
       <Dialog.Backdrop className="data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 z-50 bg-background/70 backdrop-blur-md duration-150 data-closed:animate-out data-open:animate-in" />
-      <Dialog.Popup className="data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-2xl outline-none backdrop-blur-xl duration-150 data-closed:animate-out data-open:animate-in sm:max-w-100">
+      <Dialog.Popup className="overflow-y-auto max-h-[95dvh] data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/90 shadow-2xl outline-none backdrop-blur-xl duration-150 data-closed:animate-out data-open:animate-in sm:max-w-100">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-linear-to-b from-primary/8 via-primary/3 to-transparent"
@@ -308,7 +312,6 @@ export function AuthDialogContent() {
                   registerForm.handleSubmit();
                 }}
               >
-                <AvatarPreview name={registerName} />
                 <registerForm.AppField name="name">
                   {(field) => (
                     <AuthField
@@ -332,6 +335,17 @@ export function AuthDialogContent() {
                     />
                   )}
                 </registerForm.AppField>
+                <Item>
+                  <ItemMedia variant="icon">
+                    <HugeiconsIcon icon={ShieldQuestionMarkIcon} />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>Proveedores permitidos</ItemTitle>
+                    <ItemDescription>
+                      Gmail, Outlook, Yahoo, ProtonMail y iCloud.
+                    </ItemDescription>
+                  </ItemContent>
+                </Item>
                 <registerForm.AppField name="password">
                   {(field) => (
                     <AuthField
@@ -492,34 +506,6 @@ function AuthErrorBanner({ message }: { message: string }) {
   );
 }
 
-function AvatarPreview({ name }: { name: string }) {
-  const hasName = name.trim().length > 0;
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative">
-        <div
-          aria-hidden
-          className={cn(
-            "-inset-1 absolute rounded-full bg-linear-to-br from-primary/40 via-fuchsia-500/30 to-sky-500/30 opacity-0 blur-md transition-opacity duration-300",
-            hasName && "opacity-100"
-          )}
-        />
-        <div className="relative size-20 overflow-hidden rounded-full border border-border/80 bg-muted/60 shadow-md">
-          <Facehash
-            {...defaultFacehashProps}
-            className="h-full w-full"
-            name={name}
-            size="100%"
-          />
-        </div>
-      </div>
-      <span className="font-medium text-[10.5px] text-muted-foreground uppercase tracking-[0.22em]">
-        {hasName ? "Tu avatar" : "Elige un alias"}
-      </span>
-    </div>
-  );
-}
-
 const loginSchema = z.object({
   email: z.email("Email inválido"),
   password: z
@@ -532,8 +518,16 @@ const loginSchema = z.object({
 const registerSchema = z
   .object({
     confirmPassword: z.string(),
-    email: z.email("Email inválido"),
-    name: z.string(),
+    email: z
+      .email("Email inválido")
+      .refine(
+        (email) => ALLOWED_EMAIL_DOMAINS.has(email.split("@")[1]),
+        "Proveedor de e-mail no permitido"
+      ),
+    name: z
+      .string()
+      .min(3, "Debe tener al menos 3 caracteres")
+      .max(16, "Debe tener como máximo 16 caracteres"),
     newsletterOptIn: z.boolean(),
     password: z
       .string()

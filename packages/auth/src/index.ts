@@ -1,10 +1,13 @@
 import { db } from "@repo/db";
 import { env } from "@repo/env";
+import { ALLOWED_EMAIL_DOMAINS } from "@repo/shared/constants";
 import { ConfirmEmail } from "@repo/transactional/emails/confirm-email";
 import { ResetPassword } from "@repo/transactional/emails/reset-password";
-import { betterAuth } from "better-auth";
+import { APIError, betterAuth } from "better-auth";
 import { emailHarmony } from "better-auth-harmony";
+import { validateEmail } from "better-auth-harmony/email";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { createAuthMiddleware } from "better-auth/api";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 
 import { resend } from "./email";
@@ -65,6 +68,7 @@ export const auth = betterAuth({
     accountLinking: {
       allowDifferentEmails: true,
       enabled: true,
+      trustedProviders: ["email-password", "patreon"],
     },
   },
   advanced: {
@@ -134,11 +138,61 @@ export const auth = betterAuth({
     joins: true,
   },
 
+  hooks: {
+    // oxlint-disable-next-line require-await
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") {
+        return;
+      }
+
+      const len = ctx.body?.name.length;
+
+      if (len < 3) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Name must be at least 3 characters long",
+        });
+      }
+
+      if (len > 16) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Name must be at most 16 characters long",
+        });
+      }
+    }),
+  },
+
   plugins: [
     adminPlugin(),
+    // username({
+    //   displayUsernameValidator: (displayUsername) =>
+    //     displayUsername.length >= 5 &&
+    //     displayUsername.length <= 16 &&
+    //     /^[a-zA-Z0-9_-]+$/.test(displayUsername),
+    //   minUsernameLength: 5,
+    //   maxUsernameLength: 16,
+    //   usernameValidator: (name) => /^[a-z]+$/.test(name),
+    // }),
     patreonPlugin(),
     turnstilePlugin(),
-    emailHarmony(),
+    emailHarmony({
+      validator: (email) => {
+        if (!validateEmail(email)) {
+          return false;
+        }
+
+        const domain = email.split("@")[1] ?? "";
+
+        if (!domain) {
+          return false;
+        }
+
+        if (!ALLOWED_EMAIL_DOMAINS.has(domain)) {
+          return false;
+        }
+
+        return true;
+      },
+    }),
     tanstackStartCookies(), // this must be the last plugin in the array
   ],
   secret: env.BETTER_AUTH_SECRET,
