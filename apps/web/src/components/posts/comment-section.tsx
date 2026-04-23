@@ -2,6 +2,7 @@ import {
   Comment01Icon,
   Delete02Icon,
   FavouriteIcon,
+  LegalHammerIcon,
   MoreHorizontalIcon,
   PinIcon,
 } from "@hugeicons/core-free-icons";
@@ -78,6 +79,12 @@ export function CommentSection({
   const canDeleteComments = role
     ? authClient.admin.checkRolePermission({
         permissions: { comments: ["delete"] },
+        role,
+      })
+    : false;
+  const canBanUsers = role
+    ? authClient.admin.checkRolePermission({
+        permissions: { user: ["ban"] },
         role,
       })
     : false;
@@ -218,6 +225,7 @@ export function CommentSection({
     const canDeleteComment = canDeleteComments || isOwnComment;
     const canPinComment = canPinComments && !isReply;
     const replies = isReply ? [] : (repliesByParentId.get(comment.id) ?? []);
+    const canBanUser = canBanUsers && !isOwnComment;
 
     return (
       <div
@@ -249,7 +257,7 @@ export function CommentSection({
                 <HugeiconsIcon className="size-5" icon={PinIcon} />
               </span>
             )}
-            {(canPinComment || canDeleteComment) && (
+            {(canPinComment || canDeleteComment || canBanUser) && (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -273,9 +281,35 @@ export function CommentSection({
                       {comment.pinnedAt ? "Desfijar" : "Fijar"}
                     </DropdownMenuItem>
                   )}
-                  {canDeleteComment && canPinComment && (
+                  {(canBanUser || canDeleteComment) && canPinComment && (
                     <DropdownMenuSeparator />
                   )}
+                  {canBanUser && (
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        if (
+                          await confirm({
+                            description:
+                              "Estas seguro de que quieres banear este usuario? Esta accion no se puede deshacer.",
+                            title: "Banear Usuario",
+                          })
+                        ) {
+                          await authClient.admin.banUser({
+                            userId: comment.author.id,
+                          });
+                          await queryClient.invalidateQueries({
+                            queryKey: ["users"],
+                          });
+                          toast.success("Usuario baneado exitosamente.");
+                        }
+                      }}
+                      variant="destructive"
+                    >
+                      <HugeiconsIcon icon={LegalHammerIcon} />
+                      Banear Usuario
+                    </DropdownMenuItem>
+                  )}
+
                   {canDeleteComment && (
                     <DropdownMenuItem
                       onClick={async () => {
@@ -483,6 +517,7 @@ export function CommentSection({
                 .map((comment) => {
                   const isOwnComment = session?.user.id === comment.author.id;
                   const canDeleteComment = canDeleteComments || isOwnComment;
+                  const canBanUser = canBanUsers && !isOwnComment;
 
                   return (
                     <div
@@ -554,8 +589,34 @@ export function CommentSection({
                                     {comment.pinnedAt ? "Desfijar" : "Fijar"}
                                   </DropdownMenuItem>
                                 )}
-                                {canDeleteComment && canPinComments && (
-                                  <DropdownMenuSeparator />
+                                {(canBanUser || canDeleteComment) &&
+                                  canPinComments && <DropdownMenuSeparator />}
+                                {canBanUser && (
+                                  <DropdownMenuItem
+                                    onClick={async () => {
+                                      if (
+                                        await confirm({
+                                          description:
+                                            "Estas seguro de que quieres banear este usuario? Esta accion no se puede deshacer.",
+                                          title: "Banear Usuario",
+                                        })
+                                      ) {
+                                        await authClient.admin.banUser({
+                                          userId: comment.author.id,
+                                        });
+                                        await queryClient.invalidateQueries({
+                                          queryKey: ["users"],
+                                        });
+                                        toast.success(
+                                          "Usuario baneado exitosamente."
+                                        );
+                                      }
+                                    }}
+                                    variant="destructive"
+                                  >
+                                    <HugeiconsIcon icon={LegalHammerIcon} />
+                                    Banear
+                                  </DropdownMenuItem>
                                 )}
                                 {canDeleteComment && (
                                   <DropdownMenuItem
