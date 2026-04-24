@@ -3,6 +3,7 @@ import type { PatronTier } from "@repo/shared/constants";
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { cn } from "@/lib/utils";
 
@@ -28,11 +29,6 @@ function getTierContentStyle(tier: PatronTier | null | undefined) {
   } satisfies CSSProperties;
 }
 
-/**
- * Restricted markdown renderer for reviews.
- * Only allows: bold, italic, links, lists
- * Disallows: headings, images, code blocks
- */
 export function ReviewMarkdown({
   children: review,
   patronTier,
@@ -56,30 +52,12 @@ export function ReviewMarkdown({
     >
       <ReactMarkdown
         components={{
-          h1: ({ children }) => <p className="font-semibold">{children}</p>,
-          h2: ({ children }) => <p className="font-semibold">{children}</p>,
-          h3: ({ children }) => <p className="font-semibold">{children}</p>,
-          h4: ({ children }) => <p className="font-semibold">{children}</p>,
-          h5: ({ children }) => <p className="font-semibold">{children}</p>,
-          h6: ({ children }) => <p className="font-semibold">{children}</p>,
+          a: ({ children }) => <span>{children}</span>,
           img: () => null,
-          code: ({ children }) => (
-            <span className="rounded bg-muted px-1 py-0.5 font-mono text-sm">
-              {children}
-            </span>
-          ),
-          pre: ({ children }) => <span>{children}</span>,
-          a: ({ href, children }) => (
-            <a
-              className="text-primary underline hover:text-primary/80"
-              href={href}
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              {children}
-            </a>
-          ),
         }}
+        disallowedElements={["img"]}
+        remarkPlugins={[remarkGfm]}
+        skipHtml
       >
         {review}
       </ReactMarkdown>

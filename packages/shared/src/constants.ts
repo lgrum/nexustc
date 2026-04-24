@@ -48,7 +48,7 @@ export const ALLOWED_EMAIL_DOMAINS = new Set([
   "live.com",
 ]);
 
-export const RATING_REVIEW_MAX_LENGTH = 512;
+export const RATING_REVIEW_MAX_LENGTH = 3200;
 export const MAX_PINNED_ITEMS_PER_POST = 3;
 
 export const PREMIUM_LINK_ACCESS_LEVELS = [

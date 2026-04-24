@@ -23,6 +23,15 @@ type RatingDialogProps = {
   onOpenChange: (open: boolean) => void;
 };
 
+const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
+const MARKDOWN_LINK_PATTERN = /!?\[[^\]]*]\([^)]*\)|!?\[[^\]]*]\[[^\]]*]/;
+const MARKDOWN_REFERENCE_PATTERN = /^\s*\[[^\]]+]:\s*\S+/m;
+
+const hasBlockedMarkdown = (value: string) =>
+  URL_PATTERN.test(value) ||
+  MARKDOWN_LINK_PATTERN.test(value) ||
+  MARKDOWN_REFERENCE_PATTERN.test(value);
+
 export function RatingDialog({
   postId,
   open,
@@ -92,9 +101,15 @@ export function RatingDialog({
   });
 
   const isSubmitting = createMutation.isPending || deleteMutation.isPending;
-  const canSubmit = rating >= 1 && rating <= 10 && !isSubmitting;
   const hasExistingRating = !!existingRating;
   const isOverLimit = review.length > RATING_REVIEW_MAX_LENGTH;
+  const hasBlockedReviewContent = hasBlockedMarkdown(review);
+  const canSubmit =
+    rating >= 1 &&
+    rating <= 10 &&
+    !isSubmitting &&
+    !isOverLimit &&
+    !hasBlockedReviewContent;
 
   return (
     <Dialog.Root onOpenChange={handleOpenChange} open={open}>
@@ -220,12 +235,19 @@ export function RatingDialog({
                     id="review"
                     maxLength={RATING_REVIEW_MAX_LENGTH}
                     onChange={(e) => setReview(e.target.value)}
-                    placeholder="Escribe tu reseña aquí... (Puedes usar **negrita**, *cursiva*, y [enlaces](url))"
+                    placeholder="Escribe tu reseña aquí... Puedes usar Markdown completo, excepto URLs e imágenes."
                     value={review}
                   />
-                  <p className="text-[11px] text-muted-foreground/80 leading-snug">
-                    Markdown básico soportado: negrita, cursiva, enlaces y
-                    listas.
+                  <p
+                    className={`text-[11px] leading-snug ${
+                      hasBlockedReviewContent
+                        ? "text-destructive"
+                        : "text-muted-foreground/80"
+                    }`}
+                  >
+                    {hasBlockedReviewContent
+                      ? "Quita URLs, enlaces o imágenes para continuar."
+                      : "Markdown completo soportado, excepto URLs e imágenes."}
                   </p>
                 </div>
               </div>

@@ -9,6 +9,27 @@ import {
 import { EARLY_ACCESS_MAX_DURATION_HOURS } from "./early-access";
 import { normalizeEngagementPromptList } from "./engagement-prompts";
 
+const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
+const MARKDOWN_LINK_PATTERN = /!?\[[^\]]*]\([^)]*\)|!?\[[^\]]*]\[[^\]]*]/;
+const MARKDOWN_IMAGE_REFERENCE_PATTERN = /^\s*\[[^\]]+]:\s*\S+/m;
+
+const ratingReviewSchema = z
+  .string()
+  .trim()
+  .max(RATING_REVIEW_MAX_LENGTH)
+  .refine((value) => !URL_PATTERN.test(value), {
+    message: "Las reseñas no pueden incluir URLs.",
+  })
+  .refine((value) => !MARKDOWN_LINK_PATTERN.test(value), {
+    message: "Las reseñas no pueden incluir enlaces o imágenes.",
+  })
+  .refine((value) => !MARKDOWN_IMAGE_REFERENCE_PATTERN.test(value), {
+    message: "Las reseñas no pueden incluir enlaces o imágenes.",
+  })
+  .transform((val) => val.trim())
+  .optional()
+  .default("");
+
 export const termCreateSchema = z.object({
   color1: z.string().trim().max(7),
   color2: z.string().trim().max(7),
@@ -231,25 +252,13 @@ export const notificationArchiveSchema = z.object({
 export const ratingCreateSchema = z.object({
   postId: z.string().min(1),
   rating: z.number().int().min(1).max(10),
-  review: z
-    .string()
-    .trim()
-    .max(RATING_REVIEW_MAX_LENGTH)
-    .transform((val) => val.trim())
-    .optional()
-    .default(""),
+  review: ratingReviewSchema,
 });
 
 export const ratingUpdateSchema = z.object({
   postId: z.string().min(1),
   rating: z.number().int().min(1).max(10),
-  review: z
-    .string()
-    .trim()
-    .max(RATING_REVIEW_MAX_LENGTH)
-    .transform((val) => val.trim())
-    .optional()
-    .default(""),
+  review: ratingReviewSchema,
 });
 
 export const forbiddenContentKindSchema = z.enum(["term", "word", "url"]);
