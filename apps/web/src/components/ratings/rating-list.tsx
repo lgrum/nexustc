@@ -31,7 +31,6 @@ import { authClient } from "@/lib/auth-client";
 import { orpcClient } from "@/lib/orpc";
 
 import { ReviewMarkdown } from "./review-markdown";
-import { StarRatingInput } from "./star-rating-input";
 
 type RatingListProps = {
   postId: string;
@@ -224,51 +223,68 @@ export function RatingList({ postId }: RatingListProps) {
         const showActionsMenu = canDelete || canPin || canBanUser;
 
         return (
-          <div
-            className="group flex gap-4 rounded-2xl border bg-background p-4 transition-colors hover:bg-muted/30"
+          <article
+            className="group relative flex gap-3 rounded-2xl border border-border/70 bg-background/60 p-3.5 transition-colors hover:border-border hover:bg-muted/30 sm:gap-4 sm:p-4"
             key={rating.userId}
           >
             {author ? (
-              <Link params={{ id: author.id }} to="/user/$id">
+              <Link
+                className="shrink-0"
+                params={{ id: author.id }}
+                to="/user/$id"
+              >
                 <ProfileAvatar
                   className="size-10 ring-2 ring-background transition-transform group-hover:scale-105"
                   user={author}
                 />
               </Link>
             ) : (
-              <Avatar className="size-10 ring-2 ring-background">
+              <Avatar className="size-10 shrink-0 ring-2 ring-background">
                 <AvatarFallback className="bg-muted">?</AvatarFallback>
               </Avatar>
             )}
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div className="flex flex-wrap items-center gap-2">
-                {author ? (
-                  <Link params={{ id: author.id }} to="/user/$id">
-                    <UserLabel
-                      className="font-semibold transition-colors hover:text-primary"
-                      user={author}
-                    />
-                  </Link>
-                ) : (
-                  <span className="text-muted-foreground">
-                    Usuario eliminado
-                  </span>
-                )}
-                <span className="text-muted-foreground text-xs">•</span>
-                <time className="text-muted-foreground text-xs">
-                  {format(rating.createdAt, "d MMM yyyy", { locale: es })}
-                </time>
-                {rating.pinnedAt ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1 py-1 font-medium text-muted-foreground text-xs">
-                    <HugeiconsIcon className="size-5" icon={PinIcon} />
-                  </span>
-                ) : null}
+
+            <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+              <div className="flex items-start gap-2">
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                    {author ? (
+                      <Link
+                        className="min-w-0 max-w-full"
+                        params={{ id: author.id }}
+                        to="/user/$id"
+                      >
+                        <UserLabel
+                          className="font-semibold transition-colors hover:text-primary"
+                          user={author}
+                        />
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Usuario eliminado
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <time className="text-muted-foreground text-xs">
+                      {format(rating.createdAt, "d MMM yyyy", { locale: es })}
+                    </time>
+                    {rating.pinnedAt ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 font-medium text-[10.5px] text-muted-foreground uppercase tracking-wider">
+                        <HugeiconsIcon className="size-3" icon={PinIcon} />
+                        Fijado
+                      </span>
+                    ) : null}
+                    <RatingPill score={rating.rating} />
+                  </div>
+                </div>
+
                 {showActionsMenu ? (
                   <DropdownMenu>
                     <DropdownMenuTrigger
                       render={
                         <Button
-                          className="ml-auto"
+                          className="shrink-0"
                           size="icon"
                           variant="ghost"
                         />
@@ -342,27 +358,15 @@ export function RatingList({ postId }: RatingListProps) {
                 ) : null}
               </div>
 
-              <div className="flex items-center gap-2">
-                <StarRatingInput
-                  disabled
-                  onChange={() => {
-                    // Read-only display
-                  }}
-                  size="sm"
-                  value={rating.rating}
-                />
-                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 font-semibold text-amber-600 text-sm">
-                  {rating.rating}/10
-                </span>
-              </div>
-
               {rating.review && (
-                <div className="mt-1 text-foreground/90 text-sm leading-relaxed">
-                  <ReviewMarkdown>{rating.review}</ReviewMarkdown>
+                <div className="text-foreground/90 text-sm leading-relaxed">
+                  <ReviewMarkdown patronTier={author.patronTier}>
+                    {rating.review}
+                  </ReviewMarkdown>
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Button
                   className="h-8 gap-1 px-2 text-xs"
                   disabled={toggleReviewLikeMutation.isPending}
@@ -394,9 +398,22 @@ export function RatingList({ postId }: RatingListProps) {
                 </Button>
               </div>
             </div>
-          </div>
+          </article>
         );
       })}
     </div>
+  );
+}
+
+function RatingPill({ score }: { score: number }) {
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 font-semibold text-[11px] text-amber-200 tabular-nums">
+      <HugeiconsIcon
+        className="size-3 fill-amber-300 text-amber-300"
+        icon={StarIcon}
+      />
+      {score}
+      <span className="text-amber-200/60">/10</span>
+    </span>
   );
 }

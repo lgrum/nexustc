@@ -24,8 +24,8 @@ export function StarRatingInput({
   const displayValue = hoverValue ?? value;
 
   const sizeClasses = {
-    lg: "size-8",
-    md: "size-6",
+    lg: "size-6 sm:size-8",
+    md: "size-5 sm:size-6",
     sm: "size-4",
   };
 
@@ -64,7 +64,10 @@ export function StarRatingInput({
   return (
     <div
       aria-label="Rating"
-      className={cn("flex items-center gap-1", className)}
+      className={cn(
+        "flex max-w-full flex-wrap items-center justify-center gap-0.5 sm:gap-1",
+        className
+      )}
       onMouseLeave={() => setHoverValue(null)}
       role="radiogroup"
     >
