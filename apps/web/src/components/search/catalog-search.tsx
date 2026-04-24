@@ -27,8 +27,8 @@ import { orpcClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
 export const ORDER_OPTIONS = [
-  { label: "Más Vistos", value: "views" },
   { label: "Más Recientes", value: "newest" },
+  { label: "Más Vistos", value: "views" },
   { label: "Más Antiguos", value: "oldest" },
   { label: "Título (A-Z)", value: "title_asc" },
   { label: "Título (Z-A)", value: "title_desc" },
@@ -51,7 +51,7 @@ export const orderBySchema = z.enum([
 export const gameSearchParamsSchema = z.object({
   engine: z.array(z.string()).optional().default([]),
   graphics: z.array(z.string()).optional().default([]),
-  orderBy: orderBySchema.optional().default("views"),
+  orderBy: orderBySchema.optional().default("newest"),
   platform: z.array(z.string()).optional().default([]),
   query: z.string().optional(),
   status: z.array(z.string()).optional().default([]),
@@ -59,7 +59,7 @@ export const gameSearchParamsSchema = z.object({
 });
 
 export const comicSearchParamsSchema = z.object({
-  orderBy: orderBySchema.optional().default("views"),
+  orderBy: orderBySchema.optional().default("newest"),
   query: z.string().optional(),
   tag: z.array(z.string()).optional().default([]),
 });
@@ -162,7 +162,7 @@ export function GameSearchControls({
     defaultValues: {
       engine: params.engine ?? [],
       graphics: params.graphics ?? [],
-      orderBy: params.orderBy ?? "views",
+      orderBy: params.orderBy ?? "newest",
       platform: params.platform ?? [],
       query: params.query ?? "",
       status: params.status ?? [],
@@ -212,7 +212,7 @@ export function GameSearchControls({
 
   if (termsQuery.isError) {
     return (
-      <p className="rounded-[8px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm">
+      <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm">
         Error al cargar filtros.
       </p>
     );
@@ -236,7 +236,7 @@ export function GameSearchControls({
             )}
           </form.AppField>
           <Button
-            className="size-12 shrink-0 rounded-[8px]"
+            className="size-12 shrink-0 rounded-xl"
             onClick={handleRandomPost}
             size="icon"
             type="button"
@@ -245,7 +245,7 @@ export function GameSearchControls({
             <HugeiconsIcon icon={DiceFaces05Icon} />
           </Button>
         </div>
-        <SearchFiltersButton className="rounded-[8px] lg:hidden" />
+        <SearchFiltersButton className="rounded-xl lg:hidden" />
         <SearchFilters className="grid gap-3 md:grid-cols-2 lg:flex lg:flex-col">
           <form.AppField name="orderBy">
             {(field) => (
@@ -336,7 +336,7 @@ export function ComicSearchControls({
 
   const form = useAppForm({
     defaultValues: {
-      orderBy: params.orderBy ?? "views",
+      orderBy: params.orderBy ?? "newest",
       query: params.query ?? "",
       tag: params.tag ?? [],
     },
@@ -372,7 +372,7 @@ export function ComicSearchControls({
 
   if (termsQuery.isError) {
     return (
-      <p className="rounded-[8px] border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm">
+      <p className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-destructive text-sm">
         Error al cargar filtros.
       </p>
     );
@@ -397,7 +397,7 @@ export function ComicSearchControls({
             )}
           </form.AppField>
           <Button
-            className="size-12 shrink-0 rounded-[8px]"
+            className="size-12 shrink-0 rounded-xl"
             onClick={handleRandomComic}
             size="icon"
             type="button"
@@ -406,7 +406,7 @@ export function ComicSearchControls({
             <HugeiconsIcon icon={DiceFaces05Icon} />
           </Button>
         </div>
-        <SearchFiltersButton className="rounded-[8px] lg:hidden" />
+        <SearchFiltersButton className="rounded-xl lg:hidden" />
         <SearchFilters className="grid gap-3 md:grid-cols-2 lg:flex lg:flex-col">
           <form.AppField name="orderBy">
             {(field) => (
@@ -476,7 +476,7 @@ function CatalogResults({
 }) {
   if (posts.length === 0) {
     return (
-      <div className="rounded-[8px] border border-dashed border-white/15 bg-card/50 p-8 text-center">
+      <div className="rounded-xl border border-dashed border-white/15 bg-card/50 p-8 text-center">
         <HugeiconsIcon
           className="mx-auto size-8 text-muted-foreground"
           icon={Search01Icon}
@@ -513,7 +513,7 @@ function SearchHeader({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-[8px] border border-primary/30 bg-primary/10 text-primary">
+        <span className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
           <HugeiconsIcon className="size-4" icon={icon} />
         </span>
         <p className="truncate font-[Lexend] font-bold">{title}</p>
@@ -529,10 +529,10 @@ function SearchHeader({
 function SearchControlsSkeleton() {
   return (
     <div className="space-y-3">
-      <Skeleton className="h-9 w-2/3 rounded-[8px]" />
-      <Skeleton className="h-12 w-full rounded-[8px]" />
-      <Skeleton className="h-12 w-full rounded-[8px]" />
-      <Skeleton className="h-12 w-full rounded-[8px]" />
+      <Skeleton className="h-9 w-2/3 rounded-xl" />
+      <Skeleton className="h-12 w-full rounded-xl" />
+      <Skeleton className="h-12 w-full rounded-xl" />
+      <Skeleton className="h-12 w-full rounded-xl" />
     </div>
   );
 }

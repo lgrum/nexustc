@@ -388,7 +388,7 @@ export default {
             "likes",
           ])
           .optional()
-          .default("views"),
+          .default("newest"),
         query: z.string().optional(),
         termIds: z.array(z.string()).optional(),
         type: z.enum(["post", "comic"]),
@@ -561,7 +561,7 @@ export default {
             return sql`${similarityPrefix}COALESCE(${likesAgg.count}, 0) DESC`;
           }
           default: {
-            return sql`${similarityPrefix}${post.views} DESC`;
+            return sql`${similarityPrefix}${post.createdAt} DESC`;
           }
         }
       };
