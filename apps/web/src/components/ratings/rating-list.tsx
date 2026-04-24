@@ -1,6 +1,7 @@
 import {
   Delete02Icon,
   FavouriteIcon,
+  LegalHammerIcon,
   MoreHorizontalIcon,
   PinIcon,
   StarIcon,
@@ -50,6 +51,12 @@ export function RatingList({ postId }: RatingListProps) {
   const canDeleteAnyReviews = role
     ? authClient.admin.checkRolePermission({
         permissions: { ratings: ["delete"] },
+        role,
+      })
+    : false;
+  const canBanUsers = role
+    ? authClient.admin.checkRolePermission({
+        permissions: { user: ["ban"] },
         role,
       })
     : false;
@@ -202,10 +209,19 @@ export function RatingList({ postId }: RatingListProps) {
     <div className="flex flex-col gap-3">
       {data.ratings.map((rating) => {
         const author = authorMap.get(rating.userId);
+
+        if (!author) {
+          console.warn(
+            `Author with ID ${rating.userId} not found for rating on post ${postId}`
+          );
+          return null;
+        }
+
         const isOwnRating = session?.user?.id === rating.userId;
         const canDelete = isOwnRating || (!isOwnRating && canDeleteAnyReviews);
         const canPin = rating.review.trim().length > 0 && canPinReviews;
-        const showActionsMenu = canDelete || canPin;
+        const canBanUser = canBanUsers && !isOwnRating;
+        const showActionsMenu = canDelete || canPin || canBanUser;
 
         return (
           <div
@@ -276,7 +292,36 @@ export function RatingList({ postId }: RatingListProps) {
                           {rating.pinnedAt ? "Desfijar" : "Fijar"}
                         </DropdownMenuItem>
                       ) : null}
-                      {canDelete && canPin ? <DropdownMenuSeparator /> : null}
+                      {(canBanUser || canDelete) && canPin ? (
+                        <DropdownMenuSeparator />
+                      ) : null}
+                      {canBanUser ? (
+                        <DropdownMenuItem
+                          onClick={async () => {
+                            const isConfirmed = await confirm({
+                              description:
+                                "Estas seguro de que quieres banear este usuario? Esta accion no se puede deshacer.",
+                              title: "Banear Usuario",
+                            });
+
+                            if (!isConfirmed) {
+                              return;
+                            }
+
+                            await authClient.admin.banUser({
+                              userId: author.id,
+                            });
+                            await queryClient.invalidateQueries({
+                              queryKey: ["users"],
+                            });
+                            toast.success("Usuario baneado exitosamente.");
+                          }}
+                          variant="destructive"
+                        >
+                          <HugeiconsIcon icon={LegalHammerIcon} />
+                          Banear Usuario
+                        </DropdownMenuItem>
+                      ) : null}
                       {canDelete ? (
                         <DropdownMenuItem
                           onClick={() =>
