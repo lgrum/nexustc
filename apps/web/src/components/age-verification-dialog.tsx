@@ -18,8 +18,44 @@ const CONFIRMATIONS = [
   "Accedo de forma voluntaria y bajo mi propia responsabilidad.",
 ] as const;
 
+const AGE_VERIFIED_KEY = "age_verified";
+const AGE_VERIFICATION_MAX_AGE_SECONDS = 60 * 60 * 24 * 400;
+
 const handleReject = () => {
   window.location.assign("about:blank");
+};
+
+const hasAgeVerification = () => {
+  if (getCookie(AGE_VERIFIED_KEY)) {
+    return true;
+  }
+
+  try {
+    return localStorage.getItem(AGE_VERIFIED_KEY) === "true";
+  } catch {
+    return false;
+  }
+};
+
+const storeAgeVerification = async () => {
+  if ("cookieStore" in window) {
+    await window.cookieStore.set({
+      expires: Date.now() + AGE_VERIFICATION_MAX_AGE_SECONDS * 1000,
+      name: AGE_VERIFIED_KEY,
+      path: "/",
+      sameSite: "lax",
+      value: "true",
+    });
+  } else {
+    // oxlint-disable-next-line no-document-cookie: Safari on iOS does not support the Cookie Store API until iOS 18.3
+    document.cookie = `${AGE_VERIFIED_KEY}=true; Path=/; Max-Age=${AGE_VERIFICATION_MAX_AGE_SECONDS}; SameSite=Lax`;
+  }
+
+  try {
+    localStorage.setItem(AGE_VERIFIED_KEY, "true");
+  } catch {
+    // Cookies are enough when storage is unavailable.
+  }
 };
 
 export function AgeVerificationDialog() {
@@ -27,18 +63,15 @@ export function AgeVerificationDialog() {
 
   // getCookie only works on browser environments, so we avoid ssr with this
   useEffect(() => {
-    setOpen(!getCookie("age_verified"));
+    setOpen(!hasAgeVerification());
   }, []);
 
   const handleAccept = async () => {
-    await cookieStore.set({
-      expires: new Date("9999-12-31T23:59:59Z").getTime(),
-      name: "age_verified",
-      path: "/",
-      sameSite: "lax",
-      value: "true",
-    });
-    setOpen(false);
+    try {
+      await storeAgeVerification();
+    } finally {
+      setOpen(false);
+    }
   };
 
   return (
