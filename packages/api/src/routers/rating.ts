@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, desc, eq, isNull, not, sql } from "@repo/db";
-import { post, postRating, postRatingLikes } from "@repo/db/schema/app";
+import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
@@ -213,16 +213,21 @@ export default {
         `User ${session.user.id} toggling review like for ${input.ratingUserId} on post ${input.postId} to ${input.liked}`
       );
 
-      const existingRating = await db.query.postRating.findFirst({
-        columns: {
-          postId: true,
-          userId: true,
-        },
-        where: and(
-          eq(postRating.postId, input.postId),
-          eq(postRating.userId, input.ratingUserId)
-        ),
-      });
+      const [existingRating] = await db
+        .select({
+          postId: postRating.postId,
+          userId: postRating.userId,
+        })
+        .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(
+          and(
+            eq(postRating.postId, input.postId),
+            eq(postRating.userId, input.ratingUserId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
+        .limit(1);
 
       if (!existingRating) {
         throw errors.NOT_FOUND();
@@ -262,18 +267,23 @@ export default {
         `${input.pinned ? "Pinning" : "Unpinning"} rating for user ${input.userId} on post ${input.postId}`
       );
 
-      const existingRating = await db.query.postRating.findFirst({
-        columns: {
-          pinnedAt: true,
-          postId: true,
-          review: true,
-          userId: true,
-        },
-        where: and(
-          eq(postRating.postId, input.postId),
-          eq(postRating.userId, input.userId)
-        ),
-      });
+      const [existingRating] = await db
+        .select({
+          pinnedAt: postRating.pinnedAt,
+          postId: postRating.postId,
+          review: postRating.review,
+          userId: postRating.userId,
+        })
+        .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(
+          and(
+            eq(postRating.postId, input.postId),
+            eq(postRating.userId, input.userId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
+        .limit(1);
 
       if (!existingRating) {
         throw errors.NOT_FOUND();
@@ -291,10 +301,12 @@ export default {
             count: sql<number>`COUNT(*)::integer`,
           })
           .from(postRating)
+          .innerJoin(user, eq(user.id, postRating.userId))
           .where(
             and(
               eq(postRating.postId, input.postId),
-              not(isNull(postRating.pinnedAt))
+              not(isNull(postRating.pinnedAt)),
+              sql`${user.banned} IS DISTINCT FROM true`
             )
           );
 
@@ -347,7 +359,13 @@ export default {
           userId: postRating.userId,
         })
         .from(postRating)
-        .where(eq(postRating.postId, input.postId))
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(
+          and(
+            eq(postRating.postId, input.postId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
         .orderBy(
           sql`${postRating.pinnedAt} DESC NULLS LAST`,
           desc(postRating.createdAt)
@@ -365,7 +383,13 @@ export default {
                 ratingUserId: postRatingLikes.ratingUserId,
               })
               .from(postRatingLikes)
-              .where(eq(postRatingLikes.postId, input.postId))
+              .innerJoin(user, eq(user.id, postRatingLikes.userId))
+              .where(
+                and(
+                  eq(postRatingLikes.postId, input.postId),
+                  sql`${user.banned} IS DISTINCT FROM true`
+                )
+              )
               .groupBy(postRatingLikes.postId, postRatingLikes.ratingUserId)
           : [];
 
@@ -418,9 +442,14 @@ export default {
           userId: postRating.userId,
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
         .innerJoin(post, eq(post.id, postRating.postId))
         .where(
-          and(eq(post.status, "publish"), publicCatalogVisibilityCondition())
+          and(
+            eq(post.status, "publish"),
+            publicCatalogVisibilityCondition(),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
         )
         .orderBy(desc(postRating.createdAt))
         .limit(input.limit)
@@ -480,12 +509,14 @@ export default {
           updatedAt: postRating.updatedAt,
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
         .innerJoin(post, eq(post.id, postRating.postId))
         .where(
           and(
             eq(postRating.userId, input.userId),
             eq(post.status, "publish"),
-            publicCatalogVisibilityCondition()
+            publicCatalogVisibilityCondition(),
+            sql`${user.banned} IS DISTINCT FROM true`
           )
         )
         .orderBy(desc(postRating.createdAt))
@@ -551,10 +582,12 @@ export default {
           userId: postRating.userId,
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
         .where(
           and(
             eq(postRating.postId, input.postId),
-            eq(postRating.userId, session.user.id)
+            eq(postRating.userId, session.user.id),
+            sql`${user.banned} IS DISTINCT FROM true`
           )
         )
         .limit(1);
@@ -591,7 +624,13 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`,
         })
         .from(postRating)
-        .where(eq(postRating.postId, input.postId));
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(
+          and(
+            eq(postRating.postId, input.postId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        );
 
       const averageRating = result[0]?.averageRating ?? 0;
       const ratingCount = result[0]?.ratingCount ?? 0;

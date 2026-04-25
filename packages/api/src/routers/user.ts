@@ -62,6 +62,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -71,6 +73,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -103,6 +107,8 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -316,8 +322,11 @@ export default {
         },
         limit: RECENT_USERS_LIMIT,
         orderBy: (users, { desc }) => [desc(users.lastSeenAt)],
-        where: (users, { gte: greaterThanOrEqual }) =>
-          greaterThanOrEqual(users.lastSeenAt, recentCutoff),
+        where: (users, { and: all, gte: greaterThanOrEqual }) =>
+          all(
+            greaterThanOrEqual(users.lastSeenAt, recentCutoff),
+            sql`${users.banned} IS DISTINCT FROM true`
+          ),
         with: {
           patron: {
             columns: {
@@ -421,7 +430,9 @@ export default {
         })
         .from(user)
         .leftJoin(patron, eq(patron.userId, user.id))
-        .where(eq(user.id, input.id))
+        .where(
+          and(eq(user.id, input.id), sql`${user.banned} IS DISTINCT FROM true`)
+        )
         .limit(1);
 
       return result[0] ?? null;
@@ -445,6 +456,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -454,6 +467,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -486,6 +501,8 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -517,13 +534,18 @@ export default {
           views: post.views,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
         .innerJoin(post, eq(post.id, postBookmark.postId))
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
         .where(
-          and(eq(post.status, "publish"), eq(postBookmark.userId, input.userId))
+          and(
+            eq(post.status, "publish"),
+            eq(postBookmark.userId, input.userId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
         )
         .limit(input.limit)
         .offset(input.offset);

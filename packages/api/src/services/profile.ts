@@ -1,5 +1,5 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { eq, inArray } from "@repo/db";
+import { and, eq, inArray, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   patron,
@@ -426,7 +426,10 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
           name: true,
           role: true,
         },
-        where: inArray(user.id, uniqueUserIds),
+        where: and(
+          inArray(user.id, uniqueUserIds),
+          sql`${user.banned} IS DISTINCT FROM true`
+        ),
       }),
       getOrCreateProfileSystemConfig(db),
       db.query.profileSettings.findMany({
@@ -705,7 +708,10 @@ export async function getPublicProfile(db: Database, userId: string) {
     getOrCreateProfileSettings(db, userId),
     db.query.user.findFirst({
       columns: { createdAt: true },
-      where: eq(user.id, userId),
+      where: and(
+        eq(user.id, userId),
+        sql`${user.banned} IS DISTINCT FROM true`
+      ),
     }),
     getOrCreateProfileSystemConfig(db),
   ]);

@@ -13,6 +13,7 @@ import {
   postRating,
   term,
   termPostRelation,
+  user,
 } from "@repo/db/schema/app";
 import {
   MAX_PINNED_ITEMS_PER_POST,
@@ -73,6 +74,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -82,6 +85,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -113,6 +118,8 @@ export default {
           postId: postRating.postId,
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -174,6 +181,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -183,6 +192,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -215,6 +226,8 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -276,6 +289,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -285,6 +300,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -317,6 +334,8 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -406,6 +425,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -415,6 +436,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -447,6 +470,8 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -683,6 +708,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -692,6 +719,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -724,6 +753,8 @@ export default {
           ratingCount: sql<number>`COUNT(*)::integer`.as("rating_count"),
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
@@ -1007,7 +1038,13 @@ export default {
           count: sql<number>`COUNT(*)`,
         })
         .from(postLikes)
-        .where(eq(postLikes.postId, input))
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(
+          and(
+            eq(postLikes.postId, input),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
         .then((r) => r[0] ?? { count: 0 });
 
       logger?.debug(`Post ${input} has ${count} likes`);
@@ -1159,14 +1196,21 @@ export default {
         }
 
         if (input.parentId) {
-          const parentComment = await db.query.comment.findFirst({
-            columns: {
-              id: true,
-              parentId: true,
-              postId: true,
-            },
-            where: eq(comment.id, input.parentId),
-          });
+          const [parentComment] = await db
+            .select({
+              id: comment.id,
+              parentId: comment.parentId,
+              postId: comment.postId,
+            })
+            .from(comment)
+            .innerJoin(user, eq(user.id, comment.authorId))
+            .where(
+              and(
+                eq(comment.id, input.parentId),
+                sql`${user.banned} IS DISTINCT FROM true`
+              )
+            )
+            .limit(1);
 
           if (!parentComment || parentComment.postId !== input.postId) {
             throw errors.BAD_REQUEST({
@@ -1290,15 +1334,22 @@ export default {
         `${input.pinned ? "Pinning" : "Unpinning"} comment ${input.commentId}`
       );
 
-      const existingComment = await db.query.comment.findFirst({
-        columns: {
-          id: true,
-          parentId: true,
-          pinnedAt: true,
-          postId: true,
-        },
-        where: eq(comment.id, input.commentId),
-      });
+      const [existingComment] = await db
+        .select({
+          id: comment.id,
+          parentId: comment.parentId,
+          pinnedAt: comment.pinnedAt,
+          postId: comment.postId,
+        })
+        .from(comment)
+        .innerJoin(user, eq(user.id, comment.authorId))
+        .where(
+          and(
+            eq(comment.id, input.commentId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
+        .limit(1);
 
       if (!existingComment) {
         throw errors.NOT_FOUND();
@@ -1322,10 +1373,12 @@ export default {
             count: sql<number>`COUNT(*)::integer`,
           })
           .from(comment)
+          .innerJoin(user, eq(user.id, comment.authorId))
           .where(
             and(
               eq(comment.postId, existingComment.postId),
-              not(isNull(comment.pinnedAt))
+              not(isNull(comment.pinnedAt)),
+              sql`${user.banned} IS DISTINCT FROM true`
             )
           );
 
@@ -1420,14 +1473,19 @@ export default {
           `User ${session.user.id} toggling comment like ${input.commentId} to ${input.liked}`
         );
 
-        const existingComment = await db.query.comment.findFirst({
-          columns: {
-            id: true,
-          },
-          where: eq(comment.id, input.commentId),
-        });
+        const existingComment = await db
+          .select({ id: comment.id })
+          .from(comment)
+          .innerJoin(user, eq(user.id, comment.authorId))
+          .where(
+            and(
+              eq(comment.id, input.commentId),
+              sql`${user.banned} IS DISTINCT FROM true`
+            )
+          )
+          .limit(1);
 
-        if (!existingComment) {
+        if (existingComment.length === 0) {
           throw errors.NOT_FOUND();
         }
 
@@ -1487,13 +1545,32 @@ export default {
         throw errors.FORBIDDEN();
       }
 
-      const comments = await db.query.comment.findMany({
-        orderBy: (c, { desc: descSql }) => [
-          sql`${c.pinnedAt} DESC NULLS LAST`,
-          descSql(c.createdAt),
-        ],
-        where: (c, { eq: equals }) => equals(c.postId, input.postId),
-      });
+      const comments = await db
+        .select({
+          authorId: comment.authorId,
+          content: comment.content,
+          createdAt: comment.createdAt,
+          engagementPromptId: comment.engagementPromptId,
+          engagementPromptSource: comment.engagementPromptSource,
+          engagementPromptText: comment.engagementPromptText,
+          id: comment.id,
+          parentId: comment.parentId,
+          pinnedAt: comment.pinnedAt,
+          postId: comment.postId,
+          updatedAt: comment.updatedAt,
+        })
+        .from(comment)
+        .innerJoin(user, eq(user.id, comment.authorId))
+        .where(
+          and(
+            eq(comment.postId, input.postId),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
+        .orderBy(
+          sql`${comment.pinnedAt} DESC NULLS LAST`,
+          desc(comment.createdAt)
+        );
 
       const commentIds = comments.map((item) => item.id);
       const commentLikeRows =
@@ -1507,11 +1584,15 @@ export default {
                 likeCount: sql<number>`COUNT(*)::integer`,
               })
               .from(commentLikes)
+              .innerJoin(user, eq(user.id, commentLikes.userId))
               .where(
-                sql`${commentLikes.commentId} IN (${sql.join(
-                  commentIds.map((id) => sql`${id}`),
-                  sql`, `
-                )})`
+                and(
+                  sql`${commentLikes.commentId} IN (${sql.join(
+                    commentIds.map((id) => sql`${id}`),
+                    sql`, `
+                  )})`,
+                  sql`${user.banned} IS DISTINCT FROM true`
+                )
               )
               .groupBy(commentLikes.commentId)
           : [];
@@ -1552,7 +1633,7 @@ export default {
       const logger = getLogger(context);
       logger?.info(`Fetching related posts for: ${input.postId}`);
 
-      const cacheKey = `rec:${input.postId}`;
+      const cacheKey = `rec:v2:${input.postId}`;
 
       try {
         const redis = await getRedis();
@@ -1599,6 +1680,8 @@ export default {
           postId: postLikes.postId,
         })
         .from(postLikes)
+        .innerJoin(user, eq(user.id, postLikes.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postLikes.postId)
         .as("likes_agg");
 
@@ -1608,6 +1691,8 @@ export default {
           postId: postBookmark.postId,
         })
         .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postBookmark.postId)
         .as("favorites_agg");
 
@@ -1620,6 +1705,8 @@ export default {
           postId: postRating.postId,
         })
         .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .where(sql`${user.banned} IS DISTINCT FROM true`)
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
