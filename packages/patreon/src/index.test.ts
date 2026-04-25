@@ -135,6 +135,22 @@ describe("findPatreonMembershipForCampaign", () => {
     expect(result.success).toBe(true);
   });
 
+  it("ignores unrelated included resource types from Patreon", () => {
+    const result = parsePatreonIdentityResponse({
+      ...identityResponseWithMemberFields,
+      included: [
+        ...identityResponseWithMemberFields.included,
+        {
+          id: "unexpected-resource-id",
+          type: "unexpected_resource",
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.data?.included?.some((item) => item === null)).toBe(false);
+  });
+
   it("selects the membership for the requested campaign", () => {
     const membership = findPatreonMembershipForCampaign(
       identityResponse,

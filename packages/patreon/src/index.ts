@@ -15,23 +15,70 @@ const patreonCampaignSchema = z.looseObject({
 
 const patreonMemberSchema = z.looseObject({
   id: z.string(),
-  attributes: z.object({
-    currently_entitled_amount_cents: z.number().nullable().optional(),
-    patron_status: z.string().nullable().optional(),
-    pledge_relationship_start: z.string().nullable().optional(),
-  }),
-  relationships: z.object({
-    campaign: z.looseObject({
-      data: z.object({ id: z.string(), type: z.literal("campaign") }),
-    }),
-    currently_entitled_tiers: z
-      .object({
-        data: z.array(patreonTierSchema),
-      })
-      .optional(),
-  }),
+  attributes: z
+    .object({
+      currently_entitled_amount_cents: z.number().nullable().optional(),
+      patron_status: z.string().nullable().optional(),
+      pledge_relationship_start: z.string().nullable().optional(),
+    })
+    .default({}),
+  relationships: z
+    .object({
+      campaign: z
+        .looseObject({
+          data: z.object({ id: z.string(), type: z.literal("campaign") }),
+        })
+        .optional(),
+      currently_entitled_tiers: z
+        .object({
+          data: z.array(patreonTierSchema),
+        })
+        .optional(),
+    })
+    .default({}),
   type: z.literal("member"),
 });
+
+const patreonIncludedResourceSchema = z.preprocess(
+  (item) => {
+    const parseResult = z
+      .looseObject({
+        type: z.string(),
+      })
+      .safeParse(item);
+
+    if (!parseResult.success) {
+      return item;
+    }
+
+    switch (parseResult.data.type) {
+      case "campaign": {
+        return patreonCampaignSchema.parse(item);
+      }
+      case "member": {
+        return patreonMemberSchema.parse(item);
+      }
+      case "tier": {
+        return patreonTierSchema.parse(item);
+      }
+      default: {
+        return null;
+      }
+    }
+  },
+  z.union([
+    patreonMemberSchema,
+    patreonTierSchema,
+    patreonCampaignSchema,
+    z.null(),
+  ])
+);
+
+const patreonIncludedSchema = z
+  .array(patreonIncludedResourceSchema)
+  .transform((items) =>
+    items.filter((item): item is Exclude<typeof item, null> => item !== null)
+  );
 
 const patreonIdentityResponseSchema = z.looseObject({
   data: z.looseObject({
@@ -49,15 +96,7 @@ const patreonIdentityResponseSchema = z.looseObject({
       .optional(),
     type: z.literal("user"),
   }),
-  included: z
-    .array(
-      z.discriminatedUnion("type", [
-        patreonMemberSchema,
-        patreonTierSchema,
-        patreonCampaignSchema,
-      ])
-    )
-    .optional(),
+  included: patreonIncludedSchema.optional(),
 });
 
 export type PatreonIdentityResponse = z.infer<
@@ -68,6 +107,14 @@ export type PatreonMember = z.infer<typeof patreonMemberSchema>;
 
 export function parsePatreonIdentityResponse(rawData: unknown) {
   return patreonIdentityResponseSchema.safeParse(rawData);
+}
+
+export function formatPatreonIdentityError(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return z.prettifyError(error);
+  }
+
+  return typeof error === "string" ? error : "Unknown Patreon identity error";
 }
 
 export function findPatreonMembershipForCampaign(
@@ -85,7 +132,7 @@ export function findPatreonMembershipForCampaign(
       (item): item is PatreonMember =>
         item.type === "member" &&
         memberIds.has(item.id) &&
-        item.relationships.campaign.data.id === campaignId
+        item.relationships.campaign?.data.id === campaignId
     ) ?? [];
 
   if (memberships.length === 0) {

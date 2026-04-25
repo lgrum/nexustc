@@ -2,6 +2,7 @@ import { db } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
 import {
   findPatreonMembershipForCampaign,
+  formatPatreonIdentityError,
   PatreonIdentity,
 } from "@repo/patreon";
 import {
@@ -29,8 +30,9 @@ export async function syncPatreonMembership(
     const [error, data, success] = await patreonIdentity.fetchIdentity();
 
     if (!success) {
-      console.error("Error fetching Patreon identity:", error);
-      throw new Error("Failed to fetch Patreon identity");
+      const message = formatPatreonIdentityError(error);
+      console.error("Error fetching Patreon identity:", message);
+      throw new Error(`Failed to fetch Patreon identity: ${message}`);
     }
 
     const membership = findPatreonMembershipForCampaign(data, campaignId);

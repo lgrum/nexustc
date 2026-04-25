@@ -3,6 +3,7 @@ import { createHmac } from "node:crypto";
 import { env } from "@repo/env";
 import {
   findPatreonMembershipForCampaign,
+  formatPatreonIdentityError,
   PatreonIdentity,
 } from "@repo/patreon";
 import { getHighestPatronTierFromIds } from "@repo/shared/constants";
@@ -68,8 +69,9 @@ export async function fetchPatreonMembership(
   const [error, data, success] = await patreonIdentity.fetchIdentity();
 
   if (!success) {
-    console.error("Error fetching Patreon identity:", error);
-    throw new Error("Failed to fetch Patreon identity");
+    const message = formatPatreonIdentityError(error);
+    console.error("Error fetching Patreon identity:", message);
+    throw new Error(`Failed to fetch Patreon identity: ${message}`);
   }
 
   const membership = findPatreonMembershipForCampaign(data, campaignId);
