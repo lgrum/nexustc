@@ -1,11 +1,6 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { formDevtoolsPlugin } from "@tanstack/react-form-devtools";
-import {
-  createRootRoute,
-  HeadContent,
-  ScriptOnce,
-  Scripts,
-} from "@tanstack/react-router";
+import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 
 import { AgeVerificationDialog } from "@/components/age-verification-dialog";
@@ -31,7 +26,7 @@ export const Route = createRootRoute({
         name: "viewport",
       },
       {
-        title: "TanStack Start Starter",
+        title: "NeXusTC",
       },
     ],
   }),
@@ -51,7 +46,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         />
       </head>
       <body className="dark">
-        <ScriptOnce>{themeInitScript()}</ScriptOnce>
+        {/* <ScriptOnce>{themeInitScript()}</ScriptOnce> */}
         <ConfirmDialogProvider
           defaultOptions={{
             alertDialogContent: {
@@ -93,6 +88,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   );
 }
 
+// oxlint-disable-next-line no-unused-vars
 function themeInitScript() {
   return `
 (function () {
