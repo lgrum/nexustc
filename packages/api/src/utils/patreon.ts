@@ -1,7 +1,10 @@
 import { createHmac } from "node:crypto";
 
 import { env } from "@repo/env";
-import { PatreonIdentity } from "@repo/patreon";
+import {
+  findPatreonMembershipForCampaign,
+  PatreonIdentity,
+} from "@repo/patreon";
 import { getHighestPatronTierFromIds } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
@@ -59,7 +62,7 @@ export async function refreshPatreonToken(
  */
 export async function fetchPatreonMembership(
   accessToken: string,
-  _campaignId: string
+  campaignId: string
 ): Promise<PatreonMembership | null> {
   const patreonIdentity = new PatreonIdentity(accessToken);
   const [error, data, success] = await patreonIdentity.fetchIdentity();
@@ -69,8 +72,7 @@ export async function fetchPatreonMembership(
     throw new Error("Failed to fetch Patreon identity");
   }
 
-  // Find the first membership (user should only have one to our campaign)
-  const membership = data.included?.find((item) => item.type === "member");
+  const membership = findPatreonMembershipForCampaign(data, campaignId);
 
   if (!membership) {
     return null;
@@ -78,10 +80,13 @@ export async function fetchPatreonMembership(
 
   const entitledTiers =
     membership.relationships?.currently_entitled_tiers?.data ?? [];
+  const isEntitledToTiers = entitledTiers.length > 0;
 
   return {
     entitledTierIds: entitledTiers.map((t) => t.id),
-    isActive: membership.attributes?.patron_status === "active_patron",
+    isActive:
+      membership.attributes?.patron_status === "active_patron" ||
+      isEntitledToTiers,
     patronSince: membership.attributes?.pledge_relationship_start ?? null,
     pledgeAmountCents:
       membership.attributes?.currently_entitled_amount_cents ?? 0,

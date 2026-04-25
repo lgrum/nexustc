@@ -1,6 +1,9 @@
 import { db } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
-import { PatreonIdentity } from "@repo/patreon";
+import {
+  findPatreonMembershipForCampaign,
+  PatreonIdentity,
+} from "@repo/patreon";
 import {
   getHighestPatronTierFromIds,
   resolvePermanentPatronTierStatus,
@@ -18,7 +21,8 @@ function determineTierFromIds(tierIds: string[]): PatronTier {
 export async function syncPatreonMembership(
   userId: string,
   patreonAccountId: string,
-  accessToken: string
+  accessToken: string,
+  campaignId: string
 ): Promise<void> {
   try {
     const patreonIdentity = new PatreonIdentity(accessToken);
@@ -29,14 +33,15 @@ export async function syncPatreonMembership(
       throw new Error("Failed to fetch Patreon identity");
     }
 
-    // Find the first membership (user should only have one to our campaign)
-    const membership = data.included?.find((item) => item.type === "member");
+    const membership = findPatreonMembershipForCampaign(data, campaignId);
 
-    const isActive = membership?.attributes?.patron_status === "active_patron";
-    const patronSince =
-      membership?.attributes?.pledge_relationship_start ?? null;
     const entitledTiers =
       membership?.relationships?.currently_entitled_tiers?.data ?? [];
+    const isActive =
+      membership?.attributes?.patron_status === "active_patron" ||
+      entitledTiers.length > 0;
+    const patronSince =
+      membership?.attributes?.pledge_relationship_start ?? null;
     const pledgeAmountCents =
       membership?.attributes?.currently_entitled_amount_cents ?? 0;
     const tier = determineTierFromIds(entitledTiers.map((t) => t.id));
@@ -70,7 +75,7 @@ export async function syncPatreonMembership(
           isActivePatron: patronStatus.isActivePatron,
           lastSyncAt: new Date(),
           patronSince: patronStatus.patronSince,
-          pledgeAmountCents: 0,
+          pledgeAmountCents,
           tier: patronStatus.tier,
         },
         target: patron.userId,

@@ -98,7 +98,8 @@ export const auth = betterAuth({
             await syncPatreonMembership(
               account.userId,
               account.accountId,
-              account.accessToken
+              account.accessToken,
+              env.PATREON_CAMPAIGN_ID
             );
           }
         },
