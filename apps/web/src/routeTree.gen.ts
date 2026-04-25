@@ -30,6 +30,7 @@ import { Route as DemoCRouteImport } from './routes/demo/c'
 import { Route as DemoBRouteImport } from './routes/demo/b'
 import { Route as DemoARouteImport } from './routes/demo/a'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as AdminChangelogRouteImport } from './routes/admin/changelog'
 import { Route as MainVipRouteImport } from './routes/_main/vip'
 import { Route as MainTutorialsRouteImport } from './routes/_main/tutorials'
 import { Route as MainTermsRouteImport } from './routes/_main/terms'
@@ -191,6 +192,11 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminChangelogRoute = AdminChangelogRouteImport.update({
+  id: '/changelog',
+  path: '/changelog',
+  getParentRoute: () => AdminRouteRoute,
 } as any)
 const MainVipRoute = MainVipRouteImport.update({
   id: '/vip',
@@ -501,6 +507,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
   '/vip': typeof MainVipRoute
+  '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
   '/demo/a': typeof DemoARoute
   '/demo/b': typeof DemoBRoute
@@ -578,6 +585,7 @@ export interface FileRoutesByTo {
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
   '/vip': typeof MainVipRoute
+  '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
   '/demo/a': typeof DemoARoute
   '/demo/b': typeof DemoBRoute
@@ -659,6 +667,7 @@ export interface FileRoutesById {
   '/_main/terms': typeof MainTermsRoute
   '/_main/tutorials': typeof MainTutorialsRoute
   '/_main/vip': typeof MainVipRoute
+  '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
   '/demo/a': typeof DemoARoute
   '/demo/b': typeof DemoBRoute
@@ -741,6 +750,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tutorials'
     | '/vip'
+    | '/admin/changelog'
     | '/api/health'
     | '/demo/a'
     | '/demo/b'
@@ -818,6 +828,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/tutorials'
     | '/vip'
+    | '/admin/changelog'
     | '/api/health'
     | '/demo/a'
     | '/demo/b'
@@ -898,6 +909,7 @@ export interface FileRouteTypes {
     | '/_main/terms'
     | '/_main/tutorials'
     | '/_main/vip'
+    | '/admin/changelog'
     | '/api/health'
     | '/demo/a'
     | '/demo/b'
@@ -1134,6 +1146,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/changelog': {
+      id: '/admin/changelog'
+      path: '/changelog'
+      fullPath: '/admin/changelog'
+      preLoaderRoute: typeof AdminChangelogRouteImport
+      parentRoute: typeof AdminRouteRoute
     }
     '/_main/vip': {
       id: '/_main/vip'
@@ -1588,6 +1607,7 @@ const MainRouteRouteWithChildren = MainRouteRoute._addFileChildren(
 )
 
 interface AdminRouteRouteChildren {
+  AdminChangelogRoute: typeof AdminChangelogRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminChronosEditRoute: typeof AdminChronosEditRoute
   AdminComicsCreateRoute: typeof AdminComicsCreateRoute
@@ -1627,6 +1647,7 @@ interface AdminRouteRouteChildren {
 }
 
 const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminChangelogRoute: AdminChangelogRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminChronosEditRoute: AdminChronosEditRoute,
   AdminComicsCreateRoute: AdminComicsCreateRoute,

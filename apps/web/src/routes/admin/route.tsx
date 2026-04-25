@@ -57,6 +57,15 @@ const nav = {
     ],
     name: "Chronos",
   },
+  changelog: {
+    links: [
+      {
+        href: "/admin/changelog",
+        name: "Ver cambios",
+      },
+    ],
+    name: "Changelog",
+  },
   comics: {
     links: [
       {
@@ -278,6 +287,7 @@ function AdminLayout() {
               <HasPermissions permissions={{ user: ["list"] }}>
                 <SidebarLinks item={nav.users} />
               </HasPermissions>
+              <SidebarLinks item={nav.changelog} />
               <HasPermissions
                 permissions={{
                   terms: ["list", "create"],
