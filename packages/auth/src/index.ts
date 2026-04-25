@@ -109,6 +109,18 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
+    customSyntheticUser: ({ coreFields, additionalFields, id }) => ({
+      ...coreFields,
+      // Admin plugin fields (in schema order)
+      role: "user",
+      banned: false,
+      banReason: null,
+      banExpires: null,
+      // Your additional fields
+      ...additionalFields,
+      // ID must be last to match database output order
+      id,
+    }),
     requireEmailVerification: true,
     sendResetPassword: async ({ user, url }) => {
       await resend.emails.send({
@@ -123,7 +135,7 @@ export const auth = betterAuth({
   emailVerification: {
     afterEmailVerification: subscribeVerifiedNewsletterContact,
     autoSignInAfterVerification: true,
-    sendOnSignIn: true,
+    sendOnSignIn: false,
     sendOnSignUp: true,
     sendVerificationEmail: async ({ user, url }) => {
       await resend.emails.send({
@@ -200,7 +212,7 @@ export const auth = betterAuth({
   session: {
     cookieCache: {
       enabled: true,
-      maxAge: 60,
+      maxAge: 60 * 5, // 5 minutes
     },
   },
   user: {
