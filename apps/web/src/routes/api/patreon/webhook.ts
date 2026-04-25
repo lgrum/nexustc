@@ -297,14 +297,14 @@ async function handleWebhook(request: Request): Promise<Response> {
 export const Route = createFileRoute("/api/patreon/webhook")({
   server: {
     handlers: {
-      POST: ({ request }) => {
+      POST: async ({ request }) => {
         try {
-          handleWebhook(request);
+          await handleWebhook(request);
         } catch (error) {
           // We don't want Patreon to stop sending webhooks if there's an error handling the request, so we catch errors here and return OK
           console.error("Unexpected error handling Patreon webhook:", error);
-          return new Response("OK", { status: 200 });
         }
+        return new Response("OK", { status: 200 });
       },
     },
   },
