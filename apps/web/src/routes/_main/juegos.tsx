@@ -1,11 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
+import { GamesPage } from "@/components/games/games-page";
 import {
-  CatalogLandingPage,
-  GameSearchControls,
   gameSearchParamsSchema,
-  getGameFilterCount,
   getGameTermIds,
 } from "@/components/search/catalog-search";
 import { orpcClient } from "@/lib/orpc";
@@ -41,29 +39,24 @@ function GamesRouteComponent() {
 
   const handleSearchChange = useCallback(
     (search: typeof params) => {
-      navigate({ search, to: "/juegos" });
+      navigate({ resetScroll: false, search, to: "/juegos" });
     },
     [navigate]
   );
 
-  const handleRandomSelect = useCallback(
-    (id: string) => {
-      navigate({ params: { id }, to: "/post/$id" });
-    },
-    [navigate]
-  );
+  const handleRandom = useCallback(async () => {
+    const result = await orpcClient.post.getRandom({ type: "post" });
+    if (result) {
+      navigate({ params: { id: result.id }, to: "/post/$id" });
+    }
+  }, [navigate]);
 
   return (
-    <CatalogLandingPage
-      activeFilterCount={getGameFilterCount(params)}
-      kind="games"
-      posts={filteredPosts ?? []}
-    >
-      <GameSearchControls
-        onRandomSelect={handleRandomSelect}
-        onSearchChange={handleSearchChange}
-        params={params}
-      />
-    </CatalogLandingPage>
+    <GamesPage
+      filteredPosts={filteredPosts ?? []}
+      onRandom={handleRandom}
+      onSearchChange={handleSearchChange}
+      params={params}
+    />
   );
 }

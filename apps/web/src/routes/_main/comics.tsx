@@ -1,11 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 
+import { ComicsPage } from "@/components/comics/comics-page";
 import {
-  CatalogLandingPage,
-  ComicSearchControls,
   comicSearchParamsSchema,
-  getComicFilterCount,
   getComicTermIds,
 } from "@/components/search/catalog-search";
 import { orpcClient } from "@/lib/orpc";
@@ -41,7 +39,7 @@ function ComicsRouteComponent() {
 
   const handleSearchChange = useCallback(
     (search: typeof params) => {
-      navigate({ search, to: "/comics" });
+      navigate({ resetScroll: false, search, to: "/comics" });
     },
     [navigate]
   );
@@ -54,16 +52,11 @@ function ComicsRouteComponent() {
   );
 
   return (
-    <CatalogLandingPage
-      activeFilterCount={getComicFilterCount(params)}
-      kind="comics"
-      posts={filteredPosts ?? []}
-    >
-      <ComicSearchControls
-        onRandomSelect={handleRandomSelect}
-        onSearchChange={handleSearchChange}
-        params={params}
-      />
-    </CatalogLandingPage>
+    <ComicsPage
+      filteredPosts={filteredPosts ?? []}
+      onRandomSelect={handleRandomSelect}
+      onSearchChange={handleSearchChange}
+      params={params}
+    />
   );
 }
