@@ -49,7 +49,7 @@ import type {
   DeferredMediaSelection,
 } from "@/lib/deferred-media";
 import { orpc } from "@/lib/orpc";
-import { cn, cropImage, getBucketUrl } from "@/lib/utils";
+import { cn, convertImage, cropImage, getBucketUrl } from "@/lib/utils";
 import type { ImagePercentCrop } from "@/lib/utils";
 
 const MediaCropDialog = lazy(
@@ -140,6 +140,7 @@ export function MediaField({
   const [draftSelectedItems, setDraftSelectedItems] =
     useState<DeferredMediaSelection>([]);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
+  const [isConvertingFiles, setIsConvertingFiles] = useState(false);
   const previewUrlsRef = useRef<Set<string>>(new Set());
 
   const selectionLimit = maxItems ?? Number.POSITIVE_INFINITY;
@@ -410,6 +411,21 @@ export function MediaField({
     });
   };
 
+  const convertFilesToWebp = async (files: File[]) => {
+    const convertedFiles: File[] = [];
+
+    for (const file of files) {
+      if (file.type === "image/gif") {
+        convertedFiles.push(file);
+        continue;
+      }
+
+      convertedFiles.push(await convertImage(file, "webp", 0.82));
+    }
+
+    return convertedFiles;
+  };
+
   const clearPendingCrop = () => {
     if (pendingCrop?.previewUrl) {
       URL.revokeObjectURL(pendingCrop.previewUrl);
@@ -418,7 +434,9 @@ export function MediaField({
     setPendingCrop(null);
   };
 
-  const handleFileSelection = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelection = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const files = [...(event.target.files ?? [])].filter((file) =>
       file.type.startsWith("image/")
     );
@@ -438,7 +456,19 @@ export function MediaField({
       return;
     }
 
-    addFilesToDraftSelection(files);
+    try {
+      setIsConvertingFiles(true);
+      const convertedFiles = await convertFilesToWebp(files);
+      addFilesToDraftSelection(convertedFiles);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "No se pudieron convertir las imagenes."
+      );
+    } finally {
+      setIsConvertingFiles(false);
+    }
   };
 
   const selectedCountLabel = getSelectionLabel(selectedMedia.length, isSingle);
@@ -590,16 +620,23 @@ export function MediaField({
                           <Input
                             accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
                             className="absolute inset-0 cursor-pointer opacity-0"
+                            disabled={isConvertingFiles}
                             multiple={!isSingle}
                             onChange={handleFileSelection}
                             type="file"
                           />
-                          <Button className="w-full md:w-auto" type="button">
+                          <Button
+                            className="w-full md:w-auto"
+                            disabled={isConvertingFiles}
+                            type="button"
+                          >
                             <HugeiconsIcon
                               className="size-4"
                               icon={ImageAdd02Icon}
                             />
-                            Agregar archivos
+                            {isConvertingFiles
+                              ? "Convirtiendo..."
+                              : "Agregar archivos"}
                           </Button>
                         </div>
 
@@ -846,7 +883,12 @@ export function MediaField({
             onConfirm={async (nextCrop: ImagePercentCrop) => {
               try {
                 const croppedFile = await cropImage(pendingCrop.file, nextCrop);
-                addFilesToDraftSelection([croppedFile]);
+                const convertedFile = await convertImage(
+                  croppedFile,
+                  "webp",
+                  0.82
+                );
+                addFilesToDraftSelection([convertedFile]);
                 clearPendingCrop();
               } catch (error) {
                 toast.error(

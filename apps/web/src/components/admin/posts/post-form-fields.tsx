@@ -705,7 +705,7 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
         {(field) => (
           <field.MediaField
             crop={{
-              aspect: 21 / 9,
+              aspect: 16 / 9,
               description:
                 "Ajusta el encuadre de la portada para el hero del post.",
               title: "Recortar portada",

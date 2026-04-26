@@ -7,6 +7,7 @@ import z from "zod";
 
 import type { Context } from "../context";
 import {
+  fixedWindowRatelimitMiddleware,
   permissionProcedure,
   protectedProcedure,
   publicProcedure,
@@ -58,6 +59,12 @@ async function assertRatingsAreOpen(params: {
 export default {
   // Create or update a rating (upsert)
   create: protectedProcedure
+    .use(
+      fixedWindowRatelimitMiddleware({
+        limit: 5,
+        windowSeconds: 60 * 5,
+      })
+    )
     .input(ratingCreateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);

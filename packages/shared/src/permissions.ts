@@ -19,6 +19,7 @@ export const statement = {
   staticPages: ["update"],
   stickers: ["create", "update", "delete", "list"],
   terms: ["create", "update", "delete", "list"],
+  ratelimit: ["bypass"],
 } as const;
 
 export const ac = createAccessControl(statement);
@@ -91,6 +92,7 @@ const owner = ac.newRole({
   staticPages: ["update"],
   stickers: ["create", "update", "delete", "list"],
   terms: ["create", "list", "update", "delete"],
+  ratelimit: ["bypass"],
 });
 
 export const roles = {
