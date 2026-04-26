@@ -20,6 +20,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
+import type { SyntheticEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -149,15 +150,34 @@ export function PostHero() {
     post.imageObjectKeys,
     post.coverImageObjectKey
   );
+  const [coverAspectRatio, setCoverAspectRatio] = useState("16 / 9");
+
+  useEffect(() => {
+    setCoverAspectRatio("16 / 9");
+  }, [mainImage]);
+
+  const handleCoverLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    const { naturalHeight, naturalWidth } = event.currentTarget;
+
+    if (naturalHeight === 0) {
+      return;
+    }
+
+    const aspectRatio = naturalWidth / naturalHeight;
+    const isLegacyWideCover = Math.abs(aspectRatio - 21 / 9) < 0.05;
+
+    setCoverAspectRatio(isLegacyWideCover ? "21 / 9" : "16 / 9");
+  };
 
   return (
     <div className="relative">
       {mainImage ? (
         <div className="relative rounded-xl overflow-hidden">
-          <div className="aspect-video w-full md:aspect-21/9">
+          <div className="w-full" style={{ aspectRatio: coverAspectRatio }}>
             <img
               alt={`Portada de ${post.title}`}
               className="h-full w-full object-cover"
+              onLoad={handleCoverLoad}
               src={getBucketUrl(mainImage)}
             />
           </div>
