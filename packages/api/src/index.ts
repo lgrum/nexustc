@@ -68,6 +68,20 @@ export const fixedWindowRatelimitMiddleware = ({
       return next();
     }
 
+    if (context.session?.user) {
+      const allowed = await auth.api.userHasPermission({
+        body: {
+          permissions: { ratelimit: ["bypass"] },
+          role: context.session.user.role as Role,
+          userId: context.session.user.id,
+        },
+      });
+
+      if (allowed.success) {
+        return next();
+      }
+    }
+
     const ip = context.headers.get("cf-connecting-ip") ?? "unknown";
     const identifier = getIdentifier({ ip, session: context.session });
     const window = getCurrentWindow(windowSeconds);
@@ -101,6 +115,19 @@ export const slidingWindowRatelimitMiddleware = (
   o.middleware(async ({ context, errors, next, path }) => {
     if (process.env.NODE_ENV === "development") {
       return next();
+    }
+
+    if (context.session?.user) {
+      const allowed = await auth.api.userHasPermission({
+        body: {
+          permissions: { ratelimit: ["bypass"] },
+          role: context.session.user.role as Role,
+        },
+      });
+
+      if (allowed.success) {
+        return next();
+      }
     }
 
     const ip = context.headers.get("cf-connecting-ip");
