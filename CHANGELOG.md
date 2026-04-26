@@ -5,6 +5,7 @@ Todos los cambios notables serán documentados en este archivo.
 ## [0.1.1] - 2026-04-26
 
 - Agregado permiso `ratelimit: ["bypass"]` a `owner` para evadir ratelimits.
+- Reducidos limites de tamaño mínimo para avatars (128x128 -> 64x64) y banners (640x160 -> 128x64).
 
 ## [0.1.0] - 2026-04-25
 

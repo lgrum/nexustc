@@ -113,15 +113,15 @@ const SLOT_LIMITS = {
   avatar: {
     animatedBytes: 1024 * 1024 * 1.5,
     maxDurationMs: 6000,
-    minHeight: 128,
-    minWidth: 128,
+    minHeight: 64,
+    minWidth: 64,
     staticBytes: 1024 * 512,
   },
   banner: {
     animatedBytes: 1024 * 1024 * 3,
     maxDurationMs: 8000,
-    minHeight: 160,
-    minWidth: 640,
+    minHeight: 64,
+    minWidth: 128,
     staticBytes: 1024 * 1024 * 1.5,
   },
   "emblem-icon": {
