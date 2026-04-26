@@ -80,7 +80,7 @@ const formats = {
 
 export async function convertImage(
   file: File,
-  format: keyof typeof formats = "avif",
+  format: keyof typeof formats = "webp",
   quality = 0.8
 ) {
   const selectedFormat = formats[format];
