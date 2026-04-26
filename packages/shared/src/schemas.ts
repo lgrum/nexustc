@@ -4,6 +4,7 @@ import {
   DOCUMENT_STATUSES,
   PREMIUM_LINK_ACCESS_LEVELS,
   RATING_REVIEW_MAX_LENGTH,
+  RATING_REVIEW_MIN_LENGTH,
   TAXONOMIES,
 } from "./constants";
 import { EARLY_ACCESS_MAX_DURATION_HOURS } from "./early-access";
@@ -17,6 +18,10 @@ const ratingReviewSchema = z
   .string()
   .trim()
   .max(RATING_REVIEW_MAX_LENGTH)
+  .min(
+    RATING_REVIEW_MIN_LENGTH,
+    `Las reseñas deben tener al menos ${RATING_REVIEW_MIN_LENGTH} caracteres.`
+  )
   .refine((value) => !URL_PATTERN.test(value), {
     message: "Las reseñas no pueden incluir URLs.",
   })
@@ -26,9 +31,7 @@ const ratingReviewSchema = z
   .refine((value) => !MARKDOWN_IMAGE_REFERENCE_PATTERN.test(value), {
     message: "Las reseñas no pueden incluir enlaces o imágenes.",
   })
-  .transform((val) => val.trim())
-  .optional()
-  .default("");
+  .transform((val) => val.trim());
 
 export const termCreateSchema = z.object({
   color1: z.string().trim().max(7),

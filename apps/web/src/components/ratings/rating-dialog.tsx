@@ -7,7 +7,10 @@ import {
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { RATING_REVIEW_MAX_LENGTH } from "@repo/shared/constants";
+import {
+  RATING_REVIEW_MAX_LENGTH,
+  RATING_REVIEW_MIN_LENGTH,
+} from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -104,13 +107,16 @@ export function RatingDialog({
 
   const isSubmitting = createMutation.isPending || deleteMutation.isPending;
   const hasExistingRating = !!existingRating;
+  const trimmedReviewLength = review.trim().length;
   const isOverLimit = review.length > RATING_REVIEW_MAX_LENGTH;
+  const isUnderReviewMinimum = trimmedReviewLength < RATING_REVIEW_MIN_LENGTH;
   const hasBlockedReviewContent = hasBlockedMarkdown(review);
   const canSubmit =
     rating >= 1 &&
     rating <= 10 &&
     !isSubmitting &&
     !isOverLimit &&
+    !isUnderReviewMinimum &&
     !hasBlockedReviewContent;
 
   return (
@@ -216,10 +222,7 @@ export function RatingDialog({
                       className="font-medium text-foreground/90 text-sm"
                       htmlFor="review"
                     >
-                      Reseña{" "}
-                      <span className="text-muted-foreground/70">
-                        (opcional)
-                      </span>
+                      Reseña
                     </label>
                     <span
                       className={`text-[11px] tabular-nums ${
@@ -228,7 +231,7 @@ export function RatingDialog({
                           : "text-muted-foreground"
                       }`}
                     >
-                      {review.length} / {RATING_REVIEW_MAX_LENGTH}
+                      {trimmedReviewLength} / {RATING_REVIEW_MAX_LENGTH}
                     </span>
                   </div>
                   <Textarea
@@ -242,14 +245,19 @@ export function RatingDialog({
                   />
                   <p
                     className={`text-[11px] leading-snug ${
-                      hasBlockedReviewContent
+                      hasBlockedReviewContent || isUnderReviewMinimum
                         ? "text-destructive"
                         : "text-muted-foreground/80"
                     }`}
                   >
-                    {hasBlockedReviewContent
-                      ? "Quita URLs, enlaces o imágenes para continuar."
-                      : "Markdown completo soportado, excepto URLs e imágenes."}
+                    {hasBlockedReviewContent &&
+                      "Quita URLs, enlaces o imágenes para continuar."}
+                    {!hasBlockedReviewContent &&
+                      isUnderReviewMinimum &&
+                      `Escribe al menos ${RATING_REVIEW_MIN_LENGTH} caracteres para publicar tu reseña.`}
+                    {!hasBlockedReviewContent &&
+                      !isUnderReviewMinimum &&
+                      `Markdown completo soportado, excepto URLs e imágenes. Las reseñas escritas necesitan ${RATING_REVIEW_MIN_LENGTH}+ caracteres.`}
                   </p>
                 </div>
               </div>

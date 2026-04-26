@@ -48,7 +48,8 @@ export const ALLOWED_EMAIL_DOMAINS = new Set([
   "live.com",
 ]);
 
-export const RATING_REVIEW_MAX_LENGTH = 3200;
+export const RATING_REVIEW_MAX_LENGTH = 2000;
+export const RATING_REVIEW_MIN_LENGTH = 100;
 export const MAX_PINNED_ITEMS_PER_POST = 3;
 
 export const PREMIUM_LINK_ACCESS_LEVELS = [
@@ -405,7 +406,6 @@ export type PatronTier = keyof typeof PATRON_TIERS;
 // Map Patreon tier IDs to our tiers - fill these after fetching from Patreon API
 // Example: "12345678": "tier1"
 export const PATREON_TIER_MAPPING: Record<string, PatronTier> = {
-  // TODO: Add your Patreon tier IDs here after fetching them
   // Use: curl "https://www.patreon.com/api/oauth2/v2/campaigns/{CAMPAIGN_ID}?include=tiers&fields[tier]=title,amount_cents"
   "25898614": "none",
   "25898677": "level1",

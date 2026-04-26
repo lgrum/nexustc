@@ -7,7 +7,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { RATING_REVIEW_MAX_LENGTH } from "@repo/shared/constants";
+import {
+  RATING_REVIEW_MAX_LENGTH,
+  RATING_REVIEW_MIN_LENGTH,
+} from "@repo/shared/constants";
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
@@ -48,7 +51,7 @@ const allowedItems = [
   "Markdown básico para dar formato al texto.",
   "Opinión honesta sobre contenido, calidad técnica y experiencia.",
   "Crítica clara y respetuosa, incluso cuando la puntuación sea baja.",
-  `Reseñas de hasta ${RATING_REVIEW_MAX_LENGTH} caracteres.`,
+  `Reseñas obligatorias de ${RATING_REVIEW_MIN_LENGTH} a ${RATING_REVIEW_MAX_LENGTH} caracteres para publicar una valoración.`,
 ] as const;
 
 const blockedItems = [
