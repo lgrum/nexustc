@@ -35,8 +35,10 @@ function RouteComponent() {
   }
 
   return (
-    <article className="px-4">
-      <Markdown>{page.content}</Markdown>
-    </article>
+    <main className="flex justify-center">
+      <article className="prose dark:prose-invert px-4">
+        <Markdown>{page.content}</Markdown>
+      </article>
+    </main>
   );
 }
