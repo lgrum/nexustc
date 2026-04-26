@@ -15,6 +15,7 @@ const exploreLinks = [
 
 const legalLinks = [
   { href: "/about", label: "Acerca" },
+  { href: "/review-guidelines", label: "Guía de reseñas" },
   { href: "/privacy", label: "Política de Privacidad" },
   { href: "/terms", label: "Términos y Condiciones" },
   { href: "/legal", label: "Aviso Legal" },

@@ -3,11 +3,13 @@ import {
   Cancel01Icon,
   Delete02Icon,
   Edit02Icon,
+  InformationCircleIcon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { RATING_REVIEW_MAX_LENGTH } from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -268,6 +270,18 @@ export function RatingDialog({
               </Button>
             )}
             <div className="hidden flex-1 sm:block" />
+            <Button
+              className="h-11 w-full gap-2 rounded-lg border-border/70 text-[12.5px] text-muted-foreground hover:text-foreground sm:w-auto sm:shrink-0 sm:px-4"
+              render={<Link to="/review-guidelines" />}
+              variant="outline"
+            >
+              <HugeiconsIcon
+                className="size-4"
+                icon={InformationCircleIcon}
+                strokeWidth={1.8}
+              />
+              Guía de reseñas
+            </Button>
             <Button
               className="h-11 w-full gap-2 rounded-lg border-border/70 text-[12.5px] text-muted-foreground hover:text-foreground sm:w-auto sm:shrink-0 sm:px-4"
               disabled={isSubmitting}

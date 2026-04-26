@@ -1,5 +1,6 @@
 import {
   FavouriteIcon,
+  BookOpenTextIcon,
   Login03Icon,
   StarIcon,
   ViewIcon,
@@ -112,6 +113,8 @@ function HomeComponent() {
           <ActiveUsersSection />
           <div className="glow-line" />
           <TagsSection />
+          <div className="glow-line" />
+          <ReviewGuidelinesSection />
         </div>
       </div>
 
@@ -123,6 +126,8 @@ function HomeComponent() {
           <ActiveUsersSection />
           <div className="glow-line" />
           <TagsSection />
+          <div className="glow-line" />
+          <ReviewGuidelinesSection />
         </div>
       </aside>
     </main>
@@ -381,6 +386,33 @@ function ActiveUsersSection() {
           </CardContent>
         </Card>
       </div>
+    </section>
+  );
+}
+
+function ReviewGuidelinesSection() {
+  return (
+    <section className="space-y-3">
+      <SectionTitle title="Guía de Reseñas" icon={BookOpenTextIcon} />
+      <Link
+        className="group block rounded-xl border border-amber-400/25 bg-linear-to-br from-amber-400/10 via-card/70 to-primary/10 p-4 transition-colors hover:border-amber-400/45"
+        to="/review-guidelines"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/35 bg-amber-400/10 text-amber-200">
+            <HugeiconsIcon className="size-5" icon={BookOpenTextIcon} />
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm transition-colors group-hover:text-amber-100">
+              Antes de valorar
+            </h3>
+            <p className="mt-1 text-muted-foreground text-xs leading-relaxed">
+              Revisa cómo puntuar, escribir sin spoilers y evitar contenido que
+              bloquea el envío.
+            </p>
+          </div>
+        </div>
+      </Link>
     </section>
   );
 }

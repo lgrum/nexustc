@@ -35,6 +35,7 @@ import { Route as MainVipRouteImport } from './routes/_main/vip'
 import { Route as MainTutorialsRouteImport } from './routes/_main/tutorials'
 import { Route as MainTermsRouteImport } from './routes/_main/terms'
 import { Route as MainSearchRouteImport } from './routes/_main/search'
+import { Route as MainReviewGuidelinesRouteImport } from './routes/_main/review-guidelines'
 import { Route as MainResetPasswordRouteImport } from './routes/_main/reset-password'
 import { Route as MainProfileRouteImport } from './routes/_main/profile'
 import { Route as MainPrivacyRouteImport } from './routes/_main/privacy'
@@ -216,6 +217,11 @@ const MainTermsRoute = MainTermsRouteImport.update({
 const MainSearchRoute = MainSearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => MainRouteRoute,
+} as any)
+const MainReviewGuidelinesRoute = MainReviewGuidelinesRouteImport.update({
+  id: '/review-guidelines',
+  path: '/review-guidelines',
   getParentRoute: () => MainRouteRoute,
 } as any)
 const MainResetPasswordRoute = MainResetPasswordRouteImport.update({
@@ -503,6 +509,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof MainPrivacyRoute
   '/profile': typeof MainProfileRoute
   '/reset-password': typeof MainResetPasswordRoute
+  '/review-guidelines': typeof MainReviewGuidelinesRoute
   '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
@@ -581,6 +588,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof MainPrivacyRoute
   '/profile': typeof MainProfileRoute
   '/reset-password': typeof MainResetPasswordRoute
+  '/review-guidelines': typeof MainReviewGuidelinesRoute
   '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
@@ -663,6 +671,7 @@ export interface FileRoutesById {
   '/_main/privacy': typeof MainPrivacyRoute
   '/_main/profile': typeof MainProfileRoute
   '/_main/reset-password': typeof MainResetPasswordRoute
+  '/_main/review-guidelines': typeof MainReviewGuidelinesRoute
   '/_main/search': typeof MainSearchRoute
   '/_main/terms': typeof MainTermsRoute
   '/_main/tutorials': typeof MainTutorialsRoute
@@ -746,6 +755,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/review-guidelines'
     | '/search'
     | '/terms'
     | '/tutorials'
@@ -824,6 +834,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/profile'
     | '/reset-password'
+    | '/review-guidelines'
     | '/search'
     | '/terms'
     | '/tutorials'
@@ -905,6 +916,7 @@ export interface FileRouteTypes {
     | '/_main/privacy'
     | '/_main/profile'
     | '/_main/reset-password'
+    | '/_main/review-guidelines'
     | '/_main/search'
     | '/_main/terms'
     | '/_main/tutorials'
@@ -1180,6 +1192,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof MainSearchRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
+    '/_main/review-guidelines': {
+      id: '/_main/review-guidelines'
+      path: '/review-guidelines'
+      fullPath: '/review-guidelines'
+      preLoaderRoute: typeof MainReviewGuidelinesRouteImport
       parentRoute: typeof MainRouteRoute
     }
     '/_main/reset-password': {
@@ -1567,6 +1586,7 @@ interface MainRouteRouteChildren {
   MainPrivacyRoute: typeof MainPrivacyRoute
   MainProfileRoute: typeof MainProfileRoute
   MainResetPasswordRoute: typeof MainResetPasswordRoute
+  MainReviewGuidelinesRoute: typeof MainReviewGuidelinesRoute
   MainSearchRoute: typeof MainSearchRoute
   MainTermsRoute: typeof MainTermsRoute
   MainTutorialsRoute: typeof MainTutorialsRoute
@@ -1590,6 +1610,7 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainPrivacyRoute: MainPrivacyRoute,
   MainProfileRoute: MainProfileRoute,
   MainResetPasswordRoute: MainResetPasswordRoute,
+  MainReviewGuidelinesRoute: MainReviewGuidelinesRoute,
   MainSearchRoute: MainSearchRoute,
   MainTermsRoute: MainTermsRoute,
   MainTutorialsRoute: MainTutorialsRoute,
