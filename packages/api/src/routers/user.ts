@@ -13,6 +13,7 @@ import {
 } from "@repo/db/schema/app";
 import {
   canBookmark,
+  getPatronTierRank,
   PATRON_TIER_PROFILE_BADGES,
   ROLE_PROFILE_STYLES,
 } from "@repo/shared/constants";
@@ -36,6 +37,20 @@ import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const RECENT_USERS_WINDOW_SECONDS = 60 * 10;
 const RECENT_USERS_LIMIT = 24;
+const RECENT_USER_ROLE_ORDER = [
+  "owner",
+  "admin",
+  "moderator",
+  "uploader",
+  "shortener",
+] as const;
+const RECENT_USER_ROLE_RANKS: ReadonlyMap<string, number> = new Map(
+  RECENT_USER_ROLE_ORDER.map((role, index) => [role, index])
+);
+
+function getRecentUserRoleRank(role: string) {
+  return RECENT_USER_ROLE_RANKS.get(role) ?? Number.POSITIVE_INFINITY;
+}
 
 export default {
   getBookmarks: protectedProcedure.handler(
@@ -319,10 +334,10 @@ export default {
           avatarFallbackColor: true,
           id: true,
           image: true,
+          lastSeenAt: true,
           name: true,
           role: true,
         },
-        limit: RECENT_USERS_LIMIT,
         orderBy: (users, { desc }) => [desc(users.lastSeenAt)],
         where: (users, { and: all, gte: greaterThanOrEqual }) =>
           all(
@@ -400,23 +415,48 @@ export default {
       });
 
       logger?.debug(`Fetched ${recentUsers.length} recent users`);
-      return recentUsers.map(({ patron: patronRecord, ...recentUser }) => {
-        const patronTier = patronRecord?.isActivePatron
-          ? patronRecord.tier
-          : ("none" as PatronTier);
-        const roleStyle =
-          recentUser.role === "user"
-            ? null
-            : ROLE_PROFILE_STYLES[recentUser.role];
+      return recentUsers
+        .map(({ patron: patronRecord, ...recentUser }) => {
+          const patronTier = patronRecord?.isActivePatron
+            ? patronRecord.tier
+            : ("none" as PatronTier);
+          const roleStyle =
+            recentUser.role === "user"
+              ? null
+              : ROLE_PROFILE_STYLES[recentUser.role];
 
-        return {
-          ...recentUser,
-          patronBadge: PATRON_TIER_PROFILE_BADGES[patronTier],
-          patronTier,
-          roleBadge: roleStyle?.badge ?? null,
-          roleGradient: roleStyle?.gradient ?? null,
-        };
-      });
+          return {
+            ...recentUser,
+            patronBadge: PATRON_TIER_PROFILE_BADGES[patronTier],
+            patronTier,
+            roleBadge: roleStyle?.badge ?? null,
+            roleGradient: roleStyle?.gradient ?? null,
+          };
+        })
+        .toSorted((first, second) => {
+          const roleRankDifference =
+            getRecentUserRoleRank(first.role) -
+            getRecentUserRoleRank(second.role);
+
+          if (roleRankDifference !== 0) {
+            return roleRankDifference;
+          }
+
+          const patronRankDifference =
+            getPatronTierRank(second.patronTier) -
+            getPatronTierRank(first.patronTier);
+
+          if (patronRankDifference !== 0) {
+            return patronRankDifference;
+          }
+
+          return (
+            (second.lastSeenAt?.getTime() ?? 0) -
+            (first.lastSeenAt?.getTime() ?? 0)
+          );
+        })
+        .slice(0, RECENT_USERS_LIMIT)
+        .map(({ lastSeenAt: _lastSeenAt, ...recentUser }) => recentUser);
     }
   ),
 
