@@ -7,6 +7,8 @@ export type EngagementPrompt = {
   tagTermId: string | null;
 };
 
+const MAX_ENGAGEMENT_PROMPTS_PER_POST = 10;
+
 type ManualOverrideCandidate = {
   id: string;
   text: string;
@@ -76,6 +78,21 @@ function pickRandomItems<T>(items: T[], random: () => number): T[] {
   return pool;
 }
 
+function limitEngagementPrompts(
+  prompts: EngagementPrompt[]
+): EngagementPrompt[] {
+  return prompts.slice(0, MAX_ENGAGEMENT_PROMPTS_PER_POST);
+}
+
+function mergeEngagementPrompts(
+  manualPrompts: EngagementPrompt[],
+  automaticPrompts: EngagementPrompt[]
+): EngagementPrompt[] {
+  return limitEngagementPrompts(
+    dedupePromptsByText([...manualPrompts, ...automaticPrompts])
+  );
+}
+
 export function selectAutomaticEngagementPrompts(
   items: AutomaticQuestionCandidate[],
   random: () => number = Math.random
@@ -109,7 +126,7 @@ export function selectAutomaticEngagementPrompts(
   const selectedIds = new Set<string>();
 
   for (const groupKey of pickRandomItems([...promptsByGroup.keys()], random)) {
-    if (selected.length === 2) {
+    if (selected.length === MAX_ENGAGEMENT_PROMPTS_PER_POST) {
       break;
     }
 
@@ -122,7 +139,7 @@ export function selectAutomaticEngagementPrompts(
     selectedIds.add(candidate.id);
   }
 
-  if (selected.length < 2) {
+  if (selected.length < MAX_ENGAGEMENT_PROMPTS_PER_POST) {
     for (const candidate of pickRandomItems(deduped, random)) {
       if (selectedIds.has(candidate.id)) {
         continue;
@@ -131,7 +148,7 @@ export function selectAutomaticEngagementPrompts(
       selected.push(candidate);
       selectedIds.add(candidate.id);
 
-      if (selected.length === 2) {
+      if (selected.length === MAX_ENGAGEMENT_PROMPTS_PER_POST) {
         break;
       }
     }
@@ -152,12 +169,12 @@ export function resolveEngagementPrompts(
 ): EngagementPrompt[] {
   const normalizedManualOverrides =
     resolveManualEngagementPrompts(manualOverrides);
+  const automaticPrompts = selectAutomaticEngagementPrompts(
+    automaticQuestions,
+    random
+  );
 
-  if (normalizedManualOverrides.length > 0) {
-    return normalizedManualOverrides;
-  }
-
-  return selectAutomaticEngagementPrompts(automaticQuestions, random);
+  return mergeEngagementPrompts(normalizedManualOverrides, automaticPrompts);
 }
 
 export function resolveSelectableEngagementPrompts(
@@ -166,10 +183,8 @@ export function resolveSelectableEngagementPrompts(
 ): EngagementPrompt[] {
   const normalizedManualOverrides =
     resolveManualEngagementPrompts(manualOverrides);
+  const automaticPrompts =
+    resolveAutomaticEngagementPrompts(automaticQuestions);
 
-  if (normalizedManualOverrides.length > 0) {
-    return normalizedManualOverrides;
-  }
-
-  return resolveAutomaticEngagementPrompts(automaticQuestions);
+  return mergeEngagementPrompts(normalizedManualOverrides, automaticPrompts);
 }

@@ -15,7 +15,7 @@ function createDeterministicRandom(...values: number[]) {
 }
 
 describe(resolveEngagementPrompts, () => {
-  it("prioritizes manual overrides over automatic prompts", () => {
+  it("keeps manual overrides before automatic prompts", () => {
     const prompts = resolveEngagementPrompts(
       [
         {
@@ -39,7 +39,34 @@ describe(resolveEngagementPrompts, () => {
         tagTermId: null,
         text: "Seamos honestos... que sostiene de verdad este post?",
       },
+      {
+        id: "auto-1",
+        source: "tag",
+        tagTermId: "tag-1",
+        text: "Nadie lo dice, pero... este tag ya no sorprende.",
+      },
     ]);
+  });
+
+  it("caps the combined prompt list at ten", () => {
+    const prompts = resolveEngagementPrompts(
+      Array.from({ length: 7 }, (_, index) => ({
+        id: `manual-${index}`,
+        text: `Manual prompt ${index}`,
+      })),
+      Array.from({ length: 7 }, (_, index) => ({
+        id: `auto-${index}`,
+        tagTermId: `tag-${index}`,
+        text: `Automatic prompt ${index}`,
+      })),
+      createDeterministicRandom(0)
+    );
+
+    expect(prompts).toHaveLength(10);
+    expect(prompts.filter((prompt) => prompt.source === "manual")).toHaveLength(
+      7
+    );
+    expect(prompts.filter((prompt) => prompt.source === "tag")).toHaveLength(3);
   });
 
   it("returns an empty array when there are no eligible prompts", () => {
@@ -92,7 +119,7 @@ describe(resolveSelectableEngagementPrompts, () => {
     ]);
   });
 
-  it("keeps manual overrides as the only selectable prompts when present", () => {
+  it("keeps manual overrides selectable before automatic prompts", () => {
     const prompts = resolveSelectableEngagementPrompts(
       [
         {
@@ -115,6 +142,12 @@ describe(resolveSelectableEngagementPrompts, () => {
         source: "manual",
         tagTermId: null,
         text: "Seamos honestos... que sostiene de verdad este post?",
+      },
+      {
+        id: "auto-1",
+        source: "tag",
+        tagTermId: null,
+        text: "Nadie lo dice, pero... este prompt global no deberia aplicar.",
       },
     ]);
   });
@@ -162,10 +195,10 @@ describe(selectAutomaticEngagementPrompts, () => {
       createDeterministicRandom(0, 0, 0, 0)
     );
 
-    expect(prompts).toHaveLength(2);
+    expect(prompts).toHaveLength(3);
     expect(
       new Set(prompts.map((prompt) => prompt.tagTermId ?? "global")).size
-    ).toBe(2);
+    ).toBe(3);
   });
 
   it("can return a global prompt when a post has no matching tag-specific bank", () => {

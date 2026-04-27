@@ -66,13 +66,6 @@ async function getEngagementPromptCandidatesForPost(
       andWhere(equals(table.postId, postId), equals(table.isActive, true)),
   });
 
-  if (manualOverrides.length > 0) {
-    return {
-      automaticQuestions: [],
-      manualOverrides,
-    };
-  }
-
   const tagTerms = await db
     .select({
       id: term.id,
