@@ -47,7 +47,7 @@ import { orpc, queryClient, safeOrpc, safeOrpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
-const MAX_WEEKLY_OVERRIDE_POSTS = 7;
+const MAX_WEEKLY_OVERRIDE_POSTS = 15;
 
 export const Route = createFileRoute("/admin/extras/weekly")({
   component: RouteComponent,
