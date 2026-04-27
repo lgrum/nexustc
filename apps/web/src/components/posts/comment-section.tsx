@@ -1,6 +1,7 @@
 import {
   Comment01Icon,
   Delete02Icon,
+  Edit02Icon,
   FavouriteIcon,
   LegalHammerIcon,
   MoreHorizontalIcon,
@@ -20,6 +21,7 @@ import {
   CommentContent,
   useEmojiStickerMaps,
 } from "@/components/comments/comment-content";
+import { EditCommentDialog } from "@/components/comments/edit-comment-dialog";
 import { PostCommentForm } from "@/components/comments/post-comment-form";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { Button } from "@/components/ui/button";
@@ -66,6 +68,10 @@ export function CommentSection({
   const [replyingToCommentId, setReplyingToCommentId] = useState<string | null>(
     null
   );
+  const [editingComment, setEditingComment] = useState<{
+    id: string;
+    content: string;
+  } | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
   const confirm = useConfirm();
@@ -223,6 +229,7 @@ export function CommentSection({
   ) => {
     const isOwnComment = session?.user.id === comment.author.id;
     const canDeleteComment = canDeleteComments || isOwnComment;
+    const canEditComment = isOwnComment;
     const canPinComment = canPinComments && !isReply;
     const replies = isReply ? [] : (repliesByParentId.get(comment.id) ?? []);
     const canBanUser = canBanUsers && !isOwnComment;
@@ -257,7 +264,15 @@ export function CommentSection({
                 <HugeiconsIcon className="size-5" icon={PinIcon} />
               </span>
             )}
-            {(canPinComment || canDeleteComment || canBanUser) && (
+            {comment.editedAt && (
+              <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-medium text-[11px] text-muted-foreground">
+                (edited)
+              </span>
+            )}
+            {(canPinComment ||
+              canEditComment ||
+              canDeleteComment ||
+              canBanUser) && (
               <DropdownMenu>
                 <DropdownMenuTrigger
                   render={
@@ -282,6 +297,22 @@ export function CommentSection({
                     </DropdownMenuItem>
                   )}
                   {(canBanUser || canDeleteComment) && canPinComment && (
+                    <DropdownMenuSeparator />
+                  )}
+                  {canEditComment && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        setEditingComment({
+                          content: comment.content,
+                          id: comment.id,
+                        })
+                      }
+                    >
+                      <HugeiconsIcon icon={Edit02Icon} />
+                      Editar
+                    </DropdownMenuItem>
+                  )}
+                  {(canBanUser || canDeleteComment) && canEditComment && (
                     <DropdownMenuSeparator />
                   )}
                   {canBanUser && (
@@ -449,6 +480,19 @@ export function CommentSection({
             </div>
           </div>
         </SignedOut>
+        {editingComment && (
+          <EditCommentDialog
+            commentId={editingComment.id}
+            content={editingComment.content}
+            onOpenChange={(open) => {
+              if (!open) {
+                setEditingComment(null);
+              }
+            }}
+            open={editingComment !== null}
+            postId={post.id}
+          />
+        )}
         <Dialog
           onOpenChange={(open) => {
             if (!open) {
@@ -517,6 +561,7 @@ export function CommentSection({
                 .map((comment) => {
                   const isOwnComment = session?.user.id === comment.author.id;
                   const canDeleteComment = canDeleteComments || isOwnComment;
+                  const canEditComment = isOwnComment;
                   const canBanUser = canBanUsers && !isOwnComment;
 
                   return (
@@ -557,7 +602,14 @@ export function CommentSection({
                               />
                             </span>
                           )}
-                          {(canPinComments || canDeleteComment) && (
+                          {comment.editedAt && (
+                            <span className="inline-flex items-center rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-medium text-[11px] text-muted-foreground">
+                              (editado)
+                            </span>
+                          )}
+                          {(canPinComments ||
+                            canEditComment ||
+                            canDeleteComment) && (
                             <DropdownMenu>
                               <DropdownMenuTrigger
                                 render={
@@ -591,6 +643,21 @@ export function CommentSection({
                                 )}
                                 {(canBanUser || canDeleteComment) &&
                                   canPinComments && <DropdownMenuSeparator />}
+                                {canEditComment && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setEditingComment({
+                                        content: comment.content,
+                                        id: comment.id,
+                                      })
+                                    }
+                                  >
+                                    <HugeiconsIcon icon={Edit02Icon} />
+                                    Editar
+                                  </DropdownMenuItem>
+                                )}
+                                {(canBanUser || canDeleteComment) &&
+                                  canEditComment && <DropdownMenuSeparator />}
                                 {canBanUser && (
                                   <DropdownMenuItem
                                     onClick={async () => {

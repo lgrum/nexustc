@@ -1360,6 +1360,123 @@ export default {
       }
     ),
 
+  editOwnComment: protectedProcedure
+    .input(
+      z.object({
+        commentId: z.string(),
+        content: z.string().min(10).max(2048),
+      })
+    )
+    .handler(
+      async ({ context: { db, session, ...context }, input, errors }) => {
+        const logger = getLogger(context);
+        logger?.info(
+          `User ${session.user.id} editing own comment ${input.commentId}`
+        );
+
+        const existingComment = await db.query.comment.findFirst({
+          columns: {
+            authorId: true,
+            id: true,
+          },
+          where: eq(comment.id, input.commentId),
+        });
+
+        if (!existingComment) {
+          throw errors.NOT_FOUND();
+        }
+
+        if (existingComment.authorId !== session.user.id) {
+          throw errors.FORBIDDEN();
+        }
+
+        await assertContentHasNoForbiddenTerms({
+          content: input.content,
+          db,
+          errors,
+        });
+
+        const viewerTier = await getViewerPatronTier(db, session);
+        const tokens = parseTokens(input.content);
+
+        if (tokens.length > 0) {
+          const limitCheck = validateTokenLimit(tokens);
+          if (!limitCheck.valid) {
+            throw errors.FORBIDDEN();
+          }
+
+          const userCtx = { role: session.user.role, tier: viewerTier };
+          const emojiTokens = tokens.filter((t) => t.type === "emoji");
+          const stickerTokens = tokens.filter((t) => t.type === "sticker");
+
+          if (emojiTokens.length > 0) {
+            const emojiNames = [...new Set(emojiTokens.map((t) => t.name))];
+            const emojis = await db.query.emoji.findMany({
+              where: (e, { and: a, eq: equals, inArray }) =>
+                a(equals(e.isActive, true), inArray(e.name, emojiNames)),
+            });
+
+            const emojiMap = new Map(emojis.map((e) => [e.name, e]));
+            for (const token of emojiTokens) {
+              const emojiRecord = emojiMap.get(token.name);
+              if (!emojiRecord) {
+                continue;
+              }
+              if (
+                !userMeetsTierLevel(
+                  userCtx,
+                  emojiRecord.requiredTier as PatronTier
+                )
+              ) {
+                logger?.warn(
+                  `User ${session.user.id} lacks tier for emoji "${token.name}"`
+                );
+                throw errors.FORBIDDEN();
+              }
+            }
+          }
+
+          if (stickerTokens.length > 0) {
+            const stickerNames = [...new Set(stickerTokens.map((t) => t.name))];
+            const stickers = await db.query.sticker.findMany({
+              where: (s, { and: a, eq: equals, inArray }) =>
+                a(equals(s.isActive, true), inArray(s.name, stickerNames)),
+            });
+
+            for (const stickerRecord of stickers) {
+              if (
+                !userMeetsTierLevel(
+                  userCtx,
+                  stickerRecord.requiredTier as PatronTier
+                )
+              ) {
+                logger?.warn(
+                  `User ${session.user.id} lacks tier for sticker "${stickerRecord.name}"`
+                );
+                throw errors.FORBIDDEN();
+              }
+            }
+          }
+        }
+
+        await db
+          .update(comment)
+          .set({
+            content: input.content,
+            editedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(comment.id, input.commentId),
+              eq(comment.authorId, session.user.id)
+            )
+          );
+
+        logger?.debug(`Own comment ${input.commentId} edited`);
+        return { success: true };
+      }
+    ),
+
   setCommentPinned: permissionProcedure({ comments: ["pin"] })
     .input(z.object({ commentId: z.string(), pinned: z.boolean() }))
     .handler(async ({ context: { db, ...context }, input, errors }) => {
@@ -1584,6 +1701,7 @@ export default {
           authorId: comment.authorId,
           content: comment.content,
           createdAt: comment.createdAt,
+          editedAt: comment.editedAt,
           engagementPromptId: comment.engagementPromptId,
           engagementPromptSource: comment.engagementPromptSource,
           engagementPromptText: comment.engagementPromptText,

@@ -446,6 +446,7 @@ export const comment = pgTable(
       "engagement_prompt_source"
     ),
     engagementPromptText: text("engagement_prompt_text"),
+    editedAt: timestamp("edited_at", { withTimezone: true }),
     id: text("id").primaryKey().$defaultFn(generateId),
     parentId: text("parent_id"),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
