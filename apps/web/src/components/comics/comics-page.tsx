@@ -30,12 +30,14 @@ import {
   formatCount,
   LIBRARY_TOOLBAR_CLASS,
   LibraryEmptyState,
+  LibraryPagination,
   LibrarySearchInput,
   MultiSelectPopover,
   SectionHeader,
   SelectedChipsRow,
   SortControl,
 } from "@/components/search/library-shared";
+import type { SearchPaginationState } from "@/components/search/library-shared";
 import { TermBadge } from "@/components/term-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +65,8 @@ type ComicSearchParams = z.infer<typeof comicSearchParamsSchema>;
 type ComicsPageProps = {
   params: ComicSearchParams;
   filteredPosts: PostProps[];
+  pagination: SearchPaginationState;
+  onPageChange: (page: number) => void;
   onSearchChange: (params: ComicSearchParams) => void;
   onRandomSelect: (id: string) => void;
 };
@@ -70,6 +74,8 @@ type ComicsPageProps = {
 export function ComicsPage({
   params,
   filteredPosts,
+  pagination,
+  onPageChange,
   onSearchChange,
   onRandomSelect,
 }: ComicsPageProps) {
@@ -77,6 +83,7 @@ export function ComicsPage({
     queryFn: () =>
       orpcClient.post.search({
         orderBy: "views",
+        pageSize: TOP_RANK_LIMIT,
         type: "comic",
       }),
     queryKey: ["comics", "popular"],
@@ -87,6 +94,7 @@ export function ComicsPage({
     queryFn: () =>
       orpcClient.post.search({
         orderBy: "likes",
+        pageSize: TRENDING_LIMIT,
         type: "comic",
       }),
     queryKey: ["comics", "trending"],
@@ -100,8 +108,8 @@ export function ComicsPage({
     }
   };
 
-  const popular = popularQuery.data ?? [];
-  const trending = trendingQuery.data ?? [];
+  const popular = popularQuery.data?.items ?? [];
+  const trending = trendingQuery.data?.items ?? [];
 
   return (
     <main className="flex w-full flex-col">
@@ -127,6 +135,8 @@ export function ComicsPage({
         <ComicsLibrary
           params={params}
           posts={filteredPosts}
+          pagination={pagination}
+          onPageChange={onPageChange}
           onSearchChange={onSearchChange}
           onRandom={handleRandomComic}
         />
@@ -797,16 +807,21 @@ function ComicsGenreStrip() {
 function ComicsLibrary({
   params,
   posts,
+  pagination,
+  onPageChange,
   onSearchChange,
   onRandom,
 }: {
   params: ComicSearchParams;
   posts: PostProps[];
+  pagination: SearchPaginationState;
+  onPageChange: (page: number) => void;
   onSearchChange: (params: ComicSearchParams) => void;
   onRandom: () => void;
 }) {
   const activeFilterCount = getComicFilterCount(params);
   const isFiltered = activeFilterCount > 0;
+  const resultCount = pagination.totalItems;
 
   return (
     <section aria-label="Biblioteca de cómics" className="space-y-5">
@@ -815,7 +830,7 @@ function ComicsLibrary({
         icon={Book03Icon}
         subtitle={
           isFiltered
-            ? `${posts.length} resultados con tus filtros`
+            ? `${resultCount} resultados con tus filtros`
             : "Lo último publicado, ordenado por novedad"
         }
         title={isFiltered ? "Tu selección" : "Recién publicados"}
@@ -846,11 +861,17 @@ function ComicsLibrary({
           unfilteredTitle="Aún no hay cómics publicados"
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-          {posts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))}
+          </div>
+          <LibraryPagination
+            onPageChange={onPageChange}
+            pagination={pagination}
+          />
+        </>
       )}
     </section>
   );
@@ -888,6 +909,7 @@ function ComicsLibraryToolbar({
     () => {
       onSearchChange({
         orderBy: formValues.orderBy,
+        page: 1,
         query: formValues.query || undefined,
         tag: formValues.tag,
       });

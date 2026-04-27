@@ -59,6 +59,8 @@ import {
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
+const DEFAULT_SEARCH_PAGE_SIZE = 12;
+const MAX_SEARCH_PAGE_SIZE = 60;
 
 export default {
   // Future improvement: add caching here because this endpoint is heavily used.
@@ -409,6 +411,14 @@ export default {
           .optional()
           .default("newest"),
         query: z.string().optional(),
+        page: z.number().int().min(1).optional().default(1),
+        pageSize: z
+          .number()
+          .int()
+          .min(1)
+          .max(MAX_SEARCH_PAGE_SIZE)
+          .optional()
+          .default(DEFAULT_SEARCH_PAGE_SIZE),
         termIds: z.array(z.string()).optional(),
         type: z.enum(["post", "comic"]),
       })
@@ -511,6 +521,15 @@ export default {
         conditions.push(sql`${post.id} IN (${termMatchSubquery})`);
       }
 
+      const [{ count: totalItems } = { count: 0 }] = await db
+        .select({ count: sql<number>`COUNT(*)::integer` })
+        .from(post)
+        .where(and(...conditions));
+
+      const totalPages = Math.max(1, Math.ceil(totalItems / input.pageSize));
+      const page = Math.min(input.page, totalPages);
+      const offset = (page - 1) * input.pageSize;
+
       // Build the base query
       const baseQuery = db
         .select({
@@ -591,16 +610,31 @@ export default {
         }
       };
 
-      const posts = await baseQuery.orderBy(getOrderClause());
+      const posts = await baseQuery
+        .orderBy(getOrderClause())
+        .limit(input.pageSize)
+        .offset(offset);
 
       // Remove similarity field from the final result
       const result = posts.map(({ similarity: _, ...postData }) => postData);
-      logger?.debug(`Search returned ${result.length} posts`);
+      logger?.debug(
+        `Search returned ${result.length} posts for page ${page} of ${totalPages}`
+      );
 
-      return attachComicCatalogProgress(db, {
+      const items = await attachComicCatalogProgress(db, {
         items: result,
         userId: session?.user.id,
       });
+
+      return {
+        items,
+        pagination: {
+          page,
+          pageSize: input.pageSize,
+          totalItems,
+          totalPages,
+        },
+      };
     }),
 
   getRandom: publicProcedure

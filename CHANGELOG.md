@@ -2,6 +2,12 @@
 
 Todos los cambios notables serán documentados en este archivo.
 
+## [0.2.1] - 2026-04-26
+
+- Agregada paginacion a las busquedas de juegos, comics y la busqueda unificada.
+- Actualizada la API de busqueda para devolver resultados paginados con metadatos de pagina y total.
+- Mejorados los controles de paginacion usando los componentes de paginacion del sistema de UI.
+
 ## [0.2.0] - 2026-04-26
 
 - Rediseñadas las páginas de catálogo de juegos y cómics con una experiencia visual y de exploración más completa.

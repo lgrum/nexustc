@@ -21,6 +21,7 @@ import type { gameSearchParamsSchema } from "@/components/search/catalog-search"
 import {
   LIBRARY_TOOLBAR_CLASS,
   LibraryEmptyState,
+  LibraryPagination,
   LibrarySearchInput,
   MultiSelectPopover,
   SectionHeader,
@@ -29,6 +30,7 @@ import {
 } from "@/components/search/library-shared";
 import type {
   MultiSelectOption,
+  SearchPaginationState,
   SelectedChip,
 } from "@/components/search/library-shared";
 import { Badge } from "@/components/ui/badge";
@@ -42,8 +44,10 @@ type GameSearchParams = z.infer<typeof gameSearchParamsSchema>;
 type GamesPageProps = {
   filteredPosts: PostProps[];
   onRandom: () => void;
+  onPageChange: (page: number) => void;
   onSearchChange: (params: GameSearchParams) => void;
   params: GameSearchParams;
+  pagination: SearchPaginationState;
 };
 
 const gameLibraryFormSchema = z.object({
@@ -99,11 +103,14 @@ const FILTER_GROUPS: {
 export function GamesPage({
   filteredPosts,
   onRandom,
+  onPageChange,
   onSearchChange,
+  pagination,
   params,
 }: GamesPageProps) {
   const activeFilterCount = getGameFilterCount(params);
   const isFiltered = activeFilterCount > 0;
+  const resultCount = pagination.totalItems;
 
   return (
     <main className="flex w-full flex-col gap-5 px-1 py-6 md:px-3">
@@ -122,7 +129,7 @@ export function GamesPage({
         }
         subtitle={
           isFiltered
-            ? `${filteredPosts.length} resultados con tus filtros`
+            ? `${resultCount} resultados con tus filtros`
             : "Explora la biblioteca completa de juegos"
         }
         title={isFiltered ? "Tu selección" : "Todos los juegos"}
@@ -143,11 +150,17 @@ export function GamesPage({
           unfilteredTitle="Aún no hay juegos publicados"
         />
       ) : (
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
-          {filteredPosts.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
+            {filteredPosts.map((post) => (
+              <PostCard key={post.id} post={post} />
+            ))}
+          </div>
+          <LibraryPagination
+            onPageChange={onPageChange}
+            pagination={pagination}
+          />
+        </>
       )}
     </main>
   );
@@ -185,6 +198,7 @@ function GamesLibraryToolbar({
         engine: formValues.engine,
         graphics: formValues.graphics,
         orderBy: formValues.orderBy,
+        page: 1,
         platform: formValues.platform,
         query: formValues.query || undefined,
         status: formValues.status,

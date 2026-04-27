@@ -11,6 +11,15 @@ import type { z } from "zod";
 import { ORDER_OPTIONS } from "@/components/search/catalog-search";
 import type { orderBySchema } from "@/components/search/catalog-search";
 import { Button } from "@/components/ui/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 
 type OrderBy = z.infer<typeof orderBySchema>;
@@ -469,6 +478,117 @@ export function formatCount(value: number | undefined | null) {
     return "0";
   }
   return COMPACT_FORMATTER.format(value);
+}
+
+export type SearchPaginationState = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
+export function LibraryPagination({
+  onPageChange,
+  pagination,
+}: {
+  onPageChange: (page: number) => void;
+  pagination: SearchPaginationState;
+}) {
+  if (pagination.totalPages <= 1) {
+    return null;
+  }
+
+  const hasPrevious = pagination.page > 1;
+  const hasNext = pagination.page < pagination.totalPages;
+  const pages = getVisiblePaginationItems(
+    pagination.page,
+    pagination.totalPages
+  );
+
+  return (
+    <div className="flex flex-col items-center gap-2 pt-2">
+      <Pagination>
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              aria-disabled={!hasPrevious}
+              className={cn(!hasPrevious && "pointer-events-none opacity-50")}
+              href="#"
+              onClick={(event) => {
+                event.preventDefault();
+                if (hasPrevious) {
+                  onPageChange(pagination.page - 1);
+                }
+              }}
+              text="Anterior"
+            />
+          </PaginationItem>
+          {pages.map((item) =>
+            typeof item === "string" ? (
+              <PaginationItem key={item}>
+                <PaginationEllipsis />
+              </PaginationItem>
+            ) : (
+              <PaginationItem key={item}>
+                <PaginationLink
+                  href="#"
+                  isActive={item === pagination.page}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    onPageChange(item);
+                  }}
+                >
+                  {item}
+                </PaginationLink>
+              </PaginationItem>
+            )
+          )}
+          <PaginationItem>
+            <PaginationNext
+              aria-disabled={!hasNext}
+              className={cn(!hasNext && "pointer-events-none opacity-50")}
+              href="#"
+              onClick={(event) => {
+                event.preventDefault();
+                if (hasNext) {
+                  onPageChange(pagination.page + 1);
+                }
+              }}
+              text="Siguiente"
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+      <p className="text-muted-foreground text-xs">
+        {pagination.totalItems} resultados en total
+      </p>
+    </div>
+  );
+}
+
+function getVisiblePaginationItems(currentPage: number, totalPages: number) {
+  const pages = new Set([1, totalPages]);
+
+  for (
+    let page = Math.max(1, currentPage - 1);
+    page <= Math.min(totalPages, currentPage + 1);
+    page += 1
+  ) {
+    pages.add(page);
+  }
+
+  const sortedPages = [...pages].toSorted((a, b) => a - b);
+  const items: (number | string)[] = [];
+
+  for (const page of sortedPages) {
+    const previous = items.at(-1);
+    if (typeof previous === "number" && page - previous > 1) {
+      items.push(`ellipsis-${previous}-${page}`);
+    }
+    items.push(page);
+  }
+
+  return items;
 }
 
 /**

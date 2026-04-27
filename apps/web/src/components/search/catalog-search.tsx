@@ -52,6 +52,7 @@ export const gameSearchParamsSchema = z.object({
   engine: z.array(z.string()).optional().default([]),
   graphics: z.array(z.string()).optional().default([]),
   orderBy: orderBySchema.optional().default("newest"),
+  page: z.coerce.number().int().min(1).optional().default(1),
   platform: z.array(z.string()).optional().default([]),
   query: z.string().optional(),
   status: z.array(z.string()).optional().default([]),
@@ -60,6 +61,7 @@ export const gameSearchParamsSchema = z.object({
 
 export const comicSearchParamsSchema = z.object({
   orderBy: orderBySchema.optional().default("newest"),
+  page: z.coerce.number().int().min(1).optional().default(1),
   query: z.string().optional(),
   tag: z.array(z.string()).optional().default([]),
 });
@@ -181,6 +183,7 @@ export function GameSearchControls({
         engine: formValues.engine,
         graphics: formValues.graphics,
         orderBy: formValues.orderBy,
+        page: 1,
         platform: formValues.platform,
         query: formValues.query || undefined,
         status: formValues.status,
@@ -351,6 +354,7 @@ export function ComicSearchControls({
     () => {
       onSearchChange({
         orderBy: formValues.orderBy,
+        page: 1,
         query: formValues.query || undefined,
         tag: formValues.tag,
       });
