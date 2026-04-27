@@ -33,9 +33,9 @@ const shortenerResponseSchema = z.object({
 
 const shortenerProviders = [
   {
-    name: "uii.io",
-    token: env.UII_TOKEN,
-    url: "https://uii.io/api",
+    name: "shrinkme.io",
+    token: env.SHRINKME_TOKEN,
+    url: "https://shrinkme.io/api",
   },
   {
     name: "shrinkearn.com",

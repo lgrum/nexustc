@@ -22,8 +22,8 @@ export const env = createEnv({
     REDIS_URL: z.string(),
     RESEND_API_KEY: z.string(),
     SHRINKEARN_TOKEN: z.string(),
+    SHRINKME_TOKEN: z.string(),
     TURNSTILE_SECRET_KEY: z.string(),
-    UII_TOKEN: z.string(),
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });

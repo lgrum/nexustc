@@ -37,7 +37,7 @@ function getShortenerPipelineLabel(
       return "`shrinkearn.com` -> `exe.io`";
     }
     default: {
-      return "`uii.io` -> `shrinkearn.com` -> `exe.io`";
+      return "`shrinkme.io` -> `shrinkearn.com` -> `exe.io`";
     }
   }
 }
