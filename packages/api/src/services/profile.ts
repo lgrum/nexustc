@@ -105,8 +105,6 @@ export type ProfileMediaValidation = {
   fileSizeBytes: number;
 };
 
-const STAFF_OVERRIDE_ROLES = new Set(["owner", "admin", "moderator"]);
-
 const PROFILE_ENTITLEMENT_RULES = {
   animatedAvatarRequiredTier: "level3",
   animatedBannerRequiredTier: "level8",
@@ -222,7 +220,7 @@ export async function getProfileEntitlements(
   userId: string,
   role?: string | null
 ): Promise<ProfileEntitlements> {
-  if (role && STAFF_OVERRIDE_ROLES.has(role)) {
+  if (role && role !== "user") {
     return {
       animatedAvatarRequiredTier:
         PROFILE_ENTITLEMENT_RULES.animatedAvatarRequiredTier,
@@ -362,27 +360,32 @@ export function validateProfileMediaUpload({
   }
 
   const limits = SLOT_LIMITS[slot];
-  const maxBytes = validation.isAnimated
-    ? limits.animatedBytes
-    : limits.staticBytes;
+  const hasUnlimitedProfileCustomization =
+    entitlements.overrideSource === "staff";
 
-  if (validation.fileSizeBytes > maxBytes) {
-    throw new Error("FILE_TOO_LARGE");
-  }
+  if (!hasUnlimitedProfileCustomization) {
+    const maxBytes = validation.isAnimated
+      ? limits.animatedBytes
+      : limits.staticBytes;
 
-  if (
-    validation.width < limits.minWidth ||
-    validation.height < limits.minHeight
-  ) {
-    throw new Error("IMAGE_TOO_SMALL");
-  }
+    if (validation.fileSizeBytes > maxBytes) {
+      throw new Error("FILE_TOO_LARGE");
+    }
 
-  if (
-    validation.isAnimated &&
-    validation.durationMs !== null &&
-    validation.durationMs > limits.maxDurationMs
-  ) {
-    throw new Error("ANIMATION_TOO_LONG");
+    if (
+      validation.width < limits.minWidth ||
+      validation.height < limits.minHeight
+    ) {
+      throw new Error("IMAGE_TOO_SMALL");
+    }
+
+    if (
+      validation.isAnimated &&
+      validation.durationMs !== null &&
+      validation.durationMs > limits.maxDurationMs
+    ) {
+      throw new Error("ANIMATION_TOO_LONG");
+    }
   }
 
   if (

@@ -14,12 +14,17 @@ const unrestrictedEntitlements: ProfileEntitlements = {
   uploadedBannerRequiredTier: "level5",
 };
 
+const tierEntitlements: ProfileEntitlements = {
+  ...getProfileEntitlementsForTier("level8"),
+  overrideSource: "none",
+};
+
 describe(validateProfileMediaUpload, () => {
   it("rejects uploads when the server-measured size exceeds the slot limit", () => {
     expect(() =>
       validateProfileMediaUpload({
         contentType: "image/webp",
-        entitlements: unrestrictedEntitlements,
+        entitlements: tierEntitlements,
         slot: "avatar",
         validation: {
           durationMs: null,
@@ -30,6 +35,23 @@ describe(validateProfileMediaUpload, () => {
         },
       })
     ).toThrow("FILE_TOO_LARGE");
+  });
+
+  it("allows unrestricted role uploads to exceed default file limits", () => {
+    expect(() =>
+      validateProfileMediaUpload({
+        contentType: "image/gif",
+        entitlements: unrestrictedEntitlements,
+        slot: "banner",
+        validation: {
+          durationMs: 60_000,
+          fileSizeBytes: 1024 * 1024 * 50,
+          height: 240,
+          isAnimated: true,
+          width: 1200,
+        },
+      })
+    ).not.toThrow();
   });
 
   it("allows uploads that stay within the server-measured size limit", () => {
