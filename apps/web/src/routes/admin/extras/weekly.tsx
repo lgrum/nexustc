@@ -47,6 +47,8 @@ import { orpc, queryClient, safeOrpc, safeOrpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
+const MAX_WEEKLY_OVERRIDE_POSTS = 7;
+
 export const Route = createFileRoute("/admin/extras/weekly")({
   component: RouteComponent,
   loader: async () => {
@@ -207,6 +209,21 @@ function RouteComponent() {
     await weeklyMutation.mutateAsync(selectedPosts);
   };
 
+  const toggleSelectedPost = (postId: string, checked: boolean) => {
+    if (checked && selectedPosts.length >= MAX_WEEKLY_OVERRIDE_POSTS) {
+      toast.error(
+        `Solo puedes seleccionar hasta ${MAX_WEEKLY_OVERRIDE_POSTS} juegos manuales.`
+      );
+      return;
+    }
+
+    setSelectedPosts(
+      checked
+        ? [...selectedPosts, postId]
+        : selectedPosts.filter((id) => id !== postId)
+    );
+  };
+
   return (
     <main className="flex flex-col gap-6">
       <h1 className="font-bold text-2xl">Juegos de la Semana</h1>
@@ -291,11 +308,7 @@ function RouteComponent() {
                     checked={selectedPosts.includes(post.id)}
                     id={post.id}
                     onCheckedChange={(v) =>
-                      setSelectedPosts(
-                        v
-                          ? [...selectedPosts, post.id]
-                          : selectedPosts.filter((id) => id !== post.id)
-                      )
+                      toggleSelectedPost(post.id, Boolean(v))
                     }
                     value={post.id}
                   />

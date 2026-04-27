@@ -306,7 +306,7 @@ export default {
   uploadWeeklyPosts: permissionProcedure({
     posts: ["create"],
   })
-    .input(z.array(z.string()))
+    .input(z.array(z.string()).max(7))
     .handler(async ({ context: { db, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(`Uploading ${input.length} posts as weekly`);

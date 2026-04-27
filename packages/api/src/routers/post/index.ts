@@ -61,6 +61,7 @@ import admin from "./admin";
 const RECOMMENDATION_LIMIT = 5;
 const DEFAULT_SEARCH_PAGE_SIZE = 12;
 const MAX_SEARCH_PAGE_SIZE = 60;
+const WEEKLY_POST_LIMIT = 7;
 
 export default {
   // Future improvement: add caching here because this endpoint is heavily used.
@@ -233,6 +234,16 @@ export default {
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
+      const trendingScore = sql`
+        (LN(COALESCE(${post.views}, 0) + 1) + 1)
+        * EXP(
+          -GREATEST(
+            EXTRACT(EPOCH FROM (NOW() - ${post.createdAt})) / 86400,
+            0
+          ) / 14
+        )
+      `;
+
       const posts = await db
         .select({
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
@@ -268,11 +279,16 @@ export default {
         .where(
           and(
             eq(post.status, "publish"),
-            eq(post.isWeekly, true),
+            eq(post.type, "post"),
             publicCatalogVisibilityCondition()
           )
         )
-        .orderBy(asc(post.title));
+        .orderBy(
+          sql`CASE WHEN ${post.isWeekly} THEN 0 ELSE 1 END`,
+          sql`${trendingScore} DESC`,
+          desc(post.createdAt)
+        )
+        .limit(WEEKLY_POST_LIMIT);
 
       logger?.debug(`Successfully fetched ${posts.length} weekly posts`);
       return posts;
