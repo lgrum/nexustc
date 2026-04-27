@@ -2,6 +2,20 @@
 
 Todos los cambios notables serán documentados en este archivo.
 
+## [0.2.3] - 2026-04-27
+
+- Agregado estilo de identidad por rol en los nombres de usuario, con badge y gradiente propios para `owner` y `uploader`.
+- Los estilos de rol ahora tienen prioridad sobre los badges y gradientes de Patreon cuando el usuario tiene un rol destacado.
+- La API de perfiles y usuarios recientes ahora devuelve `role`, `roleBadge` y `roleGradient` para renderizar la identidad de usuario de forma consistente.
+- La lista de usuarios recientes ahora se ordena por rol, luego por tier de Patreon de mayor a menor, y finalmente por usuarios comunes.
+
+## [0.2.2] - 2026-04-27
+
+- Agregada edicion de comentarios para owners, incluyendo dialogo de edicion y almacenamiento de fecha de edicion.
+- Corregido el listado de resenas del perfil para que las resenas no lleven a la pagina del post.
+- Corregida la seleccion de prompts de engagement para incluir correctamente todas las fuentes disponibles.
+- Agregadas pruebas para validar el comportamiento de seleccion de prompts de engagement.
+
 ## [0.2.1] - 2026-04-26
 
 - Agregada paginacion a las busquedas de juegos, comics y la busqueda unificada.
