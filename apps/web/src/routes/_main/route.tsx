@@ -93,7 +93,9 @@ function Marquee({ items }: { items: readonly MarqueeItem[] }) {
             key={`${item.text}:${idx}`}
           >
             {content}
-            <span aria-hidden className="size-1 rounded-full bg-primary/40" />
+            {idx !== items.length - 1 && (
+              <span aria-hidden className="size-1 rounded-full bg-primary/40" />
+            )}
           </span>
         );
       })}
