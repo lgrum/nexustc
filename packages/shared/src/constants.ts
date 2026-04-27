@@ -132,6 +132,20 @@ export const ROLE_LABELS: Record<string, string> = {
   user: "Sobrino⁺¹⁸",
 };
 
+export const ROLE_PROFILE_STYLES: Record<
+  string,
+  { badge: string; gradient: string }
+> = {
+  uploader: {
+    badge: "DEALER⁺¹⁸",
+    gradient: "linear-gradient(135deg, #ff0090 0%, #ff5bfa 100%)",
+  },
+  owner: {
+    badge: "AlphaNeXusTC⁺¹⁸",
+    gradient: "linear-gradient(135deg, #ff2559 0%, #ff0090 100%)",
+  },
+} as const;
+
 export const PATRON_TIER_KEYS = [
   "none",
   "level1",

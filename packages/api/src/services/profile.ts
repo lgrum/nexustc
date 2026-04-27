@@ -15,6 +15,7 @@ import {
 import { env } from "@repo/env";
 import {
   PATRON_TIER_PROFILE_BADGES,
+  ROLE_PROFILE_STYLES,
   userMeetsTierLevel,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
@@ -75,6 +76,9 @@ export type ProfileSummary = {
   href: string;
   patronBadge: string | null;
   patronTier: PatronTier;
+  role: string;
+  roleBadge: string | null;
+  roleGradient: string | null;
   profileRoles: PublicProfileRole[];
   profileEmblems: PublicProfileEmblem[];
 };
@@ -662,6 +666,10 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
           : [];
 
     const patronTier = patronTierMap.get(currentUser.id) ?? "none";
+    const roleStyle =
+      currentUser.role === "user"
+        ? null
+        : ROLE_PROFILE_STYLES[currentUser.role];
 
     return {
       avatar: currentUser.image
@@ -688,6 +696,9 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
       name: currentUser.name,
       patronBadge: PATRON_TIER_PROFILE_BADGES[patronTier],
       patronTier,
+      role: currentUser.role,
+      roleBadge: roleStyle?.badge ?? null,
+      roleGradient: roleStyle?.gradient ?? null,
       profileEmblems: clampVisibleEmblems(
         emblemGroups.get(currentUser.id) ?? [],
         systemConfig.maxVisibleEmblems

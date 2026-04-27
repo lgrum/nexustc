@@ -14,6 +14,7 @@ import {
 import {
   canBookmark,
   PATRON_TIER_PROFILE_BADGES,
+  ROLE_PROFILE_STYLES,
 } from "@repo/shared/constants";
 import type { PatronTier, TAXONOMIES } from "@repo/shared/constants";
 import {
@@ -319,6 +320,7 @@ export default {
           id: true,
           image: true,
           name: true,
+          role: true,
         },
         limit: RECENT_USERS_LIMIT,
         orderBy: (users, { desc }) => [desc(users.lastSeenAt)],
@@ -402,11 +404,17 @@ export default {
         const patronTier = patronRecord?.isActivePatron
           ? patronRecord.tier
           : ("none" as PatronTier);
+        const roleStyle =
+          recentUser.role === "user"
+            ? null
+            : ROLE_PROFILE_STYLES[recentUser.role];
 
         return {
           ...recentUser,
           patronBadge: PATRON_TIER_PROFILE_BADGES[patronTier],
           patronTier,
+          roleBadge: roleStyle?.badge ?? null,
+          roleGradient: roleStyle?.gradient ?? null,
         };
       });
     }

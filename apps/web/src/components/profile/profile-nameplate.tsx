@@ -1,6 +1,7 @@
 import {
   PATRON_TIER_GRADIENTS,
   PATRON_TIER_PROFILE_BADGES,
+  ROLE_PROFILE_STYLES,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
@@ -46,6 +47,9 @@ export type ProfileNameplateUser = {
   name: string;
   patronBadge?: string | null;
   patronTier?: PatronTier | null;
+  role?: string | null;
+  roleBadge?: string | null;
+  roleGradient?: string | null;
   profileRoles?: ProfileRole[];
   profileRoleAssignments?: ProfileRoleAssignment[];
   profileEmblems?: ProfileEmblem[];
@@ -110,6 +114,38 @@ function getPatronTierRole(
   } satisfies ProfileRole;
 }
 
+function getCustomRoleIdentity(user: ProfileNameplateUser) {
+  const role = user.role ?? "user";
+
+  if (role === "user") {
+    return null;
+  }
+
+  const roleStyle = ROLE_PROFILE_STYLES[role];
+  const name = user.roleBadge ?? roleStyle?.badge;
+  const gradient = user.roleGradient ?? roleStyle?.gradient;
+
+  if (!(name && gradient)) {
+    return null;
+  }
+
+  return {
+    description: "Badge de rol.",
+    id: `role-${role}`,
+    isExclusive: false,
+    name,
+    priority: Number.MAX_SAFE_INTEGER,
+    slug: `role-${role}`,
+    visualConfig: {
+      accentColor: null,
+      baseColor: "transparent",
+      glowColor: null,
+      gradient,
+      textColor: "#ffffff",
+    },
+  } satisfies ProfileRole;
+}
+
 export function ProfileNameplate({
   user,
   className,
@@ -124,16 +160,20 @@ export function ProfileNameplate({
   showProfileRoles?: boolean;
 }) {
   const profileRoles = getVisibleProfileRoles(user);
+  const customRoleIdentity = getCustomRoleIdentity(user);
   const patronTier = user.patronTier ?? "none";
-  const nameGradient =
+  const patronGradient =
     patronTier === "none" ? null : PATRON_TIER_GRADIENTS[patronTier];
   const patronTierRole = getPatronTierRole(
     patronTier,
     user.patronBadge,
-    nameGradient
+    patronGradient
   );
+  const identityRole = customRoleIdentity ?? patronTierRole;
+  const nameGradient =
+    identityRole?.visualConfig.gradient ?? patronGradient ?? null;
   const badges = [
-    ...(patronTierRole ? [patronTierRole] : []),
+    ...(identityRole ? [identityRole] : []),
     ...(showProfileRoles ? profileRoles : []),
   ];
 
