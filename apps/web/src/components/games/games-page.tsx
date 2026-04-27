@@ -1,8 +1,8 @@
 import {
-  DiceFaces05Icon,
   Folder01Icon,
   GameController03Icon,
   Image01Icon,
+  ShuffleSquareIcon,
   Tag01Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
@@ -313,8 +313,8 @@ function GamesLibraryToolbar({
         type="button"
         variant="outline"
       >
-        <HugeiconsIcon className="size-4" icon={DiceFaces05Icon} />
-        <span className="hidden sm:inline">Aleatorio</span>
+        <HugeiconsIcon className="size-4" icon={ShuffleSquareIcon} />
+        <span className="inline">Aleatorio</span>
       </Button>
 
       <SelectedChipsRow

@@ -188,7 +188,7 @@ export function MultiSelectPopover({
     <div className="relative">
       <Button
         className={cn(
-          "h-11 rounded-xl border-white/15 bg-background/60 px-3 font-medium",
+          "h-11 rounded-xl border-white/15 bg-background/60 px-3 w-full font-medium",
           open && "border-primary/50 bg-background"
         )}
         onClick={() => setOpen((p) => !p)}
@@ -196,7 +196,7 @@ export function MultiSelectPopover({
         variant="outline"
       >
         <HugeiconsIcon className="size-4" icon={icon} />
-        <span className="hidden sm:inline">{triggerLabel}</span>
+        <span className="inline">{triggerLabel}</span>
         {count > 0 && (
           <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary text-[10.5px] font-bold tabular-nums text-primary-foreground">
             {count}

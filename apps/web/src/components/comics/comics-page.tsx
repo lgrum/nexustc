@@ -6,6 +6,7 @@ import {
   DiceFaces05Icon,
   FavouriteIcon,
   Fire03Icon,
+  ShuffleSquareIcon,
   StarIcon,
   Tag01Icon,
   ViewIcon,
@@ -971,8 +972,8 @@ function ComicsLibraryToolbar({
         type="button"
         variant="outline"
       >
-        <HugeiconsIcon className="size-4" icon={DiceFaces05Icon} />
-        <span className="hidden sm:inline">Aleatorio</span>
+        <HugeiconsIcon className="size-4" icon={ShuffleSquareIcon} />
+        <span className="inline">Aleatorio</span>
       </Button>
 
       <SelectedChipsRow
