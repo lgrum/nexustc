@@ -198,21 +198,27 @@ function HeroSection() {
                   className="size-3.5 fill-red-500 text-red-500"
                   icon={FavouriteIcon}
                 />
-                <span className="font-semibold text-foreground">128</span>
+                <span className="font-semibold text-foreground">
+                  {main.likes}
+                </span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <HugeiconsIcon
                   className="size-3.5 fill-amber-400 text-amber-400"
                   icon={StarIcon}
                 />
-                <span className="font-semibold text-foreground">4.8</span>
+                <span className="font-semibold text-foreground">
+                  {(main.averageRating ?? 0).toFixed(1)}
+                </span>
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <HugeiconsIcon
                   className="size-3.5 opacity-80"
                   icon={ViewIcon}
                 />
-                <span className="font-semibold text-foreground">2.4K</span>
+                <span className="font-semibold text-foreground">
+                  {main.views}
+                </span>
               </span>
             </div>
           </div>
