@@ -8,6 +8,7 @@ Todos los cambios notables serán documentados en este archivo.
 - Los estilos de rol ahora tienen prioridad sobre los badges y gradientes de Patreon cuando el usuario tiene un rol destacado.
 - La API de perfiles y usuarios recientes ahora devuelve `role`, `roleBadge` y `roleGradient` para renderizar la identidad de usuario de forma consistente.
 - La lista de usuarios recientes ahora se ordena por rol, luego por tier de Patreon de mayor a menor, y finalmente por usuarios comunes.
+- La seccion "Juegos de la Semana" ahora combina selecciones manuales obligatorias con juegos destacados automaticamente por vistas y recencia, hasta un maximo de 7.
 
 ## [0.2.2] - 2026-04-27
 
