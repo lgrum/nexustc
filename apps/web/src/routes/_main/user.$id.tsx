@@ -1,7 +1,7 @@
 import { StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link, notFound } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { formatDistance } from "date-fns";
 import { es } from "date-fns/locale";
 import { Suspense } from "react";
@@ -158,13 +158,7 @@ function UserReviewsSection({ userId }: { userId: string }) {
           <Card className="rounded-[2rem]" key={rating.postId}>
             <CardContent className="flex flex-col gap-2 p-4">
               <div className="flex flex-row items-center justify-between gap-2">
-                <Link
-                  className="font-semibold hover:underline"
-                  params={{ id: ratingPost.id }}
-                  to="/post/$id"
-                >
-                  {ratingPost.title}
-                </Link>
+                <span className="font-semibold">{ratingPost.title}</span>
                 <div className="inline-flex items-center gap-1 text-sm">
                   <HugeiconsIcon
                     className="size-4 fill-amber-400 text-amber-400"
