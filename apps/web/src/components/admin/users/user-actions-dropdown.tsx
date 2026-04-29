@@ -14,6 +14,7 @@ import { authClient } from "@/lib/auth-client";
 
 import { BanUserDialog } from "./ban-user-dialog";
 import { SetPasswordDialog } from "./set-password-dialog";
+import { SetPatreonTierDialog } from "./set-patreon-tier-dialog";
 import { SetRoleDialog } from "./set-role-dialog";
 import type { AdminUser } from "./types";
 
@@ -28,6 +29,7 @@ export function UserActionsDropdown({
   const [roleOpen, setRoleOpen] = useState(false);
   const [banOpen, setBanOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [patreonTierOpen, setPatreonTierOpen] = useState(false);
 
   const handleUnban = async () => {
     const confirmed = await confirm({
@@ -128,6 +130,9 @@ export function UserActionsDropdown({
           <DropdownMenuItem onClick={() => setPasswordOpen(true)}>
             Cambiar Contraseña
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setPatreonTierOpen(true)}>
+            Asignar Patreon permanente
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleRevokeSessions}>
             Revocar Sesiones
           </DropdownMenuItem>
@@ -157,6 +162,12 @@ export function UserActionsDropdown({
         onOpenChange={setPasswordOpen}
         onSuccess={onRefresh}
         open={passwordOpen}
+        user={user}
+      />
+      <SetPatreonTierDialog
+        onOpenChange={setPatreonTierOpen}
+        onSuccess={onRefresh}
+        open={patreonTierOpen}
         user={user}
       />
     </>

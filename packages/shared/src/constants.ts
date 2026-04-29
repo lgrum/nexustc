@@ -299,13 +299,21 @@ type PatronStatusUpdate = {
   tier: PatronTier;
 };
 
+const PERMANENT_PATRON_TIERS = ["level69", "level100"] as const;
+
+function isPermanentPatronTier(
+  tier: PatronTier | undefined
+): tier is (typeof PERMANENT_PATRON_TIERS)[number] {
+  return tier === "level69" || tier === "level100";
+}
+
 export function resolvePermanentPatronTierStatus<
   TUpdate extends PatronStatusUpdate,
 >(
   existing: { patronSince?: Date | null; tier: PatronTier } | null | undefined,
   next: TUpdate
 ): TUpdate {
-  if (existing?.tier !== "level100") {
+  if (!isPermanentPatronTier(existing?.tier)) {
     return next;
   }
 
@@ -313,7 +321,7 @@ export function resolvePermanentPatronTierStatus<
     ...next,
     isActivePatron: true,
     patronSince: existing.patronSince ?? next.patronSince,
-    tier: "level100",
+    tier: existing.tier,
   };
 }
 

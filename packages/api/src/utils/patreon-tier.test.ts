@@ -11,23 +11,26 @@ describe("patreon tier helpers", () => {
     );
   });
 
-  it("preserves permanent VIP level 100 during automated syncs", () => {
-    const result = resolvePermanentPatronTierStatus(
-      {
-        patronSince: new Date("2026-04-17T12:00:00.000Z"),
-        tier: "level100",
-      },
-      {
-        isActivePatron: false,
-        patronSince: null,
-        tier: "none",
-      }
-    );
+  it.each(["level69", "level100"] as const)(
+    "preserves permanent VIP %s during automated syncs",
+    (tier) => {
+      const result = resolvePermanentPatronTierStatus(
+        {
+          patronSince: new Date("2026-04-17T12:00:00.000Z"),
+          tier,
+        },
+        {
+          isActivePatron: false,
+          patronSince: null,
+          tier: "none",
+        }
+      );
 
-    expect(result).toEqual({
-      isActivePatron: true,
-      patronSince: new Date("2026-04-17T12:00:00.000Z"),
-      tier: "level100",
-    });
-  });
+      expect(result).toEqual({
+        isActivePatron: true,
+        patronSince: new Date("2026-04-17T12:00:00.000Z"),
+        tier,
+      });
+    }
+  );
 });

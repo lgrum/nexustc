@@ -28,6 +28,7 @@ import * as z from "zod";
 
 import {
   fixedWindowRatelimitMiddleware,
+  ownerProcedure,
   permissionProcedure,
   protectedProcedure,
   publicProcedure,
@@ -723,6 +724,55 @@ export default {
           },
           headers: ctx.headers,
         });
+
+        return { success: true };
+      }),
+
+    setPermanentPatreonTier: ownerProcedure
+      .input(
+        z.object({
+          tier: z.enum(["level69", "level100"]),
+          userId: z.string(),
+        })
+      )
+      .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+        const logger = getLogger(ctx);
+        const targetUser = await db.query.user.findFirst({
+          columns: { id: true },
+          where: eq(user.id, input.userId),
+        });
+
+        if (!targetUser) {
+          throw errors.NOT_FOUND({ message: "Usuario no encontrado." });
+        }
+
+        const now = new Date();
+
+        await db
+          .insert(patron)
+          .values({
+            isActivePatron: true,
+            lastSyncAt: now,
+            patreonUserId: `manual:${input.userId}`,
+            patronSince: now,
+            pledgeAmountCents: 0,
+            tier: input.tier,
+            userId: input.userId,
+          })
+          .onConflictDoUpdate({
+            set: {
+              isActivePatron: true,
+              lastSyncAt: now,
+              patronSince: sql`COALESCE(${patron.patronSince}, ${now})`,
+              pledgeAmountCents: 0,
+              tier: input.tier,
+            },
+            target: patron.userId,
+          });
+
+        logger?.info(
+          `Owner ${session.user.id} granted permanent Patreon tier ${input.tier} to user ${input.userId}`
+        );
 
         return { success: true };
       }),
