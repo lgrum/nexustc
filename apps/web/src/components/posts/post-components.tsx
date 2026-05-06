@@ -45,14 +45,6 @@ import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
 import type { CarouselApi } from "../ui/carousel";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
 import { ImageViewer } from "../ui/image-viewer";
 import { ShinyButton } from "../ui/shiny-button";
 import { Skeleton } from "../ui/skeleton";
@@ -463,48 +455,48 @@ function CountdownCluster({
     return null;
   }
 
-  const segments = [
-    { label: "D", value: countdown.days },
-    { label: "H", value: countdown.hours },
-    { label: "M", value: countdown.minutes },
-    { label: "S", value: countdown.seconds },
+  const parts = [
+    { suffix: "d", value: countdown.days },
+    { suffix: "h", value: countdown.hours },
+    { suffix: "m", value: countdown.minutes },
+    { suffix: "s", value: countdown.seconds },
   ];
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <div className="mb-3 flex items-center gap-2 text-amber-100/80 text-xs uppercase tracking-[0.22em]">
-        <HugeiconsIcon className="size-3.5" icon={Clock01Icon} />
+    <div className="flex flex-col gap-1.5">
+      <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground/80">
+        <HugeiconsIcon className="size-3" icon={Clock01Icon} />
         {label}
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        {segments.map((segment) => (
-          <div
-            className="rounded-xl border border-white/8 bg-white/6 px-2 py-3 text-center"
-            key={segment.label}
-          >
-            <div className="font-[Lexend] font-bold text-2xl text-white">
-              {String(segment.value).padStart(2, "0")}
-            </div>
-            <div className="mt-1 text-[10px] text-white/55 uppercase tracking-[0.24em]">
-              {segment.label}
-            </div>
-          </div>
+      </span>
+      <div className="flex items-baseline gap-1 font-[Lexend] tabular-nums">
+        {parts.map((part, index) => (
+          <span className="inline-flex items-baseline" key={part.suffix}>
+            {index > 0 && (
+              <span className="mr-1 text-muted-foreground/30">·</span>
+            )}
+            <span className="font-bold text-lg leading-none text-foreground">
+              {String(part.value).padStart(2, "0")}
+            </span>
+            <span className="ml-0.5 text-[10px] font-medium text-muted-foreground">
+              {part.suffix}
+            </span>
+          </span>
         ))}
       </div>
     </div>
   );
 }
 
-function formatVipPhaseLabel(post: PostProps): string {
+function formatPhaseLabel(post: PostProps): string {
   if (post.earlyAccess.currentState === "VIP12_ONLY") {
-    return "VIP 12 exclusivo";
+    return "Solo VIP 12";
   }
 
   if (post.earlyAccess.currentState === "VIP8_ONLY") {
-    return "VIP 8 desbloqueado";
+    return "Desde VIP 8";
   }
 
-  return "Publicado";
+  return "Acceso anticipado";
 }
 
 function EarlyAccessStatusBanner() {
@@ -516,40 +508,42 @@ function EarlyAccessStatusBanner() {
 
   return (
     <section className="px-4 pt-4">
-      <div className="overflow-hidden rounded-[32px] border border-amber-400/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_36%),radial-gradient(circle_at_bottom_right,rgba(244,114,182,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(33,14,45,0.92))] p-5 shadow-[0_32px_100px_-56px_rgba(251,191,36,0.95)]">
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-          <div className="space-y-4">
+      <div className="relative overflow-hidden rounded-2xl border border-amber-400/30 bg-card/70 shadow-md backdrop-blur-sm">
+        <div
+          aria-hidden="true"
+          className="absolute inset-y-0 left-0 w-1 bg-linear-to-b from-amber-300 via-amber-400 to-amber-500"
+        />
+        <div className="flex flex-col gap-4 p-4 pl-5 md:flex-row md:items-center md:justify-between md:gap-8 md:pl-6">
+          <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="border-amber-300/20 bg-amber-300/10 text-amber-100 hover:bg-amber-300/10">
-                {formatVipPhaseLabel(post)}
+              <Badge className="gap-1.5 border-amber-400/40 bg-amber-400/15 text-amber-100 hover:bg-amber-400/15">
+                <HugeiconsIcon
+                  className="size-3 fill-amber-300 text-amber-300"
+                  icon={StarIcon}
+                />
+                {formatPhaseLabel(post)}
               </Badge>
-              <Badge className="border-white/10 bg-white/8 text-white/85 hover:bg-white/8">
-                Sale en abierto al terminar la cuenta
-              </Badge>
+              <span className="text-muted-foreground text-xs">
+                Lanzamiento por fases
+              </span>
             </div>
-
-            <div className="space-y-2">
-              <p className="font-[Lexend] font-bold text-2xl text-white leading-tight">
-                {post.earlyAccess.viewerCanAccess
-                  ? "Tu cuenta ya entra en esta fase temprana."
-                  : `Ahora mismo esta entrega pide ${post.earlyAccess.requiredTierLabel ?? "VIP"}.`}
-              </p>
-              <p className="max-w-2xl text-sm text-white/72 leading-relaxed">
-                Esto se vende como tiempo, no como bloqueo permanente: las
-                capturas y la sinopsis quedan visibles para generar deseo, y el
-                acceso completo se libera para todos al terminar el Early
-                Access.
-              </p>
-            </div>
+            <p className="max-w-xl text-foreground/85 text-sm leading-relaxed">
+              {post.earlyAccess.viewerCanAccess
+                ? "Tu nivel ya entra en esta fase. Disfrútalo antes que el resto."
+                : "Las cuentas VIP juegan primero. Al terminar la cuenta atrás, el post queda libre para todos."}
+            </p>
           </div>
-
-          <div className="grid gap-3">
+          <div className="flex shrink-0 items-stretch gap-4 md:gap-6">
             <CountdownCluster
-              label="Cierra la fase actual"
+              label="Próxima fase"
               targetAt={post.earlyAccess.currentPhaseEndsAt}
             />
+            <span
+              aria-hidden="true"
+              className="w-px self-stretch bg-border/70"
+            />
             <CountdownCluster
-              label="Apertura pública"
+              label="Público total"
               targetAt={post.earlyAccess.publicReleaseAt}
             />
           </div>
@@ -566,124 +560,103 @@ function EarlyAccessSidebarCard() {
     return null;
   }
 
-  return (
-    <Card className="overflow-hidden border-amber-400/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.14),rgba(17,24,39,0.92))] p-0">
-      <CardContent className="space-y-4 p-4">
-        <div className="space-y-2">
-          <div className="text-amber-100/75 text-xs uppercase tracking-[0.28em]">
-            VIP Window
-          </div>
-          <div className="font-[Lexend] font-bold text-xl text-white">
-            {post.earlyAccess.requiredTierLabel
-              ? `${post.earlyAccess.requiredTierLabel} primero`
-              : "Liberado"}
-          </div>
-          <p className="text-sm text-white/70 leading-relaxed">
-            El nombre completo, links y social proof se protegen durante esta
-            fase para mantener la curiosidad dentro de NeXusTC.
-          </p>
-        </div>
+  const tierLabel = post.earlyAccess.requiredTierLabel ?? "VIP";
 
+  return (
+    <div className="rounded-2xl border border-amber-400/30 bg-card/60 p-4 shadow-md backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
+          <HugeiconsIcon
+            className="size-4 fill-amber-300 text-amber-300"
+            icon={StarIcon}
+          />
+        </div>
+        <div className="flex min-w-0 flex-col leading-tight">
+          <span className="text-[10px] font-medium uppercase tracking-[0.16em] text-amber-200/75">
+            Acceso anticipado
+          </span>
+          <span className="truncate font-semibold text-foreground text-sm">
+            {post.earlyAccess.viewerCanAccess
+              ? "Acceso concedido"
+              : `Pide ${tierLabel}`}
+          </span>
+        </div>
+      </div>
+      <div className="mt-4 border-border/60 border-t pt-3">
         <CountdownCluster
-          label="Público en"
+          label="Libre para todos en"
           targetAt={post.earlyAccess.publicReleaseAt}
         />
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function EarlyAccessDownloadGate() {
   const post = usePost();
   const { data: session } = authClient.useSession();
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   if (!post.earlyAccess.isActive) {
     return null;
   }
 
+  const tierLabel = post.earlyAccess.requiredTierLabel ?? "VIP";
+  const upgradeLink = session?.session ? (
+    <Link to="/profile" />
+  ) : (
+    <Link to="/auth" />
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <div className="section-title">Descargas</div>
-      <Card className="overflow-hidden border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_42%),rgba(15,23,42,0.92)]">
-        <CardContent className="space-y-4 p-6">
-          <div className="space-y-2">
-            <Badge className="border-amber-300/20 bg-amber-300/10 text-amber-100 hover:bg-amber-300/10">
-              {post.earlyAccess.requiredTierLabel ?? "VIP"} requerido ahora
-            </Badge>
-            <h3 className="font-[Lexend] font-bold text-2xl text-white">
-              Puedes mirar todo lo que quieras. El archivo llega primero a VIP.
-            </h3>
-            <p className="max-w-2xl text-sm text-white/70 leading-relaxed">
-              Así la presión se siente temporal, no punitiva: pagas por jugar
-              antes, no por acceso permanente. Cuando la cuenta termine, este
-              mismo post quedará libre para todos.
-            </p>
-          </div>
+      <div className="flex flex-col items-center gap-5 rounded-md bg-linear-to-br from-amber-400/20 via-amber-400/10 to-transparent p-6 ring-1 shadow-glow-amber-400/20 ring-amber-400/40 md:p-10">
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
+          <HugeiconsIcon
+            className="size-8 fill-amber-300 text-amber-300"
+            icon={StarIcon}
+          />
+        </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <CountdownCluster
-              label="Fase actual"
-              targetAt={post.earlyAccess.currentPhaseEndsAt}
-            />
-            <CountdownCluster
-              label="Público en"
-              targetAt={post.earlyAccess.publicReleaseAt}
-            />
-          </div>
+        <div className="flex max-w-lg flex-col items-center gap-2 text-center">
+          <h3 className="font-[Lexend] font-bold text-amber-50 text-xl md:text-2xl">
+            Descarga reservada a {tierLabel}
+          </h3>
+          <p className="text-amber-100/80 text-sm leading-relaxed">
+            Puedes ver capturas, sinopsis y comentarios. El archivo abre por
+            niveles — sube a {tierLabel} para descargar ya, o espera al cierre
+            de la cuenta atrás.
+          </p>
+        </div>
 
-          <Button
-            className="h-12 rounded-full bg-amber-400 text-slate-950 hover:bg-amber-300"
-            onClick={() => setDialogOpen(true)}
-            type="button"
-          >
-            <HugeiconsIcon className="size-4" icon={Download04Icon} />
-            Descargar en Early Access
-          </Button>
-        </CardContent>
-      </Card>
+        <div className="grid w-full max-w-lg gap-4 sm:grid-cols-2">
+          <CountdownCluster
+            label="Próxima fase"
+            targetAt={post.earlyAccess.currentPhaseEndsAt}
+          />
+          <CountdownCluster
+            label="Público total"
+            targetAt={post.earlyAccess.publicReleaseAt}
+          />
+        </div>
 
-      <Dialog onOpenChange={setDialogOpen} open={dialogOpen}>
-        <DialogContent className="max-w-xl overflow-hidden border border-amber-400/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.14),transparent_42%),rgba(15,23,42,0.98)] text-white">
-          <DialogHeader>
-            <DialogTitle className="font-[Lexend] text-2xl text-white">
-              Esta descarga abre primero para{" "}
-              {post.earlyAccess.requiredTierLabel ?? "VIP"}
-            </DialogTitle>
-            <DialogDescription className="text-white/72">
-              Puedes esperar al lanzamiento público o subir de nivel ahora
-              mismo. El contenido no desaparece: solo cambia cuándo se libera
-              para ti.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <CountdownCluster
-              label="Fase actual"
-              targetAt={post.earlyAccess.currentPhaseEndsAt}
-            />
-            <CountdownCluster
-              label="Se libera para todos"
-              targetAt={post.earlyAccess.publicReleaseAt}
-            />
-          </div>
-
-          <DialogFooter className="bg-white/5">
-            {session?.session ? (
-              <Button nativeButton={false} render={<Link to="/profile" />}>
-                Mejorar ahora
-              </Button>
-            ) : (
-              <Button nativeButton={false} render={<Link to="/auth" />}>
-                Mejorar ahora
-              </Button>
-            )}
-            <Button onClick={() => setDialogOpen(false)} variant="outline">
-              Esperar al lanzamiento
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <PostActionButton
+          className="group w-auto pl-7"
+          nativeButton={false}
+          render={upgradeLink}
+          tone="amber"
+        >
+          <HugeiconsIcon
+            className="size-4 fill-amber-300 text-amber-300"
+            icon={StarIcon}
+          />
+          Ver planes VIP
+          <HugeiconsIcon
+            className="ml-1 size-3.5 text-amber-200/60 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-amber-200"
+            icon={ArrowRight01Icon}
+          />
+        </PostActionButton>
+      </div>
     </div>
   );
 }
