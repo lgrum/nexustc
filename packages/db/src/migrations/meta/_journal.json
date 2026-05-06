@@ -288,6 +288,13 @@
       "when": 1777243200000,
       "tag": "0040_sturdy_comment_edit",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1778108678414,
+      "tag": "0041_kind_the_hood",
+      "breakpoints": true
     }
   ]
 }

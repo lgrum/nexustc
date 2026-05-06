@@ -33,6 +33,27 @@ type HandlerParams<T> = {
 type MediaSyncDb = Pick<Context["db"], "delete" | "insert" | "select">;
 type OrderedMediaRecord = PersistedMediaRecord;
 type ContentType = ContentCreateInput["type"];
+type ContentUpdateCandidate = ReturnType<typeof deriveContentUpdateEvent>;
+
+function resolveReleasedAt(params: {
+  contentUpdateCandidate: ContentUpdateCandidate;
+  documentStatus: ContentEditInput["documentStatus"];
+  existingReleasedAt: Date | null;
+  previousStatus: ContentEditInput["documentStatus"];
+}) {
+  if (params.documentStatus !== "publish") {
+    return params.existingReleasedAt;
+  }
+
+  if (
+    params.previousStatus !== "publish" ||
+    params.contentUpdateCandidate?.updateType === "game_version"
+  ) {
+    return new Date();
+  }
+
+  return params.existingReleasedAt;
+}
 
 function buildEngagementOverrideRows(postId: string, prompts: string[]) {
   return prompts.map((text, index) => ({
@@ -254,6 +275,7 @@ export async function createContent({
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
+          releasedAt: input.documentStatus === "publish" ? new Date() : null,
           seriesId: seriesFields.seriesId,
           seriesOrder: seriesFields.seriesOrder,
           status: input.documentStatus,
@@ -345,6 +367,7 @@ export async function editContent({
           comicLastUpdateAt: true,
           earlyAccessStartedAt: true,
           id: true,
+          releasedAt: true,
           status: true,
           title: true,
           type: true,
@@ -400,6 +423,24 @@ export async function editContent({
         seriesTitle: input.seriesTitle,
         type: input.type,
       });
+      const contentUpdateCandidate = deriveContentUpdateEvent({
+        next: {
+          documentStatus: input.documentStatus,
+          mediaCount: orderedMedia.length,
+          title: input.title,
+          type: input.type,
+          version:
+            input.type === "post" ? input.version : (input.version ?? null),
+        },
+        previous: {
+          id: existingPost.id,
+          mediaCount: previousMediaCountResult?.mediaCount ?? 0,
+          status: existingPost.status,
+          title: existingPost.title,
+          type: existingPost.type,
+          version: existingPost.version,
+        },
+      });
 
       const [postData] = await tx
         .update(post)
@@ -432,6 +473,12 @@ export async function editContent({
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
+          releasedAt: resolveReleasedAt({
+            contentUpdateCandidate,
+            documentStatus: input.documentStatus,
+            existingReleasedAt: existingPost.releasedAt,
+            previousStatus: existingPost.status,
+          }),
           seriesId: seriesFields.seriesId,
           seriesOrder: seriesFields.seriesOrder,
           status: input.documentStatus,
@@ -489,25 +536,6 @@ export async function editContent({
           `Replaced ${engagementOverrides.length} engagement overrides for ${contentType} ${postData.postId}`
         );
       }
-
-      const contentUpdateCandidate = deriveContentUpdateEvent({
-        next: {
-          documentStatus: input.documentStatus,
-          mediaCount: orderedMedia.length,
-          title: input.title,
-          type: input.type,
-          version:
-            input.type === "post" ? input.version : (input.version ?? null),
-        },
-        previous: {
-          id: existingPost.id,
-          mediaCount: previousMediaCountResult?.mediaCount ?? 0,
-          status: existingPost.status,
-          title: existingPost.title,
-          type: existingPost.type,
-          version: existingPost.version,
-        },
-      });
 
       if (contentUpdateCandidate) {
         await createOrCollapseContentUpdateNotification(

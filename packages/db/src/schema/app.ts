@@ -323,6 +323,7 @@ export const post = pgTable(
       .notNull()
       .default("auto"),
     premiumLinks: text("premium_links"),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
     seriesId: text("series_id").references(() => contentSeries.id, {
       onDelete: "set null",
     }),
@@ -354,6 +355,7 @@ export const post = pgTable(
     index("post_series_id_order_idx").on(table.seriesId, table.seriesOrder),
     index("post_status_idx").on(table.status),
     index("post_created_at_idx").on(table.createdAt),
+    index("post_released_at_idx").on(table.releasedAt),
   ]
 );
 

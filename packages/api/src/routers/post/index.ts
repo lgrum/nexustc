@@ -62,6 +62,7 @@ const RECOMMENDATION_LIMIT = 5;
 const DEFAULT_SEARCH_PAGE_SIZE = 12;
 const MAX_SEARCH_PAGE_SIZE = 60;
 const WEEKLY_POST_LIMIT = 7;
+const releasedAtSort = sql<Date>`COALESCE(${post.releasedAt}, ${post.createdAt})`;
 
 export default {
   // Future improvement: add caching here because this endpoint is heavily used.
@@ -165,7 +166,7 @@ export default {
             publicCatalogVisibilityCondition()
           )
         )
-        .orderBy(desc(post.createdAt))
+        .orderBy(desc(releasedAtSort), desc(post.createdAt))
         .limit(input.limit);
 
       logger?.debug(`Successfully fetched ${posts.length} recent posts`);
@@ -238,7 +239,7 @@ export default {
         (LN(COALESCE(${post.views}, 0) + 1) + 1)
         * EXP(
           -GREATEST(
-            EXTRACT(EPOCH FROM (NOW() - ${post.createdAt})) / 86400,
+            EXTRACT(EPOCH FROM (NOW() - ${releasedAtSort})) / 86400,
             0
           ) / 14
         )
@@ -286,6 +287,7 @@ export default {
         .orderBy(
           sql`CASE WHEN ${post.isWeekly} THEN 0 ELSE 1 END`,
           sql`${trendingScore} DESC`,
+          desc(releasedAtSort),
           desc(post.createdAt)
         )
         .limit(WEEKLY_POST_LIMIT);
@@ -597,10 +599,10 @@ export default {
 
         switch (input.orderBy) {
           case "newest": {
-            return sql`${similarityPrefix}${post.createdAt} DESC`;
+            return sql`${similarityPrefix}${releasedAtSort} DESC, ${post.createdAt} DESC`;
           }
           case "oldest": {
-            return sql`${similarityPrefix}${post.createdAt} ASC`;
+            return sql`${similarityPrefix}${releasedAtSort} ASC, ${post.createdAt} ASC`;
           }
           case "title_asc": {
             return sql`${similarityPrefix}${post.title} ASC`;
@@ -621,7 +623,7 @@ export default {
             return sql`${similarityPrefix}COALESCE(${likesAgg.count}, 0) DESC`;
           }
           default: {
-            return sql`${similarityPrefix}${post.createdAt} DESC`;
+            return sql`${similarityPrefix}${releasedAtSort} DESC, ${post.createdAt} DESC`;
           }
         }
       };
@@ -833,6 +835,7 @@ export default {
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
           premiumLinksAccessLevel: post.premiumLinksAccessLevel,
           rawPremiumLinks: post.premiumLinks,
+          releasedAt: post.releasedAt,
           seriesId: post.seriesId,
           seriesOrder: post.seriesOrder,
           seriesTitle: contentSeries.title,

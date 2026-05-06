@@ -2,6 +2,11 @@
 
 Todos los cambios notables serán documentados en este archivo.
 
+## [0.2.4] - 2026-05-06
+
+- Agregado nuevo campo `released_at` a posts, actualizado solo en primera publicación o en cambios de versión.
+- `released_at`, si existe, toma precedencia sobre la fecha de creacion, ordenando posts por fecha de publicación / cambio de versión, en vez de orden de primera creación.
+
 ## [0.2.3] - 2026-04-27
 
 - Agregado estilo de identidad por rol en los nombres de usuario, con badge y gradiente propios para `owner` y `uploader`.

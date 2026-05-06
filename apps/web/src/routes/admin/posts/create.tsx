@@ -305,6 +305,8 @@ function RouteComponent() {
                 imageObjectKeys: selectedMediaKeys,
                 likes: 0,
                 premiumLinksAccess: { status: "no_premium_links" as const },
+                releasedAt:
+                  post.documentStatus === "publish" ? new Date() : null,
                 series: null,
                 seriesParts: [],
                 terms: [
