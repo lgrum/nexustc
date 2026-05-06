@@ -1320,13 +1320,13 @@ function ThumbnailPanel({
   return (
     <DialogPrimitive.Root onOpenChange={(o) => !o && onClose()} open={open}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="data-closed:fade-out-0 data-open:fade-in-0 fixed inset-0 z-40 bg-black/60 backdrop-blur-sm duration-200 data-closed:animate-out data-open:animate-in" />
+        <DialogPrimitive.Backdrop className="data-closed:fade-out-0 data-open:fade-in-0 fixed isolate inset-0 z-50 bg-black/60 backdrop-blur-sm duration-200 data-closed:animate-out data-open:animate-in" />
         <DialogPrimitive.Popup
-          className="data-closed:slide-out-to-bottom data-open:slide-in-from-bottom fixed inset-x-0 bottom-0 z-50 max-h-[60vh] overflow-hidden rounded-t-3xl bg-zinc-900/95 backdrop-blur-xl duration-300 data-closed:animate-out data-open:animate-in"
+          className="data-closed:slide-out-to-bottom data-open:slide-in-from-bottom fixed inset-x-0 bottom-0 z-50 flex max-h-[60vh] flex-col overflow-hidden rounded-t-3xl bg-zinc-900/95 backdrop-blur-xl duration-300 data-closed:animate-out data-open:animate-in"
           ref={panelRef}
         >
           {/* Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between border-white/10 border-b bg-zinc-900/80 p-4 backdrop-blur-sm">
+          <div className="z-10 flex shrink-0 items-center justify-between border-white/10 border-b bg-zinc-900/80 p-4 backdrop-blur-sm">
             <h3 className="font-semibold text-lg text-white">
               Todas las páginas
             </h3>
@@ -1344,7 +1344,7 @@ function ThumbnailPanel({
           </div>
 
           {/* Thumbnail Grid */}
-          <div className="overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 [scrollbar-color:oklch(0.795_0.184_86.047/0.35)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
             <div className="grid grid-cols-4 gap-3 md:grid-cols-6 lg:grid-cols-8">
               {images.map((image, index) => (
                 <button
