@@ -328,7 +328,7 @@ function HeroPoster({ post }: { post: PostProps }) {
 
   return (
     <Link
-      className="group relative mx-auto block aspect-[3/4] w-[min(360px,75%)] md:w-[min(420px,100%)]"
+      className="group relative mx-auto block aspect-3/4 w-[min(360px,75%)] md:w-[min(420px,100%)]"
       params={{ id: post.id }}
       preload={false}
       to="/post/$id"
@@ -384,7 +384,7 @@ function HeroSkeleton() {
             <Skeleton className="h-11 w-36 rounded-xl" />
           </div>
         </div>
-        <div className="mx-auto aspect-[3/4] w-[min(360px,75%)] md:w-[min(420px,100%)]">
+        <div className="mx-auto aspect-3/4 w-[min(360px,75%)] md:w-[min(420px,100%)]">
           <Skeleton className="h-full w-full rounded-2xl" />
         </div>
       </div>
@@ -546,7 +546,7 @@ function RankSkeleton() {
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
       {Array.from({ length: TOP_RANK_LIMIT }).map((_, i) => (
         <Skeleton
-          className="aspect-[3/4] w-full rounded-2xl"
+          className="aspect-3/4 w-full rounded-2xl"
           // oxlint-disable-next-line react/no-array-index-key static skeleton placeholders
           key={i}
         />
@@ -673,7 +673,7 @@ function TrendingCard({ post, rank }: { post: PostProps; rank: number }) {
       to="/post/$id"
     >
       <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
-        <div className="relative aspect-[3/4] overflow-hidden">
+        <div className="relative aspect-3/4 overflow-hidden">
           {cover ? (
             <img
               alt={post.title}
@@ -726,7 +726,7 @@ function TrendingSkeleton() {
     <div className="flex gap-3 overflow-hidden">
       {Array.from({ length: 6 }).map((_, i) => (
         <Skeleton
-          className="aspect-[3/4] w-[180px] shrink-0 rounded-2xl"
+          className="aspect-3/4 w-45 shrink-0 rounded-2xl"
           // oxlint-disable-next-line react/no-array-index-key static skeleton placeholders
           key={i}
         />
@@ -940,7 +940,8 @@ function ComicsLibraryToolbar({
 
   return (
     <form
-      className={LIBRARY_TOOLBAR_CLASS}
+      className={`${LIBRARY_TOOLBAR_CLASS} scroll-mt-24`}
+      id="comics-library-toolbar"
       onSubmit={(event) => event.preventDefault()}
     >
       <LibrarySearchInput

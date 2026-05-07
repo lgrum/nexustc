@@ -275,7 +275,8 @@ function GamesLibraryToolbar({
 
   return (
     <form
-      className={LIBRARY_TOOLBAR_CLASS}
+      className={`${LIBRARY_TOOLBAR_CLASS} scroll-mt-24`}
+      id="games-library-toolbar"
       onSubmit={(event) => event.preventDefault()}
     >
       <LibrarySearchInput

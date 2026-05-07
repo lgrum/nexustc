@@ -8,6 +8,14 @@ import {
 } from "@/components/search/catalog-search";
 import { orpcClient } from "@/lib/orpc";
 
+function scrollToSearchToolbar() {
+  window.setTimeout(() => {
+    document
+      .querySelector("#comics-library-toolbar")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 0);
+}
+
 export const Route = createFileRoute("/_main/comics")({
   component: ComicsRouteComponent,
   loaderDeps: ({ search }) => search,
@@ -56,12 +64,13 @@ function ComicsRouteComponent() {
   );
 
   const handlePageChange = useCallback(
-    (page: number) => {
-      navigate({
+    async (page: number) => {
+      await navigate({
         resetScroll: false,
         search: { ...params, page },
         to: "/comics",
       });
+      scrollToSearchToolbar();
     },
     [navigate, params]
   );

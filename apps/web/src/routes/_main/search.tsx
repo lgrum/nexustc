@@ -15,6 +15,14 @@ import { LibraryPagination } from "@/components/search/library-shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { orpcClient } from "@/lib/orpc";
 
+function scrollToSearchToolbar() {
+  window.setTimeout(() => {
+    document
+      .querySelector("#search-page-toolbar")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, 0);
+}
+
 export const Route = createFileRoute("/_main/search")({
   component: RouteComponent,
   loaderDeps: ({ search }) => search,
@@ -100,12 +108,13 @@ function RouteComponent() {
       : getGameFilterCount(params);
 
   const handlePageChange = useCallback(
-    (page: number) => {
-      navigate({
+    async (page: number) => {
+      await navigate({
         resetScroll: false,
         search: { ...params, page },
         to: "/search",
       });
+      scrollToSearchToolbar();
     },
     [navigate, params]
   );
@@ -145,7 +154,10 @@ function RouteComponent() {
       </section>
 
       <aside className="min-w-0 md:order-2">
-        <div className="rounded-xl border border-white/10 bg-card/70 p-3 backdrop-blur md:sticky md:top-22">
+        <div
+          className="scroll-mt-24 rounded-xl border border-white/10 bg-card/70 p-3 backdrop-blur md:sticky md:top-22"
+          id="search-page-toolbar"
+        >
           <Tabs onValueChange={handleTabChange} value={params.type ?? "juegos"}>
             <TabsList className="w-full rounded-xl">
               <TabsTrigger value="juegos">Juegos</TabsTrigger>
