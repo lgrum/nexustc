@@ -9,7 +9,7 @@ import {
   createDeferredMediaSelectionFromExistingIds,
   postAdminEditFormSchema,
 } from "@/lib/deferred-media";
-import { orpc, orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/posts/edit/$id")({
   component: RouteComponent,
@@ -76,7 +76,7 @@ function RouteComponent() {
         .promise(mutation.mutateAsync(formData.value), {
           error: (error) => ({
             duration: 10_000,
-            message: `Error al editar post: ${error}`,
+            message: `Error al editar post: ${getClientErrorMessage(error)}`,
           }),
           loading: "Editando post...",
           success: "Post editado!",

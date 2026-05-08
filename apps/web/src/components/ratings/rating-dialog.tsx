@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
 import { StarRatingInput } from "./star-rating-input";
 
@@ -79,11 +79,9 @@ export function RatingDialog({
         review,
       }),
     onError: (error) => {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "No pudimos guardar tu valoracion.";
-      toast.error(message);
+      toast.error(
+        getClientErrorMessage(error, "No pudimos guardar tu valoracion.")
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["rating", "user", postId] });

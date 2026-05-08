@@ -10,7 +10,10 @@ import { createIsomorphicFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { toast } from "sonner";
 
+import { getClientErrorMessage } from "./client-error";
+
 const DEFAULT_QUERY_STALE_TIME_MS = 30_000;
+export { getClientErrorMessage } from "./client-error";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +28,7 @@ export const queryClient = new QueryClient({
   },
   queryCache: new QueryCache({
     onError: (error, query) => {
-      toast.error(`Error: ${error.message}`, {
+      toast.error(getClientErrorMessage(error), {
         action: {
           label: "retry",
           onClick: query.invalidate,

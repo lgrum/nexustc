@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import z from "zod";
 
 import { useAppForm } from "@/hooks/use-app-form";
-import { orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 import type { EngagementPromptType } from "@/lib/types";
 
 import { ErrorField } from "../forms/error-field";
@@ -72,11 +72,9 @@ export function PostCommentForm({
         form.reset();
         onSubmitted?.();
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "No pudimos publicar tu comentario.";
-        toast.error(message);
+        toast.error(
+          getClientErrorMessage(error, "No pudimos publicar tu comentario.")
+        );
       }
     },
     validators: {

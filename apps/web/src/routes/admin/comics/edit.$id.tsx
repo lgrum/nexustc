@@ -8,7 +8,7 @@ import {
   comicAdminEditFormSchema,
   createDeferredMediaSelectionFromExistingIds,
 } from "@/lib/deferred-media";
-import { orpc, orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/edit/$id")({
   component: RouteComponent,
@@ -58,7 +58,7 @@ function RouteComponent() {
         .promise(mutation.mutateAsync(formData.value), {
           error: (error) => ({
             duration: 10_000,
-            message: `Error al editar cómic: ${error}`,
+            message: `Error al editar cómic: ${getClientErrorMessage(error)}`,
           }),
           loading: "Editando cómic...",
           success: "¡Cómic editado!",

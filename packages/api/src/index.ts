@@ -102,6 +102,8 @@ export const fixedWindowRatelimitMiddleware = ({
     if (exceeded) {
       throw errors.RATE_LIMITED({
         data: { retryAfter: calculateRetryAfter(windowSeconds) },
+        message:
+          "Estas realizando demasiadas acciones seguidas. Espera un momento e intentalo de nuevo.",
       });
     }
 
@@ -146,6 +148,8 @@ export const slidingWindowRatelimitMiddleware = (
     if (exceeded) {
       throw errors.RATE_LIMITED({
         data: { retryAfter: calculateRetryAfter(windowSeconds) },
+        message:
+          "Estas realizando demasiadas acciones seguidas. Espera un momento e intentalo de nuevo.",
       });
     }
 

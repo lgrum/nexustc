@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon } from "@/components/ui/input-group";
-import { orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
 import { useEmojiStickerMaps } from "./comment-content";
 import { EmojiPicker } from "./emoji-picker";
@@ -49,11 +49,9 @@ export function EditCommentDialog({
         content: draft,
       }),
     onError: (error) => {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "No pudimos editar tu comentario.";
-      toast.error(message);
+      toast.error(
+        getClientErrorMessage(error, "No pudimos editar tu comentario.")
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["comments", postId] });

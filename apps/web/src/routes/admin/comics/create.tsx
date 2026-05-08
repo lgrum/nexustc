@@ -8,7 +8,7 @@ import {
   comicAdminFormSchema,
   createEmptyDeferredMediaSelection,
 } from "@/lib/deferred-media";
-import { orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/admin/comics/create")({
   component: RouteComponent,
@@ -44,7 +44,7 @@ function RouteComponent() {
           .promise(orpcClient.comic.admin.create(formData.value), {
             error: (error) => ({
               duration: 10_000,
-              message: `Error al crear comic: ${error}`,
+              message: `Error al crear comic: ${getClientErrorMessage(error)}`,
             }),
             loading: "Creando comic...",
             success: "Comic creado!",
@@ -57,7 +57,7 @@ function RouteComponent() {
           to: "/admin/comics/create",
         });
       } catch (error) {
-        toast.error(`Error al crear comic: ${error}`, {
+        toast.error(`Error al crear comic: ${getClientErrorMessage(error)}`, {
           dismissible: true,
           duration: 10_000,
         });

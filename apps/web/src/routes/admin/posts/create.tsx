@@ -24,7 +24,7 @@ import {
   getDeferredMediaPreviewSources,
   postAdminFormSchema,
 } from "@/lib/deferred-media";
-import { orpc, orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 import { parseTemplate } from "@/lib/post-template";
 
 const appendUniqueValues = (
@@ -159,7 +159,7 @@ function RouteComponent() {
         await toast
           .promise(orpcClient.post.admin.create(formData.value), {
             error: (error) => ({
-              message: `Error al crear post: ${error}`,
+              message: `Error al crear post: ${getClientErrorMessage(error)}`,
             }),
             loading: "Creando post...",
             success: "Post creado!",
@@ -172,7 +172,7 @@ function RouteComponent() {
           to: "/admin/posts/create",
         });
       } catch (error) {
-        toast.error(`Error al crear post: ${error}`, {
+        toast.error(`Error al crear post: ${getClientErrorMessage(error)}`, {
           dismissible: true,
           duration: 10_000,
         });

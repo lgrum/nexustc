@@ -36,7 +36,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { authClient } from "@/lib/auth-client";
-import { orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 import type { EngagementPromptType } from "@/lib/types";
 
 import { SignedIn } from "../auth/signed-in";
@@ -134,7 +134,9 @@ export function CommentSection({
         ? orpcClient.post.deleteOwnComment({ commentId })
         : orpcClient.post.deleteComment({ commentId }),
     onError: (error) => {
-      toast.error(`No se pudo eliminar el comentario. ${error}`);
+      toast.error(
+        getClientErrorMessage(error, "No se pudo eliminar el comentario.")
+      );
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
