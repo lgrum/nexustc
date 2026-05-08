@@ -8,6 +8,7 @@ import {
   createContent,
   deleteContent,
   editContent,
+  resolveContentSlug,
 } from "../../utils/content-handlers";
 import {
   postCreateInputSchema,
@@ -19,6 +20,25 @@ import {
 } from "../../utils/post-media";
 
 export default {
+  checkSlug: permissionProcedure({
+    posts: ["list"],
+  })
+    .input(
+      z.object({
+        excludeId: z.string().optional(),
+        title: z.string().trim().min(1).max(255),
+      })
+    )
+    .handler(
+      async ({ context: { db }, input }) =>
+        await resolveContentSlug({
+          db,
+          excludeId: input.excludeId,
+          title: input.title,
+          type: "post",
+        })
+    ),
+
   create: permissionProcedure({
     posts: ["create"],
   })
@@ -69,6 +89,7 @@ export default {
         creatorName: true,
         id: true,
         isWeekly: true,
+        slug: true,
         status: true,
         title: true,
         updatedAt: true,

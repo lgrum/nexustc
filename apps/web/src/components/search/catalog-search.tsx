@@ -103,14 +103,14 @@ type CatalogLandingPageProps = {
 
 type GameSearchControlsProps = {
   defaultFiltersOpen?: boolean;
-  onRandomSelect: (id: string) => void;
+  onRandomSelect: (slug: string, type: "post") => void;
   onSearchChange: (params: GameSearchParams) => void;
   params: GameSearchParams;
 };
 
 type ComicSearchControlsProps = {
   defaultFiltersOpen?: boolean;
-  onRandomSelect: (id: string) => void;
+  onRandomSelect: (slug: string, type: "comic") => void;
   onSearchChange: (params: ComicSearchParams) => void;
   params: ComicSearchParams;
 };
@@ -205,7 +205,7 @@ export function GameSearchControls({
   const handleRandomPost = async () => {
     const result = await orpcClient.post.getRandom({ type: "post" });
     if (result) {
-      onRandomSelect(result.id);
+      onRandomSelect(result.slug, "post");
     }
   };
 
@@ -366,7 +366,7 @@ export function ComicSearchControls({
   const handleRandomComic = async () => {
     const result = await orpcClient.post.getRandom({ type: "comic" });
     if (result) {
-      onRandomSelect(result.id);
+      onRandomSelect(result.slug, "comic");
     }
   };
 

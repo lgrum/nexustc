@@ -18,6 +18,7 @@ import { PostFormFields } from "@/components/admin/posts/post-form-fields";
 import type { PostProps } from "@/components/posts/post-components";
 import { PostPage } from "@/components/posts/post-components";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
 import {
   createEmptyDeferredMediaSelection,
@@ -114,6 +115,7 @@ export const Route = createFileRoute("/admin/posts/create")({
 function RouteComponent() {
   const data = Route.useLoaderData();
   const { series, terms } = data;
+  const confirm = useConfirm();
   const navigate = useNavigate();
   const { data: mediaLibrary } = useSuspenseQuery(
     orpc.media.admin.list.queryOptions()
@@ -156,14 +158,37 @@ function RouteComponent() {
     },
     onSubmit: async (formData) => {
       try {
+        const slugCheck = await orpcClient.post.admin.checkSlug({
+          title: formData.value.title,
+        });
+
+        if (slugCheck.duplicate) {
+          const isConfirmed = await confirm({
+            cancelText: "Cancelar",
+            confirmText: "Usar slug alternativo",
+            description: `Ya existe "${slugCheck.existingTitle}" con el slug "${slugCheck.baseSlug}". Si continuas, se publicara como "${slugCheck.slug}".`,
+            title: "Slug duplicado",
+          });
+
+          if (!isConfirmed) {
+            return;
+          }
+        }
+
         await toast
-          .promise(orpcClient.post.admin.create(formData.value), {
-            error: (error) => ({
-              message: `Error al crear post: ${getClientErrorMessage(error)}`,
+          .promise(
+            orpcClient.post.admin.create({
+              ...formData.value,
+              acceptSlugDeduplication: slugCheck.duplicate || undefined,
             }),
-            loading: "Creando post...",
-            success: "Post creado!",
-          })
+            {
+              error: (error) => ({
+                message: `Error al crear post: ${getClientErrorMessage(error)}`,
+              }),
+              loading: "Creando post...",
+              success: "Post creado!",
+            }
+          )
           .unwrap();
 
         navigate({
@@ -301,6 +326,7 @@ function RouteComponent() {
                   })
                 ),
                 id: "0",
+                slug: "preview",
                 coverImageObjectKey: selectedCoverImageKey,
                 imageObjectKeys: selectedMediaKeys,
                 likes: 0,

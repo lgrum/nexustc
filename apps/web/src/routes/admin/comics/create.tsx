@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
 import {
   comicAdminFormSchema,
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/admin/comics/create")({
 function RouteComponent() {
   const data = Route.useLoaderData();
   const { series, terms } = data;
+  const confirm = useConfirm();
   const navigate = useNavigate();
 
   const form = useAppForm({
@@ -40,15 +42,38 @@ function RouteComponent() {
     },
     onSubmit: async (formData) => {
       try {
+        const slugCheck = await orpcClient.comic.admin.checkSlug({
+          title: formData.value.title,
+        });
+
+        if (slugCheck.duplicate) {
+          const isConfirmed = await confirm({
+            cancelText: "Cancelar",
+            confirmText: "Usar slug alternativo",
+            description: `Ya existe "${slugCheck.existingTitle}" con el slug "${slugCheck.baseSlug}". Si continuas, se subira como "${slugCheck.slug}".`,
+            title: "Slug duplicado",
+          });
+
+          if (!isConfirmed) {
+            return;
+          }
+        }
+
         await toast
-          .promise(orpcClient.comic.admin.create(formData.value), {
-            error: (error) => ({
-              duration: 10_000,
-              message: `Error al crear comic: ${getClientErrorMessage(error)}`,
+          .promise(
+            orpcClient.comic.admin.create({
+              ...formData.value,
+              acceptSlugDeduplication: slugCheck.duplicate || undefined,
             }),
-            loading: "Creando comic...",
-            success: "Comic creado!",
-          })
+            {
+              error: (error) => ({
+                duration: 10_000,
+                message: `Error al crear comic: ${getClientErrorMessage(error)}`,
+              }),
+              loading: "Creando comic...",
+              success: "Comic creado!",
+            }
+          )
           .unwrap();
 
         navigate({

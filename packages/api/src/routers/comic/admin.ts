@@ -6,6 +6,7 @@ import {
   createContent,
   deleteContent,
   editContent,
+  resolveContentSlug,
 } from "../../utils/content-handlers";
 import {
   comicCreateInputSchema,
@@ -14,6 +15,25 @@ import {
 import { mapPostWithMedia } from "../../utils/post-media";
 
 export default {
+  checkSlug: permissionProcedure({
+    comics: ["list"],
+  })
+    .input(
+      z.object({
+        excludeId: z.string().optional(),
+        title: z.string().trim().min(1).max(255),
+      })
+    )
+    .handler(
+      async ({ context: { db }, input }) =>
+        await resolveContentSlug({
+          db,
+          excludeId: input.excludeId,
+          title: input.title,
+          type: "comic",
+        })
+    ),
+
   create: permissionProcedure({
     comics: ["create"],
   })
@@ -65,6 +85,7 @@ export default {
         createdAt: true,
         creatorName: true,
         id: true,
+        slug: true,
         status: true,
         title: true,
         updatedAt: true,

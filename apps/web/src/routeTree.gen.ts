@@ -80,6 +80,7 @@ import { Route as AdminChronosEditRouteImport } from './routes/admin/chronos/edi
 import { Route as MainUserIdRouteImport } from './routes/_main/user.$id'
 import { Route as MainPostIdRouteImport } from './routes/_main/post.$id'
 import { Route as MainNewsIdRouteImport } from './routes/_main/news.$id'
+import { Route as MainComicSlugRouteImport } from './routes/_main/comic.$slug'
 import { Route as AdminNotificationsArticlesIndexRouteImport } from './routes/admin/notifications/articles/index'
 import { Route as AdminNotificationsAnnouncementsIndexRouteImport } from './routes/admin/notifications/announcements/index'
 import { Route as AdminStickersIdEditRouteImport } from './routes/admin/stickers/$id.edit'
@@ -445,6 +446,11 @@ const MainNewsIdRoute = MainNewsIdRouteImport.update({
   path: '/news/$id',
   getParentRoute: () => MainRouteRoute,
 } as any)
+const MainComicSlugRoute = MainComicSlugRouteImport.update({
+  id: '/comic/$slug',
+  path: '/comic/$slug',
+  getParentRoute: () => MainRouteRoute,
+} as any)
 const AdminNotificationsArticlesIndexRoute =
   AdminNotificationsArticlesIndexRouteImport.update({
     id: '/notifications/articles/',
@@ -532,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/demo/n': typeof DemoNRoute
   '/admin/': typeof AdminIndexRoute
   '/demo/': typeof DemoIndexRoute
+  '/comic/$slug': typeof MainComicSlugRoute
   '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
   '/user/$id': typeof MainUserIdRoute
@@ -612,6 +619,7 @@ export interface FileRoutesByTo {
   '/': typeof MainIndexRoute
   '/admin': typeof AdminIndexRoute
   '/demo': typeof DemoIndexRoute
+  '/comic/$slug': typeof MainComicSlugRoute
   '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
   '/user/$id': typeof MainUserIdRoute
@@ -695,6 +703,7 @@ export interface FileRoutesById {
   '/_main/': typeof MainIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/demo/': typeof DemoIndexRoute
+  '/_main/comic/$slug': typeof MainComicSlugRoute
   '/_main/news/$id': typeof MainNewsIdRoute
   '/_main/post/$id': typeof MainPostIdRoute
   '/_main/user/$id': typeof MainUserIdRoute
@@ -778,6 +787,7 @@ export interface FileRouteTypes {
     | '/demo/n'
     | '/admin/'
     | '/demo/'
+    | '/comic/$slug'
     | '/news/$id'
     | '/post/$id'
     | '/user/$id'
@@ -858,6 +868,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/demo'
+    | '/comic/$slug'
     | '/news/$id'
     | '/post/$id'
     | '/user/$id'
@@ -940,6 +951,7 @@ export interface FileRouteTypes {
     | '/_main/'
     | '/admin/'
     | '/demo/'
+    | '/_main/comic/$slug'
     | '/_main/news/$id'
     | '/_main/post/$id'
     | '/_main/user/$id'
@@ -1509,6 +1521,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainNewsIdRouteImport
       parentRoute: typeof MainRouteRoute
     }
+    '/_main/comic/$slug': {
+      id: '/_main/comic/$slug'
+      path: '/comic/$slug'
+      fullPath: '/comic/$slug'
+      preLoaderRoute: typeof MainComicSlugRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
     '/admin/notifications/articles/': {
       id: '/admin/notifications/articles/'
       path: '/notifications/articles'
@@ -1592,6 +1611,7 @@ interface MainRouteRouteChildren {
   MainTutorialsRoute: typeof MainTutorialsRoute
   MainVipRoute: typeof MainVipRoute
   MainIndexRoute: typeof MainIndexRoute
+  MainComicSlugRoute: typeof MainComicSlugRoute
   MainNewsIdRoute: typeof MainNewsIdRoute
   MainPostIdRoute: typeof MainPostIdRoute
   MainUserIdRoute: typeof MainUserIdRoute
@@ -1616,6 +1636,7 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainTutorialsRoute: MainTutorialsRoute,
   MainVipRoute: MainVipRoute,
   MainIndexRoute: MainIndexRoute,
+  MainComicSlugRoute: MainComicSlugRoute,
   MainNewsIdRoute: MainNewsIdRoute,
   MainPostIdRoute: MainPostIdRoute,
   MainUserIdRoute: MainUserIdRoute,

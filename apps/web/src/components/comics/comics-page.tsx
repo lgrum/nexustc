@@ -69,7 +69,7 @@ type ComicsPageProps = {
   pagination: SearchPaginationState;
   onPageChange: (page: number) => void;
   onSearchChange: (params: ComicSearchParams) => void;
-  onRandomSelect: (id: string) => void;
+  onRandomSelect: (slug: string) => void;
 };
 
 export function ComicsPage({
@@ -105,7 +105,7 @@ export function ComicsPage({
   const handleRandomComic = async () => {
     const result = await orpcClient.post.getRandom({ type: "comic" });
     if (result) {
-      onRandomSelect(result.id);
+      onRandomSelect(result.slug);
     }
   };
 
@@ -272,7 +272,9 @@ function ComicsHero({
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
               className="h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
-              render={<Link params={{ id: featured.id }} to="/post/$id" />}
+              render={
+                <Link params={{ slug: featured.slug }} to="/comic/$slug" />
+              }
             >
               <HugeiconsIcon className="size-4" icon={Book02Icon} />
               Leer ahora
@@ -329,9 +331,9 @@ function HeroPoster({ post }: { post: PostProps }) {
   return (
     <Link
       className="group relative mx-auto block aspect-3/4 w-[min(360px,75%)] md:w-[min(420px,100%)]"
-      params={{ id: post.id }}
+      params={{ slug: post.slug }}
       preload={false}
-      to="/post/$id"
+      to="/comic/$slug"
     >
       {/* Aura behind the poster */}
       <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
@@ -460,9 +462,9 @@ function RankItem({ post, rank }: { post: PostProps; rank: number }) {
     <li>
       <Link
         className="group block h-full"
-        params={{ id: post.id }}
+        params={{ slug: post.slug }}
         preload={false}
-        to="/post/$id"
+        to="/comic/$slug"
       >
         <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
           <div className="relative aspect-3/4 overflow-hidden">
@@ -668,9 +670,9 @@ function TrendingCard({ post, rank }: { post: PostProps; rank: number }) {
   return (
     <Link
       className="group block h-full"
-      params={{ id: post.id }}
+      params={{ slug: post.slug }}
       preload={false}
-      to="/post/$id"
+      to="/comic/$slug"
     >
       <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
         <div className="relative aspect-3/4 overflow-hidden">

@@ -62,6 +62,7 @@ export type AdminContent = {
   creatorName: string;
   id: string;
   isWeekly?: boolean;
+  slug: string;
   status: string;
   terms: ContentTerm[];
   title: string;

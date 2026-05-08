@@ -4,6 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { PostFormFields } from "@/components/admin/posts/post-form-fields";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
 import {
   createDeferredMediaSelectionFromExistingIds,
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/admin/posts/edit/$id")({
 
 function RouteComponent() {
   const data = Route.useLoaderData();
+  const confirm = useConfirm();
   const mutation = useMutation(orpc.post.admin.edit.mutationOptions());
   const prerequisiteTerms = data.prerequisites.terms;
   const navigate = useNavigate();
@@ -72,15 +74,39 @@ function RouteComponent() {
       version: oldPost.version ?? "",
     },
     onSubmit: async (formData) => {
+      const slugCheck = await orpcClient.post.admin.checkSlug({
+        excludeId: formData.value.id,
+        title: formData.value.title,
+      });
+
+      if (slugCheck.duplicate) {
+        const isConfirmed = await confirm({
+          cancelText: "Cancelar",
+          confirmText: "Usar slug alternativo",
+          description: `Ya existe "${slugCheck.existingTitle}" con el slug "${slugCheck.baseSlug}". Si continuas, se guardara como "${slugCheck.slug}".`,
+          title: "Slug duplicado",
+        });
+
+        if (!isConfirmed) {
+          return;
+        }
+      }
+
       await toast
-        .promise(mutation.mutateAsync(formData.value), {
-          error: (error) => ({
-            duration: 10_000,
-            message: `Error al editar post: ${getClientErrorMessage(error)}`,
+        .promise(
+          mutation.mutateAsync({
+            ...formData.value,
+            acceptSlugDeduplication: slugCheck.duplicate || undefined,
           }),
-          loading: "Editando post...",
-          success: "Post editado!",
-        })
+          {
+            error: (error) => ({
+              duration: 10_000,
+              message: `Error al editar post: ${getClientErrorMessage(error)}`,
+            }),
+            loading: "Editando post...",
+            success: "Post editado!",
+          }
+        )
         .unwrap();
 
       await queryClient.invalidateQueries(

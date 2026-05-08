@@ -57,8 +57,8 @@ function ComicsRouteComponent() {
   );
 
   const handleRandomSelect = useCallback(
-    (id: string) => {
-      navigate({ params: { id }, to: "/post/$id" });
+    (slug: string) => {
+      navigate({ params: { slug }, to: "/comic/$slug" });
     },
     [navigate]
   );

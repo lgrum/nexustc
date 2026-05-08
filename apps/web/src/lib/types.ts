@@ -17,6 +17,7 @@ export type PostSeriesPart = {
   coverImageObjectKey?: string | null;
   favorites: number;
   id: string;
+  slug: string;
   imageObjectKeys: string[] | null;
   thumbnailImageCount?: number | null;
   likes: number;

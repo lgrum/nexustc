@@ -5,7 +5,6 @@ import { useEffect } from "react";
 import z from "zod";
 
 import { ComicPage } from "@/components/posts/comic-page";
-import { PostPage } from "@/components/posts/post-components";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
@@ -14,12 +13,12 @@ const comicPageSchema = z.object({
   page: z.number().optional(),
 });
 
-export const Route = createFileRoute("/_main/post/$id")({
+export const Route = createFileRoute("/_main/comic/$slug")({
   component: RouteComponent,
   staleTime: 1000 * 60 * 5, // 5 minutes
   loader: async ({ params }) => {
     const [error, data, isDefined] = await safeOrpcClient.post.getPostById(
-      params.id
+      params.slug
     );
 
     if (isDefined) {
@@ -35,6 +34,10 @@ export const Route = createFileRoute("/_main/post/$id")({
     if (error) {
       console.error(error);
       throw error;
+    }
+
+    if (data.type !== "comic") {
+      throw notFound();
     }
 
     return data;
@@ -64,11 +67,11 @@ export const Route = createFileRoute("/_main/post/$id")({
 
 function RouteComponent() {
   const initialPost = Route.useLoaderData();
-  const { id } = Route.useParams();
+  const { slug } = Route.useParams();
   const { data: post = initialPost, refetch } = useQuery({
     initialData: initialPost,
-    queryFn: () => orpcClient.post.getPostById(id),
-    queryKey: ["post", id],
+    queryFn: () => orpcClient.post.getPostById(slug),
+    queryKey: ["post", slug],
     refetchOnWindowFocus: true,
   });
 
@@ -98,11 +101,7 @@ function RouteComponent() {
     <main className="w-full">
       <div className="flex flex-col gap-12">
         {/* Main Post Content */}
-        {post.type === "post" ? (
-          <PostPage post={post} />
-        ) : (
-          <ComicPage comic={post} />
-        )}
+        <ComicPage comic={post} />
       </div>
     </main>
   );

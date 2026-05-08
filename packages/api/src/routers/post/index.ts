@@ -135,6 +135,7 @@ export default {
           createdAt: post.createdAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
@@ -253,6 +254,7 @@ export default {
           createdAt: post.createdAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
@@ -371,6 +373,7 @@ export default {
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
@@ -561,6 +564,7 @@ export default {
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
@@ -663,7 +667,7 @@ export default {
       logger?.info(`Fetching random ${input.type}`);
 
       const result = await db
-        .select({ id: post.id })
+        .select({ id: post.id, slug: post.slug, type: post.type })
         .from(post)
         .where(
           and(
@@ -700,6 +704,7 @@ export default {
           earlyAccessStartedAt: post.earlyAccessStartedAt,
           earlyAccessVip12EndsAt: post.earlyAccessVip12EndsAt,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
@@ -753,7 +758,7 @@ export default {
     .handler(async ({ context: { db, ...context }, input, errors }) => {
       const logger = getLogger(context);
 
-      logger?.info(`Fetching post by ID: ${input}`);
+      logger?.info(`Fetching post by ID or slug: ${input}`);
 
       const likesAgg = db
         .select({
@@ -828,6 +833,7 @@ export default {
           earlyAccessVip12EndsAt: post.earlyAccessVip12EndsAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
@@ -867,11 +873,16 @@ export default {
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
-        .where(and(eq(post.status, "publish"), eq(post.id, input)))
+        .where(
+          and(
+            eq(post.status, "publish"),
+            sql`(${post.id} = ${input} OR ${post.slug} = ${input})`
+          )
+        )
         .limit(1);
 
       if (!result.length) {
-        logger?.warn(`Post not found with ID: ${input}`);
+        logger?.warn(`Post not found with ID or slug: ${input}`);
         throw errors.NOT_FOUND();
       }
 
@@ -906,7 +917,7 @@ export default {
 
       const engagementPrompts = await getResolvedEngagementPromptsForPost(
         db,
-        input
+        postData.id
       );
 
       let premiumLinksAccess: PremiumLinksDescriptor;
@@ -946,6 +957,7 @@ export default {
                 coverImageObjectKey: createPostCoverImageObjectKeySelect(),
                 favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
                 id: post.id,
+                slug: post.slug,
                 imageObjectKeys: post.imageObjectKeys,
                 thumbnailImageCount: post.thumbnailImageCount,
                 likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
@@ -1908,6 +1920,7 @@ export default {
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
+          slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,

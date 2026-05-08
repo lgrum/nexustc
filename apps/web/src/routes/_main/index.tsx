@@ -162,7 +162,7 @@ function HeroSection() {
       {main && (
         <Link
           className="group relative block overflow-hidden rounded-2xl border border-border/60 flex-1 min-h-105 shadow-lg"
-          params={{ id: main.id }}
+          params={{ id: main.slug }}
           preload={false}
           to="/post/$id"
         >
@@ -278,7 +278,7 @@ function HeroSecondaryCard({ post }: { post: PostProps }) {
   return (
     <Link
       className="group relative block h-full min-h-48 overflow-hidden rounded-2xl border border-border/60 shadow-lg card-hover"
-      params={{ id: post.id }}
+      params={{ id: post.slug }}
       preload={false}
       to="/post/$id"
     >

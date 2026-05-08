@@ -119,6 +119,7 @@ export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
 export const thumbnailImageCountSchema = z.union([z.literal(1), z.literal(4)]);
 
 const contentBaseFields = {
+  acceptSlugDeduplication: z.boolean().optional(),
   censorship: z.string(),
   documentStatus: z.enum(DOCUMENT_STATUSES),
   coverMediaIds: z.array(z.string()).max(1).default([]),

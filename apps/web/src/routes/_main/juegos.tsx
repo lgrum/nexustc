@@ -59,7 +59,7 @@ function GamesRouteComponent() {
   const handleRandom = useCallback(async () => {
     const result = await orpcClient.post.getRandom({ type: "post" });
     if (result) {
-      navigate({ params: { id: result.id }, to: "/post/$id" });
+      navigate({ params: { id: result.slug }, to: "/post/$id" });
     }
   }, [navigate]);
 

@@ -22,7 +22,7 @@ export const columns: ColumnDef<Comic>[] = [
     accessorKey: "title",
     cell: (info) =>
       info.row.original.status === "publish" ? (
-        <Link params={{ id: info.row.original.id }} to="/post/$id">
+        <Link params={{ slug: info.row.original.slug }} to="/comic/$slug">
           {info.row.original.title}
         </Link>
       ) : (

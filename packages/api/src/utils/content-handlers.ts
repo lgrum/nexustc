@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, eq, sql } from "@repo/db";
+import { and, eq, ne, sql } from "@repo/db";
 import {
   contentSeries,
   creator,
@@ -8,6 +8,7 @@ import {
   postMedia,
   termPostRelation,
 } from "@repo/db/schema/app";
+import { createContentSlug, dedupeContentSlug } from "@repo/shared/slug";
 
 import type { Context } from "../context";
 import {
@@ -26,6 +27,7 @@ type HandlerParams<T> = {
   context: Context & { session: NonNullable<Context["session"]> };
   input: T;
   errors: {
+    BAD_REQUEST: (error?: { message?: string }) => Error;
     NOT_FOUND: () => Error;
   };
 };
@@ -34,6 +36,7 @@ type MediaSyncDb = Pick<Context["db"], "delete" | "insert" | "select">;
 type OrderedMediaRecord = PersistedMediaRecord;
 type ContentType = ContentCreateInput["type"];
 type ContentUpdateCandidate = ReturnType<typeof deriveContentUpdateEvent>;
+type SlugCheckDb = Pick<Context["db"], "select">;
 
 function resolveReleasedAt(params: {
   contentUpdateCandidate: ContentUpdateCandidate;
@@ -53,6 +56,45 @@ function resolveReleasedAt(params: {
   }
 
   return params.existingReleasedAt;
+}
+
+export async function resolveContentSlug(params: {
+  db: SlugCheckDb;
+  excludeId?: string;
+  title: string;
+  type: ContentType;
+}) {
+  const baseSlug = createContentSlug(params.title);
+  const conditions = [
+    eq(post.type, params.type),
+    sql`(${post.slug} = ${baseSlug} OR ${post.slug} LIKE ${`${baseSlug}-%`})`,
+  ];
+
+  if (params.excludeId) {
+    conditions.push(ne(post.id, params.excludeId));
+  }
+
+  const existingPosts = await params.db
+    .select({
+      id: post.id,
+      slug: post.slug,
+      title: post.title,
+    })
+    .from(post)
+    .where(and(...conditions));
+  const exactDuplicate =
+    existingPosts.find((item) => item.slug === baseSlug) ?? null;
+  const slug = dedupeContentSlug(
+    baseSlug,
+    existingPosts.map((item) => item.slug)
+  );
+
+  return {
+    baseSlug,
+    duplicate: exactDuplicate !== null,
+    existingTitle: exactDuplicate?.title ?? null,
+    slug,
+  };
 }
 
 function buildEngagementOverrideRows(postId: string, prompts: string[]) {
@@ -197,6 +239,7 @@ async function resolveSeriesFields(params: {
 
 export async function createContent({
   context: { db, session, ...ctx },
+  errors,
   input,
 }: HandlerParams<ContentCreateInput>) {
   const logger = getLogger(ctx);
@@ -247,6 +290,17 @@ export async function createContent({
         seriesTitle: input.seriesTitle,
         type: input.type,
       });
+      const slugFields = await resolveContentSlug({
+        db: tx,
+        title: input.title,
+        type: input.type,
+      });
+
+      if (slugFields.duplicate && !input.acceptSlugDeduplication) {
+        throw errors.BAD_REQUEST({
+          message: `Ya existe ${input.type === "comic" ? "un comic" : "un post"} con el slug "${slugFields.baseSlug}". Confirma para usar "${slugFields.slug}".`,
+        });
+      }
 
       const [postData] = await tx
         .insert(post)
@@ -278,6 +332,7 @@ export async function createContent({
           releasedAt: input.documentStatus === "publish" ? new Date() : null,
           seriesId: seriesFields.seriesId,
           seriesOrder: seriesFields.seriesOrder,
+          slug: slugFields.slug,
           status: input.documentStatus,
           title: input.title,
           type: input.type,
@@ -368,6 +423,7 @@ export async function editContent({
           earlyAccessStartedAt: true,
           id: true,
           releasedAt: true,
+          slug: true,
           status: true,
           title: true,
           type: true,
@@ -423,6 +479,21 @@ export async function editContent({
         seriesTitle: input.seriesTitle,
         type: input.type,
       });
+      const slugFields =
+        existingPost.title === input.title
+          ? { duplicate: false, slug: existingPost.slug }
+          : await resolveContentSlug({
+              db: tx,
+              excludeId: input.id,
+              title: input.title,
+              type: input.type,
+            });
+
+      if (slugFields.duplicate && !input.acceptSlugDeduplication) {
+        throw errors.BAD_REQUEST({
+          message: `Ya existe ${input.type === "comic" ? "un comic" : "un post"} con ese slug. Confirma para usar "${slugFields.slug}".`,
+        });
+      }
       const contentUpdateCandidate = deriveContentUpdateEvent({
         next: {
           documentStatus: input.documentStatus,
@@ -481,6 +552,7 @@ export async function editContent({
           }),
           seriesId: seriesFields.seriesId,
           seriesOrder: seriesFields.seriesOrder,
+          slug: slugFields.slug,
           status: input.documentStatus,
           title: input.title,
           version:

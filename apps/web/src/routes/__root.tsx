@@ -88,8 +88,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   );
 }
 
-// oxlint-disable-next-line no-unused-vars
-function themeInitScript() {
+export function themeInitScript() {
   return `
 (function () {
   try {

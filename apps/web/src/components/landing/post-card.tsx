@@ -12,6 +12,7 @@ import { Card, CardFooter, CardHeader, CardTitle } from "../ui/card";
 export type PostProps = {
   comicProgressStatus?: "read" | "reading" | "unread" | "updated" | null;
   id: string;
+  slug: string;
   title: string;
   version: string | null;
   type: "post" | "comic";
@@ -81,6 +82,29 @@ function getComicProgressBadge(
 }
 
 export function PostCard({ post }: PostCardProps) {
+  if (post.type === "comic") {
+    return (
+      <PostCardContent
+        params={{ slug: post.slug }}
+        post={post}
+        to="/comic/$slug"
+      />
+    );
+  }
+
+  return (
+    <PostCardContent params={{ id: post.slug }} post={post} to="/post/$id" />
+  );
+}
+
+function PostCardContent({
+  params,
+  post,
+  to,
+}: PostCardProps & {
+  params: { id: string } | { slug: string };
+  to: "/post/$id" | "/comic/$slug";
+}) {
   const thumbnailImageCount =
     post.type === "comic" ? 1 : (post.thumbnailImageCount ?? 4);
   const images = getThumbnailImageObjectKeys(
@@ -98,9 +122,9 @@ export function PostCard({ post }: PostCardProps) {
   return (
     <Link
       className="group block w-full h-full"
-      params={{ id: post.id }}
+      params={params}
       preload={false}
-      to="/post/$id"
+      to={to}
     >
       <Card
         className="card-hover relative rounded-t-xl h-full pb-0.75"

@@ -58,7 +58,7 @@ function GameSpotlightCard({ post, rank }: { post: PostProps; rank: number }) {
   return (
     <Link
       className="group block h-full"
-      params={{ id: post.id }}
+      params={{ id: post.slug }}
       preload={false}
       to="/post/$id"
     >

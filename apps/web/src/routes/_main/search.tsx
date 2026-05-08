@@ -96,8 +96,11 @@ function RouteComponent() {
   );
 
   const handleRandomSelect = useCallback(
-    (id: string) => {
-      navigate({ params: { id }, to: "/post/$id" });
+    (slug: string, type: "post" | "comic") => {
+      navigate({
+        params: type === "comic" ? { slug } : { id: slug },
+        to: type === "comic" ? "/comic/$slug" : "/post/$id",
+      });
     },
     [navigate]
   );

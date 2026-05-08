@@ -21,7 +21,7 @@ export const columns: ColumnDef<Post>[] = [
     accessorKey: "title",
     cell: (info) =>
       info.row.original.status === "publish" ? (
-        <Link params={{ id: info.row.original.id }} to="/post/$id">
+        <Link params={{ id: info.row.original.slug }} to="/post/$id">
           {info.row.original.title}
         </Link>
       ) : (
