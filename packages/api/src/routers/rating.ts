@@ -20,6 +20,7 @@ import {
 } from "../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
+import { assertTextIsNotSpammy } from "../utils/spam-detection";
 
 async function assertRatingsAreOpen(params: {
   db: Context["db"];
@@ -84,6 +85,7 @@ export default {
         db,
         errors,
       });
+      assertTextIsNotSpammy(review, errors);
 
       await db
         .insert(postRating)
@@ -130,6 +132,7 @@ export default {
         db,
         errors,
       });
+      assertTextIsNotSpammy(review, errors);
 
       await db
         .update(postRating)

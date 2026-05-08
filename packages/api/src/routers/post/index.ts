@@ -56,6 +56,7 @@ import {
   getPostViewViewerKey,
   POST_VIEW_DEDUPE_TTL_SECONDS,
 } from "../../utils/post-views";
+import { assertTextIsNotSpammy } from "../../utils/spam-detection";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -1284,6 +1285,7 @@ export default {
           db,
           errors,
         });
+        assertTextIsNotSpammy(input.content, errors);
 
         const selectableEngagementPrompts =
           input.engagementPrompt === undefined
@@ -1414,6 +1416,7 @@ export default {
           db,
           errors,
         });
+        assertTextIsNotSpammy(input.content, errors);
 
         const viewerTier = await getViewerPatronTier(db, session);
         const tokens = parseTokens(input.content);
