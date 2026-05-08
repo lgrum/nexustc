@@ -68,6 +68,8 @@ export const Route = createFileRoute("/_main/comic/$slug")({
 function RouteComponent() {
   const initialPost = Route.useLoaderData();
   const { slug } = Route.useParams();
+  const { page } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { data: post = initialPost, refetch } = useQuery({
     initialData: initialPost,
     queryFn: () => orpcClient.post.getPostById(slug),
@@ -101,7 +103,15 @@ function RouteComponent() {
     <main className="w-full">
       <div className="flex flex-col gap-12">
         {/* Main Post Content */}
-        <ComicPage comic={post} />
+        <ComicPage
+          comic={post}
+          page={page}
+          setComicPage={(nextPage) => {
+            navigate({
+              search: nextPage < 0 ? {} : { page: nextPage },
+            });
+          }}
+        />
       </div>
     </main>
   );

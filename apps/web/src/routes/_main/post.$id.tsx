@@ -65,6 +65,8 @@ export const Route = createFileRoute("/_main/post/$id")({
 function RouteComponent() {
   const initialPost = Route.useLoaderData();
   const { id } = Route.useParams();
+  const { page } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const { data: post = initialPost, refetch } = useQuery({
     initialData: initialPost,
     queryFn: () => orpcClient.post.getPostById(id),
@@ -101,7 +103,15 @@ function RouteComponent() {
         {post.type === "post" ? (
           <PostPage post={post} />
         ) : (
-          <ComicPage comic={post} />
+          <ComicPage
+            comic={post}
+            page={page}
+            setComicPage={(nextPage) => {
+              navigate({
+                search: nextPage < 0 ? {} : { page: nextPage },
+              });
+            }}
+          />
         )}
       </div>
     </main>

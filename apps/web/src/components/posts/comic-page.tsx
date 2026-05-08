@@ -20,7 +20,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { getRouteApi, Link, Navigate } from "@tanstack/react-router";
+import { Link, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -56,8 +56,6 @@ import {
 import { PostProvider, usePost } from "./post-context";
 
 const PAGES_PREVIEW_LIMIT = 8;
-
-const postPageApi = getRouteApi("/_main/post/$id");
 
 type ComicProgressData = {
   currentPageCount: number;
@@ -96,9 +94,15 @@ function getComicProgressBadge(
   }
 }
 
-export function ComicPage({ comic }: { comic: PostType }) {
-  const { page } = postPageApi.useSearch();
-  const navigate = postPageApi.useNavigate();
+export function ComicPage({
+  comic,
+  page,
+  setComicPage,
+}: {
+  comic: PostType;
+  page?: number;
+  setComicPage: (page: number) => void;
+}) {
   const { data: auth } = authClient.useSession();
   const isAuthed = Boolean(auth?.session);
   const comicProgressQueryOptions =
@@ -113,14 +117,9 @@ export function ComicPage({ comic }: { comic: PostType }) {
 
   const setPage = useMemo(
     () => (newPage: number) => {
-      if (newPage < 0) {
-        navigate({});
-        return;
-      }
-
-      navigate({ search: () => ({ page: newPage }) });
+      setComicPage(newPage);
     },
-    [navigate]
+    [setComicPage]
   );
 
   if (!comic || comic.imageObjectKeys === null) {
