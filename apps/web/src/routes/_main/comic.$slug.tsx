@@ -17,9 +17,10 @@ export const Route = createFileRoute("/_main/comic/$slug")({
   component: RouteComponent,
   staleTime: 1000 * 60 * 5, // 5 minutes
   loader: async ({ params }) => {
-    const [error, data, isDefined] = await safeOrpcClient.post.getPostById(
-      params.slug
-    );
+    const [error, data, isDefined] = await safeOrpcClient.post.getPostById({
+      slug: params.slug,
+      type: "comic",
+    });
 
     if (isDefined) {
       if (error.code === "NOT_FOUND") {
@@ -72,8 +73,8 @@ function RouteComponent() {
   const navigate = Route.useNavigate();
   const { data: post = initialPost, refetch } = useQuery({
     initialData: initialPost,
-    queryFn: () => orpcClient.post.getPostById(slug),
-    queryKey: ["post", slug],
+    queryFn: () => orpcClient.post.getPostById({ slug, type: "comic" }),
+    queryKey: ["content", "comic", slug],
     refetchOnWindowFocus: true,
   });
 

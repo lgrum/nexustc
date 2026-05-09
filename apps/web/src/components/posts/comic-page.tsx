@@ -122,9 +122,11 @@ export function ComicPage({
     [setComicPage]
   );
 
-  if (!comic || comic.imageObjectKeys === null) {
+  if (!comic) {
     return <Navigate to="/" />;
   }
+
+  const imageObjectKeys = comic.imageObjectKeys ?? [];
 
   // When page >= 0, show the reader
   if (page !== undefined && page >= 0) {
@@ -132,7 +134,7 @@ export function ComicPage({
       <PostProvider post={comic}>
         <ComicReader
           comic={comic}
-          images={comic.imageObjectKeys}
+          images={imageObjectKeys}
           isAuthed={isAuthed}
           page={page}
           progressQueryKey={comicProgressQueryOptions.queryKey}

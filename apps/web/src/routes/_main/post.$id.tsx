@@ -18,9 +18,10 @@ export const Route = createFileRoute("/_main/post/$id")({
   component: RouteComponent,
   staleTime: 1000 * 60 * 5, // 5 minutes
   loader: async ({ params }) => {
-    const [error, data, isDefined] = await safeOrpcClient.post.getPostById(
-      params.id
-    );
+    const [error, data, isDefined] = await safeOrpcClient.post.getPostById({
+      slug: params.id,
+      type: "post",
+    });
 
     if (isDefined) {
       if (error.code === "NOT_FOUND") {
@@ -35,6 +36,10 @@ export const Route = createFileRoute("/_main/post/$id")({
     if (error) {
       console.error(error);
       throw error;
+    }
+
+    if (data.type !== "post") {
+      throw notFound();
     }
 
     return data;
@@ -69,8 +74,8 @@ function RouteComponent() {
   const navigate = Route.useNavigate();
   const { data: post = initialPost, refetch } = useQuery({
     initialData: initialPost,
-    queryFn: () => orpcClient.post.getPostById(id),
-    queryKey: ["post", id],
+    queryFn: () => orpcClient.post.getPostById({ slug: id, type: "post" }),
+    queryKey: ["content", "post", id],
     refetchOnWindowFocus: true,
   });
 

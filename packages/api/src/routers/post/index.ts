@@ -754,11 +754,29 @@ export default {
   // Future improvement: cache this endpoint too, especially for hot posts.
   getPostById: publicProcedure
     .use(fixedWindowRatelimitMiddleware({ limit: 20, windowSeconds: 60 }))
-    .input(z.string())
+    .input(
+      z.union([
+        z.string(),
+        z.object({
+          slug: z.string().min(1),
+          type: z.enum(["post", "comic"]),
+        }),
+      ])
+    )
     .handler(async ({ context: { db, ...context }, input, errors }) => {
       const logger = getLogger(context);
+      const lookup =
+        typeof input === "string"
+          ? {
+              label: input,
+              where: sql`(${post.id} = ${input} OR ${post.slug} = ${input})`,
+            }
+          : {
+              label: `${input.type}:${input.slug}`,
+              where: and(eq(post.type, input.type), eq(post.slug, input.slug)),
+            };
 
-      logger?.info(`Fetching post by ID or slug: ${input}`);
+      logger?.info(`Fetching post by ID or slug: ${lookup.label}`);
 
       const likesAgg = db
         .select({
@@ -873,20 +891,15 @@ export default {
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
-        .where(
-          and(
-            eq(post.status, "publish"),
-            sql`(${post.id} = ${input} OR ${post.slug} = ${input})`
-          )
-        )
+        .where(and(eq(post.status, "publish"), lookup.where))
         .limit(1);
 
       if (!result.length) {
-        logger?.warn(`Post not found with ID or slug: ${input}`);
+        logger?.warn(`Post not found with ID or slug: ${lookup.label}`);
         throw errors.NOT_FOUND();
       }
 
-      logger?.debug(`Successfully retrieved post with ID: ${input}`);
+      logger?.debug(`Successfully retrieved post: ${lookup.label}`);
 
       const viewerTier = await getViewerPatronTier(db, context.session);
       const earlyAccess = getPostEarlyAccessView(
