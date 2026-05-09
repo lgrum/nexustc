@@ -1,18 +1,12 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { zodValidator } from "@tanstack/zod-adapter";
 import { useEffect } from "react";
-import z from "zod";
 
 import { ComicPage } from "@/components/posts/comic-page";
 import { PostPage } from "@/components/posts/post-components";
 import { orpc, queryClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
-
-const comicPageSchema = z.object({
-  page: z.number().optional(),
-});
 
 function getPostQueryOptions(slug: string) {
   return orpc.post.getPostById.queryOptions({
@@ -77,12 +71,10 @@ export const Route = createFileRoute("/_main/post/$id")({
       },
     ],
   }),
-  validateSearch: zodValidator(comicPageSchema),
 });
 
 function RouteComponent() {
   const { id } = Route.useParams();
-  const { page } = Route.useSearch();
   const navigate = Route.useNavigate();
   const { data: post, refetch } = useSuspenseQuery({
     ...getPostQueryOptions(id),
@@ -120,10 +112,11 @@ function RouteComponent() {
         ) : (
           <ComicPage
             comic={post}
-            page={page}
             setComicPage={(nextPage) => {
               navigate({
-                search: nextPage < 0 ? {} : { page: nextPage },
+                params: { slug: post.slug },
+                search: { page: nextPage },
+                to: "/comic/$slug/read",
               });
             }}
           />

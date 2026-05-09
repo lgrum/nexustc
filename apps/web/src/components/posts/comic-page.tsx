@@ -96,11 +96,9 @@ function getComicProgressBadge(
 
 export function ComicPage({
   comic,
-  page,
   setComicPage,
 }: {
   comic: PostType;
-  page?: number;
   setComicPage: (page: number) => void;
 }) {
   const { data: auth } = authClient.useSession();
@@ -126,25 +124,6 @@ export function ComicPage({
     return <Navigate to="/" />;
   }
 
-  const imageObjectKeys = comic.imageObjectKeys ?? [];
-
-  // When page >= 0, show the reader
-  if (page !== undefined && page >= 0) {
-    return (
-      <PostProvider post={comic}>
-        <ComicReader
-          comic={comic}
-          images={imageObjectKeys}
-          isAuthed={isAuthed}
-          page={page}
-          progressQueryKey={comicProgressQueryOptions.queryKey}
-          setPage={setPage}
-        />
-      </PostProvider>
-    );
-  }
-
-  // Otherwise show the info page
   return (
     <PostProvider post={comic}>
       <ComicInfoPage comicProgress={comicProgress} setPage={setPage} />
@@ -585,16 +564,18 @@ function PagePreviewButton({
    Comic Reader - Immersive Full-Screen Experience
    ============================================================================ */
 
-function ComicReader({
+export function ComicReader({
   comic,
   page,
   isAuthed,
+  onChangeMode,
   progressQueryKey,
   setPage,
   images,
 }: {
   comic: PostType;
   isAuthed: boolean;
+  onChangeMode?: () => void;
   page: number;
   progressQueryKey: readonly unknown[];
   setPage: (page: number) => void;
@@ -1055,6 +1036,24 @@ function ComicReader({
             <TooltipContent>Mostrar miniaturas</TooltipContent>
           </Tooltip>
 
+          {onChangeMode && (
+            <Tooltip>
+              <TooltipTrigger
+                onClick={onChangeMode}
+                render={
+                  <Button
+                    className="text-white hover:bg-white/10 hover:text-white"
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                <HugeiconsIcon className="size-4" icon={Book03Icon} />
+              </TooltipTrigger>
+              <TooltipContent>Modo cascada</TooltipContent>
+            </Tooltip>
+          )}
+
           {/* Fullscreen Toggle */}
           <Tooltip>
             <TooltipTrigger
@@ -1284,6 +1283,205 @@ function ComicReader({
         open={showThumbnails}
       />
     </div>
+  );
+}
+
+export function ComicCascadeReader({
+  comic,
+  images,
+  isAuthed,
+  onChangeMode,
+  onExit,
+  progressQueryKey,
+}: {
+  comic: PostType;
+  images: string[];
+  isAuthed: boolean;
+  onChangeMode: (page: number) => void;
+  onExit: () => void;
+  progressQueryKey: readonly unknown[];
+}) {
+  const [currentPage, setCurrentPage] = useState(0);
+  const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const pageRefs = useRef<(HTMLImageElement | null)[]>([]);
+  const totalPages = images.length;
+  const progress = totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0;
+
+  usePostViewTracker({
+    enabled: !comic.earlyAccess.isRestrictedView,
+    postId: comic.id,
+    targetRef: containerRef,
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!isAuthed) {
+      setReadingSessionId(null);
+      return;
+    }
+
+    const createReadingSession = async () => {
+      try {
+        const sessionState = await orpcClient.comicProgress.startSession({
+          comicId: comic.id,
+        });
+
+        if (!cancelled) {
+          setReadingSessionId(sessionState.readingSessionId);
+        }
+      } catch {
+        if (!cancelled) {
+          setReadingSessionId(null);
+        }
+      }
+    };
+
+    createReadingSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [comic.id, isAuthed]);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        let mostVisiblePage = currentPage;
+        let highestRatio = 0;
+
+        for (const entry of entries) {
+          const pageIndex = Number(
+            (entry.target as HTMLImageElement).dataset.pageIndex
+          );
+
+          if (entry.intersectionRatio > highestRatio) {
+            highestRatio = entry.intersectionRatio;
+            mostVisiblePage = pageIndex;
+          }
+        }
+
+        if (highestRatio > 0) {
+          setCurrentPage(mostVisiblePage);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "-20% 0px -35%",
+        threshold: [0.15, 0.3, 0.5, 0.7, 0.9],
+      }
+    );
+
+    for (const image of pageRefs.current) {
+      if (image) {
+        observer.observe(image);
+      }
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (!(isAuthed && readingSessionId && totalPages > 0)) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const syncProgress = async () => {
+        try {
+          await orpcClient.comicProgress.update({
+            comicId: comic.id,
+            page: currentPage + 1,
+            readingSessionId,
+          });
+        } catch {
+          // Best-effort sync; reader UX should not break on transient failures.
+        }
+      };
+
+      syncProgress();
+    }, 900);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [comic.id, currentPage, isAuthed, readingSessionId, totalPages]);
+
+  const handleExit = () => {
+    const invalidateProgress = async () => {
+      try {
+        await queryClient.invalidateQueries({
+          queryKey: progressQueryKey,
+        });
+      } catch {
+        // Let navigation continue even if the cache refresh fails.
+      }
+    };
+
+    invalidateProgress();
+    onExit();
+  };
+
+  return (
+    <main className="min-h-dvh bg-zinc-950 text-white" ref={containerRef}>
+      <div className="fixed inset-x-0 top-0 z-30 border-white/10 border-b bg-zinc-950/85 px-3 py-3 backdrop-blur-xl md:px-5">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2 md:gap-3">
+            <Button
+              className="shrink-0 text-white hover:bg-white/10 hover:text-white"
+              onClick={handleExit}
+              size="sm"
+              variant="ghost"
+            >
+              <HugeiconsIcon className="size-4" icon={Home01Icon} />
+              Volver
+            </Button>
+            <Separator
+              className="hidden bg-white/20 md:block"
+              orientation="vertical"
+            />
+            <h1 className="line-clamp-1 min-w-0 font-medium text-sm text-white">
+              {comic.title}
+            </h1>
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-full bg-white/10 px-3 py-1 font-medium text-sm text-white tabular-nums">
+              {currentPage + 1} / {totalPages}
+            </span>
+            <Button
+              className="text-white hover:bg-white/10 hover:text-white"
+              onClick={() => onChangeMode(currentPage)}
+              size="sm"
+              variant="ghost"
+            >
+              <HugeiconsIcon className="size-4" icon={FullScreenIcon} />
+              <span className="hidden sm:inline">Pantalla</span>
+            </Button>
+          </div>
+        </div>
+        <Progress className="mx-auto mt-3 h-1 max-w-5xl" value={progress} />
+      </div>
+
+      <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-0 pt-24 pb-10 md:gap-4 md:px-5">
+        {images.map((image, index) => (
+          <img
+            alt={`Página ${index + 1}`}
+            className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
+            data-page-index={index}
+            key={image}
+            loading={index < 2 ? "eager" : "lazy"}
+            ref={(element) => {
+              pageRefs.current[index] = element;
+            }}
+            src={getBucketUrl(image)}
+          />
+        ))}
+      </div>
+    </main>
   );
 }
 

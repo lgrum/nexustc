@@ -57,6 +57,7 @@ import { Route as AdminEmojisIndexRouteImport } from './routes/admin/emojis/inde
 import { Route as AdminCreatorsIndexRouteImport } from './routes/admin/creators/index'
 import { Route as AdminComicsIndexRouteImport } from './routes/admin/comics/index'
 import { Route as MainNewsIndexRouteImport } from './routes/_main/news.index'
+import { Route as ComicSlugReadRouteImport } from './routes/comic.$slug.read'
 import { Route as ApiRpcSplatRouteImport } from './routes/api/rpc.$'
 import { Route as ApiPatreonWebhookRouteImport } from './routes/api/patreon/webhook'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
@@ -330,6 +331,11 @@ const MainNewsIndexRoute = MainNewsIndexRouteImport.update({
   path: '/news/',
   getParentRoute: () => MainRouteRoute,
 } as any)
+const ComicSlugReadRoute = ComicSlugReadRouteImport.update({
+  id: '/comic/$slug/read',
+  path: '/comic/$slug/read',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   id: '/api/rpc/$',
   path: '/api/rpc/$',
@@ -562,6 +568,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/patreon/webhook': typeof ApiPatreonWebhookRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/comic/$slug/read': typeof ComicSlugReadRoute
   '/news/': typeof MainNewsIndexRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
   '/admin/creators/': typeof AdminCreatorsIndexRoute
@@ -643,6 +650,7 @@ export interface FileRoutesByTo {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/patreon/webhook': typeof ApiPatreonWebhookRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/comic/$slug/read': typeof ComicSlugReadRoute
   '/news': typeof MainNewsIndexRoute
   '/admin/comics': typeof AdminComicsIndexRoute
   '/admin/creators': typeof AdminCreatorsIndexRoute
@@ -727,6 +735,7 @@ export interface FileRoutesById {
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/patreon/webhook': typeof ApiPatreonWebhookRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
+  '/comic/$slug/read': typeof ComicSlugReadRoute
   '/_main/news/': typeof MainNewsIndexRoute
   '/admin/comics/': typeof AdminComicsIndexRoute
   '/admin/creators/': typeof AdminCreatorsIndexRoute
@@ -811,6 +820,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/patreon/webhook'
     | '/api/rpc/$'
+    | '/comic/$slug/read'
     | '/news/'
     | '/admin/comics/'
     | '/admin/creators/'
@@ -892,6 +902,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/patreon/webhook'
     | '/api/rpc/$'
+    | '/comic/$slug/read'
     | '/news'
     | '/admin/comics'
     | '/admin/creators'
@@ -975,6 +986,7 @@ export interface FileRouteTypes {
     | '/api/auth/$'
     | '/api/patreon/webhook'
     | '/api/rpc/$'
+    | '/comic/$slug/read'
     | '/_main/news/'
     | '/admin/comics/'
     | '/admin/creators/'
@@ -1020,6 +1032,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPatreonWebhookRoute: typeof ApiPatreonWebhookRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
+  ComicSlugReadRoute: typeof ComicSlugReadRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1359,6 +1372,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/news/'
       preLoaderRoute: typeof MainNewsIndexRouteImport
       parentRoute: typeof MainRouteRoute
+    }
+    '/comic/$slug/read': {
+      id: '/comic/$slug/read'
+      path: '/comic/$slug/read'
+      fullPath: '/comic/$slug/read'
+      preLoaderRoute: typeof ComicSlugReadRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/rpc/$': {
       id: '/api/rpc/$'
@@ -1757,6 +1777,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPatreonWebhookRoute: ApiPatreonWebhookRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
+  ComicSlugReadRoute: ComicSlugReadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
