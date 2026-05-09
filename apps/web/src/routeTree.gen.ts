@@ -12,23 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as MainRouteRouteImport } from './routes/_main/route'
-import { Route as DemoIndexRouteImport } from './routes/demo/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as MainIndexRouteImport } from './routes/_main/index'
-import { Route as DemoNRouteImport } from './routes/demo/n'
-import { Route as DemoMRouteImport } from './routes/demo/m'
-import { Route as DemoLRouteImport } from './routes/demo/l'
-import { Route as DemoKRouteImport } from './routes/demo/k'
-import { Route as DemoJRouteImport } from './routes/demo/j'
-import { Route as DemoIRouteImport } from './routes/demo/i'
-import { Route as DemoHRouteImport } from './routes/demo/h'
-import { Route as DemoGRouteImport } from './routes/demo/g'
-import { Route as DemoFRouteImport } from './routes/demo/f'
-import { Route as DemoERouteImport } from './routes/demo/e'
-import { Route as DemoDRouteImport } from './routes/demo/d'
-import { Route as DemoCRouteImport } from './routes/demo/c'
-import { Route as DemoBRouteImport } from './routes/demo/b'
-import { Route as DemoARouteImport } from './routes/demo/a'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AdminChangelogRouteImport } from './routes/admin/changelog'
 import { Route as MainVipRouteImport } from './routes/_main/vip'
@@ -106,11 +91,6 @@ const MainRouteRoute = MainRouteRouteImport.update({
   id: '/_main',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoIndexRoute = DemoIndexRouteImport.update({
-  id: '/demo/',
-  path: '/demo/',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -120,76 +100,6 @@ const MainIndexRoute = MainIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => MainRouteRoute,
-} as any)
-const DemoNRoute = DemoNRouteImport.update({
-  id: '/demo/n',
-  path: '/demo/n',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoMRoute = DemoMRouteImport.update({
-  id: '/demo/m',
-  path: '/demo/m',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoLRoute = DemoLRouteImport.update({
-  id: '/demo/l',
-  path: '/demo/l',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoKRoute = DemoKRouteImport.update({
-  id: '/demo/k',
-  path: '/demo/k',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoJRoute = DemoJRouteImport.update({
-  id: '/demo/j',
-  path: '/demo/j',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoIRoute = DemoIRouteImport.update({
-  id: '/demo/i',
-  path: '/demo/i',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoHRoute = DemoHRouteImport.update({
-  id: '/demo/h',
-  path: '/demo/h',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoGRoute = DemoGRouteImport.update({
-  id: '/demo/g',
-  path: '/demo/g',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoFRoute = DemoFRouteImport.update({
-  id: '/demo/f',
-  path: '/demo/f',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoERoute = DemoERouteImport.update({
-  id: '/demo/e',
-  path: '/demo/e',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoDRoute = DemoDRouteImport.update({
-  id: '/demo/d',
-  path: '/demo/d',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoCRoute = DemoCRouteImport.update({
-  id: '/demo/c',
-  path: '/demo/c',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoBRoute = DemoBRouteImport.update({
-  id: '/demo/b',
-  path: '/demo/b',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoARoute = DemoARouteImport.update({
-  id: '/demo/a',
-  path: '/demo/a',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
@@ -528,22 +438,7 @@ export interface FileRoutesByFullPath {
   '/vip': typeof MainVipRoute
   '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
-  '/demo/a': typeof DemoARoute
-  '/demo/b': typeof DemoBRoute
-  '/demo/c': typeof DemoCRoute
-  '/demo/d': typeof DemoDRoute
-  '/demo/e': typeof DemoERoute
-  '/demo/f': typeof DemoFRoute
-  '/demo/g': typeof DemoGRoute
-  '/demo/h': typeof DemoHRoute
-  '/demo/i': typeof DemoIRoute
-  '/demo/j': typeof DemoJRoute
-  '/demo/k': typeof DemoKRoute
-  '/demo/l': typeof DemoLRoute
-  '/demo/m': typeof DemoMRoute
-  '/demo/n': typeof DemoNRoute
   '/admin/': typeof AdminIndexRoute
-  '/demo/': typeof DemoIndexRoute
   '/comic/$slug': typeof MainComicSlugRoute
   '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
@@ -609,23 +504,8 @@ export interface FileRoutesByTo {
   '/vip': typeof MainVipRoute
   '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
-  '/demo/a': typeof DemoARoute
-  '/demo/b': typeof DemoBRoute
-  '/demo/c': typeof DemoCRoute
-  '/demo/d': typeof DemoDRoute
-  '/demo/e': typeof DemoERoute
-  '/demo/f': typeof DemoFRoute
-  '/demo/g': typeof DemoGRoute
-  '/demo/h': typeof DemoHRoute
-  '/demo/i': typeof DemoIRoute
-  '/demo/j': typeof DemoJRoute
-  '/demo/k': typeof DemoKRoute
-  '/demo/l': typeof DemoLRoute
-  '/demo/m': typeof DemoMRoute
-  '/demo/n': typeof DemoNRoute
   '/': typeof MainIndexRoute
   '/admin': typeof AdminIndexRoute
-  '/demo': typeof DemoIndexRoute
   '/comic/$slug': typeof MainComicSlugRoute
   '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
@@ -694,23 +574,8 @@ export interface FileRoutesById {
   '/_main/vip': typeof MainVipRoute
   '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
-  '/demo/a': typeof DemoARoute
-  '/demo/b': typeof DemoBRoute
-  '/demo/c': typeof DemoCRoute
-  '/demo/d': typeof DemoDRoute
-  '/demo/e': typeof DemoERoute
-  '/demo/f': typeof DemoFRoute
-  '/demo/g': typeof DemoGRoute
-  '/demo/h': typeof DemoHRoute
-  '/demo/i': typeof DemoIRoute
-  '/demo/j': typeof DemoJRoute
-  '/demo/k': typeof DemoKRoute
-  '/demo/l': typeof DemoLRoute
-  '/demo/m': typeof DemoMRoute
-  '/demo/n': typeof DemoNRoute
   '/_main/': typeof MainIndexRoute
   '/admin/': typeof AdminIndexRoute
-  '/demo/': typeof DemoIndexRoute
   '/_main/comic/$slug': typeof MainComicSlugRoute
   '/_main/news/$id': typeof MainNewsIdRoute
   '/_main/post/$id': typeof MainPostIdRoute
@@ -780,22 +645,7 @@ export interface FileRouteTypes {
     | '/vip'
     | '/admin/changelog'
     | '/api/health'
-    | '/demo/a'
-    | '/demo/b'
-    | '/demo/c'
-    | '/demo/d'
-    | '/demo/e'
-    | '/demo/f'
-    | '/demo/g'
-    | '/demo/h'
-    | '/demo/i'
-    | '/demo/j'
-    | '/demo/k'
-    | '/demo/l'
-    | '/demo/m'
-    | '/demo/n'
     | '/admin/'
-    | '/demo/'
     | '/comic/$slug'
     | '/news/$id'
     | '/post/$id'
@@ -861,23 +711,8 @@ export interface FileRouteTypes {
     | '/vip'
     | '/admin/changelog'
     | '/api/health'
-    | '/demo/a'
-    | '/demo/b'
-    | '/demo/c'
-    | '/demo/d'
-    | '/demo/e'
-    | '/demo/f'
-    | '/demo/g'
-    | '/demo/h'
-    | '/demo/i'
-    | '/demo/j'
-    | '/demo/k'
-    | '/demo/l'
-    | '/demo/m'
-    | '/demo/n'
     | '/'
     | '/admin'
-    | '/demo'
     | '/comic/$slug'
     | '/news/$id'
     | '/post/$id'
@@ -945,23 +780,8 @@ export interface FileRouteTypes {
     | '/_main/vip'
     | '/admin/changelog'
     | '/api/health'
-    | '/demo/a'
-    | '/demo/b'
-    | '/demo/c'
-    | '/demo/d'
-    | '/demo/e'
-    | '/demo/f'
-    | '/demo/g'
-    | '/demo/h'
-    | '/demo/i'
-    | '/demo/j'
-    | '/demo/k'
-    | '/demo/l'
-    | '/demo/m'
-    | '/demo/n'
     | '/_main/'
     | '/admin/'
-    | '/demo/'
     | '/_main/comic/$slug'
     | '/_main/news/$id'
     | '/_main/post/$id'
@@ -1014,21 +834,6 @@ export interface RootRouteChildren {
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ApiHealthRoute: typeof ApiHealthRoute
-  DemoARoute: typeof DemoARoute
-  DemoBRoute: typeof DemoBRoute
-  DemoCRoute: typeof DemoCRoute
-  DemoDRoute: typeof DemoDRoute
-  DemoERoute: typeof DemoERoute
-  DemoFRoute: typeof DemoFRoute
-  DemoGRoute: typeof DemoGRoute
-  DemoHRoute: typeof DemoHRoute
-  DemoIRoute: typeof DemoIRoute
-  DemoJRoute: typeof DemoJRoute
-  DemoKRoute: typeof DemoKRoute
-  DemoLRoute: typeof DemoLRoute
-  DemoMRoute: typeof DemoMRoute
-  DemoNRoute: typeof DemoNRoute
-  DemoIndexRoute: typeof DemoIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiPatreonWebhookRoute: typeof ApiPatreonWebhookRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
@@ -1058,13 +863,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/': {
-      id: '/demo/'
-      path: '/demo'
-      fullPath: '/demo/'
-      preLoaderRoute: typeof DemoIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/admin/': {
       id: '/admin/'
       path: '/'
@@ -1078,104 +876,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof MainIndexRouteImport
       parentRoute: typeof MainRouteRoute
-    }
-    '/demo/n': {
-      id: '/demo/n'
-      path: '/demo/n'
-      fullPath: '/demo/n'
-      preLoaderRoute: typeof DemoNRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/m': {
-      id: '/demo/m'
-      path: '/demo/m'
-      fullPath: '/demo/m'
-      preLoaderRoute: typeof DemoMRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/l': {
-      id: '/demo/l'
-      path: '/demo/l'
-      fullPath: '/demo/l'
-      preLoaderRoute: typeof DemoLRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/k': {
-      id: '/demo/k'
-      path: '/demo/k'
-      fullPath: '/demo/k'
-      preLoaderRoute: typeof DemoKRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/j': {
-      id: '/demo/j'
-      path: '/demo/j'
-      fullPath: '/demo/j'
-      preLoaderRoute: typeof DemoJRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/i': {
-      id: '/demo/i'
-      path: '/demo/i'
-      fullPath: '/demo/i'
-      preLoaderRoute: typeof DemoIRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/h': {
-      id: '/demo/h'
-      path: '/demo/h'
-      fullPath: '/demo/h'
-      preLoaderRoute: typeof DemoHRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/g': {
-      id: '/demo/g'
-      path: '/demo/g'
-      fullPath: '/demo/g'
-      preLoaderRoute: typeof DemoGRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/f': {
-      id: '/demo/f'
-      path: '/demo/f'
-      fullPath: '/demo/f'
-      preLoaderRoute: typeof DemoFRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/e': {
-      id: '/demo/e'
-      path: '/demo/e'
-      fullPath: '/demo/e'
-      preLoaderRoute: typeof DemoERouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/d': {
-      id: '/demo/d'
-      path: '/demo/d'
-      fullPath: '/demo/d'
-      preLoaderRoute: typeof DemoDRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/c': {
-      id: '/demo/c'
-      path: '/demo/c'
-      fullPath: '/demo/c'
-      preLoaderRoute: typeof DemoCRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/b': {
-      id: '/demo/b'
-      path: '/demo/b'
-      fullPath: '/demo/b'
-      preLoaderRoute: typeof DemoBRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/a': {
-      id: '/demo/a'
-      path: '/demo/a'
-      fullPath: '/demo/a'
-      preLoaderRoute: typeof DemoARouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/health': {
       id: '/api/health'
@@ -1759,21 +1459,6 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRouteRoute: AdminRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ApiHealthRoute: ApiHealthRoute,
-  DemoARoute: DemoARoute,
-  DemoBRoute: DemoBRoute,
-  DemoCRoute: DemoCRoute,
-  DemoDRoute: DemoDRoute,
-  DemoERoute: DemoERoute,
-  DemoFRoute: DemoFRoute,
-  DemoGRoute: DemoGRoute,
-  DemoHRoute: DemoHRoute,
-  DemoIRoute: DemoIRoute,
-  DemoJRoute: DemoJRoute,
-  DemoKRoute: DemoKRoute,
-  DemoLRoute: DemoLRoute,
-  DemoMRoute: DemoMRoute,
-  DemoNRoute: DemoNRoute,
-  DemoIndexRoute: DemoIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiPatreonWebhookRoute: ApiPatreonWebhookRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
