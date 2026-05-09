@@ -46,6 +46,7 @@ export const ALLOWED_EMAIL_DOMAINS = new Set([
   "protonmail.com",
   "msn.com",
   "live.com",
+  "hotmail.com",
 ]);
 
 export const RATING_REVIEW_MAX_LENGTH = 2000;
