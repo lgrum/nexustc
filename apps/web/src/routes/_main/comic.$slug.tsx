@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { zodValidator } from "@tanstack/zod-adapter";
 import { useEffect } from "react";
 import z from "zod";
 
 import { ComicPage } from "@/components/posts/comic-page";
-import { orpcClient, safeOrpcClient } from "@/lib/orpc";
+import { orpc, queryClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -13,35 +13,48 @@ const comicPageSchema = z.object({
   page: z.number().optional(),
 });
 
+function getComicQueryOptions(slug: string) {
+  return orpc.post.getPostById.queryOptions({
+    input: { slug, type: "comic" },
+  });
+}
+
+function getErrorCode(error: unknown) {
+  if (!(error instanceof Error) || !("code" in error)) {
+    return null;
+  }
+
+  const { code } = error as { code?: unknown };
+  return typeof code === "string" ? code : null;
+}
+
 export const Route = createFileRoute("/_main/comic/$slug")({
   component: RouteComponent,
   staleTime: 1000 * 60 * 5, // 5 minutes
   loader: async ({ params }) => {
-    const [error, data, isDefined] = await safeOrpcClient.post.getPostById({
-      slug: params.slug,
-      type: "comic",
-    });
+    try {
+      const data = await queryClient.ensureQueryData(
+        getComicQueryOptions(params.slug)
+      );
 
-    if (isDefined) {
-      if (error.code === "NOT_FOUND") {
+      if (data.type !== "comic") {
         throw notFound();
       }
 
-      if (error.code === "RATE_LIMITED") {
-        throw new Error("RATE_LIMITED", { cause: error.data.retryAfter });
-      }
-    }
+      return data;
+    } catch (error) {
+      const code = getErrorCode(error);
 
-    if (error) {
-      console.error(error);
+      if (code === "NOT_FOUND") {
+        throw notFound();
+      }
+
+      if (code === "RATE_LIMITED") {
+        throw new Error("RATE_LIMITED", { cause: error });
+      }
+
       throw error;
     }
-
-    if (data.type !== "comic") {
-      throw notFound();
-    }
-
-    return data;
   },
   head: ({ loaderData }) => ({
     meta: [
@@ -67,14 +80,11 @@ export const Route = createFileRoute("/_main/comic/$slug")({
 });
 
 function RouteComponent() {
-  const initialPost = Route.useLoaderData();
   const { slug } = Route.useParams();
   const { page } = Route.useSearch();
   const navigate = Route.useNavigate();
-  const { data: post = initialPost, refetch } = useQuery({
-    initialData: initialPost,
-    queryFn: () => orpcClient.post.getPostById({ slug, type: "comic" }),
-    queryKey: ["content", "comic", slug],
+  const { data: post, refetch } = useSuspenseQuery({
+    ...getComicQueryOptions(slug),
     refetchOnWindowFocus: true,
   });
 
