@@ -8,9 +8,13 @@ import { orpc, queryClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
-function getPostQueryOptions(slug: string) {
+const NANOID_PATTERN = /^[0-9A-Za-z]{21}$/;
+
+function getPostQueryOptions(idOrSlug: string) {
   return orpc.post.getPostById.queryOptions({
-    input: { slug, type: "post" },
+    input: NANOID_PATTERN.test(idOrSlug)
+      ? idOrSlug
+      : { slug: idOrSlug, type: "post" },
   });
 }
 
