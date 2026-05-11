@@ -39,12 +39,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="es" suppressHydrationWarning>
       <head>
         <HeadContent />
-
-        <script
-          crossOrigin="anonymous"
-          defer
-          src="https://tweakcn.com/live-preview.min.js"
-        />
       </head>
       <body className="dark">
         {/* <ScriptOnce>{themeInitScript()}</ScriptOnce> */}
