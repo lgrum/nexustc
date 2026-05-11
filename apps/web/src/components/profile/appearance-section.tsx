@@ -4,7 +4,7 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
 
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
@@ -30,9 +30,28 @@ type PendingUpload = {
 };
 
 export function AppearanceSection() {
-  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const { data } = useSuspenseQuery(orpc.profile.getMySettings.queryOptions());
+
+  const draftKey = [
+    data.settings.avatarFallbackColor,
+    data.settings.bannerColor,
+    data.settings.bannerMode,
+  ].join(":");
+
+  return (
+    <AppearanceSectionContent data={data} key={draftKey} session={session} />
+  );
+}
+
+function AppearanceSectionContent({
+  data,
+  session,
+}: {
+  data: Awaited<ReturnType<(typeof orpcClient.profile)["getMySettings"]>>;
+  session: ReturnType<typeof authClient.useSession>["data"];
+}) {
+  const queryClient = useQueryClient();
   const [draft, setDraft] = useState({
     avatarFallbackColor:
       data.settings.avatarFallbackColor ?? PROFILE_DEFAULTS.avatarFallbackColor,
@@ -43,20 +62,6 @@ export function AppearanceSection() {
     null
   );
   const [uploadProgress, setUploadProgress] = useState(0);
-
-  useEffect(() => {
-    setDraft({
-      avatarFallbackColor:
-        data.settings.avatarFallbackColor ??
-        PROFILE_DEFAULTS.avatarFallbackColor,
-      bannerColor: data.settings.bannerColor ?? PROFILE_DEFAULTS.bannerColor,
-      bannerMode: data.settings.bannerMode,
-    });
-  }, [
-    data.settings.avatarFallbackColor,
-    data.settings.bannerColor,
-    data.settings.bannerMode,
-  ]);
 
   const updateAppearanceMutation = useMutation({
     mutationFn: () =>

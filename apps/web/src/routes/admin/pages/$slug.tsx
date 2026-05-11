@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, useBlocker } from "@tanstack/react-router";
 import MDEditor from "@uiw/react-md-editor";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -80,11 +80,7 @@ function StaticPageEditor({
     withResolver: true,
   });
 
-  useEffect(() => {
-    if (blocker.status === "blocked") {
-      setBlockerDialogOpen(true);
-    }
-  }, [blocker.status]);
+  const showBlockerDialog = blockerDialogOpen || blocker.status === "blocked";
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -194,7 +190,7 @@ function StaticPageEditor({
             blocker.reset?.();
           }
         }}
-        open={blockerDialogOpen}
+        open={showBlockerDialog}
       >
         <AlertDialogContent>
           <AlertDialogHeader>

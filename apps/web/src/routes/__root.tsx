@@ -42,6 +42,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
         <script
           crossOrigin="anonymous"
+          defer
           src="https://tweakcn.com/live-preview.min.js"
         />
       </head>

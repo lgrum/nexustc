@@ -2,7 +2,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { Cancel01Icon, Edit02Icon, SentIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -32,15 +32,28 @@ export function EditCommentDialog({
   onOpenChange,
   postId,
 }: EditCommentDialogProps) {
+  return (
+    <EditCommentDialogContent
+      commentId={commentId}
+      content={content}
+      key={`${open}:${commentId}:${content}`}
+      onOpenChange={onOpenChange}
+      open={open}
+      postId={postId}
+    />
+  );
+}
+
+function EditCommentDialogContent({
+  commentId,
+  content,
+  open,
+  onOpenChange,
+  postId,
+}: EditCommentDialogProps) {
   const queryClient = useQueryClient();
   const { emojiMap, stickerMap } = useEmojiStickerMaps();
   const [draft, setDraft] = useState(content);
-
-  useEffect(() => {
-    if (open) {
-      setDraft(content);
-    }
-  }, [content, open]);
 
   const editMutation = useMutation({
     mutationFn: () =>
@@ -74,9 +87,6 @@ export function EditCommentDialog({
     !isSubmitting && !isUnderLimit && !isOverLimit && !isUnchanged;
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      setDraft(content);
-    }
     onOpenChange(newOpen);
   };
 

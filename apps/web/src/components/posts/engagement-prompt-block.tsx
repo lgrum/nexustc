@@ -21,12 +21,11 @@ export function EngagementPromptBlock({
   onAnswerPrompt,
   prompts,
 }: EngagementPromptBlockProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isFading, setIsFading] = useState(false);
   const [isVisibleOnScreen, setIsVisibleOnScreen] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const promptsKey = prompts.map((prompt) => prompt.id).join(":");
 
   useEffect(() => {
     if (typeof window === "undefined" || !("matchMedia" in window)) {
@@ -82,10 +81,37 @@ export function EngagementPromptBlock({
     };
   }, []);
 
-  useEffect(() => {
-    setCurrentIndex(0);
-    setIsFading(false);
-  }, [prompts]);
+  if (prompts.length === 0) {
+    return null;
+  }
+
+  return (
+    <section aria-label="Disparador de debate" ref={containerRef}>
+      <PromptRotator
+        isPageVisible={isPageVisible}
+        isVisibleOnScreen={isVisibleOnScreen}
+        key={promptsKey}
+        onAnswerPrompt={onAnswerPrompt}
+        prefersReducedMotion={prefersReducedMotion}
+        prompts={prompts}
+      />
+    </section>
+  );
+}
+
+function PromptRotator({
+  isPageVisible,
+  isVisibleOnScreen,
+  onAnswerPrompt,
+  prefersReducedMotion,
+  prompts,
+}: EngagementPromptBlockProps & {
+  isPageVisible: boolean;
+  isVisibleOnScreen: boolean;
+  prefersReducedMotion: boolean;
+}) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isFading, setIsFading] = useState(false);
 
   useEffect(() => {
     if (prompts.length < 2 || !isPageVisible || !isVisibleOnScreen) {
@@ -127,45 +153,36 @@ export function EngagementPromptBlock({
     prompts.length,
   ]);
 
-  if (prompts.length === 0) {
-    return null;
-  }
-
   const currentPrompt = prompts[currentIndex] ?? prompts[0];
 
   return (
-    <section aria-label="Disparador de debate" ref={containerRef}>
-      <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-950/40 to-transparent ring-1 ring-rose-800/50">
-        <div className="flex flex-col gap-3 md:flex-row items-center md:justify-between">
-          <div className="p-2 ring-1 ring-rose-600/60 rounded-md bg-rose-600/20">
-            <HugeiconsIcon
-              className="size-6 text-rose-400"
-              icon={QuestionIcon}
-            />
-          </div>
-          <div className="flex flex-1 flex-col gap-3">
-            <p
-              className={cn(
-                "text-balance font-[Lexend] text-base text-foreground leading-relaxed transition-opacity text-center md:text-left md:text-xl",
-                prefersReducedMotion ? "duration-0" : "duration-250",
-                isFading ? "opacity-0" : "opacity-100"
-              )}
-            >
-              {currentPrompt?.text}
-            </p>
-          </div>
-          {onAnswerPrompt && currentPrompt && (
-            <Button
-              className="shrink-0 bg-rose-700/80 text-white ring-1 ring-rose-500/60 hover:bg-rose-600"
-              onClick={() => onAnswerPrompt(currentPrompt)}
-              type="button"
-              size="lg"
-            >
-              <HugeiconsIcon className="size-4" icon={SentIcon} /> Responder
-            </Button>
-          )}
+    <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-950/40 to-transparent ring-1 ring-rose-800/50">
+      <div className="flex flex-col gap-3 md:flex-row items-center md:justify-between">
+        <div className="p-2 ring-1 ring-rose-600/60 rounded-md bg-rose-600/20">
+          <HugeiconsIcon className="size-6 text-rose-400" icon={QuestionIcon} />
         </div>
-      </Card>
-    </section>
+        <div className="flex flex-1 flex-col gap-3">
+          <p
+            className={cn(
+              "text-balance font-[Lexend] text-base text-foreground leading-relaxed transition-opacity text-center md:text-left md:text-xl",
+              prefersReducedMotion ? "duration-0" : "duration-250",
+              isFading ? "opacity-0" : "opacity-100"
+            )}
+          >
+            {currentPrompt?.text}
+          </p>
+        </div>
+        {onAnswerPrompt && currentPrompt && (
+          <Button
+            className="shrink-0 bg-rose-700/80 text-white ring-1 ring-rose-500/60 hover:bg-rose-600"
+            onClick={() => onAnswerPrompt(currentPrompt)}
+            type="button"
+            size="lg"
+          >
+            <HugeiconsIcon className="size-4" icon={SentIcon} /> Responder
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }

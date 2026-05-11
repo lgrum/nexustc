@@ -13,7 +13,7 @@ import {
 } from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -37,37 +37,53 @@ const hasBlockedMarkdown = (value: string) =>
   MARKDOWN_LINK_PATTERN.test(value) ||
   MARKDOWN_REFERENCE_PATTERN.test(value);
 
+type ExistingRating = Awaited<
+  ReturnType<(typeof orpcClient.rating)["getUserRating"]>
+>;
+
 export function RatingDialog({
   postId,
   open,
   onOpenChange,
 }: RatingDialogProps) {
-  const queryClient = useQueryClient();
-
-  const [rating, setRating] = useState<number>(0);
-  const [review, setReview] = useState<string>("");
-
   const { data: existingRating, isLoading } = useQuery({
     enabled: open,
     queryFn: () => orpcClient.rating.getUserRating({ postId }),
     queryKey: ["rating", "user", postId],
   });
 
-  useEffect(() => {
-    if (open && existingRating) {
-      setRating(existingRating.rating);
-      setReview(existingRating.review);
-    } else if (open && existingRating === null) {
-      setRating(0);
-      setReview("");
-    }
-  }, [open, existingRating]);
+  const ratingKey = existingRating
+    ? `${open}:${existingRating.rating}:${existingRating.review}`
+    : `${open}:${existingRating}`;
+
+  return (
+    <RatingDialogContent
+      existingRating={existingRating}
+      isLoading={isLoading}
+      key={ratingKey}
+      onOpenChange={onOpenChange}
+      open={open}
+      postId={postId}
+    />
+  );
+}
+
+function RatingDialogContent({
+  existingRating,
+  isLoading,
+  postId,
+  open,
+  onOpenChange,
+}: RatingDialogProps & {
+  existingRating: ExistingRating | undefined;
+  isLoading: boolean;
+}) {
+  const queryClient = useQueryClient();
+
+  const [rating, setRating] = useState<number>(existingRating?.rating ?? 0);
+  const [review, setReview] = useState<string>(existingRating?.review ?? "");
 
   const handleOpenChange = (newOpen: boolean) => {
-    if (!newOpen) {
-      setRating(0);
-      setReview("");
-    }
     onOpenChange(newOpen);
   };
 

@@ -321,7 +321,7 @@ function RouteComponent() {
           Descartar Cambios
         </Button>
         {hasChanges && <Badge variant="outline">Cambios sin guardar</Badge>}
-        {isUploading && <Badge variant="secondary">Subiendo imágenes...</Badge>}
+        {isUploading && <Badge variant="secondary">Subiendo imágenes…</Badge>}
       </div>
 
       {/* Sticky Image Section */}
@@ -555,7 +555,7 @@ function RouteComponent() {
             type="file"
           />
           {uploadingHelperImages && (
-            <Badge variant="secondary">Subiendo...</Badge>
+            <Badge variant="secondary">Subiendo…</Badge>
           )}
         </div>
 

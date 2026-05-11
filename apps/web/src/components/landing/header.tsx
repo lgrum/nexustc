@@ -10,8 +10,9 @@ import {
   useTransform,
   useVelocity,
 } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 import { authClient } from "@/lib/auth-client";
 import { cn, defaultFacehashProps, getBucketUrl } from "@/lib/utils";
 
@@ -231,12 +232,7 @@ function NavItem({
 
 function ProfileNavItem() {
   const { data: auth } = authClient.useSession();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
+  const mounted = useHasHydrated();
   const isAuthed = mounted && Boolean(auth?.session);
   const href = isAuthed ? "/profile" : "/auth";
   const displayName = isAuthed ? (auth?.user.name ?? "cronos") : "cronos";

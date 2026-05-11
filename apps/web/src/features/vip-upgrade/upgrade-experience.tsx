@@ -175,7 +175,7 @@ export function MembershipUpgradeExperience() {
     defaultMembershipUpgradeConfig.comparisonDefaults.featureTab
   );
   const [answers, setAnswers] = useState<SurveyAnswers>({});
-  const [activePaletteId, setActivePaletteId] = useState<string | null>(
+  const [activePaletteId, setActivePaletteId] = useState<string | null>(() =>
     getDefaultPaletteId(
       getTierById(
         defaultMembershipUpgradeConfig,
@@ -259,13 +259,6 @@ export function MembershipUpgradeExperience() {
     import.meta.env.DEV ||
     auth.data?.user.role === "admin" ||
     auth.data?.user.role === "owner";
-
-  useEffect(() => {
-    const palette = getPaletteById(targetTier, activePaletteId);
-    if (!palette) {
-      setActivePaletteId(getDefaultPaletteId(targetTier));
-    }
-  }, [activePaletteId, targetTier]);
 
   useEffect(() => {
     if (
@@ -375,7 +368,7 @@ export function MembershipUpgradeExperience() {
                 <Settings2 className="size-4" />
                 {config.editorLabel}
               </DrawerTrigger>
-              <DrawerContent className="border-white/10 bg-slate-950 text-white">
+              <DrawerContent className="border-white/10 bg-zinc-950 text-white">
                 <DrawerHeader>
                   <DrawerTitle>{config.editorLabel}</DrawerTitle>
                   <DrawerDescription className="text-white/60">
@@ -472,7 +465,7 @@ export function MembershipUpgradeExperience() {
                     : `El motor sigue apuntando a ${recommendedTier.name} para reducir la brecha.`}
                 </div>
                 <Button
-                  className="h-12 rounded-[22px] bg-linear-to-r from-cyan-300 via-sky-400 to-pink-400 font-semibold text-slate-950 shadow-[0_20px_44px_-26px_rgba(56,189,248,0.95)]"
+                  className="h-12 rounded-[22px] bg-linear-to-r from-cyan-300 via-sky-400 to-pink-400 font-semibold text-zinc-950 shadow-[0_20px_44px_-26px_rgba(56,189,248,0.95)]"
                   onClick={() => setCtaTouched(true)}
                   render={
                     <a
@@ -494,7 +487,7 @@ export function MembershipUpgradeExperience() {
         {isMobile ? (
           <div className="sticky bottom-3 z-20 xl:hidden">
             <Button
-              className="h-12 w-full rounded-[22px] bg-linear-to-r from-cyan-300 via-sky-400 to-pink-400 font-semibold text-slate-950 shadow-[0_20px_44px_-26px_rgba(56,189,248,0.95)]"
+              className="h-12 w-full rounded-[22px] bg-linear-to-r from-cyan-300 via-sky-400 to-pink-400 font-semibold text-zinc-950 shadow-[0_20px_44px_-26px_rgba(56,189,248,0.95)]"
               onClick={() => setCtaTouched(true)}
               render={
                 <a

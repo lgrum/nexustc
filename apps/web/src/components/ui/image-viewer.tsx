@@ -51,7 +51,6 @@ export function ImageViewer({
   const [position, setPosition] = useState({ x: 0, y: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(
@@ -76,13 +75,6 @@ export function ImageViewer({
       setShowControls(true);
     }
   }, [open, initialIndex]);
-
-  // Check if image is already cached/loaded on mount
-  useEffect(() => {
-    if (imageRef.current?.complete) {
-      setIsImageLoading(false);
-    }
-  }, []);
 
   // Zoom functions
   const resetZoom = useCallback(() => {
@@ -571,7 +563,6 @@ export function ImageViewer({
                 )}
                 draggable={false}
                 onLoad={() => setIsImageLoading(false)}
-                ref={imageRef}
                 src={currentImage.src}
                 style={{
                   transform: `scale(${scale}) translate(${position.x / scale}px, ${position.y / scale}px)`,

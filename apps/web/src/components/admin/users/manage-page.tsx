@@ -132,8 +132,8 @@ export function UserManagePage() {
           onChange={(e) => setSearchInput(e.target.value)}
           placeholder={
             searchField === "name"
-              ? "Buscar por nombre de usuario..."
-              : "Buscar por email..."
+              ? "Buscar por nombre de usuario…"
+              : "Buscar por email…"
           }
           value={searchInput}
         />
@@ -178,9 +178,7 @@ export function UserManagePage() {
       </div>
 
       {isLoading ? (
-        <div className="py-8 text-center text-muted-foreground">
-          Cargando...
-        </div>
+        <div className="py-8 text-center text-muted-foreground">Cargando…</div>
       ) : (
         <UsersDataTable
           columns={columns}

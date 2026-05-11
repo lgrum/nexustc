@@ -61,6 +61,11 @@ export function AuthDialogContent() {
     },
     onSubmit: async ({ value, formApi }) => {
       const { data, success } = loginSchema.safeParse(value);
+      const resetChallenge = () => {
+        loginForm.resetField("turnstileToken");
+        loginTurnstileRef.current?.reset();
+        formApi.setErrorMap({});
+      };
 
       if (!success) {
         setFormError("Email o contraseña inválidos");
@@ -93,10 +98,12 @@ export function AuthDialogContent() {
             toast.error(
               "Por favor verifica tu dirección de correo electrónico antes de iniciar sesión. Se te ha enviado un nuevo correo de verificación."
             );
+            resetChallenge();
             return;
           }
 
           setFormError(getErrorMessage(authError));
+          resetChallenge();
           return;
         }
 
@@ -105,11 +112,8 @@ export function AuthDialogContent() {
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
-      } finally {
-        loginForm.resetField("turnstileToken");
-        loginTurnstileRef.current?.reset();
-        formApi.setErrorMap({});
       }
+      resetChallenge();
     },
   });
 
@@ -123,6 +127,11 @@ export function AuthDialogContent() {
       turnstileToken: "",
     },
     onSubmit: async ({ value }) => {
+      const resetChallenge = () => {
+        registerForm.resetField("turnstileToken");
+        registerTurnstileRef.current?.reset();
+      };
+
       try {
         setFormError(undefined);
 
@@ -144,6 +153,7 @@ export function AuthDialogContent() {
         if (authError) {
           toast.dismiss("auth");
           setFormError(getErrorMessage(authError));
+          resetChallenge();
           return;
         }
 
@@ -162,10 +172,8 @@ export function AuthDialogContent() {
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
-      } finally {
-        registerForm.resetField("turnstileToken");
-        registerTurnstileRef.current?.reset();
       }
+      resetChallenge();
     },
     validators: {
       onSubmit: registerSchema,

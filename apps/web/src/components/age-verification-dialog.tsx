@@ -59,7 +59,9 @@ const storeAgeVerification = async () => {
 };
 
 export function AgeVerificationDialog() {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(
+    () => typeof document !== "undefined" && !hasAgeVerification()
+  );
   const [hasReadDisclaimer, setHasReadDisclaimer] = useState(false);
   const disclaimerRef = useRef<HTMLDivElement | null>(null);
 
@@ -75,11 +77,6 @@ export function AgeVerificationDialog() {
     const isScrollable = disclaimer.scrollHeight > disclaimer.clientHeight + 1;
 
     setHasReadDisclaimer(!isScrollable || scrollRemaining <= 1);
-  }, []);
-
-  // getCookie only works on browser environments, so we avoid ssr with this
-  useEffect(() => {
-    setOpen(!hasAgeVerification());
   }, []);
 
   useEffect(() => {
@@ -108,11 +105,8 @@ export function AgeVerificationDialog() {
   }, [open, updateDisclaimerReadState]);
 
   const handleAccept = async () => {
-    try {
-      await storeAgeVerification();
-    } finally {
-      setOpen(false);
-    }
+    await storeAgeVerification();
+    setOpen(false);
   };
 
   return (

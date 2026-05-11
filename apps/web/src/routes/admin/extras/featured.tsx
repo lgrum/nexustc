@@ -2,7 +2,7 @@ import { Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useBlocker, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -130,11 +130,7 @@ function RouteComponent() {
     withResolver: true,
   });
 
-  useEffect(() => {
-    if (blocker.status === "blocked") {
-      setBlockerDialogOpen(true);
-    }
-  }, [blocker.status]);
+  const showBlockerDialog = blockerDialogOpen || blocker.status === "blocked";
 
   useDebounceEffect(
     () => {
@@ -443,7 +439,7 @@ function RouteComponent() {
             blocker.reset?.();
           }
         }}
-        open={blockerDialogOpen}
+        open={showBlockerDialog}
       >
         <AlertDialogContent>
           <AlertDialogHeader>

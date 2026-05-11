@@ -36,7 +36,7 @@ export const ConfirmEmail = ({ verificationUrl }: ConfirmEmailProps) => (
       />
     </Head>
     <Tailwind config={tailwindConfig}>
-      <Body className="mx-auto my-0 bg-slate-950 font-sans text-stone-300">
+      <Body className="mx-auto my-0 bg-zinc-950 font-sans text-stone-300">
         <Preview>Confirma tu Correo Electrónico</Preview>
         <Container className="mx-auto my-0 px-5 py-0">
           <Section className="mt-8 text-center">

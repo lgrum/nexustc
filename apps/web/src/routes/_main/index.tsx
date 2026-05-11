@@ -15,7 +15,6 @@ import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
-import { useEffect, useState } from "react";
 
 import {
   AuthDialog,
@@ -31,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient, safeOrpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
@@ -427,17 +427,13 @@ function AuthAction() {
   const auth = authClient.useSession();
   const user = auth.data?.user;
   const imageSrc = user?.image ? getBucketUrl(user.image) : undefined;
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHasHydrated();
   const profileSummaryQuery = useQuery({
     ...orpc.profile.getSummary.queryOptions({
       input: { userId: user?.id ?? "" },
     }),
     enabled: Boolean(user?.id),
   });
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   if (!mounted) {
     return null;
