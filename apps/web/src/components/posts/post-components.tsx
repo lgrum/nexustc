@@ -20,7 +20,6 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
-import type { SyntheticEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -142,37 +141,16 @@ export function PostHero() {
     post.imageObjectKeys,
     post.coverImageObjectKey
   );
-  const [coverAspectRatio, setCoverAspectRatio] = useState("16 / 9");
-
-  useEffect(() => {
-    setCoverAspectRatio("16 / 9");
-  }, [mainImage]);
-
-  const handleCoverLoad = (event: SyntheticEvent<HTMLImageElement>) => {
-    const { naturalHeight, naturalWidth } = event.currentTarget;
-
-    if (naturalHeight === 0) {
-      return;
-    }
-
-    const aspectRatio = naturalWidth / naturalHeight;
-    const isLegacyWideCover = Math.abs(aspectRatio - 21 / 9) < 0.05;
-
-    setCoverAspectRatio(isLegacyWideCover ? "21 / 9" : "16 / 9");
-  };
 
   return (
     <div className="relative">
       {mainImage ? (
-        <div className="relative rounded-xl overflow-hidden">
-          <div className="w-full" style={{ aspectRatio: coverAspectRatio }}>
-            <img
-              alt={`Portada de ${post.title}`}
-              className="h-full w-full object-cover"
-              onLoad={handleCoverLoad}
-              src={getBucketUrl(mainImage)}
-            />
-          </div>
+        <div className="relative overflow-hidden rounded-xl bg-muted">
+          <img
+            alt={`Portada de ${post.title}`}
+            className="block h-auto w-full"
+            src={getBucketUrl(mainImage)}
+          />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 md:p-10">
             <h1 className="mb-2 font-[Lexend] font-bold text-white text-xl drop-shadow-lg md:text-4xl">
@@ -468,7 +446,7 @@ function CountdownCluster({
         <HugeiconsIcon className="size-3" icon={Clock01Icon} />
         {label}
       </span>
-      <div className="flex items-baseline gap-1 font-[Lexend] tabular-nums">
+      <div className="flex items-baseline gap-1 font-mono">
         {parts.map((part, index) => (
           <span className="inline-flex items-baseline" key={part.suffix}>
             {index > 0 && (
@@ -533,14 +511,10 @@ function EarlyAccessStatusBanner() {
                 : "Las cuentas VIP juegan primero. Al terminar la cuenta atrás, el post queda libre para todos."}
             </p>
           </div>
-          <div className="flex shrink-0 items-stretch gap-4 md:gap-6">
+          <div className="grid grid-cols-2 items-stretch gap-4 md:gap-6">
             <CountdownCluster
               label="Próxima fase"
               targetAt={post.earlyAccess.currentPhaseEndsAt}
-            />
-            <span
-              aria-hidden="true"
-              className="w-px self-stretch bg-border/70"
             />
             <CountdownCluster
               label="Público total"

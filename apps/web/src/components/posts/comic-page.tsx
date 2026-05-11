@@ -3,6 +3,7 @@ import {
   ArrowDown01Icon,
   ArrowLeft01Icon,
   ArrowLeftDoubleIcon,
+  ArrowReloadHorizontalIcon,
   ArrowRight01Icon,
   ArrowRightDoubleIcon,
   Book02Icon,
@@ -1048,7 +1049,10 @@ export function ComicReader({
                   />
                 }
               >
-                <HugeiconsIcon className="size-4" icon={Book03Icon} />
+                <HugeiconsIcon
+                  className="size-4"
+                  icon={ArrowReloadHorizontalIcon}
+                />
               </TooltipTrigger>
               <TooltipContent>Modo cascada</TooltipContent>
             </Tooltip>
@@ -1458,8 +1462,11 @@ export function ComicCascadeReader({
               size="sm"
               variant="ghost"
             >
-              <HugeiconsIcon className="size-4" icon={FullScreenIcon} />
-              <span className="hidden sm:inline">Pantalla</span>
+              <HugeiconsIcon
+                className="size-4"
+                icon={ArrowReloadHorizontalIcon}
+              />
+              <span className="hidden sm:inline">Cambiar Modo</span>
             </Button>
           </div>
         </div>

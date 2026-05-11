@@ -46,11 +46,6 @@ function RouteComponent() {
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className="section-title">En Early Access Ahora</div>
-            <p className="mt-1 text-muted-foreground text-sm">
-              {items.length === 0
-                ? "No hay lanzamientos VIP activos ahora mismo."
-                : `${items.length} publicaciones activas en la ventana VIP.`}
-            </p>
           </div>
         </div>
 
@@ -303,9 +298,10 @@ function VipFeedCard({
       className="group block rounded-2xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-4 focus-visible:ring-offset-background"
       params={{ id: item.id }}
       to="/post/$id"
+      preload={false}
     >
       <Card className="overflow-hidden rounded-2xl border-border/70 bg-card/70 p-0 shadow-md backdrop-blur-sm transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-0.5 group-hover:border-amber-400/40 group-hover:shadow-glow-amber-400/15">
-        <div className="grid md:grid-cols-[minmax(0,1.5fr)_minmax(0,1.08fr)]">
+        <div className="grid">
           <div className="relative min-h-56 overflow-hidden md:min-h-72">
             {heroImage ? (
               <img
@@ -341,7 +337,7 @@ function VipFeedCard({
               </p>
             </div>
 
-            <div className="grid gap-4 xs:grid-cols-1 grid-cols-2 md:grid-cols-1">
+            <div className="grid gap-4 grid-cols-2">
               <VipCountdown
                 label="Próxima fase"
                 targetAt={item.earlyAccess.currentPhaseEndsAt}
