@@ -1,14 +1,9 @@
-import { useEffect, useState } from "react";
-
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 import { authClient } from "@/lib/auth-client";
 
 export function SignedOut({ children }: React.PropsWithChildren) {
   const { data: auth } = authClient.useSession();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHasHydrated();
 
   if (!mounted) {
     return null;

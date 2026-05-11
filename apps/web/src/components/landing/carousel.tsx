@@ -82,9 +82,15 @@ export function LandingCarousel() {
 
     setCurrent(api.selectedScrollSnap());
 
-    api.on("select", () => {
+    const updateCurrent = () => {
       setCurrent(api.selectedScrollSnap());
-    });
+    };
+
+    api.on("select", updateCurrent);
+
+    return () => {
+      api.off("select", updateCurrent);
+    };
   }, [api]);
 
   return (

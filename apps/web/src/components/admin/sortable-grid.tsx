@@ -69,9 +69,6 @@ export function SortableGrid<T>({
   children,
 }: SortableGridProps<T>) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const selectedIdsRef = useRef(selectedIds);
-  selectedIdsRef.current = selectedIds;
-
   const isDraggingRef = useRef(false);
 
   const toggleSelect = useCallback((id: string) => {
@@ -118,7 +115,7 @@ export function SortableGrid<T>({
       }
 
       const sourceId = String(source.id);
-      const currentSelected = selectedIdsRef.current;
+      const currentSelected = selectedIds;
 
       if (currentSelected.has(sourceId) && currentSelected.size > 1) {
         setItems((prev) => {
@@ -171,7 +168,7 @@ export function SortableGrid<T>({
         setItems((prev) => arrayMove(prev, indices.from, indices.to));
       }
     },
-    [setItems, getItemId]
+    [selectedIds, setItems, getItemId]
   );
 
   return (

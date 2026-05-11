@@ -61,29 +61,27 @@ export const Route = createFileRoute("/comic/$slug/read")({
   validateSearch: zodValidator(readerSearchSchema),
   staleTime: 1000 * 60 * 5,
   loader: async ({ params }) => {
-    try {
-      const data = await queryClient.ensureQueryData(
-        getComicQueryOptions(params.slug)
-      );
+    const data = await queryClient
+      .ensureQueryData(getComicQueryOptions(params.slug))
+      .catch((error: unknown) => {
+        const code = getErrorCode(error);
 
-      if (data.type !== "comic") {
-        throw notFound();
-      }
+        if (code === "NOT_FOUND") {
+          throw notFound();
+        }
 
-      return data;
-    } catch (error) {
-      const code = getErrorCode(error);
+        if (code === "RATE_LIMITED") {
+          throw new Error("RATE_LIMITED", { cause: error });
+        }
 
-      if (code === "NOT_FOUND") {
-        throw notFound();
-      }
+        throw error;
+      });
 
-      if (code === "RATE_LIMITED") {
-        throw new Error("RATE_LIMITED", { cause: error });
-      }
-
-      throw error;
+    if (data.type !== "comic") {
+      throw notFound();
     }
+
+    return data;
   },
   head: ({ loaderData }) => ({
     meta: [

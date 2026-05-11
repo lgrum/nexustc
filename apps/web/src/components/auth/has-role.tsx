@@ -1,19 +1,15 @@
 import type { Permissions, Role } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
-import { useEffect, useState } from "react";
 
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 import { authClient } from "@/lib/auth-client";
 
 export function HasPermissions({
   children,
   permissions,
 }: React.PropsWithChildren<{ permissions: AtLeastOne<Permissions> }>) {
-  const [mounted, setMounted] = useState(false);
   const { data: auth } = authClient.useSession();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHasHydrated();
 
   if (!mounted) {
     return null;

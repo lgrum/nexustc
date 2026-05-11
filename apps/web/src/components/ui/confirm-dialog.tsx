@@ -338,8 +338,13 @@ export const useConfirm = () => {
 
   const { confirm, updateConfig } = context;
 
-  const enhancedConfirm = confirm;
-  enhancedConfirm.updateConfig = updateConfig;
+  const enhancedConfirm = useMemo(
+    () =>
+      Object.assign((options: ConfirmOptions) => confirm(options), {
+        updateConfig,
+      }),
+    [confirm, updateConfig]
+  );
 
   return enhancedConfirm as ConfirmFunction & {
     updateConfig: ConfirmContextValue["updateConfig"];

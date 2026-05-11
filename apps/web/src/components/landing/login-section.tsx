@@ -1,18 +1,14 @@
 import { SquareLock01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useHasHydrated } from "@/hooks/use-has-hydrated";
 import { authClient } from "@/lib/auth-client";
 
 export function UserSection() {
   const { data: auth } = authClient.useSession();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = useHasHydrated();
 
   if (!mounted) {
     return null;

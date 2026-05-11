@@ -1,7 +1,7 @@
 import { Notification03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useInfiniteQuery, useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   NotificationFeedError,
@@ -42,11 +42,12 @@ export function NotificationCenter() {
   const readOnly = filter === "read";
   const unreadOnly = filter === "unread";
 
-  useEffect(() => {
-    if (!open) {
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
       setFilter("all");
     }
-  }, [open]);
+  };
 
   const isAuthed = Boolean(auth?.session);
   const unreadCountQuery = useQuery({
@@ -150,7 +151,7 @@ export function NotificationCenter() {
             unreadCount={unreadCount}
           />
         </div>
-        <Drawer onOpenChange={setOpen} open={open}>
+        <Drawer onOpenChange={handleOpenChange} open={open}>
           <DrawerContent className="isolate max-h-[82vh] rounded-t-[2rem] border-border/70 bg-background/96 shadow-[0_-24px_90px_-40px_hsl(var(--foreground)/0.8)] supports-backdrop-filter:bg-background/80 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150">
             <DrawerHeader className="border-border/60 border-b px-4 pb-4 text-left">
               <DrawerTitle className="font-[Lexend] text-xl">
@@ -169,7 +170,7 @@ export function NotificationCenter() {
   }
 
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover onOpenChange={handleOpenChange} open={open}>
       <PopoverTrigger render={trigger} />
       <PopoverContent
         align="end"
