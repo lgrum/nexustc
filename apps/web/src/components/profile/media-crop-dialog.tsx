@@ -34,6 +34,16 @@ function centerAspectCrop(
   );
 }
 
+function fullImageCrop(): PercentCrop {
+  return {
+    height: 100,
+    unit: "%",
+    width: 100,
+    x: 0,
+    y: 0,
+  };
+}
+
 export default function MediaCropDialog({
   open,
   onOpenChange,
@@ -46,7 +56,7 @@ export default function MediaCropDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   imageSrc: string;
-  aspect: number;
+  aspect?: number;
   title: string;
   description: string;
   onConfirm: (crop: ImagePercentCrop) => void;
@@ -71,7 +81,11 @@ export default function MediaCropDialog({
               className="max-h-[60vh] w-full rounded-2xl object-contain"
               onLoad={(event) => {
                 const { width, height } = event.currentTarget;
-                setCrop(centerAspectCrop(width, height, aspect));
+                setCrop(
+                  aspect
+                    ? centerAspectCrop(width, height, aspect)
+                    : fullImageCrop()
+                );
               }}
               src={imageSrc}
             />
