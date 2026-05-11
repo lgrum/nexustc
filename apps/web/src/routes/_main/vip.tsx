@@ -18,6 +18,7 @@ import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/vip")({
   component: RouteComponent,
+  loader: async () => await orpcClient.post.getVipFeed(),
   head: () => ({
     meta: [
       {
@@ -25,7 +26,6 @@ export const Route = createFileRoute("/_main/vip")({
       },
     ],
   }),
-  loader: async () => await orpcClient.post.getVipFeed(),
 });
 
 function RouteComponent() {

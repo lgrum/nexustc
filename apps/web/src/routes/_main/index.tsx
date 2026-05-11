@@ -42,13 +42,6 @@ const RECENT_POSTS_LIMIT = 12;
 
 export const Route = createFileRoute("/_main/")({
   component: HomeComponent,
-  head: () => ({
-    meta: [
-      {
-        title: "NeXusTC - Principal",
-      },
-    ],
-  }),
   loader: async () => {
     const [recentUsersResult, weeklyGamesResult, featuredPostsResult] =
       await Promise.all([
@@ -82,6 +75,13 @@ export const Route = createFileRoute("/_main/")({
           : { data: undefined, error: { code: "UNKNOWN" } },
     };
   },
+  head: () => ({
+    meta: [
+      {
+        title: "NeXusTC - Principal",
+      },
+    ],
+  }),
 });
 
 function HomeComponent() {

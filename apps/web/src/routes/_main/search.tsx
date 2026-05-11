@@ -25,6 +25,7 @@ function scrollToSearchToolbar() {
 
 export const Route = createFileRoute("/_main/search")({
   component: RouteComponent,
+  validateSearch: searchParamsSchema,
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const isComic = deps.type === "comics";
@@ -43,7 +44,6 @@ export const Route = createFileRoute("/_main/search")({
       pagination: searchResult.pagination,
     };
   },
-  validateSearch: searchParamsSchema,
   head: () => ({
     meta: [
       {

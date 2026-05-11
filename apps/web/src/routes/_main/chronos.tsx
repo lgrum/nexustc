@@ -12,6 +12,7 @@ import { getBucketUrl } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/chronos")({
   component: RouteComponent,
+  loader: async () => await orpcClient.chronos.getCurrent(),
   head: () => ({
     meta: [
       {
@@ -19,7 +20,6 @@ export const Route = createFileRoute("/_main/chronos")({
       },
     ],
   }),
-  loader: async () => await orpcClient.chronos.getCurrent(),
 });
 
 function RouteComponent() {

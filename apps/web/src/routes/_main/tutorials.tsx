@@ -5,6 +5,7 @@ import { orpcClient } from "@/lib/orpc";
 
 export const Route = createFileRoute("/_main/tutorials")({
   component: RouteComponent,
+  loader: () => orpcClient.extras.getTutorials(),
   head: () => ({
     meta: [
       {
@@ -12,7 +13,6 @@ export const Route = createFileRoute("/_main/tutorials")({
       },
     ],
   }),
-  loader: () => orpcClient.extras.getTutorials(),
 });
 
 function RouteComponent() {

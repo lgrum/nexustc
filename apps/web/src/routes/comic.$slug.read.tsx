@@ -58,6 +58,7 @@ function getErrorCode(error: unknown) {
 
 export const Route = createFileRoute("/comic/$slug/read")({
   component: RouteComponent,
+  validateSearch: zodValidator(readerSearchSchema),
   staleTime: 1000 * 60 * 5,
   loader: async ({ params }) => {
     try {
@@ -104,7 +105,6 @@ export const Route = createFileRoute("/comic/$slug/read")({
       },
     ],
   }),
-  validateSearch: zodValidator(readerSearchSchema),
 });
 
 function RouteComponent() {

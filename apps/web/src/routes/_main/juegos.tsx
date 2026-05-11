@@ -18,6 +18,7 @@ function scrollToSearchToolbar() {
 
 export const Route = createFileRoute("/_main/juegos")({
   component: GamesRouteComponent,
+  validateSearch: gameSearchParamsSchema,
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const termIds = getGameTermIds(deps);
@@ -34,7 +35,6 @@ export const Route = createFileRoute("/_main/juegos")({
       pagination: searchResult.pagination,
     };
   },
-  validateSearch: gameSearchParamsSchema,
   head: () => ({
     meta: [
       {

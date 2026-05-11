@@ -39,13 +39,6 @@ export const Route = createFileRoute("/_main")({
       <ErrorComponent error={error} reset={reset} />
     </Wrapper>
   ),
-  head: () => ({
-    meta: [
-      {
-        title: "NeXusTC - Principal",
-      },
-    ],
-  }),
   loader: async () => {
     try {
       return await orpcClient.siteConfig.getMarquee();
@@ -53,6 +46,13 @@ export const Route = createFileRoute("/_main")({
       return { items: DEFAULT_MARQUEE_ITEMS };
     }
   },
+  head: () => ({
+    meta: [
+      {
+        title: "NeXusTC - Principal",
+      },
+    ],
+  }),
 });
 
 function MainLayout() {

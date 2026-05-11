@@ -18,6 +18,7 @@ function scrollToSearchToolbar() {
 
 export const Route = createFileRoute("/_main/comics")({
   component: ComicsRouteComponent,
+  validateSearch: comicSearchParamsSchema,
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const termIds = getComicTermIds(deps);
@@ -34,7 +35,6 @@ export const Route = createFileRoute("/_main/comics")({
       pagination: searchResult.pagination,
     };
   },
-  validateSearch: comicSearchParamsSchema,
   head: () => ({
     meta: [
       {

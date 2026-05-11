@@ -9,6 +9,9 @@ import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_main/reset-password")({
   component: RouteComponent,
+  validateSearch: zodValidator(
+    z.object({ error: z.string().nullish(), token: z.string().nullish() })
+  ),
   head: () => ({
     meta: [
       {
@@ -16,9 +19,6 @@ export const Route = createFileRoute("/_main/reset-password")({
       },
     ],
   }),
-  validateSearch: zodValidator(
-    z.object({ error: z.string().nullish(), token: z.string().nullish() })
-  ),
 });
 
 function RouteComponent() {

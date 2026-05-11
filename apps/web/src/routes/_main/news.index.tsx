@@ -14,13 +14,6 @@ const NEWS_LIMIT = 36;
 
 export const Route = createFileRoute("/_main/news/")({
   component: RouteComponent,
-  head: () => ({
-    meta: [
-      {
-        title: "NeXusTC - News",
-      },
-    ],
-  }),
   loader: async () => {
     const [error, data, isDefined] =
       await safeOrpcClient.notification.listPublishedNewsArticles({
@@ -33,6 +26,13 @@ export const Route = createFileRoute("/_main/news/")({
 
     return data ?? [];
   },
+  head: () => ({
+    meta: [
+      {
+        title: "NeXusTC - News",
+      },
+    ],
+  }),
 });
 
 function RouteComponent() {

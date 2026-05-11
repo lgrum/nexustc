@@ -52,6 +52,11 @@ const statusVariants: Record<
 
 export const Route = createFileRoute("/admin/patreon/webhooks")({
   component: RouteComponent,
+  loader: () =>
+    orpcClient.patreon.admin.listWebhookRequests({
+      limit: WEBHOOK_REQUEST_LIMIT,
+      offset: 0,
+    }),
   head: () => ({
     meta: [
       {
@@ -59,11 +64,6 @@ export const Route = createFileRoute("/admin/patreon/webhooks")({
       },
     ],
   }),
-  loader: () =>
-    orpcClient.patreon.admin.listWebhookRequests({
-      limit: WEBHOOK_REQUEST_LIMIT,
-      offset: 0,
-    }),
   server: {
     middleware: [ownerMiddleware],
   },
