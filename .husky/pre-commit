@@ -1,10 +1,10 @@
-bun run test
-
-# ultracite
 #!/bin/sh
 # Exit on any error
 set -e
 
+bun run test
+
+# ultracite
 # Check if there are any staged files
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACMR)
 if [ -z "$STAGED_FILES" ]; then
@@ -12,8 +12,8 @@ if [ -z "$STAGED_FILES" ]; then
   exit 0
 fi
 
-# Run formatter
-bun x ultracite fix
+# Run formatter and linter
+bun run check
 FORMAT_EXIT_CODE=$?
 
 # Re-stage files that were already staged
@@ -24,7 +24,7 @@ echo "$STAGED_FILES" | while IFS= read -r file; do
 done
 
 if [ $FORMAT_EXIT_CODE -ne 0 ]; then
-  echo "Ultracite found issues that could not be auto-fixed."
+  echo "Code quality checks found issues that could not be auto-fixed."
   exit $FORMAT_EXIT_CODE
 fi
 

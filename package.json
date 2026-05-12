@@ -35,8 +35,9 @@
   "scripts": {
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
+    "lint": "oxlint -c oxlint.config.mjs",
+    "lint:fix": "oxlint -c oxlint.config.mjs --fix",
+    "check": "oxfmt --write . && oxlint -c oxlint.config.mjs --fix .",
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
@@ -53,20 +54,20 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@uiw/react-md-editor": "^4.0.11",
-    "dotenv": "^17.3.1",
+    "@uiw/react-md-editor": "^4.1.0",
+    "dotenv": "^17.4.2",
     "facehash": "^0.1.0",
     "react-markdown": "^10.1.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@types/node": "^22.13.11",
+    "@types/node": "^22.19.17",
     "husky": "^9.1.7",
-    "oxfmt": "^0.42.0",
-    "oxlint": "^1.57.0",
-    "turbo": "^2.8.20",
-    "typescript": "^6.0.2",
-    "ultracite": "7.3.2"
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "turbo": "^2.9.9",
+    "typescript": "^6.0.3",
+    "ultracite": "7.6.3"
   },
   "packageManager": "bun@1.3.0"
 }
