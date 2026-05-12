@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { z } from "zod";
 
 import { PostCard } from "@/components/landing/post-card";
@@ -176,6 +176,7 @@ function GamesLibraryToolbar({
   onRandom: () => void;
 }) {
   const termsQuery = useTerms();
+  const hasInitializedSearchSync = useRef(false);
 
   const form = useAppForm({
     defaultValues: {
@@ -194,6 +195,11 @@ function GamesLibraryToolbar({
 
   useDebounceEffect(
     () => {
+      if (!hasInitializedSearchSync.current) {
+        hasInitializedSearchSync.current = true;
+        return;
+      }
+
       onSearchChange({
         engine: formValues.engine,
         graphics: formValues.graphics,

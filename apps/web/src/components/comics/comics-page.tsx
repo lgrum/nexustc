@@ -17,7 +17,7 @@ import { useStore } from "@tanstack/react-form";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import Autoplay from "embla-carousel-autoplay";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
 import { PostCard } from "@/components/landing/post-card";
@@ -896,6 +896,7 @@ function ComicsLibraryToolbar({
   onRandom: () => void;
 }) {
   const termsQuery = useTerms();
+  const hasInitializedSearchSync = useRef(false);
 
   const form = useAppForm({
     defaultValues: {
@@ -910,6 +911,11 @@ function ComicsLibraryToolbar({
 
   useDebounceEffect(
     () => {
+      if (!hasInitializedSearchSync.current) {
+        hasInitializedSearchSync.current = true;
+        return;
+      }
+
       onSearchChange({
         orderBy: formValues.orderBy,
         page: 1,

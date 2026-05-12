@@ -8,6 +8,7 @@ import {
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
+import { useRef } from "react";
 import z from "zod";
 
 import { PostCard } from "@/components/landing/post-card";
@@ -159,6 +160,7 @@ export function GameSearchControls({
   params,
 }: GameSearchControlsProps) {
   const termsQuery = useTerms();
+  const hasInitializedSearchSync = useRef(false);
 
   const form = useAppForm({
     defaultValues: {
@@ -179,6 +181,11 @@ export function GameSearchControls({
 
   useDebounceEffect(
     () => {
+      if (!hasInitializedSearchSync.current) {
+        hasInitializedSearchSync.current = true;
+        return;
+      }
+
       onSearchChange({
         engine: formValues.engine,
         graphics: formValues.graphics,
@@ -336,6 +343,7 @@ export function ComicSearchControls({
   params,
 }: ComicSearchControlsProps) {
   const termsQuery = useTerms();
+  const hasInitializedSearchSync = useRef(false);
 
   const form = useAppForm({
     defaultValues: {
@@ -352,6 +360,11 @@ export function ComicSearchControls({
 
   useDebounceEffect(
     () => {
+      if (!hasInitializedSearchSync.current) {
+        hasInitializedSearchSync.current = true;
+        return;
+      }
+
       onSearchChange({
         orderBy: formValues.orderBy,
         page: 1,
