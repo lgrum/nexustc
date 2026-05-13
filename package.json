@@ -58,7 +58,7 @@
     "dotenv": "^17.4.2",
     "facehash": "^0.1.0",
     "react-markdown": "^10.1.0",
-    "zod": "^4.4.3"
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",
