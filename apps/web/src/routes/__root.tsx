@@ -39,6 +39,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     <html lang="es" suppressHydrationWarning>
       <head>
         <HeadContent />
+        <script
+          data-website-id="59156ec8-eed3-446f-85bd-ab0edc3958bf"
+          defer
+          src="https://umami.nexustc18.com/script.js"
+        />
       </head>
       <body className="dark">
         {/* <ScriptOnce>{themeInitScript()}</ScriptOnce> */}
