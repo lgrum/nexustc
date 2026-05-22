@@ -7,6 +7,7 @@ import { es } from "date-fns/locale";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { trackEvent } from "@/lib/analytics";
 import { orpcClient, safeOrpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -83,6 +84,14 @@ function RouteComponent() {
             <Link
               className="group block outline-none"
               key={article.id}
+              onClick={() =>
+                trackEvent("news_article_clicked", {
+                  articleId: article.id,
+                  contentId: article.contentId,
+                  contentType: article.contentType,
+                  source: "news_index",
+                })
+              }
               params={{ id: article.id }}
               to="/news/$id"
             >

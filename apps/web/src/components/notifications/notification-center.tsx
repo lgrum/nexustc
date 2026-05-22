@@ -22,6 +22,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -42,13 +43,6 @@ export function NotificationCenter() {
   const readOnly = filter === "read";
   const unreadOnly = filter === "unread";
 
-  const handleOpenChange = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (!nextOpen) {
-      setFilter("all");
-    }
-  };
-
   const isAuthed = Boolean(auth?.session);
   const unreadCountQuery = useQuery({
     ...orpc.notification.getUnreadCount.queryOptions(),
@@ -58,6 +52,18 @@ export function NotificationCenter() {
   });
 
   const unreadCount = unreadCountQuery.data ?? 0;
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      trackEvent("notification_center_opened", {
+        unreadCount,
+      });
+    }
+    if (!nextOpen) {
+      setFilter("all");
+    }
+  };
 
   const notificationsQuery = useInfiniteQuery({
     // The feed uses cursor pagination so we keep the page param as an ISO string.
@@ -126,12 +132,31 @@ export function NotificationCenter() {
         unreadCountQuery.isLoading
       }
       items={items}
-      onFilterChange={setFilter}
-      onLoadMore={() => notificationsQuery.fetchNextPage()}
-      onMarkAllRead={() => markAllReadMutation.mutate({})}
-      onMarkRead={(notificationId) =>
-        markReadMutation.mutate({ notificationIds: [notificationId] })
-      }
+      onFilterChange={(nextFilter) => {
+        trackEvent("notification_filter_changed", {
+          filter: nextFilter,
+        });
+        setFilter(nextFilter);
+      }}
+      onLoadMore={() => {
+        trackEvent("notification_load_more_clicked", {
+          filter,
+        });
+        notificationsQuery.fetchNextPage();
+      }}
+      onMarkAllRead={() => {
+        trackEvent("notification_mark_all_read_clicked", {
+          unreadCount,
+        });
+        markAllReadMutation.mutate({});
+      }}
+      onMarkRead={(notificationId) => {
+        trackEvent("notification_mark_read_clicked", {
+          notificationId,
+          source: "notification_center",
+        });
+        markReadMutation.mutate({ notificationIds: [notificationId] });
+      }}
       readActionPending={
         markReadMutation.isPending || markAllReadMutation.isPending
       }

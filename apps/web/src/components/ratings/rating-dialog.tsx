@@ -13,11 +13,12 @@ import {
 } from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { trackEvent } from "@/lib/analytics";
 import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
 import { StarRatingInput } from "./star-rating-input";
@@ -83,6 +84,17 @@ function RatingDialogContent({
   const [rating, setRating] = useState<number>(existingRating?.rating ?? 0);
   const [review, setReview] = useState<string>(existingRating?.review ?? "");
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    trackEvent("post_rating_started", {
+      hasExistingRating: Boolean(existingRating),
+      postId,
+    });
+  }, [existingRating, open, postId]);
+
   const handleOpenChange = (newOpen: boolean) => {
     onOpenChange(newOpen);
   };
@@ -100,6 +112,12 @@ function RatingDialogContent({
       );
     },
     onSuccess: () => {
+      trackEvent("post_rating_submitted", {
+        hasExistingRating: Boolean(existingRating),
+        postId,
+        rating,
+        reviewLength: review.trim().length,
+      });
       queryClient.invalidateQueries({ queryKey: ["rating", "user", postId] });
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });
@@ -111,6 +129,9 @@ function RatingDialogContent({
   const deleteMutation = useMutation({
     mutationFn: () => orpcClient.rating.delete({ postId }),
     onSuccess: () => {
+      trackEvent("post_rating_deleted", {
+        postId,
+      });
       queryClient.invalidateQueries({ queryKey: ["rating", "user", postId] });
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });

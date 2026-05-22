@@ -24,6 +24,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 type ImageViewerProps = {
@@ -126,6 +127,11 @@ export function ImageViewer({
   }, [images.length, resetZoom]);
 
   const handleDownload = () => {
+    trackEvent("image_viewer_external_opened", {
+      imageIndex: currentIndex,
+      imageCount: images.length,
+      hasTitle: Boolean(title),
+    });
     window.open(currentImage.src, "_blank");
   };
 

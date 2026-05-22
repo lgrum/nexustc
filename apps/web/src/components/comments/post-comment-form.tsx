@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import z from "zod";
 
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 import type { EngagementPromptType } from "@/lib/types";
 
@@ -70,6 +71,12 @@ export function PostCommentForm({
         });
 
         form.reset();
+        trackEvent("comment_submitted", {
+          contentLength: formData.value.content.trim().length,
+          hasEngagementPrompt: Boolean(prompt),
+          isReply: Boolean(parentId),
+          postId,
+        });
         onSubmitted?.();
       } catch (error) {
         toast.error(

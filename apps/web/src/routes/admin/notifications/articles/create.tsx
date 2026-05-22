@@ -36,6 +36,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import {
   createEmptyDeferredMediaSelection,
   optionalSingleDeferredMediaSelectionSchema,
@@ -123,6 +124,15 @@ function RouteComponent() {
         publishedAt: parseOptionalDate(value.publishedAt),
         summary: value.summary,
         title: value.title,
+      });
+      trackEvent("admin_news_article_published", {
+        bodyLength: value.body.length,
+        contentId: value.contentId,
+        hasBanner: value.bannerImageSelection.length > 0,
+        hasExpiration: Boolean(value.expirationAt),
+        isScheduled: Boolean(value.publishedAt),
+        summaryLength: value.summary.length,
+        titleLength: value.title.length,
       });
       newsForm.reset();
     },

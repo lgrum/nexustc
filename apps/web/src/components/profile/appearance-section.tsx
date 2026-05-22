@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ColorPickerField } from "@/components/ui/color-picker-field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { convertImage, cropImage, uploadBlobWithProgress } from "@/lib/utils";
@@ -85,6 +86,9 @@ function AppearanceSectionContent({
         orpc.profile.getMySettings.queryOptions()
       );
       await queryClient.invalidateQueries({ queryKey: ["session"] });
+      trackEvent("profile_appearance_saved", {
+        bannerMode: draft.bannerMode,
+      });
       toast.success("Apariencia actualizada");
     },
   });
@@ -96,6 +100,9 @@ function AppearanceSectionContent({
         orpc.profile.getMySettings.queryOptions()
       );
       await queryClient.invalidateQueries({ queryKey: ["session"] });
+      trackEvent("profile_media_removed", {
+        slot: "avatar",
+      });
       toast.success("Avatar eliminado");
     },
   });
@@ -106,6 +113,9 @@ function AppearanceSectionContent({
       await queryClient.invalidateQueries(
         orpc.profile.getMySettings.queryOptions()
       );
+      trackEvent("profile_media_removed", {
+        slot: "banner",
+      });
       toast.success("Banner restaurado");
     },
   });
@@ -194,11 +204,15 @@ function AppearanceSectionContent({
         error instanceof Error ? error.message : "No se pudo subir el archivo."
       );
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
       await queryClient.invalidateQueries(
         orpc.profile.getMySettings.queryOptions()
       );
       await queryClient.invalidateQueries({ queryKey: ["session"] });
+      trackEvent("profile_media_uploaded", {
+        contentType: variables.file.type,
+        slot: variables.slot,
+      });
       toast.success("Media actualizada");
       setUploadProgress(0);
       setPendingUpload((current) => {

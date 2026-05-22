@@ -8,6 +8,7 @@ import {
   AuthDialogContent,
   AuthDialogTrigger,
 } from "@/components/auth/auth-dialog";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,10 @@ export function FollowButton({ contentId }: FollowButtonProps) {
         await invalidateNotificationFollowQueries(contentId);
       },
       onSuccess: () => {
+        trackEvent("content_follow_toggled", {
+          contentId,
+          following: true,
+        });
         toast.success("Ahora recibirás updates de este contenido.");
       },
     })
@@ -122,6 +127,10 @@ export function FollowButton({ contentId }: FollowButtonProps) {
         await invalidateNotificationFollowQueries(contentId);
       },
       onSuccess: () => {
+        trackEvent("content_follow_toggled", {
+          contentId,
+          following: false,
+        });
         toast.success("Dejarás de recibir actualizaciones de este contenido.");
       },
     })

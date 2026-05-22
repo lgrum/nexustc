@@ -21,6 +21,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { trackEvent } from "@/lib/analytics";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
@@ -56,11 +57,19 @@ export function URLShortenerDialog({
   const shortenUrlMutation = useMutation({
     ...orpc.extras.shortenUrl.mutationOptions(),
     onError: (error) => {
+      trackEvent("url_shortener_completed", {
+        result: "failed",
+        shortenerCount,
+      });
       toast.error(
         `No se pudo acortar la URL: ${error instanceof Error ? error.message : "Error desconocido"}`
       );
     },
     onSuccess: (data) => {
+      trackEvent("url_shortener_completed", {
+        result: "success",
+        shortenerCount,
+      });
       setShortenedUrl(data.shortenedUrl);
       toast.success("URL acortada correctamente");
     },
@@ -75,6 +84,12 @@ export function URLShortenerDialog({
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
 
+    if (nextOpen) {
+      trackEvent("url_shortener_opened", {
+        shortenerCount,
+      });
+    }
+
     if (!nextOpen) {
       resetState();
     }
@@ -83,6 +98,9 @@ export function URLShortenerDialog({
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(shortenedUrl);
+      trackEvent("url_shortener_copy_clicked", {
+        shortenerCount,
+      });
       toast.success("URL copiada al portapapeles");
     } catch {
       toast.error("No se pudo copiar la URL");

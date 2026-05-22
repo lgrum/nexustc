@@ -18,6 +18,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { TierShape } from "@/components/tier-shape";
 import { Button } from "@/components/ui/button";
+import { trackEvent } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_main/memberships")({
@@ -330,6 +331,17 @@ function TierHeaderCell({ tier }: { tier: PatronTier }) {
               <a
                 aria-label={`Comprar ${TIER_SETTINGS[tier].name} en Patreon`}
                 href={checkoutUrl}
+                onClick={() => {
+                  trackEvent("membership_tier_selected", {
+                    source: "memberships",
+                    tier,
+                  });
+                  trackEvent("checkout_started", {
+                    provider: "patreon",
+                    source: "memberships",
+                    tier,
+                  });
+                }}
                 rel="noopener noreferrer"
                 target="_blank"
               />

@@ -8,6 +8,7 @@ import { BlockNoteContent } from "@/components/blocknote-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { trackEvent } from "@/lib/analytics";
 import { safeOrpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -108,7 +109,18 @@ function RouteComponent() {
             <Button
               nativeButton={false}
               render={
-                <Link params={{ id: article.contentId }} to="/post/$id" />
+                <Link
+                  onClick={() =>
+                    trackEvent("news_related_content_clicked", {
+                      articleId: article.id,
+                      contentId: article.contentId,
+                      contentType: article.contentType,
+                      source: "article_header",
+                    })
+                  }
+                  params={{ id: article.contentId }}
+                  to="/post/$id"
+                />
               }
               variant="outline"
             >
@@ -149,7 +161,18 @@ function RouteComponent() {
                 className="w-full"
                 nativeButton={false}
                 render={
-                  <Link params={{ id: article.contentId }} to="/post/$id" />
+                  <Link
+                    onClick={() =>
+                      trackEvent("news_related_content_clicked", {
+                        articleId: article.id,
+                        contentId: article.contentId,
+                        contentType: article.contentType,
+                        source: "article_sidebar",
+                      })
+                    }
+                    params={{ id: article.contentId }}
+                    to="/post/$id"
+                  />
                 }
               >
                 Abrir contenido

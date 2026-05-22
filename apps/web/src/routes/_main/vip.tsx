@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { TierShape } from "@/components/tier-shape";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { trackEvent } from "@/lib/analytics";
 import { orpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
@@ -37,6 +38,12 @@ function RouteComponent() {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    trackEvent("vip_page_viewed", {
+      earlyAccessItemCount: items.length,
+    });
+  }, [items.length]);
 
   return (
     <main className="flex flex-col gap-8 px-4 py-6">
@@ -296,6 +303,13 @@ function VipFeedCard({
   return (
     <Link
       className="group block rounded-2xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+      onClick={() =>
+        trackEvent("vip_content_clicked", {
+          contentId: item.id,
+          earlyAccessState: item.earlyAccess.currentState,
+          viewerCanAccess: item.earlyAccess.viewerCanAccess,
+        })
+      }
       params={{ id: item.id }}
       to="/post/$id"
       preload={false}

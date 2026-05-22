@@ -2,6 +2,7 @@ import { QuestionIcon, SentIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useRef, useState } from "react";
 
+import { trackEvent } from "@/lib/analytics";
 import type { EngagementPromptType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -155,6 +156,17 @@ function PromptRotator({
 
   const currentPrompt = prompts[currentIndex] ?? prompts[0];
 
+  useEffect(() => {
+    if (!currentPrompt) {
+      return;
+    }
+
+    trackEvent("engagement_prompt_shown", {
+      promptId: currentPrompt.id,
+      promptSource: currentPrompt.source,
+    });
+  }, [currentPrompt]);
+
   return (
     <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-950/40 to-transparent ring-1 ring-rose-800/50">
       <div className="flex flex-col gap-3 md:flex-row items-center md:justify-between">
@@ -175,7 +187,13 @@ function PromptRotator({
         {onAnswerPrompt && currentPrompt && (
           <Button
             className="shrink-0 bg-rose-700/80 text-white ring-1 ring-rose-500/60 hover:bg-rose-600"
-            onClick={() => onAnswerPrompt(currentPrompt)}
+            onClick={() => {
+              trackEvent("engagement_prompt_answer_clicked", {
+                promptId: currentPrompt.id,
+                promptSource: currentPrompt.source,
+              });
+              onAnswerPrompt(currentPrompt);
+            }}
             type="button"
             size="lg"
           >

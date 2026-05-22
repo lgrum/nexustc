@@ -25,6 +25,7 @@ import z from "zod";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,10 @@ export function AuthDialogContent() {
       };
 
       if (!success) {
+        trackEvent("login_failed", {
+          reason: "validation",
+          source: "auth_dialog",
+        });
         setFormError("Email o contraseña inválidos");
         return;
       }
@@ -95,6 +100,10 @@ export function AuthDialogContent() {
 
         if (authError) {
           if (authError.status === 403) {
+            trackEvent("login_failed", {
+              reason: "email_unverified",
+              source: "auth_dialog",
+            });
             toast.error(
               "Por favor verifica tu dirección de correo electrónico antes de iniciar sesión. Se te ha enviado un nuevo correo de verificación."
             );
@@ -102,13 +111,25 @@ export function AuthDialogContent() {
             return;
           }
 
+          trackEvent("login_failed", {
+            reason: authError.code ?? "auth_error",
+            source: "auth_dialog",
+          });
           setFormError(getErrorMessage(authError));
           resetChallenge();
           return;
         }
 
+        trackEvent("login_completed", {
+          method: "email",
+          source: "auth_dialog",
+        });
         navigate({ to: "/" });
       } catch (error) {
+        trackEvent("login_failed", {
+          reason: "exception",
+          source: "auth_dialog",
+        });
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
@@ -152,12 +173,22 @@ export function AuthDialogContent() {
 
         if (authError) {
           toast.dismiss("auth");
+          trackEvent("signup_failed", {
+            newsletterOptIn: Boolean(value.newsletterOptIn),
+            reason: authError.code ?? "auth_error",
+            source: "auth_dialog",
+          });
           setFormError(getErrorMessage(authError));
           resetChallenge();
           return;
         }
 
         toast.dismiss("auth");
+        trackEvent("signup_completed", {
+          method: "email",
+          newsletterOptIn: Boolean(value.newsletterOptIn),
+          source: "auth_dialog",
+        });
         toast.success(
           "Se ha enviado un correo a su cuenta de correo electrónico. Por favor verifique su correo antes de iniciar sesión."
         );
@@ -169,6 +200,10 @@ export function AuthDialogContent() {
         registerForm.resetField("turnstileToken");
       } catch (error) {
         toast.dismiss("auth");
+        trackEvent("signup_failed", {
+          reason: "exception",
+          source: "auth_dialog",
+        });
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
@@ -184,6 +219,9 @@ export function AuthDialogContent() {
     if (newTab === null) {
       return;
     }
+    trackEvent(newTab === "register" ? "signup_started" : "login_started", {
+      source: "auth_dialog",
+    });
     setTab(String(newTab));
     loginForm.resetField("turnstileToken");
     registerForm.resetField("turnstileToken");

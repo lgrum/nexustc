@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 import { orpc } from "@/lib/orpc";
 import { authMiddleware } from "@/middleware/auth";
@@ -65,6 +66,9 @@ function RouteComponent() {
         </div>
         <Button
           onClick={async () => {
+            trackEvent("logout_clicked", {
+              source: "profile",
+            });
             authClient.signOut();
             await queryClient.invalidateQueries({ queryKey: ["session"] });
           }}
@@ -74,7 +78,15 @@ function RouteComponent() {
         </Button>
       </header>
 
-      <Tabs className="w-full" defaultValue="appearance">
+      <Tabs
+        className="w-full"
+        defaultValue="appearance"
+        onValueChange={(tab) =>
+          trackEvent("profile_tab_changed", {
+            tab,
+          })
+        }
+      >
         <TabsList className="w-full">
           <TabsTrigger value="appearance">Apariencia</TabsTrigger>
           <TabsTrigger value="following">Siguiendo</TabsTrigger>
@@ -142,6 +154,9 @@ function AccountsSection() {
             <Button
               key={provider}
               onClick={() => {
+                trackEvent("social_account_link_started", {
+                  provider,
+                });
                 authClient.linkSocial({ callbackURL: "/profile", provider });
               }}
             >
@@ -165,6 +180,9 @@ function AccountsSection() {
                 await authClient.unlinkAccount({
                   accountId,
                   providerId: provider,
+                });
+                trackEvent("social_account_unlinked", {
+                  provider,
                 });
                 queryClient.invalidateQueries({ queryKey: ["accounts"] });
               }}
@@ -201,6 +219,10 @@ function ChangePasswordForm({ email }: { email: string }) {
         });
 
         if (error) {
+          trackEvent("password_changed", {
+            reason: error.code ?? "auth_error",
+            result: "failed",
+          });
           toast.error(
             error.code ? getAuthErrorMessage(error.code) : error.message
           );
@@ -208,8 +230,15 @@ function ChangePasswordForm({ email }: { email: string }) {
         }
 
         toast.success("Contraseña cambiada exitosamente!");
+        trackEvent("password_changed", {
+          result: "success",
+        });
         form.reset();
       } catch (error) {
+        trackEvent("password_changed", {
+          reason: "exception",
+          result: "failed",
+        });
         console.error(error);
       }
     },
@@ -325,8 +354,14 @@ function PatreonStatusSection() {
       await queryClient.invalidateQueries({
         queryKey: orpc.patreon.getStatus.queryKey(),
       });
+      trackEvent("patreon_sync_completed", {
+        result: "success",
+      });
       toast.success("Estado de Patreon sincronizado");
     } catch (error) {
+      trackEvent("patreon_sync_completed", {
+        result: "failed",
+      });
       toast.error(
         error instanceof Error ? error.message : "Error al sincronizar"
       );

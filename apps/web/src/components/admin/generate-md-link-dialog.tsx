@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { trackEvent } from "@/lib/analytics";
+
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -27,7 +29,7 @@ export function GenerateMarkdownLinkDialog() {
           <DialogTitle>Generar Link</DialogTitle>
         </DialogHeader>
         <form
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault();
             event.stopPropagation();
 
@@ -36,11 +38,16 @@ export function GenerateMarkdownLinkDialog() {
 
             setOpenDialog(false);
 
-            toast.promise(navigator.clipboard.writeText(`[${text}](${link})`), {
-              error: "Error al generar link",
-              loading: "Generando...",
-              success: "Link copiado al portapapeles!",
-            });
+            try {
+              await navigator.clipboard.writeText(`[${text}](${link})`);
+              trackEvent("markdown_link_generated", {
+                linkLength: link.length,
+                textLength: text.length,
+              });
+              toast.success("Link copiado al portapapeles!");
+            } catch {
+              toast.error("Error al generar link");
+            }
 
             setDialogData({
               link: "",

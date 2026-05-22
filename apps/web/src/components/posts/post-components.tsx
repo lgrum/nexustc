@@ -25,6 +25,7 @@ import { toast } from "sonner";
 
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
 import {
@@ -185,6 +186,11 @@ export function PostStatsBar() {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
+      trackEvent("share_link_copied", {
+        contentId: post.id,
+        contentType: post.type,
+        source: "post_stats_bar",
+      });
       toast.success("Enlace copiado al portapapeles");
     } catch {
       toast.error("No se pudo copiar el enlace");
@@ -343,6 +349,11 @@ export function PostActionBar() {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
+      trackEvent("share_link_copied", {
+        contentId: post.id,
+        contentType: post.type,
+        source: "post_action_bar",
+      });
       toast.success("Enlace copiado al portapapeles");
     } catch {
       toast.error("No se pudo copiar el enlace");

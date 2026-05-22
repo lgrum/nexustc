@@ -7,6 +7,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+
+import { trackEvent } from "@/lib/analytics";
 
 import { Button } from "./ui/button";
 
@@ -21,10 +24,17 @@ const STEPS = [
 ] as const;
 
 const handleReload = () => {
+  trackEvent("adblock_reload_clicked");
   window.location.reload();
 };
 
 export function AdblockBlockerDialog({ open }: AdblockBlockerDialogProps) {
+  useEffect(() => {
+    if (open) {
+      trackEvent("adblock_dialog_shown");
+    }
+  }, [open]);
+
   return (
     <Dialog.Root open={open}>
       <Dialog.Portal>
@@ -121,6 +131,11 @@ export function AdblockBlockerDialog({ open }: AdblockBlockerDialogProps) {
 
             <Link
               className="group mt-3 flex items-center gap-3 rounded-xl border border-amber-400/40 bg-linear-to-r from-amber-400/10 via-amber-400/6 to-transparent px-3 py-2.5 transition-[background-color,border-color,box-shadow] duration-200 hover:border-amber-400/65 hover:bg-amber-400/15 hover:shadow-glow-amber-400/30"
+              onClick={() =>
+                trackEvent("membership_cta_clicked", {
+                  source: "adblock_dialog",
+                })
+              }
               to="/vip"
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">

@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import {
   createEmptyDeferredMediaSelection,
   optionalSingleDeferredMediaSelectionSchema,
@@ -78,6 +79,12 @@ function RouteComponent() {
         expirationAt: parseOptionalDate(value.expirationAt),
         imageSelection: value.imageSelection,
         title: value.title,
+      });
+      trackEvent("admin_announcement_published", {
+        descriptionLength: value.description.length,
+        hasExpiration: Boolean(value.expirationAt),
+        hasImage: value.imageSelection.length > 0,
+        titleLength: value.title.length,
       });
       announcementForm.reset();
     },

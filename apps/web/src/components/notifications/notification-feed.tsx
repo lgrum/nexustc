@@ -18,6 +18,7 @@ import {
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
+import { trackEvent } from "@/lib/analytics";
 import { cn, getBucketUrl } from "@/lib/utils";
 
 type NotificationItem = {
@@ -256,6 +257,11 @@ function NotificationFeedCard({
               className="rounded-full"
               nativeButton={false}
               onClick={() => {
+                trackEvent("notification_open_clicked", {
+                  contentType: item.contentType,
+                  notificationId: item.id,
+                  notificationType: item.type,
+                });
                 if (!item.isRead) {
                   onMarkRead?.(item.id);
                 }

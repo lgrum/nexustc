@@ -13,6 +13,7 @@ import {
 } from "@/components/search/catalog-search";
 import { LibraryPagination } from "@/components/search/library-shared";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getQueryLength, trackEvent } from "@/lib/analytics";
 import { orpcClient } from "@/lib/orpc";
 
 function scrollToSearchToolbar() {
@@ -61,6 +62,9 @@ function RouteComponent() {
   const handleTabChange = useCallback(
     (value: string | null) => {
       if (value === "juegos" || value === "comics") {
+        trackEvent("search_tab_changed", {
+          type: value,
+        });
         navigate({
           search: { page: 1, type: value },
           to: "/search",
@@ -72,6 +76,11 @@ function RouteComponent() {
 
   const handleGameSearchChange = useCallback(
     (search: Omit<typeof params, "type">) => {
+      trackEvent("search_performed", {
+        filterCount: getGameFilterCount(search),
+        queryLength: getQueryLength(search.query),
+        type: "juegos",
+      });
       navigate({
         search: { ...search, page: search.page ?? 1, type: "juegos" },
         to: "/search",
@@ -87,6 +96,11 @@ function RouteComponent() {
       page?: number;
       tag?: string[];
     }) => {
+      trackEvent("search_performed", {
+        filterCount: getComicFilterCount(search),
+        queryLength: getQueryLength(search.query),
+        type: "comics",
+      });
       navigate({
         search: { ...search, page: search.page ?? 1, type: "comics" },
         to: "/search",
@@ -97,6 +111,10 @@ function RouteComponent() {
 
   const handleRandomSelect = useCallback(
     (slug: string, type: "post" | "comic") => {
+      trackEvent("random_content_selected", {
+        contentType: type,
+        source: "search",
+      });
       navigate({
         params: type === "comic" ? { slug } : { id: slug },
         to: type === "comic" ? "/comic/$slug" : "/post/$id",

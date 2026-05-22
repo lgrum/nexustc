@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -124,6 +125,13 @@ export function LikeButton({ postId }: { postId: string }) {
       onSettled: () => {
         // Refetch to ensure consistency
         queryClient.invalidateQueries(likesQueryOptions);
+      },
+
+      onSuccess: (_data, variables) => {
+        trackEvent("post_like_toggled", {
+          liked: variables.liked,
+          postId: variables.postId,
+        });
       },
     })
   );

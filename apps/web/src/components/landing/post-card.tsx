@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import { Link } from "@tanstack/react-router";
 
+import { trackEvent } from "@/lib/analytics";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
 
@@ -122,6 +123,13 @@ function PostCardContent({
   return (
     <Link
       className="group block w-full h-full"
+      onClick={() =>
+        trackEvent("content_card_clicked", {
+          contentId: post.id,
+          contentType: post.type,
+          source: "catalog",
+        })
+      }
       params={params}
       preload={false}
       to={to}

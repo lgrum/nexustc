@@ -30,6 +30,7 @@ import type { TouchEvent } from "react";
 import { formatCount, SectionHeader } from "@/components/search/library-shared";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient, queryClient } from "@/lib/orpc";
 import { getCoverImageObjectKey } from "@/lib/post-images";
@@ -609,6 +610,32 @@ export function ComicReader({
   const totalPages = images.length;
   const currentImage = images[page];
   const progress = ((page + 1) / totalPages) * 100;
+  const hasTrackedCompletionRef = useRef(false);
+  const startPageRef = useRef(page + 1);
+
+  useEffect(() => {
+    trackEvent("comic_reader_opened", {
+      comicId: comic.id,
+      mode: "fullscreen",
+      pageCount: totalPages,
+      startPage: startPageRef.current,
+    });
+  }, [comic.id, totalPages]);
+
+  useEffect(() => {
+    if (
+      totalPages > 0 &&
+      page === totalPages - 1 &&
+      !hasTrackedCompletionRef.current
+    ) {
+      hasTrackedCompletionRef.current = true;
+      trackEvent("comic_chapter_completed", {
+        comicId: comic.id,
+        mode: "fullscreen",
+        pageCount: totalPages,
+      });
+    }
+  }, [comic.id, page, totalPages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1040,7 +1067,14 @@ export function ComicReader({
           {onChangeMode && (
             <Tooltip>
               <TooltipTrigger
-                onClick={onChangeMode}
+                onClick={() => {
+                  trackEvent("comic_reader_mode_changed", {
+                    comicId: comic.id,
+                    fromMode: "fullscreen",
+                    toMode: "cascade",
+                  });
+                  onChangeMode();
+                }}
                 render={
                   <Button
                     className="text-white hover:bg-white/10 hover:text-white"
@@ -1311,12 +1345,38 @@ export function ComicCascadeReader({
   const pageRefs = useRef<(HTMLImageElement | null)[]>([]);
   const totalPages = images.length;
   const progress = totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0;
+  const hasTrackedCompletionRef = useRef(false);
+  const startPageRef = useRef(currentPage + 1);
 
   usePostViewTracker({
     enabled: !comic.earlyAccess.isRestrictedView,
     postId: comic.id,
     targetRef: containerRef,
   });
+
+  useEffect(() => {
+    trackEvent("comic_reader_opened", {
+      comicId: comic.id,
+      mode: "cascade",
+      pageCount: totalPages,
+      startPage: startPageRef.current,
+    });
+  }, [comic.id, totalPages]);
+
+  useEffect(() => {
+    if (
+      totalPages > 0 &&
+      currentPage === totalPages - 1 &&
+      !hasTrackedCompletionRef.current
+    ) {
+      hasTrackedCompletionRef.current = true;
+      trackEvent("comic_chapter_completed", {
+        comicId: comic.id,
+        mode: "cascade",
+        pageCount: totalPages,
+      });
+    }
+  }, [comic.id, currentPage, totalPages]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1458,7 +1518,14 @@ export function ComicCascadeReader({
             </span>
             <Button
               className="text-white hover:bg-white/10 hover:text-white"
-              onClick={() => onChangeMode(currentPage)}
+              onClick={() => {
+                trackEvent("comic_reader_mode_changed", {
+                  comicId: comic.id,
+                  fromMode: "cascade",
+                  toMode: "fullscreen",
+                });
+                onChangeMode(currentPage);
+              }}
               size="sm"
               variant="ghost"
             >

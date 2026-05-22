@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
+import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -127,6 +128,13 @@ export function BookmarkButton({ postId }: { postId: string }) {
       onSettled: () => {
         // Refetch to ensure consistency
         queryClient.invalidateQueries(bookmarksQueryOptions);
+      },
+
+      onSuccess: (_data, variables) => {
+        trackEvent("post_bookmark_toggled", {
+          bookmarked: variables.bookmarked,
+          postId: variables.postId,
+        });
       },
     })
   );

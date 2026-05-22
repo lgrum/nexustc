@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_main/forgot-password")({
@@ -44,12 +45,19 @@ function RouteComponent() {
         });
 
         if (error) {
+          trackEvent("password_reset_requested", {
+            reason: error.code ?? "auth_error",
+            result: "failed",
+          });
           const message = getAuthErrorMessage(error.code);
           toast.error(message ?? error.message);
           console.error(error);
           return;
         }
 
+        trackEvent("password_reset_requested", {
+          result: "success",
+        });
         toast.success(
           "Se ha enviado un enlace a tu casilla de correo electrónico para restablecer tu contraseña.",
           {
@@ -58,6 +66,10 @@ function RouteComponent() {
         );
         form.reset();
       } catch (error) {
+        trackEvent("password_reset_requested", {
+          reason: "exception",
+          result: "failed",
+        });
         console.error(error);
       }
     },

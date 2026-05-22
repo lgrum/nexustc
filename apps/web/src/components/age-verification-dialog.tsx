@@ -8,6 +8,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { trackEvent } from "@/lib/analytics";
 import { getCookie } from "@/lib/utils";
 
 import { Button } from "./ui/button";
@@ -85,6 +86,7 @@ export function AgeVerificationDialog() {
       return;
     }
 
+    trackEvent("age_verification_shown");
     updateDisclaimerReadState();
     const animationFrame = requestAnimationFrame(updateDisclaimerReadState);
     const disclaimer = disclaimerRef.current;
@@ -106,6 +108,7 @@ export function AgeVerificationDialog() {
 
   const handleAccept = async () => {
     await storeAgeVerification();
+    trackEvent("age_verification_accepted");
     setOpen(false);
   };
 

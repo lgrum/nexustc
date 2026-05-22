@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 import { defaultFacehashProps } from "@/lib/utils";
 
@@ -112,6 +113,10 @@ function RouteComponent() {
       const { data, success } = loginSchema.safeParse(value);
 
       if (!success) {
+        trackEvent("login_failed", {
+          reason: "validation",
+          source: "auth_page",
+        });
         setFormError("Email o contraseña inválidos");
         return;
       }
@@ -139,18 +144,34 @@ function RouteComponent() {
 
         if (authError) {
           if (authError.status === 403) {
+            trackEvent("login_failed", {
+              reason: "email_unverified",
+              source: "auth_page",
+            });
             toast.error(
               "Por favor verifica tu dirección de correo electrónico antes de iniciar sesión. Se te ha enviado un nuevo correo de verificación."
             );
             return;
           }
 
+          trackEvent("login_failed", {
+            reason: authError.code ?? "auth_error",
+            source: "auth_page",
+          });
           setFormError(getErrorMessage(authError));
           return;
         }
 
+        trackEvent("login_completed", {
+          method: "email",
+          source: "auth_page",
+        });
         navigate({ to: "/" });
       } catch (error) {
+        trackEvent("login_failed", {
+          reason: "exception",
+          source: "auth_page",
+        });
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
@@ -190,11 +211,19 @@ function RouteComponent() {
 
         if (authError) {
           toast.dismiss("auth");
+          trackEvent("signup_failed", {
+            reason: authError.code ?? "auth_error",
+            source: "auth_page",
+          });
           setFormError(getErrorMessage(authError));
           return;
         }
 
         toast.dismiss("auth");
+        trackEvent("signup_completed", {
+          method: "email",
+          source: "auth_page",
+        });
         toast.success(
           "Se ha enviado un correo a su cuenta de correo electrónico. Por favor verifique su correo antes de iniciar sesión."
         );
@@ -205,6 +234,10 @@ function RouteComponent() {
         registerForm.resetField("turnstileToken");
       } catch (error) {
         toast.dismiss("auth");
+        trackEvent("signup_failed", {
+          reason: "exception",
+          source: "auth_page",
+        });
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
@@ -251,6 +284,10 @@ function RouteComponent() {
           <Tabs
             defaultValue="login"
             onValueChange={(newTab) => {
+              trackEvent(
+                newTab === "register" ? "signup_started" : "login_started",
+                { source: "auth_page" }
+              );
               setTab(newTab);
               loginForm.resetField("turnstileToken");
               registerForm.resetField("turnstileToken");

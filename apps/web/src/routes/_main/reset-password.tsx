@@ -5,6 +5,7 @@ import z from "zod";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAppForm } from "@/hooks/use-app-form";
+import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 
 export const Route = createFileRoute("/_main/reset-password")({
@@ -32,6 +33,10 @@ function RouteComponent() {
     },
     onSubmit: async ({ value }) => {
       if (!search.token) {
+        trackEvent("password_reset_completed", {
+          reason: "missing_token",
+          result: "failed",
+        });
         return;
       }
 
@@ -41,12 +46,19 @@ function RouteComponent() {
       });
 
       if (error) {
+        trackEvent("password_reset_completed", {
+          reason: error.code ?? "auth_error",
+          result: "failed",
+        });
         const message = getAuthErrorMessage(error.code);
         toast.error(message ?? error.message);
         console.error(error);
         return;
       }
 
+      trackEvent("password_reset_completed", {
+        result: "success",
+      });
       toast.success(
         "Contraseña cambiada exitosamente! Ya puedes iniciar sesión.",
         {

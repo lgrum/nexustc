@@ -9,6 +9,7 @@ import { NotificationFeedList } from "@/components/notifications/notification-fe
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { trackEvent } from "@/lib/analytics";
 import { orpc, queryClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
@@ -112,9 +113,13 @@ export function FollowingSection() {
           emptyTitle="Aún no hay novedades"
           isMarking={markReadMutation.isPending}
           items={followingQuery.data.updates}
-          onMarkRead={(notificationId) =>
-            markReadMutation.mutate({ notificationIds: [notificationId] })
-          }
+          onMarkRead={(notificationId) => {
+            trackEvent("notification_mark_read_clicked", {
+              notificationId,
+              source: "following_section",
+            });
+            markReadMutation.mutate({ notificationIds: [notificationId] });
+          }}
         />
       </div>
     </div>
@@ -156,6 +161,12 @@ function FollowedContentGrid({
         return (
           <Link
             key={item.contentId}
+            onClick={() =>
+              trackEvent("followed_content_clicked", {
+                contentId: item.contentId,
+                contentType: item.contentType,
+              })
+            }
             params={{ id: item.contentId }}
             to="/post/$id"
           >
