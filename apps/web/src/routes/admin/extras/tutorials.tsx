@@ -1,5 +1,6 @@
 import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { webUrlSchema } from "@repo/shared/schemas";
 import {
   useMutation,
   useQueryClient,
@@ -55,7 +56,7 @@ function RouteComponent() {
     validators: {
       onSubmit: z.object({
         description: z.string(),
-        embedUrl: z.url(),
+        embedUrl: webUrlSchema,
         title: z.string(),
       }),
     },

@@ -1,6 +1,8 @@
 import { createEnv } from "@t3-oss/env-core";
 import z from "zod";
 
+const httpUrlSchema = z.url({ protocol: /^https?$/ });
+
 export const env = createEnv({
   emptyStringAsUndefined: true,
 
@@ -8,7 +10,7 @@ export const env = createEnv({
 
   server: {
     BETTER_AUTH_SECRET: z.string(),
-    BETTER_AUTH_URL: z.url(),
+    BETTER_AUTH_URL: httpUrlSchema,
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     DATABASE_URL: z.string(),
     EXE_TOKEN: z.string(),

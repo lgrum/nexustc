@@ -1,3 +1,4 @@
+import { webUrlSchema } from "@repo/shared/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -27,7 +28,7 @@ type CreatorListItem = Awaited<
 const creatorCreateSchema = z.object({
   mediaSelection: optionalSingleDeferredMediaSelectionSchema,
   name: z.string().trim().min(1).max(255),
-  url: z.url(),
+  url: webUrlSchema,
 });
 
 type CreatorCreateDialogProps = {

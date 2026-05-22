@@ -3,6 +3,7 @@ import { eq } from "@repo/db";
 import type { tutorials as TutorialTable } from "@repo/db/schema/app";
 import { tutorials } from "@repo/db/schema/app";
 import { env } from "@repo/env";
+import { webUrlSchema } from "@repo/shared/schemas";
 import { customAlphabet } from "nanoid/non-secure";
 import z from "zod";
 
@@ -27,7 +28,7 @@ const META_TITLE_REGEXES = [
   /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']title["'][^>]*>/i,
 ] as const;
 const shortenerResponseSchema = z.object({
-  shortenedUrl: z.url(),
+  shortenedUrl: webUrlSchema,
   status: z.string(),
 });
 
@@ -195,7 +196,7 @@ export default {
     .input(
       z.object({
         description: z.string(),
-        embedUrl: z.url(),
+        embedUrl: webUrlSchema,
         title: z.string(),
       })
     )
@@ -226,7 +227,7 @@ export default {
     .input(
       z.object({
         shortenerCount: shortenerCountSchema.default(3),
-        url: z.url(),
+        url: webUrlSchema,
       })
     )
     .handler(async ({ context: ctx, errors, input }) => {

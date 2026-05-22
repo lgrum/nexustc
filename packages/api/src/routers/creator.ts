@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { asc, eq, sql } from "@repo/db";
 import { creator, media, post } from "@repo/db/schema/app";
+import { webUrlSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure } from "../index";
@@ -12,7 +13,7 @@ import {
 const creatorInputSchema = z.object({
   mediaSelection: optionalSingleDeferredMediaSelectionInputSchema.default([]),
   name: z.string().trim().min(1).max(255),
-  url: z.url(),
+  url: webUrlSchema,
 });
 
 export default {

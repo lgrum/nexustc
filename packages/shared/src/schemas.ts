@@ -14,6 +14,11 @@ const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/i;
 const MARKDOWN_LINK_PATTERN = /!?\[[^\]]*]\([^)]*\)|!?\[[^\]]*]\[[^\]]*]/;
 const MARKDOWN_IMAGE_REFERENCE_PATTERN = /^\s*\[[^\]]+]:\s*\S+/m;
 
+export const webUrlSchema = z.url({
+  hostname: z.regexes.domain,
+  protocol: /^https?$/,
+});
+
 const ratingReviewSchema = z
   .string()
   .trim()
@@ -168,7 +173,7 @@ export const postCreateSchema = z.object({
     .max(65_535)
     .transform((val) => val.trim()),
   creatorId: z.string().nullable(),
-  creatorLink: z.union([z.url("No es un link válido"), z.literal("")]),
+  creatorLink: z.union([webUrlSchema, z.literal("")]),
   creatorName: z.string(),
   engine: z.string(),
   graphics: z.string(),
@@ -186,7 +191,7 @@ export const comicCreateSchema = z.object({
   changelog: z.string().optional(),
   content: z.string().optional(),
   creatorId: z.string().nullable(),
-  creatorLink: z.union([z.url("No es un link válido"), z.literal("")]),
+  creatorLink: z.union([webUrlSchema, z.literal("")]),
   creatorName: z.string(),
   engine: z.string().optional(),
   graphics: z.string().optional(),
@@ -320,7 +325,7 @@ const isValidMarqueeUrl = (value: string) => {
     return true;
   }
 
-  return z.url().safeParse(value).success;
+  return webUrlSchema.safeParse(value).success;
 };
 
 const optionalMarqueeUrlSchema = z
