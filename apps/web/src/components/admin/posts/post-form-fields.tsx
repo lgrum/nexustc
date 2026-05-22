@@ -559,7 +559,7 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
             <DialogTrigger render={<Button type="button" variant="outline" />}>
               {selectedCreator ? "Cambiar" : "Seleccionar"}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Seleccionar creador</DialogTitle>
               </DialogHeader>
@@ -587,11 +587,11 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
                     value={creatorSearch}
                   />
                 </div>
-                <div className="max-h-96 space-y-2 overflow-y-auto">
+                <div className="max-h-96 min-w-0 space-y-2 overflow-y-auto">
                   {filteredCreators.length > 0 ? (
                     filteredCreators.map((creatorItem) => (
                       <button
-                        className="flex w-full items-center gap-3 rounded-xl border border-border/70 bg-background p-3 text-left transition-colors hover:bg-muted/60"
+                        className="flex w-full min-w-0 items-center gap-3 rounded-xl border border-border/70 bg-background p-3 text-left transition-colors hover:bg-muted/60"
                         key={creatorItem.id}
                         onClick={() => handleCreatorSelect(creatorItem)}
                         type="button"
@@ -605,15 +605,15 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
                             {getInitials(creatorItem.name)}
                           </AvatarFallback>
                         </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm">
+                        <div className="w-0 flex-1 overflow-hidden">
+                          <div className="truncate font-medium text-sm">
                             {creatorItem.name}
                           </div>
                           <div className="truncate text-muted-foreground text-sm">
                             {creatorItem.url}
                           </div>
                         </div>
-                        <div className="text-muted-foreground text-xs">
+                        <div className="shrink-0 text-muted-foreground text-xs">
                           {creatorItem.usageCount} post
                           {creatorItem.usageCount === 1 ? "" : "s"}
                         </div>
