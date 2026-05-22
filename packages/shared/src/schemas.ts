@@ -185,10 +185,9 @@ export const comicCreateSchema = z.object({
   adsLinks: z.string(),
   changelog: z.string().optional(),
   content: z.string().optional(),
-  creatorLink: z
-    .union([z.url("No es un link válido"), z.literal("")])
-    .optional(),
-  creatorName: z.string().optional(),
+  creatorId: z.string().nullable(),
+  creatorLink: z.union([z.url("No es un link válido"), z.literal("")]),
+  creatorName: z.string(),
   engine: z.string().optional(),
   graphics: z.string().optional(),
   languages: z.array(z.string()).optional(),

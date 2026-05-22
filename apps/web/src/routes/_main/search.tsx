@@ -96,13 +96,19 @@ function RouteComponent() {
       page?: number;
       tag?: string[];
     }) => {
+      const nextSearch = {
+        ...search,
+        page: search.page ?? 1,
+        tag: search.tag ?? [],
+      };
+
       trackEvent("search_performed", {
-        filterCount: getComicFilterCount(search),
-        queryLength: getQueryLength(search.query),
+        filterCount: getComicFilterCount(nextSearch),
+        queryLength: getQueryLength(nextSearch.query),
         type: "comics",
       });
       navigate({
-        search: { ...search, page: search.page ?? 1, type: "comics" },
+        search: { ...nextSearch, type: "comics" },
         to: "/search",
       });
     },

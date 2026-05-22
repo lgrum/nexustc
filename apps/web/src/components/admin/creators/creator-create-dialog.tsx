@@ -15,7 +15,7 @@ import {
 import { useAppForm } from "@/hooks/use-app-form";
 import {
   createEmptyDeferredMediaSelection,
-  requiredSingleDeferredMediaSelectionSchema,
+  optionalSingleDeferredMediaSelectionSchema,
 } from "@/lib/deferred-media";
 import type { orpcClient } from "@/lib/orpc";
 import { orpc } from "@/lib/orpc";
@@ -25,7 +25,7 @@ type CreatorListItem = Awaited<
 >[number];
 
 const creatorCreateSchema = z.object({
-  mediaSelection: requiredSingleDeferredMediaSelectionSchema,
+  mediaSelection: optionalSingleDeferredMediaSelectionSchema,
   name: z.string().trim().min(1).max(255),
   url: z.url(),
 });
@@ -128,7 +128,6 @@ export function CreatorCreateDialog({
                   label="Avatar"
                   maxItems={1}
                   ownerKind="Creador"
-                  required
                 />
               )}
             </form.AppField>

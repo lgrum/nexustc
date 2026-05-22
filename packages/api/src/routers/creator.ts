@@ -5,12 +5,12 @@ import z from "zod";
 
 import { permissionProcedure } from "../index";
 import {
-  requiredSingleDeferredMediaSelectionInputSchema,
+  optionalSingleDeferredMediaSelectionInputSchema,
   withDeferredMediaSelection,
 } from "../utils/deferred-media";
 
 const creatorInputSchema = z.object({
-  mediaSelection: requiredSingleDeferredMediaSelectionInputSchema,
+  mediaSelection: optionalSingleDeferredMediaSelectionInputSchema.default([]),
   name: z.string().trim().min(1).max(255),
   url: z.url(),
 });
@@ -26,10 +26,11 @@ export default {
         return await withDeferredMediaSelection({
           db,
           onComplete: async ({ orderedMedia, tx }) => {
+            const creatorMedia = orderedMedia[0] ?? null;
             const [createdCreator] = await tx
               .insert(creator)
               .values({
-                mediaId: orderedMedia[0]!.id,
+                mediaId: creatorMedia?.id ?? null,
                 name: input.name,
                 url: input.url,
               })
@@ -43,10 +44,12 @@ export default {
             return createdCreator
               ? {
                   ...createdCreator,
-                  media: {
-                    id: orderedMedia[0]!.id,
-                    objectKey: orderedMedia[0]!.objectKey,
-                  },
+                  media: creatorMedia
+                    ? {
+                        id: creatorMedia.id,
+                        objectKey: creatorMedia.objectKey,
+                      }
+                    : null,
                   usageCount: 0,
                 }
               : null;
@@ -94,7 +97,7 @@ export default {
             usageCount: sql<number>`COALESCE(${usageAgg.usageCount}, 0)`,
           })
           .from(creator)
-          .innerJoin(media, eq(media.id, creator.mediaId))
+          .leftJoin(media, eq(media.id, creator.mediaId))
           .leftJoin(usageAgg, eq(usageAgg.creatorId, creator.id))
           .orderBy(asc(creator.name), asc(creator.createdAt));
       }

@@ -251,9 +251,9 @@ export const creator = pgTable(
   "creator",
   {
     id: text("id").primaryKey().$defaultFn(generateId),
-    mediaId: text("media_id")
-      .notNull()
-      .references(() => media.id, { onDelete: "restrict" }),
+    mediaId: text("media_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     name: text("name").notNull(),
     url: text("url").notNull().unique(),
     ...timestamps,

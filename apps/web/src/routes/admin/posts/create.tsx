@@ -315,7 +315,7 @@ function RouteComponent() {
                 ...post,
                 createdAt: new Date(),
                 creatorAvatarObjectKey:
-                  selectedCreator?.media.objectKey ?? null,
+                  selectedCreator?.media?.objectKey ?? null,
                 earlyAccess: previewEarlyAccess,
                 engagementPrompts: post.manualEngagementQuestions.map(
                   (text, index) => ({

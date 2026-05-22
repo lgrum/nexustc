@@ -43,10 +43,12 @@ const columns: ColumnDef<CreatorRow>[] = [
     accessorKey: "media.objectKey",
     cell: (info) => (
       <Avatar className="size-12" size="lg">
-        <AvatarImage
-          alt={info.row.original.name}
-          src={getBucketUrl(info.row.original.media.objectKey)}
-        />
+        {info.row.original.media?.objectKey ? (
+          <AvatarImage
+            alt={info.row.original.name}
+            src={getBucketUrl(info.row.original.media.objectKey)}
+          />
+        ) : null}
         <AvatarFallback>
           {info.row.original.name
             .split(/\s+/)
@@ -74,7 +76,7 @@ const columns: ColumnDef<CreatorRow>[] = [
     ),
     header: "URL",
   },
-  { accessorKey: "usageCount", header: "Posts" },
+  { accessorKey: "usageCount", header: "Contenido" },
   {
     cell: function Cell(info) {
       const confirm = useConfirm();

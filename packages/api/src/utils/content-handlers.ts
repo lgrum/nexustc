@@ -270,19 +270,12 @@ export async function createContent({
               vip12Hours: 0,
               vip8Hours: 0,
             });
-      const creatorFields =
-        input.type === "post"
-          ? await resolveCreatorFields({
-              creatorId: input.creatorId,
-              creatorLink: input.creatorLink,
-              db: tx,
-              creatorName: input.creatorName,
-            })
-          : {
-              creatorId: null,
-              creatorLink: input.creatorLink ?? "",
-              creatorName: input.creatorName ?? "",
-            };
+      const creatorFields = await resolveCreatorFields({
+        creatorId: input.creatorId,
+        creatorLink: input.creatorLink,
+        db: tx,
+        creatorName: input.creatorName,
+      });
       const seriesFields = await resolveSeriesFields({
         db: tx,
         seriesId: input.seriesId,
@@ -459,19 +452,12 @@ export async function editContent({
               vip12Hours: 0,
               vip8Hours: 0,
             });
-      const creatorFields =
-        input.type === "post"
-          ? await resolveCreatorFields({
-              creatorId: input.creatorId,
-              creatorLink: input.creatorLink,
-              db: tx,
-              creatorName: input.creatorName,
-            })
-          : {
-              creatorId: null,
-              creatorLink: input.creatorLink ?? "",
-              creatorName: input.creatorName ?? "",
-            };
+      const creatorFields = await resolveCreatorFields({
+        creatorId: input.creatorId,
+        creatorLink: input.creatorLink,
+        db: tx,
+        creatorName: input.creatorName,
+      });
       const seriesFields = await resolveSeriesFields({
         db: tx,
         seriesId: input.seriesId,

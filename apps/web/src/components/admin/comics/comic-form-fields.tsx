@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
 
+import { CreatorSelectField } from "@/components/admin/creators/creator-select-field";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SeriesField } from "@/components/admin/series-field";
@@ -261,6 +262,8 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
       </form.AppField>
 
       <SeriesField contentLabel="comic" series={series} />
+
+      <CreatorSelectField />
 
       <section className="col-span-2">
         <form.AppField name="manualEngagementQuestions">
