@@ -156,17 +156,6 @@ function PromptRotator({
 
   const currentPrompt = prompts[currentIndex] ?? prompts[0];
 
-  useEffect(() => {
-    if (!currentPrompt) {
-      return;
-    }
-
-    trackEvent("engagement_prompt_shown", {
-      promptId: currentPrompt.id,
-      promptSource: currentPrompt.source,
-    });
-  }, [currentPrompt]);
-
   return (
     <Card className="flex min-h-24 flex-col justify-center gap-3 px-5 py-4 md:px-6 bg-linear-to-br from-rose-950/40 to-transparent ring-1 ring-rose-800/50">
       <div className="flex flex-col gap-3 md:flex-row items-center md:justify-between">

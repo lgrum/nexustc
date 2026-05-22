@@ -29,7 +29,6 @@ NeXusTC uses Umami for privacy-conscious analytics. Event names are emitted dire
 | `content_card_clicked`               | A catalog card is opened                 | `contentId`, `contentType`, `source`                                                                   |
 | `followed_content_clicked`           | Followed content item is opened          | `contentId`, `contentType`                                                                             |
 | `comment_submitted`                  | A comment/reply/prompt answer succeeds   | `postId`, `isReply`, `hasEngagementPrompt`, `contentLength`                                            |
-| `engagement_prompt_shown`            | Engagement prompt rotates into view      | `promptId`, `promptSource`                                                                             |
 | `engagement_prompt_answer_clicked`   | User clicks to answer a prompt           | `promptId`, `promptSource`                                                                             |
 | `post_rating_started`                | Rating dialog opens                      | `postId`, `hasExistingRating`                                                                          |
 | `post_rating_submitted`              | Rating create/update succeeds            | `postId`, `rating`, `reviewLength`, `hasExistingRating`                                                |
