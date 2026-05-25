@@ -6,6 +6,7 @@ export const TAXONOMIES = [
   "censorship",
   "status",
   "platform",
+  "style",
 ] as const;
 
 export const TAXONOMY_DATA: Record<
@@ -18,6 +19,7 @@ export const TAXONOMY_DATA: Record<
   language: { label: "Idiomas", mode: "multiple" },
   platform: { label: "Plataformas", mode: "multiple" },
   status: { label: "Estado", mode: "single" },
+  style: { label: "Estilo", mode: "single" },
   tag: { label: "Tags", mode: "multiple" },
 } as const;
 

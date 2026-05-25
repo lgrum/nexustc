@@ -38,6 +38,7 @@ function RouteComponent() {
       seriesOrder: 0,
       seriesTitle: "",
       status: "",
+      style: "",
       tags: [] as string[],
       thumbnailImageCount: 1 as 1 | 4,
       title: "",

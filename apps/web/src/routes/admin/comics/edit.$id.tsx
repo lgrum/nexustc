@@ -53,6 +53,7 @@ function RouteComponent() {
       seriesOrder: oldComic.seriesOrder ?? 0,
       seriesTitle: "",
       status: terms.status?.[0]?.term.id ?? "",
+      style: terms.style?.[0]?.term.id ?? "",
       tags: terms.tag?.map((term) => term.term.id) ?? [],
       thumbnailImageCount: 1 as 1 | 4,
       title: oldComic.title,

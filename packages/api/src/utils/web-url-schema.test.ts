@@ -65,6 +65,7 @@ describe("web URL schema", () => {
       ...baseContentInput,
       creatorLink: scriptUrl,
       premiumLinks: "",
+      style: "style-id",
       type: "comic",
     });
 

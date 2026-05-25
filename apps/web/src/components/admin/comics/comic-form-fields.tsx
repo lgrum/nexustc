@@ -138,6 +138,16 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         )}
       </form.AppField>
 
+      <form.AppField name="style">
+        {(field) => (
+          <field.SelectField
+            label="Estilo"
+            options={mapTermOptions(groupedTerms.style)}
+            required
+          />
+        )}
+      </form.AppField>
+
       <div className="col-span-2 flex flex-row gap-4">
         <div className="flex-1 space-y-4">
           <form.AppField name="adsLinks">

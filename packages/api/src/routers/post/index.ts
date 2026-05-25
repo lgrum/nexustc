@@ -1878,6 +1878,7 @@ export default {
         WHEN 'graphics' THEN 2
         WHEN 'censorship' THEN 2
         WHEN 'status' THEN 2
+        WHEN 'style' THEN 2
         WHEN 'language' THEN 1
         WHEN 'platform' THEN 1
         ELSE 1

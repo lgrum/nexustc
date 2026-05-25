@@ -391,6 +391,7 @@ export async function createContent({
         input.type === "post" ? input.engine : (input.engine ?? ""),
         input.type === "post" ? input.status : (input.status ?? ""),
         input.type === "post" ? input.graphics : (input.graphics ?? ""),
+        input.type === "comic" ? input.style : "",
       ]
         .filter((term) => term !== "")
         .map((termId) => ({
@@ -607,6 +608,7 @@ export async function editContent({
         input.type === "post" ? input.engine : (input.engine ?? ""),
         input.type === "post" ? input.status : (input.status ?? ""),
         input.type === "post" ? input.graphics : (input.graphics ?? ""),
+        input.type === "comic" ? input.style : "",
       ]
         .filter((term) => term !== "")
         .map((termId) => ({

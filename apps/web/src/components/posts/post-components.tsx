@@ -664,6 +664,7 @@ export function PostTagsSection() {
           <TagCategory label="Gráficos" terms={groupedTerms.graphics} />
           <TagCategory label="Censura" terms={groupedTerms.censorship} />
           <TagCategory label="Estado" terms={groupedTerms.status} />
+          <TagCategory label="Estilo" terms={groupedTerms.style} />
         </div>
 
         {/* Main Tags */}
