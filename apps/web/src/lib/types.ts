@@ -57,6 +57,11 @@ export type PostType = Omit<
   earlyAccess: EarlyAccessView;
   premiumLinksAccess: PremiumLinksDescriptor;
   engagementPrompts: EngagementPromptType[];
+  translator: {
+    id: string;
+    name: string;
+    url: string;
+  } | null;
   series: {
     id: string;
     title: string;

@@ -346,6 +346,8 @@ function RouteComponent() {
                 ]
                   .map((term) => terms.find((item) => item.id === term))
                   .filter((term) => term !== undefined),
+                translatorId: null,
+                translator: null,
                 updatedAt: new Date(),
                 views: 0,
               }}

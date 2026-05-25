@@ -56,6 +56,7 @@ function RouteComponent() {
       tags: terms.tag?.map((term) => term.term.id) ?? [],
       thumbnailImageCount: 1 as 1 | 4,
       title: oldComic.title,
+      translatorId: oldComic.translatorId ?? null,
       type: "comic" as const,
     },
     onSubmit: async (formData) => {

@@ -693,6 +693,7 @@ export function PostSidebarContent() {
   return (
     <div className="flex flex-col gap-4">
       <CreatorSupportCard />
+      <TranslatorSupportCard />
 
       <div className="flex flex-col gap-3">
         <div className="section-title">Recomendados</div>
@@ -1189,6 +1190,34 @@ export function CreatorSupportCard() {
         </div>
       </div>
     </Comp>
+  );
+}
+
+export function TranslatorSupportCard() {
+  const post = usePost();
+  const { translator } = post;
+  const hasTranslator = translator !== null;
+  if (post.earlyAccess.isRestrictedView || !hasTranslator) {
+    return null;
+  }
+
+  return (
+    <a
+      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-primary/25 to-transparent ring-1 ring-primary/60 transition-all hover:scale-105 hover:shadow-glow-primary/30"
+      href={translator.url}
+      rel="noopener"
+      target="_blank"
+    >
+      <div className="relative flex items-center gap-4">
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-accent/20 to-secondary/20 font-[Lexend] font-bold text-primary">
+          TR
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-[Lexend] font-bold uppercase">Traduccion</span>
+          <span className="text-primary">{translator.name}</span>
+        </div>
+      </div>
+    </a>
   );
 }
 

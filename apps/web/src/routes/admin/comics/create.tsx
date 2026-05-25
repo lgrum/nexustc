@@ -41,6 +41,7 @@ function RouteComponent() {
       tags: [] as string[],
       thumbnailImageCount: 1 as 1 | 4,
       title: "",
+      translatorId: null as string | null,
       type: "comic" as const,
     },
     onSubmit: async (formData) => {

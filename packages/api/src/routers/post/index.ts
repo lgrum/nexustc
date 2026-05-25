@@ -13,6 +13,7 @@ import {
   postRating,
   term,
   termPostRelation,
+  translator,
   user,
 } from "@repo/db/schema/app";
 import {
@@ -874,6 +875,12 @@ export default {
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
 
           title: post.title,
+          translator: {
+            id: translator.id,
+            name: translator.name,
+            url: translator.url,
+          },
+          translatorId: post.translatorId,
           type: post.type,
 
           updatedAt: post.updatedAt,
@@ -886,6 +893,7 @@ export default {
         .from(post)
         .leftJoin(contentSeries, eq(contentSeries.id, post.seriesId))
         .leftJoin(creator, eq(creator.id, post.creatorId))
+        .leftJoin(translator, eq(translator.id, post.translatorId))
         .leftJoin(media, eq(media.id, creator.mediaId))
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
@@ -1030,6 +1038,7 @@ export default {
         title: earlyAccess.isRestrictedView
           ? getMaskedPostLabel(postData.id)
           : postData.title,
+        translator: earlyAccess.isRestrictedView ? null : postData.translator,
         version: earlyAccess.isRestrictedView ? null : postData.version,
       };
     }),

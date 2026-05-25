@@ -7,6 +7,7 @@ import {
   postEngagementOverride,
   postMedia,
   termPostRelation,
+  translator,
 } from "@repo/db/schema/app";
 import { createContentSlug, dedupeContentSlug } from "@repo/shared/slug";
 
@@ -167,6 +168,31 @@ async function resolveCreatorFields(params: {
   };
 }
 
+async function resolveTranslatorFields(params: {
+  db: Pick<Context["db"], "select">;
+  translatorId: string | null | undefined;
+}) {
+  if (!params.translatorId) {
+    return { translatorId: null };
+  }
+
+  const [selectedTranslator] = await params.db
+    .select({
+      id: translator.id,
+      name: translator.name,
+      url: translator.url,
+    })
+    .from(translator)
+    .where(eq(translator.id, params.translatorId))
+    .limit(1);
+
+  if (!selectedTranslator) {
+    return { translatorId: null };
+  }
+
+  return { translatorId: selectedTranslator.id };
+}
+
 async function resolveSeriesFields(params: {
   db: Pick<Context["db"], "insert" | "select">;
   seriesId: string | null;
@@ -276,6 +302,13 @@ export async function createContent({
         db: tx,
         creatorName: input.creatorName,
       });
+      const translatorFields =
+        input.type === "comic"
+          ? await resolveTranslatorFields({
+              db: tx,
+              translatorId: input.translatorId,
+            })
+          : { translatorId: null };
       const seriesFields = await resolveSeriesFields({
         db: tx,
         seriesId: input.seriesId,
@@ -316,6 +349,7 @@ export async function createContent({
           isWeekly: false,
           thumbnailImageCount:
             input.type === "post" ? input.thumbnailImageCount : 1,
+          translatorId: translatorFields.translatorId,
           premiumLinksAccessLevel:
             input.type === "post" ? input.premiumLinksAccessLevel : "auto",
           premiumLinks:
@@ -458,6 +492,13 @@ export async function editContent({
         db: tx,
         creatorName: input.creatorName,
       });
+      const translatorFields =
+        input.type === "comic"
+          ? await resolveTranslatorFields({
+              db: tx,
+              translatorId: input.translatorId,
+            })
+          : { translatorId: null };
       const seriesFields = await resolveSeriesFields({
         db: tx,
         seriesId: input.seriesId,
@@ -524,6 +565,7 @@ export async function editContent({
           imageObjectKeys: orderedMedia.map((item) => item.objectKey),
           thumbnailImageCount:
             input.type === "post" ? input.thumbnailImageCount : 1,
+          translatorId: translatorFields.translatorId,
           premiumLinksAccessLevel:
             input.type === "post" ? input.premiumLinksAccessLevel : "auto",
           premiumLinks:

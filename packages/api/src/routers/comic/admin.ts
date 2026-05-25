@@ -135,6 +135,7 @@ export default {
                 term: true,
               },
             },
+            translator: true,
           },
         })
         .then((result) => (result ? mapPostWithMedia(result) : null));

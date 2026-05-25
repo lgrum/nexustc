@@ -54,6 +54,7 @@ import {
   PostStatsBar,
   PostTagsSection,
   RelatedGamesSection,
+  TranslatorSupportCard,
 } from "./post-components";
 import { PostProvider, usePost } from "./post-context";
 
@@ -191,6 +192,7 @@ function ComicInfoPage({
 
           <div className="md:hidden">
             <CreatorSupportCard />
+            <TranslatorSupportCard />
           </div>
           <EngagementPromptBlock
             onAnswerPrompt={setSelectedPrompt}

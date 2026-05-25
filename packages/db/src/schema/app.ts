@@ -264,6 +264,17 @@ export const creator = pgTable(
   ]
 );
 
+export const translator = pgTable(
+  "translator",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    name: text("name").notNull(),
+    url: text("url").notNull().unique(),
+    ...timestamps,
+  },
+  (table) => [index("translator_name_idx").on(table.name)]
+);
+
 export const contentSeries = pgTable(
   "content_series",
   {
@@ -317,6 +328,9 @@ export const post = pgTable(
     imageObjectKeys: jsonb("image_object_keys").$type<string[]>(),
     isWeekly: boolean("is_weekly").notNull().default(false),
     thumbnailImageCount: integer("thumbnail_image_count").notNull().default(4),
+    translatorId: text("translator_id").references(() => translator.id, {
+      onDelete: "set null",
+    }),
     premiumLinksAccessLevel: premiumLinksAccessLevelEnum(
       "premium_links_access_level"
     )
@@ -345,6 +359,7 @@ export const post = pgTable(
   (table) => [
     index("post_cover_media_id_idx").on(table.coverMediaId),
     index("post_creator_id_idx").on(table.creatorId),
+    index("post_translator_id_idx").on(table.translatorId),
     index("post_status_type_early_access_idx").on(
       table.status,
       table.type,
@@ -1154,6 +1169,10 @@ export const creatorRelations = relations(creator, ({ many, one }) => ({
   posts: many(post),
 }));
 
+export const translatorRelations = relations(translator, ({ many }) => ({
+  posts: many(post),
+}));
+
 export const contentSeriesRelations = relations(contentSeries, ({ many }) => ({
   posts: many(post),
 }));
@@ -1180,6 +1199,10 @@ export const postRelations = relations(post, ({ many, one }) => ({
     references: [contentSeries.id],
   }),
   terms: many(termPostRelation),
+  translator: one(translator, {
+    fields: [post.translatorId],
+    references: [translator.id],
+  }),
 }));
 
 export const mediaRelations = relations(media, ({ many, one }) => ({

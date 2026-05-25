@@ -199,6 +199,7 @@ export const comicCreateSchema = z.object({
   platforms: z.array(z.string()).optional(),
   premiumLinks: z.string(),
   status: z.string().min(1, "Debe seleccionar un estado"),
+  translatorId: z.string().nullable(),
   type: z.literal("comic"),
   version: z.string().optional(),
 });

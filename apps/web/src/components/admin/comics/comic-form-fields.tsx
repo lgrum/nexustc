@@ -10,6 +10,7 @@ import { CreatorSelectField } from "@/components/admin/creators/creator-select-f
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { SeriesField } from "@/components/admin/series-field";
+import { TranslatorSelectField } from "@/components/admin/translators/translator-select-field";
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { HasPermissions } from "@/components/auth/has-role";
 import { Markdown } from "@/components/markdown";
@@ -264,6 +265,8 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
       <SeriesField contentLabel="comic" series={series} />
 
       <CreatorSelectField />
+
+      <TranslatorSelectField />
 
       <section className="col-span-2">
         <form.AppField name="manualEngagementQuestions">
