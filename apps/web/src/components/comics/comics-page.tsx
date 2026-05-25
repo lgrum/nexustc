@@ -6,6 +6,7 @@ import {
   DiceFaces05Icon,
   FavouriteIcon,
   Fire03Icon,
+  Layers01Icon,
   ShuffleSquareIcon,
   StarIcon,
   Tag01Icon,
@@ -23,6 +24,8 @@ import { z } from "zod";
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
 import {
+  COMIC_PAGE_COUNT_FILTER_MAX,
+  COMIC_PAGE_COUNT_FILTER_MIN,
   getComicFilterCount,
   orderBySchema,
 } from "@/components/search/catalog-search";
@@ -49,6 +52,7 @@ import {
 } from "@/components/ui/carousel";
 import type { CarouselApi } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Slider } from "@/components/ui/slider";
 import { useAppForm } from "@/hooks/use-app-form";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { useTerms } from "@/hooks/use-terms";
@@ -880,7 +884,17 @@ function ComicsLibrary({
   );
 }
 
+const optionalPageCountFormValueSchema = z.custom<number | undefined>(
+  (value) =>
+    value === undefined ||
+    (typeof value === "number" &&
+      Number.isInteger(value) &&
+      value >= COMIC_PAGE_COUNT_FILTER_MIN)
+);
+
 const libraryFormSchema = z.object({
+  maxPages: optionalPageCountFormValueSchema,
+  minPages: optionalPageCountFormValueSchema,
   orderBy: orderBySchema,
   query: z.string(),
   tag: z.array(z.string()),
@@ -900,6 +914,8 @@ function ComicsLibraryToolbar({
 
   const form = useAppForm({
     defaultValues: {
+      maxPages: params.maxPages,
+      minPages: params.minPages,
       orderBy: params.orderBy ?? "newest",
       query: params.query ?? "",
       tag: params.tag ?? [],
@@ -917,6 +933,8 @@ function ComicsLibraryToolbar({
       }
 
       onSearchChange({
+        maxPages: formValues.maxPages,
+        minPages: formValues.minPages,
         orderBy: formValues.orderBy,
         page: 1,
         query: formValues.query || undefined,
@@ -924,7 +942,13 @@ function ComicsLibraryToolbar({
       });
     },
     300,
-    [formValues.query, formValues.tag, formValues.orderBy]
+    [
+      formValues.query,
+      formValues.tag,
+      formValues.orderBy,
+      formValues.minPages,
+      formValues.maxPages,
+    ]
   );
 
   const tagOptions = useMemo(() => {
@@ -938,6 +962,10 @@ function ComicsLibraryToolbar({
   const selectedTagOptions = tagOptions.filter((tag) =>
     selectedTagSet.has(tag.id)
   );
+  const pageCountChip = getPageCountChip({
+    maxPages: formValues.maxPages,
+    minPages: formValues.minPages,
+  });
 
   const toggleTag = (id: string) => {
     const next = selectedTagSet.has(id)
@@ -974,6 +1002,15 @@ function ComicsLibraryToolbar({
         triggerLabel="Tags"
       />
 
+      <PageCountRangePopover
+        maxPages={formValues.maxPages}
+        minPages={formValues.minPages}
+        onChange={(range) => {
+          form.setFieldValue("minPages", range.minPages);
+          form.setFieldValue("maxPages", range.maxPages);
+        }}
+      />
+
       <Button
         className="h-11 rounded-xl border-white/15 bg-background/60 px-3"
         onClick={onRandom}
@@ -986,16 +1023,243 @@ function ComicsLibraryToolbar({
       </Button>
 
       <SelectedChipsRow
-        chips={selectedTagOptions.map((tag) => ({
-          group: "tag",
-          id: tag.id,
-          name: tag.name,
-        }))}
-        onClearAll={() => form.setFieldValue("tag", [])}
-        onRemove={(chip) => toggleTag(chip.id)}
+        chips={[
+          ...selectedTagOptions.map((tag) => ({
+            group: "tag",
+            id: tag.id,
+            name: tag.name,
+          })),
+          ...(pageCountChip ? [pageCountChip] : []),
+        ]}
+        onClearAll={() => {
+          form.setFieldValue("tag", []);
+          form.setFieldValue("minPages", undefined);
+          form.setFieldValue("maxPages", undefined);
+        }}
+        onRemove={(chip) => {
+          if (chip.group === "page-count") {
+            form.setFieldValue("minPages", undefined);
+            form.setFieldValue("maxPages", undefined);
+            return;
+          }
+
+          toggleTag(chip.id);
+        }}
       />
     </form>
   );
+}
+
+function PageCountRangePopover({
+  maxPages,
+  minPages,
+  onChange,
+}: {
+  maxPages: number | undefined;
+  minPages: number | undefined;
+  onChange: (range: {
+    maxPages: number | undefined;
+    minPages: number | undefined;
+  }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const normalizedMin = minPages ?? COMIC_PAGE_COUNT_FILTER_MIN;
+  const normalizedMax = maxPages ?? COMIC_PAGE_COUNT_FILTER_MAX;
+  const hasFilter = minPages !== undefined || maxPages !== undefined;
+
+  const updateRange = (value: number | readonly number[]) => {
+    const range = Array.isArray(value) ? value : [value, normalizedMax];
+    const [nextMin = COMIC_PAGE_COUNT_FILTER_MIN, nextMax] = range;
+    const clampedMin = clampPageCount(nextMin);
+    const clampedMax = clampPageCount(nextMax ?? COMIC_PAGE_COUNT_FILTER_MAX);
+
+    onChange({
+      maxPages:
+        clampedMax === COMIC_PAGE_COUNT_FILTER_MAX ? undefined : clampedMax,
+      minPages:
+        clampedMin === COMIC_PAGE_COUNT_FILTER_MIN ? undefined : clampedMin,
+    });
+  };
+
+  const updateMinInput = (value: string) => {
+    const nextMin = parsePageCountInput(value);
+    if (nextMin === undefined) {
+      onChange({ maxPages, minPages: undefined });
+      return;
+    }
+
+    onChange({
+      maxPages:
+        maxPages !== undefined && nextMin > maxPages ? nextMin : maxPages,
+      minPages: nextMin === COMIC_PAGE_COUNT_FILTER_MIN ? undefined : nextMin,
+    });
+  };
+
+  const updateMaxInput = (value: string) => {
+    const nextMax = parsePageCountInput(value);
+    if (nextMax === undefined) {
+      onChange({ maxPages: undefined, minPages });
+      return;
+    }
+
+    onChange({
+      maxPages: nextMax === COMIC_PAGE_COUNT_FILTER_MAX ? undefined : nextMax,
+      minPages:
+        minPages !== undefined && nextMax < minPages ? nextMax : minPages,
+    });
+  };
+
+  return (
+    <div className="relative">
+      <Button
+        className={cn(
+          "h-11 rounded-xl border-white/15 bg-background/60 px-3 font-medium",
+          open && "border-primary/50 bg-background",
+          hasFilter && "border-primary/40 bg-primary/10 text-primary"
+        )}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+        variant="outline"
+      >
+        <HugeiconsIcon className="size-4" icon={Layers01Icon} />
+        <span className="inline">Páginas</span>
+        {hasFilter && (
+          <span className="inline-flex rounded-full bg-primary px-1.5 py-0.5 text-[10.5px] font-bold text-primary-foreground">
+            {formatPageRange({ maxPages, minPages })}
+          </span>
+        )}
+      </Button>
+
+      {open && (
+        <>
+          <div
+            aria-hidden
+            className="fixed inset-0 z-30"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute right-0 z-40 mt-2 w-[min(340px,90vw)] rounded-2xl border border-white/10 bg-popover/95 p-4 shadow-2xl backdrop-blur-md">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-[Lexend] font-bold text-sm">Páginas</p>
+                <p className="text-muted-foreground text-xs">
+                  Filtra por cantidad de páginas.
+                </p>
+              </div>
+              {hasFilter && (
+                <button
+                  className="text-muted-foreground text-xs font-semibold uppercase tracking-wider transition-colors hover:text-foreground"
+                  onClick={() =>
+                    onChange({ maxPages: undefined, minPages: undefined })
+                  }
+                  type="button"
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+
+            <div className="mt-5 px-1">
+              <Slider
+                max={COMIC_PAGE_COUNT_FILTER_MAX}
+                min={COMIC_PAGE_COUNT_FILTER_MIN}
+                minStepsBetweenValues={0}
+                onValueChange={updateRange}
+                step={1}
+                value={[normalizedMin, normalizedMax]}
+              />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <label className="space-y-1.5">
+                <span className="text-muted-foreground text-xs">Mínimo</span>
+                <input
+                  className="h-10 w-full rounded-xl border border-white/10 bg-background/70 px-3 text-sm outline-none transition-colors focus:border-primary/50"
+                  max={COMIC_PAGE_COUNT_FILTER_MAX}
+                  min={COMIC_PAGE_COUNT_FILTER_MIN}
+                  onChange={(event) => updateMinInput(event.target.value)}
+                  placeholder={`${COMIC_PAGE_COUNT_FILTER_MIN}`}
+                  type="number"
+                  value={minPages ?? ""}
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-muted-foreground text-xs">Máximo</span>
+                <input
+                  className="h-10 w-full rounded-xl border border-white/10 bg-background/70 px-3 text-sm outline-none transition-colors focus:border-primary/50"
+                  max={COMIC_PAGE_COUNT_FILTER_MAX}
+                  min={COMIC_PAGE_COUNT_FILTER_MIN}
+                  onChange={(event) => updateMaxInput(event.target.value)}
+                  placeholder={`${COMIC_PAGE_COUNT_FILTER_MAX}+`}
+                  type="number"
+                  value={maxPages ?? ""}
+                />
+              </label>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function clampPageCount(value: number) {
+  return Math.min(
+    COMIC_PAGE_COUNT_FILTER_MAX,
+    Math.max(COMIC_PAGE_COUNT_FILTER_MIN, Math.round(value))
+  );
+}
+
+function parsePageCountInput(value: string) {
+  if (value.trim() === "") {
+    return;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return;
+  }
+
+  return clampPageCount(parsed);
+}
+
+function formatPageRange({
+  maxPages,
+  minPages,
+}: {
+  maxPages: number | undefined;
+  minPages: number | undefined;
+}) {
+  if (minPages !== undefined && maxPages !== undefined) {
+    return `${minPages}-${maxPages}`;
+  }
+
+  if (minPages !== undefined) {
+    return `${minPages}+`;
+  }
+
+  if (maxPages !== undefined) {
+    return `≤${maxPages}`;
+  }
+
+  return "Todas";
+}
+
+function getPageCountChip({
+  maxPages,
+  minPages,
+}: {
+  maxPages: number | undefined;
+  minPages: number | undefined;
+}) {
+  if (minPages === undefined && maxPages === undefined) {
+    return null;
+  }
+
+  return {
+    group: "page-count",
+    id: "page-count",
+    name: `${formatPageRange({ maxPages, minPages })} páginas`,
+  };
 }
 
 /* -------------------------------------------------------------------------- */

@@ -442,6 +442,8 @@ export default {
           .max(MAX_SEARCH_PAGE_SIZE)
           .optional()
           .default(DEFAULT_SEARCH_PAGE_SIZE),
+        maxPageCount: z.number().int().min(1).optional(),
+        minPageCount: z.number().int().min(1).optional(),
         termIds: z.array(z.string()).optional(),
         type: z.enum(["post", "comic"]),
       })
@@ -542,6 +544,16 @@ export default {
           );
 
         conditions.push(sql`${post.id} IN (${termMatchSubquery})`);
+      }
+
+      if (input.type === "comic") {
+        if (input.minPageCount !== undefined) {
+          conditions.push(sql`${post.comicPageCount} >= ${input.minPageCount}`);
+        }
+
+        if (input.maxPageCount !== undefined) {
+          conditions.push(sql`${post.comicPageCount} <= ${input.maxPageCount}`);
+        }
       }
 
       const [{ count: totalItems } = { count: 0 }] = await db

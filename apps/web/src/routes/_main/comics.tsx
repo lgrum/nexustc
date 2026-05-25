@@ -23,6 +23,8 @@ export const Route = createFileRoute("/_main/comics")({
   loader: async ({ deps }) => {
     const termIds = getComicTermIds(deps);
     const searchResult = await orpcClient.post.search({
+      maxPageCount: deps.maxPages,
+      minPageCount: deps.minPages,
       orderBy: deps.orderBy,
       page: deps.page,
       query: deps.query,

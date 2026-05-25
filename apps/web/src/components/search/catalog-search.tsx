@@ -1,5 +1,8 @@
 import z from "zod";
 
+export const COMIC_PAGE_COUNT_FILTER_MAX = 200;
+export const COMIC_PAGE_COUNT_FILTER_MIN = 1;
+
 export const ORDER_OPTIONS = [
   { label: "Más Recientes", value: "newest" },
   { label: "Más Vistos", value: "views" },
@@ -34,6 +37,18 @@ export const gameSearchParamsSchema = z.object({
 });
 
 export const comicSearchParamsSchema = z.object({
+  maxPages: z.coerce
+    .number()
+    .int()
+    .min(COMIC_PAGE_COUNT_FILTER_MIN)
+    .max(COMIC_PAGE_COUNT_FILTER_MAX)
+    .optional(),
+  minPages: z.coerce
+    .number()
+    .int()
+    .min(COMIC_PAGE_COUNT_FILTER_MIN)
+    .max(COMIC_PAGE_COUNT_FILTER_MAX)
+    .optional(),
   orderBy: orderBySchema.optional().default("newest"),
   page: z.coerce.number().int().min(1).optional().default(1),
   query: z.string().optional(),
@@ -55,10 +70,14 @@ export function getGameFilterCount(params: GameSearchParams) {
 }
 
 export function getComicFilterCount(params: ComicSearchParams) {
-  return [params.query ? [params.query] : [], params.tag ?? []].reduce(
-    (count, values) => count + values.length,
-    0
-  );
+  const hasPageCountFilter =
+    params.minPages !== undefined || params.maxPages !== undefined;
+
+  return [
+    params.query ? [params.query] : [],
+    params.tag ?? [],
+    hasPageCountFilter ? ["page-count"] : [],
+  ].reduce((count, values) => count + values.length, 0);
 }
 
 export function getGameTermIds(params: GameSearchParams) {
