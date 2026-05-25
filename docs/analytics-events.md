@@ -76,7 +76,7 @@ NeXusTC uses Umami for privacy-conscious analytics. Event names are emitted dire
 Recommended Umami analysis views:
 
 - Funnel: visit -> `signup_started` -> `signup_completed`.
-- Funnel: `/search` -> `content_card_clicked` -> rating/comment event.
+- Funnel: `/juegos` or `/comics` -> `content_card_clicked` -> rating/comment event.
 - Funnel: `/memberships` -> `membership_tier_selected` -> `checkout_started`.
 - Funnel: notification center open -> `notification_open_clicked` -> related content/card event.
 - Funnel: news index -> `news_article_clicked` -> `news_related_content_clicked`.

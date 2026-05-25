@@ -551,7 +551,7 @@ function TagsSection() {
             key={tag.id}
             preload={false}
             search={{ tag: [tag.id] }}
-            to="/search"
+            to="/juegos"
           >
             <TermBadge className="w-full" tag={tag} />
           </Link>

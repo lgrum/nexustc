@@ -19,7 +19,6 @@ import { Route as AdminChangelogRouteImport } from './routes/admin/changelog'
 import { Route as MainVipRouteImport } from './routes/_main/vip'
 import { Route as MainTutorialsRouteImport } from './routes/_main/tutorials'
 import { Route as MainTermsRouteImport } from './routes/_main/terms'
-import { Route as MainSearchRouteImport } from './routes/_main/search'
 import { Route as MainReviewGuidelinesRouteImport } from './routes/_main/review-guidelines'
 import { Route as MainResetPasswordRouteImport } from './routes/_main/reset-password'
 import { Route as MainProfileRouteImport } from './routes/_main/profile'
@@ -124,11 +123,6 @@ const MainTutorialsRoute = MainTutorialsRouteImport.update({
 const MainTermsRoute = MainTermsRouteImport.update({
   id: '/terms',
   path: '/terms',
-  getParentRoute: () => MainRouteRoute,
-} as any)
-const MainSearchRoute = MainSearchRouteImport.update({
-  id: '/search',
-  path: '/search',
   getParentRoute: () => MainRouteRoute,
 } as any)
 const MainReviewGuidelinesRoute = MainReviewGuidelinesRouteImport.update({
@@ -432,7 +426,6 @@ export interface FileRoutesByFullPath {
   '/profile': typeof MainProfileRoute
   '/reset-password': typeof MainResetPasswordRoute
   '/review-guidelines': typeof MainReviewGuidelinesRoute
-  '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
   '/vip': typeof MainVipRoute
@@ -498,7 +491,6 @@ export interface FileRoutesByTo {
   '/profile': typeof MainProfileRoute
   '/reset-password': typeof MainResetPasswordRoute
   '/review-guidelines': typeof MainReviewGuidelinesRoute
-  '/search': typeof MainSearchRoute
   '/terms': typeof MainTermsRoute
   '/tutorials': typeof MainTutorialsRoute
   '/vip': typeof MainVipRoute
@@ -568,7 +560,6 @@ export interface FileRoutesById {
   '/_main/profile': typeof MainProfileRoute
   '/_main/reset-password': typeof MainResetPasswordRoute
   '/_main/review-guidelines': typeof MainReviewGuidelinesRoute
-  '/_main/search': typeof MainSearchRoute
   '/_main/terms': typeof MainTermsRoute
   '/_main/tutorials': typeof MainTutorialsRoute
   '/_main/vip': typeof MainVipRoute
@@ -639,7 +630,6 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/review-guidelines'
-    | '/search'
     | '/terms'
     | '/tutorials'
     | '/vip'
@@ -705,7 +695,6 @@ export interface FileRouteTypes {
     | '/profile'
     | '/reset-password'
     | '/review-guidelines'
-    | '/search'
     | '/terms'
     | '/tutorials'
     | '/vip'
@@ -774,7 +763,6 @@ export interface FileRouteTypes {
     | '/_main/profile'
     | '/_main/reset-password'
     | '/_main/review-guidelines'
-    | '/_main/search'
     | '/_main/terms'
     | '/_main/tutorials'
     | '/_main/vip'
@@ -910,13 +898,6 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof MainTermsRouteImport
-      parentRoute: typeof MainRouteRoute
-    }
-    '/_main/search': {
-      id: '/_main/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof MainSearchRouteImport
       parentRoute: typeof MainRouteRoute
     }
     '/_main/review-guidelines': {
@@ -1326,7 +1307,6 @@ interface MainRouteRouteChildren {
   MainProfileRoute: typeof MainProfileRoute
   MainResetPasswordRoute: typeof MainResetPasswordRoute
   MainReviewGuidelinesRoute: typeof MainReviewGuidelinesRoute
-  MainSearchRoute: typeof MainSearchRoute
   MainTermsRoute: typeof MainTermsRoute
   MainTutorialsRoute: typeof MainTutorialsRoute
   MainVipRoute: typeof MainVipRoute
@@ -1351,7 +1331,6 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainProfileRoute: MainProfileRoute,
   MainResetPasswordRoute: MainResetPasswordRoute,
   MainReviewGuidelinesRoute: MainReviewGuidelinesRoute,
-  MainSearchRoute: MainSearchRoute,
   MainTermsRoute: MainTermsRoute,
   MainTutorialsRoute: MainTutorialsRoute,
   MainVipRoute: MainVipRoute,

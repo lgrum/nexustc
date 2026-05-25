@@ -67,12 +67,6 @@ export const comicSearchParamsSchema = z.object({
   tag: z.array(z.string()).optional().default([]),
 });
 
-export const typeSchema = z.enum(["juegos", "comics"]);
-
-export const searchParamsSchema = gameSearchParamsSchema.extend({
-  type: typeSchema.optional().default("juegos"),
-});
-
 const gameFormSchema = z.object({
   engine: z.array(z.string()),
   graphics: z.array(z.string()),
@@ -91,7 +85,6 @@ const comicFormSchema = z.object({
 
 export type GameSearchParams = z.infer<typeof gameSearchParamsSchema>;
 export type ComicSearchParams = z.infer<typeof comicSearchParamsSchema>;
-export type UnifiedSearchParams = z.infer<typeof searchParamsSchema>;
 
 type CatalogKind = "games" | "comics";
 
