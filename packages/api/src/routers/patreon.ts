@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { eq, sql } from "@repo/db";
+import { and, eq, gte, ilike, lte, sql } from "@repo/db";
 import { account, patreonWebhookRequest, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import {
@@ -19,11 +19,33 @@ import {
   refreshPatreonToken,
 } from "../utils/patreon";
 
+const webhookProcessingStatusSchema = z.enum([
+  "stored",
+  "processed",
+  "ignored",
+  "invalid",
+  "failed",
+]);
+
+const webhookMethodSchema = z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]);
+
+const webhookRequestsFilterSchema = z.object({
+  body: z.string().trim().min(1).optional(),
+  createdFrom: z.coerce.date().optional(),
+  createdTo: z.coerce.date().optional(),
+  event: z.string().trim().min(1).optional(),
+  method: webhookMethodSchema.optional(),
+  processingStatus: webhookProcessingStatusSchema.optional(),
+  responseStatus: z.coerce.number().int().min(100).max(599).optional(),
+  signature: z.string().trim().min(1).optional(),
+});
+
 export default {
   admin: {
     listWebhookRequests: ownerProcedure
       .input(
         z.object({
+          filters: webhookRequestsFilterSchema.optional(),
           limit: z.number().int().min(1).max(100),
           offset: z.number().int().min(0),
         })
@@ -32,16 +54,67 @@ export default {
         const logger = getLogger(ctx);
         logger?.info("Fetching Patreon webhook request log");
 
+        const conditions = [];
+        const { filters } = input;
+
+        if (filters?.createdFrom) {
+          conditions.push(
+            gte(patreonWebhookRequest.createdAt, filters.createdFrom)
+          );
+        }
+
+        if (filters?.createdTo) {
+          conditions.push(
+            lte(patreonWebhookRequest.createdAt, filters.createdTo)
+          );
+        }
+
+        if (filters?.event) {
+          conditions.push(eq(patreonWebhookRequest.event, filters.event));
+        }
+
+        if (filters?.processingStatus) {
+          conditions.push(
+            eq(patreonWebhookRequest.processingStatus, filters.processingStatus)
+          );
+        }
+
+        if (filters?.method) {
+          conditions.push(eq(patreonWebhookRequest.method, filters.method));
+        }
+
+        if (filters?.responseStatus) {
+          conditions.push(
+            eq(patreonWebhookRequest.responseStatus, filters.responseStatus)
+          );
+        }
+
+        if (filters?.body) {
+          conditions.push(
+            ilike(patreonWebhookRequest.body, `%${filters.body}%`)
+          );
+        }
+
+        if (filters?.signature) {
+          conditions.push(
+            ilike(patreonWebhookRequest.signature, `%${filters.signature}%`)
+          );
+        }
+
+        const where = conditions.length > 0 ? and(...conditions) : undefined;
+
         const totalPromise = db
           .select({
             count: sql<number>`count(*)::integer`,
           })
-          .from(patreonWebhookRequest);
+          .from(patreonWebhookRequest)
+          .where(where);
 
         const requestsPromise = db.query.patreonWebhookRequest.findMany({
           limit: input.limit,
           offset: input.offset,
           orderBy: (table, { desc }) => [desc(table.createdAt)],
+          where,
         });
 
         const [total, requests] = await Promise.all([

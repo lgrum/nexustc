@@ -3,9 +3,19 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
+import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -14,15 +24,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useDebounceEffect } from "@/hooks/use-debounce-effect";
 import { orpcClient } from "@/lib/orpc";
 import { ownerMiddleware } from "@/middleware/owner";
 
 const WEBHOOK_REQUEST_LIMIT = 50;
-const webhookRequestsQueryKey = [
-  "patreon",
-  "webhook-requests",
-  WEBHOOK_REQUEST_LIMIT,
-] as const;
+const ALL_FILTER_VALUE = "all";
 
 type ProcessingStatus =
   | "stored"
@@ -30,6 +37,33 @@ type ProcessingStatus =
   | "ignored"
   | "invalid"
   | "failed";
+
+type WebhookMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+const eventOptions = [
+  "members:create",
+  "members:update",
+  "members:delete",
+  "members:pledge:create",
+  "members:pledge:update",
+  "members:pledge:delete",
+] as const;
+
+const methodOptions: WebhookMethod[] = [
+  "POST",
+  "GET",
+  "PUT",
+  "PATCH",
+  "DELETE",
+];
+
+const statusOptions: ProcessingStatus[] = [
+  "stored",
+  "processed",
+  "ignored",
+  "invalid",
+  "failed",
+];
 
 const statusLabels: Record<ProcessingStatus, string> = {
   failed: "Fallido",
@@ -72,17 +106,88 @@ export const Route = createFileRoute("/admin/patreon/webhooks")({
 
 function RouteComponent() {
   const initialData = Route.useLoaderData();
+  const [bodyInput, setBodyInput] = useState("");
+  const [bodyFilter, setBodyFilter] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState(ALL_FILTER_VALUE);
+  const [method, setMethod] = useState(ALL_FILTER_VALUE);
+  const [processingStatus, setProcessingStatus] = useState(ALL_FILTER_VALUE);
+  const [responseStatusInput, setResponseStatusInput] = useState("");
+  const [responseStatusFilter, setResponseStatusFilter] = useState("");
+  const [signatureInput, setSignatureInput] = useState("");
+  const [signatureFilter, setSignatureFilter] = useState("");
+
+  useDebounceEffect(
+    () => {
+      setBodyFilter(bodyInput.trim());
+    },
+    300,
+    [bodyInput]
+  );
+
+  useDebounceEffect(
+    () => {
+      setResponseStatusFilter(responseStatusInput.trim());
+    },
+    300,
+    [responseStatusInput]
+  );
+
+  useDebounceEffect(
+    () => {
+      setSignatureFilter(signatureInput.trim());
+    },
+    300,
+    [signatureInput]
+  );
+
+  const filters = useMemo(
+    () => ({
+      ...(bodyFilter ? { body: bodyFilter } : {}),
+      ...(createdFrom
+        ? { createdFrom: getDateBound(createdFrom, "start") }
+        : {}),
+      ...(createdTo ? { createdTo: getDateBound(createdTo, "end") } : {}),
+      ...(selectedEvent === ALL_FILTER_VALUE ? {} : { event: selectedEvent }),
+      ...(method === ALL_FILTER_VALUE
+        ? {}
+        : { method: method as WebhookMethod }),
+      ...(processingStatus === ALL_FILTER_VALUE
+        ? {}
+        : { processingStatus: processingStatus as ProcessingStatus }),
+      ...(responseStatusFilter
+        ? { responseStatus: Number(responseStatusFilter) }
+        : {}),
+      ...(signatureFilter ? { signature: signatureFilter } : {}),
+    }),
+    [
+      bodyFilter,
+      createdFrom,
+      createdTo,
+      method,
+      processingStatus,
+      responseStatusFilter,
+      selectedEvent,
+      signatureFilter,
+    ]
+  );
+
+  const hasActiveFilters = Object.keys(filters).length > 0;
+
   const webhookRequestsQuery = useQuery({
-    initialData,
+    initialData: hasActiveFilters ? undefined : initialData,
     queryFn: () =>
       orpcClient.patreon.admin.listWebhookRequests({
+        filters,
         limit: WEBHOOK_REQUEST_LIMIT,
         offset: 0,
       }),
-    queryKey: webhookRequestsQueryKey,
+    queryKey: ["patreon", "webhook-requests", WEBHOOK_REQUEST_LIMIT, filters],
   });
 
-  const { requests, total } = webhookRequestsQuery.data;
+  const requests = webhookRequestsQuery.data?.requests ?? [];
+  const total = webhookRequestsQuery.data?.total ?? 0;
 
   return (
     <main className="flex flex-col gap-6">
@@ -106,6 +211,167 @@ function RouteComponent() {
       </div>
 
       <section className="grid gap-4 rounded-lg border p-4">
+        <div className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-2">
+              <Label htmlFor="patreon-webhook-created-from">Desde</Label>
+              <Input
+                id="patreon-webhook-created-from"
+                onChange={(changeEvent) =>
+                  setCreatedFrom(changeEvent.target.value)
+                }
+                type="date"
+                value={createdFrom}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="patreon-webhook-created-to">Hasta</Label>
+              <Input
+                id="patreon-webhook-created-to"
+                onChange={(changeEvent) =>
+                  setCreatedTo(changeEvent.target.value)
+                }
+                type="date"
+                value={createdTo}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Evento</Label>
+              <Select
+                onValueChange={(value) =>
+                  setSelectedEvent(value ?? ALL_FILTER_VALUE)
+                }
+                value={selectedEvent}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {selectedEvent === ALL_FILTER_VALUE
+                      ? "Todos"
+                      : selectedEvent}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>Todos</SelectItem>
+                  {eventOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Estado</Label>
+              <Select
+                onValueChange={(value) =>
+                  setProcessingStatus(value ?? ALL_FILTER_VALUE)
+                }
+                value={processingStatus}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {processingStatus === ALL_FILTER_VALUE
+                      ? "Todos"
+                      : statusLabels[processingStatus as ProcessingStatus]}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>Todos</SelectItem>
+                  {statusOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {statusLabels[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Metodo</Label>
+              <Select
+                onValueChange={(value) => setMethod(value ?? ALL_FILTER_VALUE)}
+                value={method}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue>
+                    {method === ALL_FILTER_VALUE ? "Todos" : method}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FILTER_VALUE}>Todos</SelectItem>
+                  {methodOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="patreon-webhook-response-status">Respuesta</Label>
+              <Input
+                id="patreon-webhook-response-status"
+                inputMode="numeric"
+                max={599}
+                min={100}
+                onChange={(changeEvent) =>
+                  setResponseStatusInput(changeEvent.target.value)
+                }
+                placeholder="200, 400..."
+                type="number"
+                value={responseStatusInput}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="patreon-webhook-body-search">Body contiene</Label>
+              <Input
+                id="patreon-webhook-body-search"
+                onChange={(changeEvent) =>
+                  setBodyInput(changeEvent.target.value)
+                }
+                placeholder="Patreon user, tier, email..."
+                type="search"
+                value={bodyInput}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="patreon-webhook-signature-search">
+                Firma contiene
+              </Label>
+              <Input
+                id="patreon-webhook-signature-search"
+                onChange={(changeEvent) =>
+                  setSignatureInput(changeEvent.target.value)
+                }
+                placeholder="Fragmento de x-patreon-signature"
+                type="search"
+                value={signatureInput}
+              />
+            </div>
+          </div>
+          {hasActiveFilters && (
+            <Button
+              className="w-fit"
+              onClick={() => {
+                setBodyInput("");
+                setBodyFilter("");
+                setCreatedFrom("");
+                setCreatedTo("");
+                setSelectedEvent(ALL_FILTER_VALUE);
+                setMethod(ALL_FILTER_VALUE);
+                setProcessingStatus(ALL_FILTER_VALUE);
+                setResponseStatusInput("");
+                setResponseStatusFilter("");
+                setSignatureInput("");
+                setSignatureFilter("");
+              }}
+              type="button"
+              variant="secondary"
+            >
+              Limpiar filtros
+            </Button>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-semibold text-lg">Solicitudes recientes</h2>
@@ -185,7 +451,9 @@ function RouteComponent() {
                     className="py-8 text-center text-muted-foreground"
                     colSpan={6}
                   >
-                    Todavia no hay webhooks de Patreon guardados.
+                    {hasActiveFilters
+                      ? "No hay webhooks de Patreon que coincidan con los filtros."
+                      : "Todavia no hay webhooks de Patreon guardados."}
                   </TableCell>
                 </TableRow>
               )}
@@ -214,4 +482,9 @@ function formatBody(value: string) {
   } catch {
     return value;
   }
+}
+
+function getDateBound(value: string, boundary: "start" | "end") {
+  const suffix = boundary === "start" ? "T00:00:00.000" : "T23:59:59.999";
+  return new Date(`${value}${suffix}`);
 }
