@@ -6,8 +6,10 @@ import {
   formatPatreonIdentityError,
   PatreonIdentity,
 } from "@repo/patreon";
-import { getHighestPatronTierFromIds } from "@repo/shared/constants";
-import type { PatronTier } from "@repo/shared/constants";
+import {
+  getHighestPatronTierFromIds,
+  isActiveEntitledPatron,
+} from "@repo/shared/constants";
 
 export type PatreonTokenResponse = {
   accessToken: string;
@@ -82,25 +84,18 @@ export async function fetchPatreonMembership(
 
   const entitledTiers =
     membership.relationships?.currently_entitled_tiers?.data ?? [];
-  const isEntitledToTiers = entitledTiers.length > 0;
+  const tier = getHighestPatronTierFromIds(entitledTiers.map((t) => t.id));
 
   return {
     entitledTierIds: entitledTiers.map((t) => t.id),
-    isActive:
-      membership.attributes?.patron_status === "active_patron" ||
-      isEntitledToTiers,
+    isActive: isActiveEntitledPatron(
+      membership.attributes?.patron_status,
+      tier
+    ),
     patronSince: membership.attributes?.pledge_relationship_start ?? null,
     pledgeAmountCents:
       membership.attributes?.currently_entitled_amount_cents ?? 0,
   };
-}
-
-/**
- * Determine the highest tier from a list of Patreon tier IDs.
- * Uses the PATREON_TIER_MAPPING to map external tier IDs to our internal tiers.
- */
-export function determineTierFromIds(tierIds: string[]): PatronTier {
-  return getHighestPatronTierFromIds(tierIds);
 }
 
 /**

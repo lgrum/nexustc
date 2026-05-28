@@ -4,6 +4,7 @@ import { patreonWebhookRequest, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import {
   getHighestPatronTierFromIds,
+  isActiveEntitledPatron,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
@@ -15,7 +16,8 @@ type PatreonWebhookPayload = {
     type: "member";
     attributes: {
       patron_status: string | null;
-      pledge_amount_cents: number;
+      pledge_amount_cents?: number;
+      currently_entitled_amount_cents?: number;
       pledge_relationship_start: string | null;
     };
     relationships: {
@@ -31,10 +33,6 @@ type PatreonWebhookProcessingStatus =
   | "ignored"
   | "invalid"
   | "failed";
-
-function determineTierFromIds(tierIds: string[]): PatronTier {
-  return getHighestPatronTierFromIds(tierIds);
-}
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown webhook error";
@@ -132,10 +130,16 @@ async function handleMemberUpdate(
   // Determine tier from entitled tiers in webhook
   const entitledTierIds =
     data.data.relationships.currently_entitled_tiers?.data ?? [];
-  const tier = determineTierFromIds(entitledTierIds.map((t) => t.id));
+  const tier = getHighestPatronTierFromIds(entitledTierIds.map((t) => t.id));
 
-  const pledgeAmountCents = data.data.attributes.pledge_amount_cents ?? 0;
-  const isActive = data.data.attributes.patron_status === "active_patron";
+  const pledgeAmountCents =
+    data.data.attributes.currently_entitled_amount_cents ??
+    data.data.attributes.pledge_amount_cents ??
+    0;
+  const isActive = isActiveEntitledPatron(
+    data.data.attributes.patron_status,
+    tier
+  );
   const patronSince = isActive
     ? data.data.attributes.pledge_relationship_start
     : null;
@@ -183,8 +187,15 @@ async function handleMemberUpdate(
 
 async function handleMemberDelete(
   data: PatreonWebhookPayload
-): Promise<"processed"> {
+): Promise<"processed" | "ignored"> {
   const patreonUserId = data.data.relationships.user.data.id;
+  const campaignId = data.data.relationships.campaign.data.id;
+
+  if (campaignId !== env.PATREON_CAMPAIGN_ID) {
+    console.log(`Ignoring webhook for different campaign: ${campaignId}`);
+    return "ignored";
+  }
+
   const existingPatron = await db.query.patron.findFirst({
     columns: {
       patronSince: true,
@@ -198,14 +209,22 @@ async function handleMemberDelete(
     tier: "none" as PatronTier,
   });
 
-  await db
+  const updatedPatrons = await db
     .update(patron)
     .set({
       isActivePatron: patronStatus.isActivePatron,
       lastWebhookAt: new Date(),
       tier: patronStatus.tier,
     })
-    .where(eq(patron.patreonUserId, patreonUserId));
+    .where(eq(patron.patreonUserId, patreonUserId))
+    .returning({ id: patron.id });
+
+  if (updatedPatrons.length === 0) {
+    console.log(
+      `Webhook: No patron record found for Patreon user ${patreonUserId}`
+    );
+    return "ignored";
+  }
 
   console.log(
     `Webhook: Removed patron status for Patreon user ${patreonUserId}`
@@ -213,7 +232,7 @@ async function handleMemberDelete(
   return "processed";
 }
 
-async function handleWebhook(request: Request): Promise<Response> {
+export async function handleWebhook(request: Request): Promise<Response> {
   const payload = await request.text();
   const signature = request.headers.get("x-patreon-signature");
   const event = request.headers.get("x-patreon-event");
@@ -268,6 +287,10 @@ async function handleWebhook(request: Request): Promise<Response> {
         break;
       }
       case "members:pledge:delete": {
+        processingStatus = await handleMemberDelete(data);
+        break;
+      }
+      case "members:delete": {
         processingStatus = await handleMemberDelete(data);
         break;
       }

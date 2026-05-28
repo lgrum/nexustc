@@ -7,13 +7,9 @@ import {
 } from "@repo/patreon";
 import {
   getHighestPatronTierFromIds,
+  isActiveEntitledPatron,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
-import type { PatronTier } from "@repo/shared/constants";
-
-function determineTierFromIds(tierIds: string[]): PatronTier {
-  return getHighestPatronTierFromIds(tierIds);
-}
 
 /**
  * Sync Patreon membership data for a user after they link their account.
@@ -39,14 +35,15 @@ export async function syncPatreonMembership(
 
     const entitledTiers =
       membership?.relationships?.currently_entitled_tiers?.data ?? [];
-    const isActive =
-      membership?.attributes?.patron_status === "active_patron" ||
-      entitledTiers.length > 0;
+    const tier = getHighestPatronTierFromIds(entitledTiers.map((t) => t.id));
+    const isActive = isActiveEntitledPatron(
+      membership?.attributes?.patron_status,
+      tier
+    );
     const patronSince =
       membership?.attributes?.pledge_relationship_start ?? null;
     const pledgeAmountCents =
       membership?.attributes?.currently_entitled_amount_cents ?? 0;
-    const tier = determineTierFromIds(entitledTiers.map((t) => t.id));
     const existingPatron = await db.query.patron.findFirst({
       columns: {
         patronSince: true,

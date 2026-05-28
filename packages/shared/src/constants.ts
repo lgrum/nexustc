@@ -296,6 +296,13 @@ export function getHighestPatronTierFromIds(tierIds: string[]): PatronTier {
   return getHighestPatronTier(mappedTiers);
 }
 
+export function isActiveEntitledPatron(
+  patronStatus: string | null | undefined,
+  tier: PatronTier
+): boolean {
+  return patronStatus === "active_patron" && tier !== "none";
+}
+
 type PatronStatusUpdate = {
   isActivePatron: boolean;
   patronSince?: Date | null;

@@ -3,6 +3,7 @@ import { and, eq, gte, ilike, lte, sql } from "@repo/db";
 import { account, patreonWebhookRequest, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import {
+  getHighestPatronTierFromIds,
   PATRON_TIERS,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
@@ -13,11 +14,7 @@ import {
   ownerProcedure,
   protectedProcedure,
 } from "../index";
-import {
-  determineTierFromIds,
-  fetchPatreonMembership,
-  refreshPatreonToken,
-} from "../utils/patreon";
+import { fetchPatreonMembership, refreshPatreonToken } from "../utils/patreon";
 
 const webhookProcessingStatusSchema = z.enum([
   "stored",
@@ -230,7 +227,7 @@ export default {
 
       // Determine tier from entitled tiers
       const tier = membership
-        ? determineTierFromIds(membership.entitledTierIds)
+        ? getHighestPatronTierFromIds(membership.entitledTierIds)
         : "none";
       const existingPatron = await db.query.patron.findFirst({
         columns: {
