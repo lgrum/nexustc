@@ -104,7 +104,7 @@ describe("Patreon webhook", () => {
     };
     const webhookStatusUpdate = {
       set: vi.fn().mockReturnValue({
-        where: vi.fn().mockResolvedValue(),
+        where: vi.fn().mockImplementation(() => Promise.resolve()),
       }),
     };
 

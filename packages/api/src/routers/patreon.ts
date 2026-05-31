@@ -14,6 +14,7 @@ import {
   ownerProcedure,
   protectedProcedure,
 } from "../index";
+import { reconcilePatreonMemberships } from "../services/patreon-reconciliation";
 import { fetchPatreonMembership, refreshPatreonToken } from "../utils/patreon";
 
 const webhookProcessingStatusSchema = z.enum([
@@ -123,6 +124,29 @@ export default {
           requests,
           total: total[0]?.count ?? 0,
         };
+      }),
+    reconcileMemberships: ownerProcedure
+      .input(
+        z
+          .object({
+            dryRun: z.boolean().default(true),
+            limit: z.number().int().min(1).max(500).default(100),
+            patreonUserId: z.string().trim().min(1).optional(),
+            userId: z.string().trim().min(1).optional(),
+          })
+          .default({ dryRun: true, limit: 100 })
+      )
+      .handler(({ context: { db, ...ctx }, input }) => {
+        const logger = getLogger(ctx);
+        logger?.info("Reconciling Patreon memberships");
+
+        return reconcilePatreonMemberships({
+          db,
+          dryRun: input.dryRun,
+          limit: input.limit,
+          patreonUserId: input.patreonUserId,
+          userId: input.userId,
+        });
       }),
   },
 
