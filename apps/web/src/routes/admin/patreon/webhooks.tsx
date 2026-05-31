@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ComponentProps } from "react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,11 +26,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
-import { orpcClient } from "@/lib/orpc";
+import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 import { ownerMiddleware } from "@/middleware/owner";
 
 const WEBHOOK_REQUEST_LIMIT = 50;
 const ALL_FILTER_VALUE = "all";
+const RECONCILIATION_DEFAULT_LIMIT = 100;
+const RECONCILIATION_MAX_LIMIT = 500;
+
+type ReconciliationResult = Awaited<
+  ReturnType<typeof orpcClient.patreon.admin.reconcileMemberships>
+>;
+type ReconciliationAction = ReconciliationResult["results"][number]["action"];
 
 type ProcessingStatus =
   | "stored"
@@ -84,6 +92,23 @@ const statusVariants: Record<
   stored: "outline",
 };
 
+const reconciliationActionLabels: Record<ReconciliationAction, string> = {
+  deactivated: "Desactivado",
+  failed: "Fallido",
+  kept_active: "Activo",
+  skipped_permanent: "Permanente",
+};
+
+const reconciliationActionVariants: Record<
+  ReconciliationAction,
+  ComponentProps<typeof Badge>["variant"]
+> = {
+  deactivated: "destructive",
+  failed: "destructive",
+  kept_active: "default",
+  skipped_permanent: "secondary",
+};
+
 export const Route = createFileRoute("/admin/patreon/webhooks")({
   component: RouteComponent,
   loader: () =>
@@ -115,6 +140,12 @@ function RouteComponent() {
   const [processingStatus, setProcessingStatus] = useState(ALL_FILTER_VALUE);
   const [responseStatusInput, setResponseStatusInput] = useState("");
   const [responseStatusFilter, setResponseStatusFilter] = useState("");
+  const [reconciliationLimit, setReconciliationLimit] = useState(
+    String(RECONCILIATION_DEFAULT_LIMIT)
+  );
+  const [reconciliationResult, setReconciliationResult] =
+    useState<ReconciliationResult | null>(null);
+  const [isReconciling, setIsReconciling] = useState(false);
   const [signatureInput, setSignatureInput] = useState("");
   const [signatureFilter, setSignatureFilter] = useState("");
 
@@ -189,6 +220,38 @@ function RouteComponent() {
   const requests = webhookRequestsQuery.data?.requests ?? [];
   const total = webhookRequestsQuery.data?.total ?? 0;
 
+  const runReconciliation = async (dryRun: boolean) => {
+    const parsedLimit = Number.parseInt(reconciliationLimit, 10);
+    const limit = Number.isFinite(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), RECONCILIATION_MAX_LIMIT)
+      : RECONCILIATION_DEFAULT_LIMIT;
+
+    setIsReconciling(true);
+    setReconciliationLimit(String(limit));
+
+    try {
+      const result = await orpcClient.patreon.admin.reconcileMemberships({
+        dryRun,
+        limit,
+      });
+      setReconciliationResult(result);
+      toast.success(
+        dryRun
+          ? "Simulacion de Patreon completada"
+          : "Reconciliacion de Patreon aplicada"
+      );
+    } catch (error) {
+      toast.error(
+        getClientErrorMessage(
+          error,
+          "No se pudo reconciliar las membresias de Patreon."
+        )
+      );
+    } finally {
+      setIsReconciling(false);
+    }
+  };
+
   return (
     <main className="flex flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -209,6 +272,134 @@ function RouteComponent() {
           Actualizar
         </Button>
       </div>
+
+      <section className="grid gap-4 rounded-lg border p-4">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="grid gap-2">
+            <h2 className="font-semibold text-lg">
+              Reconciliacion de membresias
+            </h2>
+            <p className="max-w-3xl text-muted-foreground text-sm">
+              Compara los usuarios VIP activos con Patreon y remueve perks
+              cuando la membresia ya no es valida.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="patreon-reconciliation-limit">Limite</Label>
+              <Input
+                className="w-28"
+                id="patreon-reconciliation-limit"
+                inputMode="numeric"
+                max={RECONCILIATION_MAX_LIMIT}
+                min={1}
+                onChange={(changeEvent) =>
+                  setReconciliationLimit(changeEvent.target.value)
+                }
+                type="number"
+                value={reconciliationLimit}
+              />
+            </div>
+            <Button
+              disabled={isReconciling}
+              onClick={() => void runReconciliation(true)}
+              type="button"
+              variant="outline"
+            >
+              <HugeiconsIcon className="size-4" icon={RefreshIcon} />
+              Simular
+            </Button>
+            <Button
+              disabled={isReconciling}
+              onClick={() => void runReconciliation(false)}
+              type="button"
+            >
+              <HugeiconsIcon className="size-4" icon={RefreshIcon} />
+              Aplicar
+            </Button>
+          </div>
+        </div>
+
+        {reconciliationResult && (
+          <div className="grid gap-4">
+            <div className="flex flex-wrap gap-2">
+              <Badge
+                variant={reconciliationResult.dryRun ? "outline" : "default"}
+              >
+                {reconciliationResult.dryRun ? "Simulacion" : "Aplicado"}
+              </Badge>
+              <Badge variant="secondary">
+                Revisados {reconciliationResult.checked}
+              </Badge>
+              <Badge variant="destructive">
+                Removidos {reconciliationResult.deactivated}
+              </Badge>
+              <Badge variant="default">
+                Activos {reconciliationResult.keptActive}
+              </Badge>
+              <Badge variant="outline">
+                Fallidos {reconciliationResult.failed}
+              </Badge>
+              <Badge variant="secondary">
+                Permanentes {reconciliationResult.skippedPermanent}
+              </Badge>
+            </div>
+
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Usuario</TableHead>
+                    <TableHead>Patreon</TableHead>
+                    <TableHead>Accion</TableHead>
+                    <TableHead>Tier</TableHead>
+                    <TableHead>Detalle</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {reconciliationResult.results.map((result) => (
+                    <TableRow key={`${result.userId}-${result.action}`}>
+                      <TableCell className="min-w-52 align-top font-medium">
+                        {result.userId}
+                      </TableCell>
+                      <TableCell className="min-w-36 align-top">
+                        {result.patreonUserId ?? "-"}
+                      </TableCell>
+                      <TableCell className="align-top">
+                        <Badge
+                          variant={reconciliationActionVariants[result.action]}
+                        >
+                          {reconciliationActionLabels[result.action]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="min-w-32 align-top">
+                        {result.previousTier}
+                        {result.nextTier &&
+                        result.nextTier !== result.previousTier
+                          ? ` -> ${result.nextTier}`
+                          : ""}
+                      </TableCell>
+                      <TableCell className="min-w-72 align-top text-muted-foreground text-sm">
+                        {result.reason}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {reconciliationResult.results.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        className="py-6 text-center text-muted-foreground"
+                        colSpan={5}
+                      >
+                        No hay usuarios VIP activos para revisar.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="grid gap-4 rounded-lg border p-4">
         <div className="grid gap-4">
@@ -412,7 +603,7 @@ function RouteComponent() {
                       {statusLabels[request.processingStatus]}
                     </Badge>
                     {request.processingError && (
-                      <p className="mt-2 max-w-64 whitespace-normal break-words text-destructive text-xs">
+                      <p className="mt-2 max-w-64 whitespace-normal wrap-break-word text-destructive text-xs">
                         {request.processingError}
                       </p>
                     )}
@@ -420,7 +611,7 @@ function RouteComponent() {
                   <TableCell className="align-top">
                     {request.responseStatus ?? "-"}
                   </TableCell>
-                  <TableCell className="min-w-[520px] align-top">
+                  <TableCell className="min-w-130 align-top">
                     <div className="grid gap-2">
                       <p className="break-all text-muted-foreground text-xs">
                         {request.url}
@@ -429,7 +620,7 @@ function RouteComponent() {
                         <summary className="cursor-pointer font-medium text-sm">
                           Headers
                         </summary>
-                        <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">
+                        <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md bg-muted p-3 text-xs">
                           {formatJson(request.headers)}
                         </pre>
                       </details>
@@ -437,7 +628,7 @@ function RouteComponent() {
                         <summary className="cursor-pointer font-medium text-sm">
                           Body
                         </summary>
-                        <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted p-3 text-xs">
+                        <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md bg-muted p-3 text-xs">
                           {formatBody(request.body)}
                         </pre>
                       </details>
