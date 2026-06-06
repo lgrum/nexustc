@@ -77,7 +77,7 @@ export const Route = createFileRoute("/comic/$slug/read")({
         throw error;
       });
 
-    if (data.type !== "comic") {
+    if (data.type !== "comic" || data.earlyAccess.isRestrictedView) {
       throw notFound();
     }
 

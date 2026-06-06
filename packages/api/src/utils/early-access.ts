@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, or } from "@repo/db";
+import { and, eq, gt, isNull, lte, or } from "@repo/db";
 import { patron, post } from "@repo/db/schema/app";
 import type { PatronTier } from "@repo/shared/constants";
 import {
@@ -28,6 +28,7 @@ type EarlyAccessUpdateInput = {
   enabled: boolean;
   existingStartedAt?: Date | null;
   now?: Date;
+  releasedAt?: Date | null;
   vip12Hours: number;
   vip8Hours: number;
 };
@@ -65,7 +66,7 @@ export function resolveEarlyAccessStorageFields(
   const now = input.now ?? new Date();
   const startedAt = input.enabled
     ? (input.existingStartedAt ??
-      (input.documentStatus === "publish" ? now : null))
+      (input.documentStatus === "publish" ? (input.releasedAt ?? now) : null))
     : null;
   const schedule = buildEarlyAccessSchedule({
     enabled: input.enabled,
@@ -87,15 +88,6 @@ export function resolveEarlyAccessStorageFields(
 export function buildPostEarlyAccessSchedule(
   item: EarlyAccessPostRecord
 ): EarlyAccessSchedule {
-  if (item.type === "comic") {
-    return buildEarlyAccessSchedule({
-      enabled: false,
-      startedAt: null,
-      vip12Hours: 0,
-      vip8Hours: 0,
-    });
-  }
-
   return buildEarlyAccessSchedule({
     enabled: item.earlyAccessEnabled,
     startedAt: item.earlyAccessStartedAt,
@@ -118,16 +110,15 @@ export function getPostEarlyAccessView(
 }
 
 export function publicCatalogVisibilityCondition(now = new Date()) {
-  return or(
-    eq(post.type, "comic"),
-    eq(post.earlyAccessEnabled, false),
-    lte(post.earlyAccessPublicAt, now)
+  return and(
+    or(isNull(post.releasedAt), lte(post.releasedAt, now)),
+    or(eq(post.earlyAccessEnabled, false), lte(post.earlyAccessPublicAt, now))
   );
 }
 
 export function activeVipCatalogCondition(now = new Date()) {
   return and(
-    eq(post.type, "post"),
+    or(isNull(post.releasedAt), lte(post.releasedAt, now)),
     eq(post.earlyAccessEnabled, true),
     gt(post.earlyAccessPublicAt, now)
   );

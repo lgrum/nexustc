@@ -3,6 +3,10 @@ import { userComicProgress } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { getPatronTierRank } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
+import {
+  getEarlyAccessView,
+  buildEarlyAccessSchedule,
+} from "@repo/shared/early-access";
 import type { RedisClientType } from "redis";
 
 import type { Context } from "../context";
@@ -21,6 +25,11 @@ type ComicMetadata = {
   comicId: string;
   comicLastUpdateAt: Date | null;
   currentPageCount: number;
+  earlyAccessEnabled: boolean;
+  earlyAccessStartedAt: Date | null;
+  releasedAt: Date | null;
+  vip12EarlyAccessHours: number;
+  vip8EarlyAccessHours: number;
 };
 
 type StoredComicProgress = {
@@ -335,8 +344,13 @@ async function getComicMetadata(
     columns: {
       comicLastUpdateAt: true,
       comicPageCount: true,
+      earlyAccessEnabled: true,
+      earlyAccessStartedAt: true,
       id: true,
       imageObjectKeys: true,
+      releasedAt: true,
+      vip12EarlyAccessHours: true,
+      vip8EarlyAccessHours: true,
     },
     where: (table, { and: andWhere, eq: equals }) =>
       andWhere(
@@ -357,7 +371,38 @@ async function getComicMetadata(
       result.comicPageCount > 0
         ? result.comicPageCount
         : (result.imageObjectKeys?.length ?? 0),
+    earlyAccessEnabled: result.earlyAccessEnabled,
+    earlyAccessStartedAt: result.earlyAccessStartedAt,
+    releasedAt: result.releasedAt,
+    vip12EarlyAccessHours: result.vip12EarlyAccessHours,
+    vip8EarlyAccessHours: result.vip8EarlyAccessHours,
   };
+}
+
+function canAccessComicMetadata(params: {
+  metadata: ComicMetadata;
+  now?: Date;
+  role?: string | null;
+  tier: PatronTier;
+}) {
+  const now = params.now ?? new Date();
+  if (params.metadata.releasedAt && params.metadata.releasedAt > now) {
+    return false;
+  }
+
+  const earlyAccess = getEarlyAccessView({
+    now,
+    role: params.role ?? undefined,
+    schedule: buildEarlyAccessSchedule({
+      enabled: params.metadata.earlyAccessEnabled,
+      startedAt: params.metadata.earlyAccessStartedAt,
+      vip12Hours: params.metadata.vip12EarlyAccessHours,
+      vip8Hours: params.metadata.vip8EarlyAccessHours,
+    }),
+    viewerTier: params.tier,
+  });
+
+  return earlyAccess.viewerCanAccess;
 }
 
 async function getStoredProgress(
@@ -555,6 +600,16 @@ export async function getComicProgressOverview(
     getUserPatronTier(db, params.userId),
   ]);
 
+  if (
+    !canAccessComicMetadata({
+      metadata: comicMetadata,
+      role: params.role,
+      tier,
+    })
+  ) {
+    return null;
+  }
+
   return {
     comicId: comicMetadata.comicId,
     comicLastUpdateAt: comicMetadata.comicLastUpdateAt,
@@ -583,6 +638,16 @@ export async function startComicReadingSession(params: {
     getStoredProgress(params.db, params.userId, params.comicId),
     getUserPatronTier(params.db, params.userId),
   ]);
+
+  if (
+    !canAccessComicMetadata({
+      metadata: comicMetadata,
+      role: params.role,
+      tier,
+    })
+  ) {
+    return null;
+  }
 
   const nowMs = Date.now();
   const sessionState = createSessionState({

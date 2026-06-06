@@ -144,6 +144,7 @@ function RouteComponent() {
       platforms: findDefaultTermIds(terms, DEFAULT_PLATFORM_TERMS),
       premiumLinksAccessLevel: "auto" as PremiumLinkAccessLevel,
       premiumLinks: "",
+      releasedAt: null as Date | null,
       seriesId: null as string | null,
       seriesOrder: 0,
       seriesTitle: "",
@@ -211,6 +212,8 @@ function RouteComponent() {
   });
 
   const post = useStore(form.store, (state) => state.values);
+  const previewReleasedAt =
+    post.documentStatus === "publish" ? (post.releasedAt ?? new Date()) : null;
   const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
   const selectedMediaKeys = getDeferredMediaPreviewSources(
     post.mediaSelection,
@@ -223,7 +226,7 @@ function RouteComponent() {
     role: "admin",
     schedule: buildEarlyAccessSchedule({
       enabled: post.earlyAccessEnabled,
-      startedAt: post.documentStatus === "publish" ? new Date() : null,
+      startedAt: previewReleasedAt,
       vip12Hours: post.vip12EarlyAccessHours,
       vip8Hours: post.vip8EarlyAccessHours,
     }),
@@ -331,8 +334,7 @@ function RouteComponent() {
                 imageObjectKeys: selectedMediaKeys,
                 likes: 0,
                 premiumLinksAccess: { status: "no_premium_links" as const },
-                releasedAt:
-                  post.documentStatus === "publish" ? new Date() : null,
+                releasedAt: previewReleasedAt,
                 series: null,
                 seriesParts: [],
                 terms: [

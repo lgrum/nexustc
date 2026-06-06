@@ -1,5 +1,17 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, asc, desc, eq, getRedis, isNull, ne, not, sql } from "@repo/db";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getRedis,
+  isNull,
+  lte,
+  ne,
+  not,
+  or,
+  sql,
+} from "@repo/db";
 import {
   comment,
   commentLikes,
@@ -911,7 +923,13 @@ export default {
         .leftJoin(likesAgg, eq(likesAgg.postId, post.id))
         .leftJoin(termsAgg, eq(termsAgg.postId, post.id))
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
-        .where(and(eq(post.status, "publish"), lookup.where))
+        .where(
+          and(
+            eq(post.status, "publish"),
+            lookup.where,
+            or(isNull(post.releasedAt), lte(post.releasedAt, new Date()))
+          )
+        )
         .limit(1);
 
       if (!result.length) {

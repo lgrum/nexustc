@@ -1,3 +1,4 @@
+import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -42,6 +43,8 @@ function RouteComponent() {
       creatorLink: oldComic.creatorLink,
       creatorName: oldComic.creatorName,
       documentStatus: oldComic.status,
+      earlyAccessEnabled:
+        oldComic.earlyAccessEnabled ?? EARLY_ACCESS_DEFAULTS.enabled,
       id: oldComic.id,
       manualEngagementQuestions:
         oldComic.engagementOverrides?.map((item) => item.text) ?? [],
@@ -49,6 +52,7 @@ function RouteComponent() {
         oldComic.media?.map((item) => item.id) ?? []
       ),
       premiumLinks: oldComic.premiumLinks ?? "",
+      releasedAt: oldComic.releasedAt,
       seriesId: oldComic.seriesId ?? null,
       seriesOrder: oldComic.seriesOrder ?? 0,
       seriesTitle: "",
@@ -59,6 +63,10 @@ function RouteComponent() {
       title: oldComic.title,
       translatorId: oldComic.translatorId ?? null,
       type: "comic" as const,
+      vip12EarlyAccessHours:
+        oldComic.vip12EarlyAccessHours ?? EARLY_ACCESS_DEFAULTS.vip12Hours,
+      vip8EarlyAccessHours:
+        oldComic.vip8EarlyAccessHours ?? EARLY_ACCESS_DEFAULTS.vip8Hours,
     },
     onSubmit: async (formData) => {
       const slugCheck = await orpcClient.comic.admin.checkSlug({

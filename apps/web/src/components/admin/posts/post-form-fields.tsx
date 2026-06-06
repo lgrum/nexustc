@@ -13,6 +13,7 @@ import type { z } from "zod";
 import { CreatorSelectField } from "@/components/admin/creators/creator-select-field";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
+import { ScheduledReleaseField } from "@/components/admin/scheduled-release-field";
 import { SeriesField } from "@/components/admin/series-field";
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { HasPermissions } from "@/components/auth/has-role";
@@ -99,6 +100,10 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
     (term) => term.taxonomy
   );
   const adsLinks = useStore(form.store, (state) => state.values.adsLinks);
+  const documentStatus = useStore(
+    form.store,
+    (state) => state.values.documentStatus
+  );
   const earlyAccessEnabled = useStore(
     form.store,
     (state) => state.values.earlyAccessEnabled
@@ -441,6 +446,18 @@ export function PostFormFields({ series, terms }: PostFormFieldsProps) {
             label="Estado del Documento"
             options={[...DOCUMENT_STATUS_OPTIONS]}
             required
+          />
+        )}
+      </form.AppField>
+
+      <form.AppField name="releasedAt">
+        {(field) => (
+          <ScheduledReleaseField
+            disabled={documentStatus !== "publish"}
+            errorField={field}
+            name={field.name}
+            onChange={field.handleChange}
+            value={field.state.value}
           />
         )}
       </form.AppField>

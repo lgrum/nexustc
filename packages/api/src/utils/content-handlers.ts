@@ -44,6 +44,7 @@ function resolveReleasedAt(params: {
   documentStatus: ContentEditInput["documentStatus"];
   existingReleasedAt: Date | null;
   previousStatus: ContentEditInput["documentStatus"];
+  requestedReleasedAt?: Date | null;
 }) {
   if (params.documentStatus !== "publish") {
     return params.existingReleasedAt;
@@ -53,10 +54,34 @@ function resolveReleasedAt(params: {
     params.previousStatus !== "publish" ||
     params.contentUpdateCandidate?.updateType === "game_version"
   ) {
-    return new Date();
+    return params.requestedReleasedAt ?? new Date();
   }
 
-  return params.existingReleasedAt;
+  if (params.requestedReleasedAt === null) {
+    return params.existingReleasedAt === null ? null : new Date();
+  }
+
+  return params.requestedReleasedAt ?? params.existingReleasedAt;
+}
+
+function resolvePublishReleasedAt(input: {
+  documentStatus: ContentCreateInput["documentStatus"];
+  requestedReleasedAt?: Date | null;
+}) {
+  if (input.documentStatus !== "publish") {
+    return null;
+  }
+
+  return input.requestedReleasedAt ?? new Date();
+}
+
+function shouldRecomputeEarlyAccessStart(input: {
+  existingReleasedAt: Date | null;
+  now: Date;
+}) {
+  return (
+    input.existingReleasedAt !== null && input.existingReleasedAt > input.now
+  );
 }
 
 export async function resolveContentSlug(params: {
@@ -282,20 +307,17 @@ export async function createContent({
       const coverMedia = orderedSelections[1]?.[0] ?? null;
 
       logger?.info(`Starting transaction for ${contentType} creation`);
-      const earlyAccessFields =
-        input.type === "post"
-          ? resolveEarlyAccessStorageFields({
-              documentStatus: input.documentStatus,
-              enabled: input.earlyAccessEnabled,
-              vip12Hours: input.vip12EarlyAccessHours,
-              vip8Hours: input.vip8EarlyAccessHours,
-            })
-          : resolveEarlyAccessStorageFields({
-              documentStatus: input.documentStatus,
-              enabled: false,
-              vip12Hours: 0,
-              vip8Hours: 0,
-            });
+      const releasedAt = resolvePublishReleasedAt({
+        documentStatus: input.documentStatus,
+        requestedReleasedAt: input.releasedAt,
+      });
+      const earlyAccessFields = resolveEarlyAccessStorageFields({
+        documentStatus: input.documentStatus,
+        enabled: input.earlyAccessEnabled,
+        releasedAt,
+        vip12Hours: input.vip12EarlyAccessHours,
+        vip8Hours: input.vip8EarlyAccessHours,
+      });
       const creatorFields = await resolveCreatorFields({
         creatorId: input.creatorId,
         creatorLink: input.creatorLink,
@@ -356,7 +378,7 @@ export async function createContent({
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
-          releasedAt: input.documentStatus === "publish" ? new Date() : null,
+          releasedAt,
           seriesId: seriesFields.seriesId,
           seriesOrder: seriesFields.seriesOrder,
           slug: slugFields.slug,
@@ -444,6 +466,7 @@ export async function editContent({
     onComplete: async ({ orderedSelections, tx }) => {
       const orderedMedia = orderedSelections[0] ?? [];
       const coverMedia = orderedSelections[1]?.[0] ?? null;
+      const now = new Date();
 
       const existingPost = await tx.query.post.findFirst({
         columns: {
@@ -471,22 +494,6 @@ export async function editContent({
         })
         .from(postMedia)
         .where(eq(postMedia.postId, input.id));
-      const earlyAccessFields =
-        input.type === "post"
-          ? resolveEarlyAccessStorageFields({
-              documentStatus: input.documentStatus,
-              enabled: input.earlyAccessEnabled,
-              existingStartedAt: existingPost.earlyAccessStartedAt,
-              vip12Hours: input.vip12EarlyAccessHours,
-              vip8Hours: input.vip8EarlyAccessHours,
-            })
-          : resolveEarlyAccessStorageFields({
-              documentStatus: input.documentStatus,
-              enabled: false,
-              existingStartedAt: existingPost.earlyAccessStartedAt,
-              vip12Hours: 0,
-              vip8Hours: 0,
-            });
       const creatorFields = await resolveCreatorFields({
         creatorId: input.creatorId,
         creatorLink: input.creatorLink,
@@ -540,6 +547,26 @@ export async function editContent({
           version: existingPost.version,
         },
       });
+      const releasedAt = resolveReleasedAt({
+        contentUpdateCandidate,
+        documentStatus: input.documentStatus,
+        existingReleasedAt: existingPost.releasedAt,
+        previousStatus: existingPost.status,
+        requestedReleasedAt: input.releasedAt,
+      });
+      const earlyAccessFields = resolveEarlyAccessStorageFields({
+        documentStatus: input.documentStatus,
+        enabled: input.earlyAccessEnabled,
+        existingStartedAt: shouldRecomputeEarlyAccessStart({
+          existingReleasedAt: existingPost.releasedAt,
+          now,
+        })
+          ? null
+          : existingPost.earlyAccessStartedAt,
+        releasedAt,
+        vip12Hours: input.vip12EarlyAccessHours,
+        vip8Hours: input.vip8EarlyAccessHours,
+      });
 
       const [postData] = await tx
         .update(post)
@@ -573,12 +600,7 @@ export async function editContent({
             input.type === "post"
               ? input.premiumLinks
               : (input.premiumLinks ?? ""),
-          releasedAt: resolveReleasedAt({
-            contentUpdateCandidate,
-            documentStatus: input.documentStatus,
-            existingReleasedAt: existingPost.releasedAt,
-            previousStatus: existingPost.status,
-          }),
+          releasedAt,
           seriesId: seriesFields.seriesId,
           seriesOrder: seriesFields.seriesOrder,
           slug: slugFields.slug,

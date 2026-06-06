@@ -64,9 +64,12 @@ describe("web URL schema", () => {
     const comicResult = comicCreateSchema.safeParse({
       ...baseContentInput,
       creatorLink: scriptUrl,
+      earlyAccessEnabled: false,
       premiumLinks: "",
       style: "style-id",
       type: "comic",
+      vip12EarlyAccessHours: 0,
+      vip8EarlyAccessHours: 0,
     });
 
     expect(postResult.success).toBe(false);

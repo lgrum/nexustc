@@ -25,6 +25,23 @@ describe("early access helpers", () => {
     );
   });
 
+  it("starts a scheduled publish at the release date", () => {
+    const releasedAt = new Date("2026-06-01T03:00:00.000Z");
+    const result = resolveEarlyAccessStorageFields({
+      documentStatus: "publish",
+      enabled: true,
+      now: new Date("2026-05-30T12:00:00.000Z"),
+      releasedAt,
+      vip12Hours: 24,
+      vip8Hours: 48,
+    });
+
+    expect(result.earlyAccessStartedAt).toEqual(releasedAt);
+    expect(result.earlyAccessPublicAt?.toISOString()).toBe(
+      "2026-06-04T03:00:00.000Z"
+    );
+  });
+
   it("keeps unpublished drafts off the clock", () => {
     const result = resolveEarlyAccessStorageFields({
       documentStatus: "draft",
@@ -73,5 +90,24 @@ describe("early access helpers", () => {
 
     expect(vip8ViewDuringPhaseTwo.currentState).toBe("VIP8_ONLY");
     expect(vip8ViewDuringPhaseTwo.viewerCanAccess).toBe(true);
+  });
+
+  it("applies early access to comics", () => {
+    const publishedComic = {
+      earlyAccessEnabled: true,
+      earlyAccessStartedAt: new Date("2026-04-03T12:00:00.000Z"),
+      type: "comic" as const,
+      vip12EarlyAccessHours: 24,
+      vip8EarlyAccessHours: 48,
+    };
+
+    const view = getPostEarlyAccessView(
+      publishedComic,
+      { role: "user", tier: "none" },
+      new Date("2026-04-04T00:00:00.000Z")
+    );
+
+    expect(view.currentState).toBe("VIP12_ONLY");
+    expect(view.isRestrictedView).toBe(true);
   });
 });

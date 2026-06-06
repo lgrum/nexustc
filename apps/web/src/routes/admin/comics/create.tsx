@@ -1,4 +1,5 @@
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
+import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
@@ -31,9 +32,11 @@ function RouteComponent() {
       creatorLink: "",
       creatorName: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
+      earlyAccessEnabled: Boolean(EARLY_ACCESS_DEFAULTS.enabled),
       manualEngagementQuestions: [] as string[],
       mediaSelection: createEmptyDeferredMediaSelection(),
       premiumLinks: "",
+      releasedAt: null as Date | null,
       seriesId: null as string | null,
       seriesOrder: 0,
       seriesTitle: "",
@@ -44,6 +47,8 @@ function RouteComponent() {
       title: "",
       translatorId: null as string | null,
       type: "comic" as const,
+      vip12EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip12Hours),
+      vip8EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip8Hours),
     },
     onSubmit: async (formData) => {
       try {

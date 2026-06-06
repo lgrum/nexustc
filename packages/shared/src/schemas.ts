@@ -123,6 +123,8 @@ export const engagementQuestionUpdateSchema = engagementQuestionBaseSchema
 
 export const thumbnailImageCountSchema = z.union([z.literal(1), z.literal(4)]);
 
+const optionalReleasedAtSchema = z.date().nullable();
+
 const contentBaseFields = {
   acceptSlugDeduplication: z.boolean().optional(),
   censorship: z.string(),
@@ -131,6 +133,7 @@ const contentBaseFields = {
   languages: z.array(z.string()),
   manualEngagementQuestions: manualEngagementQuestionsSchema,
   mediaIds: z.array(z.string()),
+  releasedAt: optionalReleasedAtSchema,
   seriesId: z.string().nullable(),
   seriesOrder: z.number().int().min(0).max(100_000),
   seriesTitle: z
@@ -187,6 +190,7 @@ export const postCreateSchema = z.object({
 
 export const comicCreateSchema = z.object({
   ...contentBaseFields,
+  ...earlyAccessFields,
   adsLinks: z.string(),
   changelog: z.string().optional(),
   content: z.string().optional(),
