@@ -1,4 +1,5 @@
 import {
+  getProfileEntitlements,
   getProfileEntitlementsForTier,
   validateProfileMediaUpload,
 } from "./profile";
@@ -86,5 +87,22 @@ describe(getProfileEntitlementsForTier, () => {
 
     expect(level8.canUseUploadedBanner).toBe(true);
     expect(level8.canUseAnimatedBanner).toBe(true);
+  });
+});
+
+describe(getProfileEntitlements, () => {
+  it("treats herald as unrestricted staff for profile customization", async () => {
+    const entitlements = await getProfileEntitlements(
+      {} as Parameters<typeof getProfileEntitlements>[0],
+      "user_123",
+      "herald"
+    );
+
+    expect(entitlements).toMatchObject({
+      canUseAnimatedAvatar: true,
+      canUseAnimatedBanner: true,
+      canUseUploadedBanner: true,
+      overrideSource: "staff",
+    });
   });
 });

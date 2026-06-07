@@ -32,6 +32,41 @@ export function HasPermissions({
   return null;
 }
 
+export function HasAnyPermissions({
+  children,
+  permissions,
+}: React.PropsWithChildren<{ permissions: AtLeastOne<Permissions>[] }>) {
+  const { data: auth } = authClient.useSession();
+  const mounted = useHasHydrated();
+
+  if (!mounted) {
+    return null;
+  }
+
+  if (!auth?.session) {
+    return null;
+  }
+
+  const role = auth.user.role as Role | undefined;
+
+  if (!role) {
+    return null;
+  }
+
+  if (
+    permissions.some((permissionSet) =>
+      authClient.admin.checkRolePermission({
+        permissions: permissionSet,
+        role,
+      })
+    )
+  ) {
+    return children;
+  }
+
+  return null;
+}
+
 export function HasRole({
   authRole,
   children,

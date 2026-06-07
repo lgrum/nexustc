@@ -128,6 +128,7 @@ export type PremiumLinksDescriptor =
 
 export const ROLE_LABELS: Record<string, string> = {
   shortener: "Acortador",
+  herald: "HΞЯΛLDØ⁺¹⁸",
   admin: "Alpha⁺¹⁸",
   moderator: "BetaTC⁺¹⁸",
   owner: "AlphaNeXusTC⁺¹⁸",
@@ -139,6 +140,10 @@ export const ROLE_PROFILE_STYLES: Record<
   string,
   { badge: string; gradient: string }
 > = {
+  herald: {
+    badge: "HΞЯΛLDØ⁺¹⁸",
+    gradient: "linear-gradient(135deg, #4cadd0 0%, #b2f9ff 100%)",
+  },
   uploader: {
     badge: "DEALER⁺¹⁸",
     gradient: "linear-gradient(135deg, #ff0090 0%, #ff5bfa 100%)",

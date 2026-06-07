@@ -42,6 +42,7 @@ const RECENT_USER_ROLE_ORDER = [
   "owner",
   "admin",
   "moderator",
+  "herald",
   "uploader",
   "shortener",
 ] as const;

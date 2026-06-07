@@ -7,7 +7,11 @@ import { Suspense } from "react";
 
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { ImpersonationBanner } from "@/components/admin/users/impersonation-banner";
-import { HasPermissions, HasRole } from "@/components/auth/has-role";
+import {
+  HasAnyPermissions,
+  HasPermissions,
+  HasRole,
+} from "@/components/auth/has-role";
 import Loader from "@/components/loader";
 import {
   Collapsible,
@@ -145,18 +149,22 @@ const nav = {
       {
         href: "/admin/notifications/announcements",
         name: "Listar anuncios",
+        permissions: { notifications: ["list"] } as AtLeastOne<Permissions>,
       },
       {
         href: "/admin/notifications/announcements/create",
         name: "Crear anuncio",
+        permissions: { notifications: ["create"] } as AtLeastOne<Permissions>,
       },
       {
         href: "/admin/notifications/articles",
         name: "Listar articulos",
+        permissions: { newsArticles: ["list"] } as AtLeastOne<Permissions>,
       },
       {
         href: "/admin/notifications/articles/create",
         name: "Crear articulo",
+        permissions: { newsArticles: ["create"] } as AtLeastOne<Permissions>,
       },
     ],
     name: "Notificaciones",
@@ -317,9 +325,14 @@ function AdminLayout() {
               <HasPermissions permissions={{ moderation: ["list"] }}>
                 <SidebarLinks item={nav.moderation} />
               </HasPermissions>
-              <HasPermissions permissions={{ notifications: ["list"] }}>
+              <HasAnyPermissions
+                permissions={[
+                  { newsArticles: ["list"] },
+                  { notifications: ["list"] },
+                ]}
+              >
                 <SidebarLinks item={nav.notifications} />
-              </HasPermissions>
+              </HasAnyPermissions>
               <HasPermissions permissions={{ chronos: ["update"] }}>
                 <SidebarLinks item={nav.chronos} />
               </HasPermissions>

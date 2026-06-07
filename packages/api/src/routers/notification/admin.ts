@@ -50,7 +50,7 @@ export default {
     ),
 
   createNewsArticle: permissionProcedure({
-    notifications: ["create"],
+    newsArticles: ["create"],
   })
     .input(newsArticleCreateInputSchema)
     .handler(
@@ -86,7 +86,7 @@ export default {
   ),
 
   listNewsArticles: permissionProcedure({
-    notifications: ["list"],
+    newsArticles: ["list"],
   })
     .input(
       z

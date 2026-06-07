@@ -12,6 +12,7 @@ export const statement = {
   files: ["upload"],
   media: ["list"],
   moderation: ["create", "update", "delete", "list"],
+  newsArticles: ["create", "list"],
   notifications: ["create", "update", "delete", "list"],
   posts: ["create", "update", "delete", "list"],
   ratings: ["create", "self-update", "self-delete", "delete", "pin"],
@@ -46,11 +47,21 @@ const uploader = ac.newRole({
   shortener: ["use"],
 });
 
+const herald = ac.newRole({
+  comics: ["list"],
+  dashboard: ["view"],
+  files: ["upload"],
+  media: ["list"],
+  newsArticles: ["create", "list"],
+  posts: ["list"],
+});
+
 const moderator = ac.newRole({
   comics: ["create", "list", "update", "delete"],
   dashboard: ["view"],
   files: ["upload"],
   media: ["list"],
+  newsArticles: ["create", "list"],
   notifications: ["create", "update", "delete", "list"],
   ratings: ["create", "self-update", "self-delete", "delete"],
 });
@@ -64,6 +75,7 @@ const admin = ac.newRole({
   files: ["upload"],
   media: ["list"],
   moderation: ["create", "update", "delete", "list"],
+  newsArticles: ["create", "list"],
   notifications: ["create", "update", "delete", "list"],
   posts: ["create", "list", "update", "delete"],
   comments: ["pin"],
@@ -84,6 +96,7 @@ const owner = ac.newRole({
   files: ["upload"],
   media: ["list"],
   moderation: ["create", "update", "delete", "list"],
+  newsArticles: ["create", "list"],
   notifications: ["create", "update", "delete", "list"],
   posts: ["create", "list", "update", "delete"],
   comments: ["create", "self-update", "self-delete", "update", "delete", "pin"],
@@ -97,6 +110,7 @@ const owner = ac.newRole({
 
 export const roles = {
   admin,
+  herald,
   moderator,
   owner,
   shortener,
@@ -120,6 +134,7 @@ export const ROLE_HIERARCHY: Role[] = [
   "user",
   "shortener",
   "uploader",
+  "herald",
   "moderator",
   "admin",
   "owner",
