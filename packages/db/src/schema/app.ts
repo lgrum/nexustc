@@ -264,6 +264,17 @@ export const creator = pgTable(
   ]
 );
 
+export const comicCreator = pgTable(
+  "comic_creator",
+  {
+    id: text("id").primaryKey().$defaultFn(generateId),
+    name: text("name").notNull(),
+    url: text("url").notNull().unique(),
+    ...timestamps,
+  },
+  (table) => [index("comic_creator_name_idx").on(table.name)]
+);
+
 export const translator = pgTable(
   "translator",
   {
@@ -308,6 +319,9 @@ export const post = pgTable(
       onDelete: "set null",
     }),
     creatorId: text("creator_id").references(() => creator.id, {
+      onDelete: "set null",
+    }),
+    comicCreatorId: text("comic_creator_id").references(() => comicCreator.id, {
       onDelete: "set null",
     }),
     creatorLink: text("creator_link").notNull().default(""),
@@ -358,6 +372,7 @@ export const post = pgTable(
   },
   (table) => [
     index("post_cover_media_id_idx").on(table.coverMediaId),
+    index("post_comic_creator_id_idx").on(table.comicCreatorId),
     index("post_creator_id_idx").on(table.creatorId),
     index("post_translator_id_idx").on(table.translatorId),
     index("post_status_type_early_access_idx").on(
@@ -1169,6 +1184,10 @@ export const creatorRelations = relations(creator, ({ many, one }) => ({
   posts: many(post),
 }));
 
+export const comicCreatorRelations = relations(comicCreator, ({ many }) => ({
+  posts: many(post),
+}));
+
 export const translatorRelations = relations(translator, ({ many }) => ({
   posts: many(post),
 }));
@@ -1187,6 +1206,10 @@ export const postRelations = relations(post, ({ many, one }) => ({
   creator: one(creator, {
     fields: [post.creatorId],
     references: [creator.id],
+  }),
+  comicCreator: one(comicCreator, {
+    fields: [post.comicCreatorId],
+    references: [comicCreator.id],
   }),
   engagementOverrides: many(postEngagementOverride),
   favorites: many(postBookmark),

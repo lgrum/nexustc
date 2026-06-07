@@ -39,7 +39,7 @@ function RouteComponent() {
       coverImageSelection: createDeferredMediaSelectionFromExistingIds(
         oldComic.coverMedia?.id ? [oldComic.coverMedia.id] : []
       ),
-      creatorId: oldComic.creatorId ?? null,
+      creatorId: oldComic.comicCreatorId ?? null,
       creatorLink: oldComic.creatorLink,
       creatorName: oldComic.creatorName,
       documentStatus: oldComic.status,

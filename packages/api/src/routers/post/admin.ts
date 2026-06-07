@@ -69,7 +69,15 @@ export default {
     posts: ["delete"],
   })
     .input(z.string())
-    .handler(deleteContent),
+    .handler((params) =>
+      deleteContent({
+        ...params,
+        input: {
+          id: params.input,
+          type: "post",
+        },
+      })
+    ),
 
   edit: permissionProcedure({
     posts: ["update"],
@@ -118,7 +126,7 @@ export default {
 
       return db.query.post
         .findFirst({
-          where: eq(post.id, input),
+          where: and(eq(post.id, input), eq(post.type, "post")),
           with: {
             engagementOverrides: {
               orderBy: (table, { asc }) => [asc(table.sortOrder)],

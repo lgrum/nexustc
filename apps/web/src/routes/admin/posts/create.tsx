@@ -316,6 +316,7 @@ function RouteComponent() {
             <Preview
               post={{
                 ...post,
+                comicCreatorId: null,
                 createdAt: new Date(),
                 creatorAvatarObjectKey:
                   selectedCreator?.media?.objectKey ?? null,

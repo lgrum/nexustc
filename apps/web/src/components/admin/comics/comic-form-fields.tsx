@@ -7,7 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { z } from "zod";
 
-import { CreatorSelectField } from "@/components/admin/creators/creator-select-field";
+import { ComicCreatorSelectField } from "@/components/admin/comic-creators/comic-creator-select-field";
 import { GenerateMarkdownLinkDialog } from "@/components/admin/generate-md-link-dialog";
 import { ManualEngagementQuestionsField } from "@/components/admin/manual-engagement-questions-field";
 import { ScheduledReleaseField } from "@/components/admin/scheduled-release-field";
@@ -411,7 +411,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
 
       <SeriesField contentLabel="comic" series={series} />
 
-      <CreatorSelectField />
+      <ComicCreatorSelectField />
 
       <TranslatorSelectField />
 

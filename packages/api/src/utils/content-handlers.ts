@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, eq, ne, sql } from "@repo/db";
 import {
+  comicCreator,
   contentSeries,
   creator,
   post,
@@ -159,12 +160,42 @@ async function resolveCreatorFields(params: {
   creatorLink: string | null | undefined;
   creatorName: string | null | undefined;
   db: Pick<Context["db"], "select">;
+  type: ContentType;
 }) {
   if (!params.creatorId) {
     return {
+      comicCreatorId: null,
       creatorId: null,
       creatorLink: params.creatorLink ?? "",
       creatorName: params.creatorName ?? "",
+    };
+  }
+
+  if (params.type === "comic") {
+    const [selectedComicCreator] = await params.db
+      .select({
+        id: comicCreator.id,
+        name: comicCreator.name,
+        url: comicCreator.url,
+      })
+      .from(comicCreator)
+      .where(eq(comicCreator.id, params.creatorId))
+      .limit(1);
+
+    if (!selectedComicCreator) {
+      return {
+        comicCreatorId: null,
+        creatorId: null,
+        creatorLink: params.creatorLink ?? "",
+        creatorName: params.creatorName ?? "",
+      };
+    }
+
+    return {
+      comicCreatorId: selectedComicCreator.id,
+      creatorId: null,
+      creatorLink: selectedComicCreator.url,
+      creatorName: selectedComicCreator.name,
     };
   }
 
@@ -180,6 +211,7 @@ async function resolveCreatorFields(params: {
 
   if (!selectedCreator) {
     return {
+      comicCreatorId: null,
       creatorId: null,
       creatorLink: params.creatorLink ?? "",
       creatorName: params.creatorName ?? "",
@@ -187,6 +219,7 @@ async function resolveCreatorFields(params: {
   }
 
   return {
+    comicCreatorId: null,
     creatorId: selectedCreator.id,
     creatorLink: selectedCreator.url,
     creatorName: selectedCreator.name,
@@ -323,6 +356,7 @@ export async function createContent({
         creatorLink: input.creatorLink,
         db: tx,
         creatorName: input.creatorName,
+        type: input.type,
       });
       const translatorFields =
         input.type === "comic"
@@ -363,6 +397,7 @@ export async function createContent({
           content:
             input.type === "post" ? input.content : (input.content ?? ""),
           coverMediaId: coverMedia?.id ?? null,
+          comicCreatorId: creatorFields.comicCreatorId,
           creatorId: creatorFields.creatorId,
           creatorLink: creatorFields.creatorLink,
           creatorName: creatorFields.creatorName,
@@ -480,7 +515,7 @@ export async function editContent({
           type: true,
           version: true,
         },
-        where: eq(post.id, input.id),
+        where: and(eq(post.id, input.id), eq(post.type, input.type)),
       });
 
       if (!existingPost) {
@@ -499,6 +534,7 @@ export async function editContent({
         creatorLink: input.creatorLink,
         db: tx,
         creatorName: input.creatorName,
+        type: input.type,
       });
       const translatorFields =
         input.type === "comic"
@@ -586,6 +622,7 @@ export async function editContent({
           content:
             input.type === "post" ? input.content : (input.content ?? ""),
           coverMediaId: coverMedia?.id ?? null,
+          comicCreatorId: creatorFields.comicCreatorId,
           creatorId: creatorFields.creatorId,
           creatorLink: creatorFields.creatorLink,
           creatorName: creatorFields.creatorName,
@@ -609,7 +646,7 @@ export async function editContent({
           version:
             input.type === "post" ? input.version : (input.version ?? ""),
         })
-        .where(eq(post.id, input.id))
+        .where(and(eq(post.id, input.id), eq(post.type, input.type)))
         .returning({ postId: post.id });
 
       if (!postData) {
@@ -685,11 +722,13 @@ export async function editContent({
 export async function deleteContent({
   context: { db, ...ctx },
   input,
-}: Omit<HandlerParams<string>, "errors">) {
+}: Omit<HandlerParams<{ id: string; type: ContentType }>, "errors">) {
   const logger = getLogger(ctx);
-  logger?.info(`Deleting content: ${input}`);
+  logger?.info(`Deleting ${input.type}: ${input.id}`);
 
-  await db.delete(post).where(eq(post.id, input));
+  await db
+    .delete(post)
+    .where(and(eq(post.id, input.id), eq(post.type, input.type)));
 
-  logger?.info(`Content ${input} successfully deleted`);
+  logger?.info(`${input.type} ${input.id} successfully deleted`);
 }

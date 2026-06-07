@@ -15,6 +15,7 @@ import {
 import {
   comment,
   commentLikes,
+  comicCreator,
   contentSeries,
   creator,
   featuredPost,
@@ -866,8 +867,11 @@ export default {
           changelog: post.changelog,
           content: post.content,
           createdAt: post.createdAt,
+          comicCreatorId: post.comicCreatorId,
           creatorAvatarObjectKey: media.objectKey,
-          creatorId: post.creatorId,
+          creatorId: sql<
+            string | null
+          >`CASE WHEN ${post.type} = 'comic' THEN ${post.comicCreatorId} ELSE ${post.creatorId} END`,
           creatorLink: post.creatorLink,
           creatorName: post.creatorName,
           earlyAccessEnabled: post.earlyAccessEnabled,
@@ -917,6 +921,7 @@ export default {
         .from(post)
         .leftJoin(contentSeries, eq(contentSeries.id, post.seriesId))
         .leftJoin(creator, eq(creator.id, post.creatorId))
+        .leftJoin(comicCreator, eq(comicCreator.id, post.comicCreatorId))
         .leftJoin(translator, eq(translator.id, post.translatorId))
         .leftJoin(media, eq(media.id, creator.mediaId))
         .leftJoin(favoritesAgg, eq(favoritesAgg.postId, post.id))

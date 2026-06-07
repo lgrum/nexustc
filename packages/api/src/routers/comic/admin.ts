@@ -64,7 +64,15 @@ export default {
     comics: ["delete"],
   })
     .input(z.string())
-    .handler(deleteContent),
+    .handler((params) =>
+      deleteContent({
+        ...params,
+        input: {
+          id: params.input,
+          type: "comic",
+        },
+      })
+    ),
 
   edit: permissionProcedure({
     comics: ["update"],
@@ -114,7 +122,8 @@ export default {
 
       return db.query.post
         .findFirst({
-          where: (p, { eq: equals }) => equals(p.id, input),
+          where: (p, { and: all, eq: equals }) =>
+            all(equals(p.id, input), equals(p.type, "comic")),
           with: {
             coverMedia: true,
             engagementOverrides: {

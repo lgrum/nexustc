@@ -81,7 +81,7 @@ export default {
             usageCount: sql<number>`COUNT(*)::integer`.as("usage_count"),
           })
           .from(post)
-          .where(sql`${post.creatorId} IS NOT NULL`)
+          .where(sql`${post.type} = 'post' AND ${post.creatorId} IS NOT NULL`)
           .groupBy(post.creatorId)
           .as("creator_usage");
 
