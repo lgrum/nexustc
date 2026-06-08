@@ -1035,7 +1035,7 @@ export function ComicReader({
             Volver
           </Button>
           <Separator className="bg-white/20" orientation="vertical" />
-          <h1 className="line-clamp-1 max-w-xs px-2 font-medium text-sm text-white md:max-w-md">
+          <h1 className="hidden md:block line-clamp-1 max-w-xs px-2 font-medium text-sm text-white md:max-w-md">
             {comic.title}
           </h1>
         </div>
