@@ -74,7 +74,7 @@ function RouteComponent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-2 xl:grid-cols-3">
+          <div className="grid items-stretch gap-2 xl:grid-cols-3">
             {items.map((item) => (
               <VipFeedCard item={item} key={item.id} />
             ))}
@@ -302,7 +302,7 @@ function VipFeedCard({
 
   return (
     <Link
-      className="group block rounded-2xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+      className="group block h-full rounded-2xl focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400/70 focus-visible:ring-offset-4 focus-visible:ring-offset-background"
       onClick={() =>
         trackEvent("vip_content_clicked", {
           contentId: item.id,
@@ -314,17 +314,17 @@ function VipFeedCard({
       to="/post/$id"
       preload={false}
     >
-      <Card className="overflow-hidden rounded-2xl border-border/70 bg-card/70 p-0 shadow-md backdrop-blur-sm transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-0.5 group-hover:border-amber-400/40 group-hover:shadow-glow-amber-400/15">
-        <div className="grid">
-          <div className="relative min-h-56 overflow-hidden md:min-h-72">
+      <Card className="h-full overflow-hidden rounded-2xl border-border/70 bg-card/70 p-0 shadow-md backdrop-blur-sm transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-0.5 group-hover:border-amber-400/40 group-hover:shadow-glow-amber-400/15">
+        <div className="grid h-full grid-rows-[auto_1fr]">
+          <div className="relative aspect-video overflow-hidden">
             {heroImage ? (
               <img
                 alt={item.title}
-                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                 src={getBucketUrl(heroImage)}
               />
             ) : (
-              <div className="h-full w-full bg-linear-to-br from-amber-400/20 via-primary/10 to-transparent" />
+              <div className="absolute inset-0 bg-linear-to-br from-amber-400/20 via-primary/10 to-transparent" />
             )}
             <div className="absolute inset-0 bg-linear-to-t from-background via-background/15 to-transparent" />
             <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-2 p-3">
