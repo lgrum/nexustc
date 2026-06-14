@@ -76,6 +76,7 @@ import admin from "./admin";
 const RECOMMENDATION_LIMIT = 5;
 const DEFAULT_SEARCH_PAGE_SIZE = 12;
 const MAX_SEARCH_PAGE_SIZE = 60;
+const VIP_FEED_PAGE_SIZE = 9;
 const WEEKLY_POST_LIMIT = 7;
 const releasedAtSort = sql<Date>`COALESCE(${post.releasedAt}, ${post.createdAt})`;
 
@@ -715,12 +716,33 @@ export default {
     }),
 
   getVipFeed: publicProcedure
+    .input(
+      z
+        .object({
+          page: z.number().int().min(1).default(1),
+        })
+        .default({ page: 1 })
+    )
     .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
-    .handler(async ({ context: { db, ...context } }) => {
+    .handler(async ({ context: { db, ...context }, input }) => {
       const logger = getLogger(context);
-      logger?.info("Fetching VIP early access feed");
+      logger?.info(`Fetching VIP early access feed page ${input.page}`);
 
       const viewerTier = await getViewerPatronTier(db, context.session);
+      const where = and(
+        eq(post.status, "publish"),
+        activeVipCatalogCondition()
+      );
+      const [{ count: totalItems } = { count: 0 }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(post)
+        .where(where);
+      const totalPages = Math.max(
+        1,
+        Math.ceil(totalItems / VIP_FEED_PAGE_SIZE)
+      );
+      const page = Math.min(input.page, totalPages);
+      const offset = (page - 1) * VIP_FEED_PAGE_SIZE;
       const items = await db
         .select({
           content: post.content,
@@ -741,8 +763,10 @@ export default {
           version: post.version,
         })
         .from(post)
-        .where(and(eq(post.status, "publish"), activeVipCatalogCondition()))
-        .orderBy(asc(post.earlyAccessPublicAt), desc(post.createdAt));
+        .where(where)
+        .orderBy(desc(post.earlyAccessStartedAt), desc(post.createdAt))
+        .limit(VIP_FEED_PAGE_SIZE)
+        .offset(offset);
 
       const result = items.map((item) => {
         const earlyAccess = getPostEarlyAccessView(
@@ -774,7 +798,15 @@ export default {
       });
 
       logger?.debug(`VIP feed returned ${result.length} items`);
-      return result;
+      return {
+        items: result,
+        pagination: {
+          page,
+          pageSize: VIP_FEED_PAGE_SIZE,
+          totalItems,
+          totalPages,
+        },
+      };
     }),
 
   // Future improvement: cache this endpoint too, especially for hot posts.

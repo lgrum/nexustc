@@ -7,8 +7,10 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import z from "zod";
 
+import { LibraryPagination } from "@/components/search/library-shared";
 import { TierShape } from "@/components/tier-shape";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,9 +19,18 @@ import { orpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
+const vipSearchParamsSchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+});
+
 export const Route = createFileRoute("/_main/vip")({
   component: RouteComponent,
-  loader: async () => await orpcClient.post.getVipFeed(),
+  validateSearch: vipSearchParamsSchema,
+  loaderDeps: ({ search }) => ({
+    page: search.page,
+  }),
+  loader: async ({ deps }) =>
+    await orpcClient.post.getVipFeed({ page: deps.page }),
   head: () => ({
     meta: [
       {
@@ -30,14 +41,28 @@ export const Route = createFileRoute("/_main/vip")({
 });
 
 function RouteComponent() {
-  const initialItems = Route.useLoaderData();
-  const { data: items = initialItems } = useQuery({
-    initialData: initialItems,
-    queryFn: () => orpcClient.post.getVipFeed(),
-    queryKey: ["posts", "vip-feed"],
+  const params = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const initialFeed = Route.useLoaderData();
+  const { data: feed = initialFeed } = useQuery({
+    initialData: initialFeed,
+    queryFn: () => orpcClient.post.getVipFeed({ page: params.page }),
+    queryKey: ["posts", "vip-feed", params.page],
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   });
+  const { items, pagination } = feed;
+
+  const handlePageChange = useCallback(
+    async (page: number) => {
+      await navigate({
+        resetScroll: false,
+        search: { page },
+        to: "/vip",
+      });
+    },
+    [navigate]
+  );
 
   useEffect(() => {
     trackEvent("vip_page_viewed", {
@@ -74,10 +99,16 @@ function RouteComponent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid items-stretch gap-2 xl:grid-cols-3">
-            {items.map((item) => (
-              <VipFeedCard item={item} key={item.id} />
-            ))}
+          <div className="flex flex-col gap-6">
+            <div className="grid items-stretch gap-2 xl:grid-cols-3">
+              {items.map((item) => (
+                <VipFeedCard item={item} key={item.id} />
+              ))}
+            </div>
+            <LibraryPagination
+              onPageChange={handlePageChange}
+              pagination={pagination}
+            />
           </div>
         )}
       </section>
@@ -282,7 +313,7 @@ function VipCountdown({
 function VipFeedCard({
   item,
 }: {
-  item: Awaited<ReturnType<typeof orpcClient.post.getVipFeed>>[number];
+  item: Awaited<ReturnType<typeof orpcClient.post.getVipFeed>>["items"][number];
 }) {
   const teaser =
     item.content.length > 220
