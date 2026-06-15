@@ -587,6 +587,7 @@ export function ComicReader({
 }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
+  const [hudVisible, setHudVisible] = useState(true);
   const [showThumbnails, setShowThumbnails] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(true);
   const [scale, setScale] = useState(1);
@@ -783,6 +784,10 @@ export function ComicReader({
 
   // Auto-hide controls
   const showControlsTemporarily = useCallback(() => {
+    if (!hudVisible) {
+      return;
+    }
+
     setShowControls(true);
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
@@ -792,7 +797,20 @@ export function ComicReader({
         setShowControls(false);
       }
     }, 3000);
-  }, [showThumbnails]);
+  }, [hudVisible, showThumbnails]);
+
+  const toggleHud = useCallback(() => {
+    setHudVisible((visible) => {
+      if (visible) {
+        setShowThumbnails(false);
+        setShowControls(false);
+        return false;
+      }
+
+      setShowControls(true);
+      return true;
+    });
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -867,6 +885,7 @@ export function ComicReader({
     resetZoom,
     toggleFullscreen,
     showControlsTemporarily,
+    toggleHud,
     scale,
     showThumbnails,
   ]);
@@ -1008,7 +1027,7 @@ export function ComicReader({
     <div
       className={cn(
         "fixed inset-0 z-50 flex flex-col bg-background",
-        !showControls && "cursor-none"
+        !(hudVisible && showControls) && "cursor-none"
       )}
       onMouseLeave={handleMouseUp}
       onMouseMove={handleMouseMove}
@@ -1019,9 +1038,9 @@ export function ComicReader({
       <div
         className={cn(
           "absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-linear-to-b from-black/80 to-transparent p-4 transition-all duration-300",
-          showControls
+          hudVisible && showControls
             ? "translate-y-0 opacity-100"
-            : "-translate-y-full opacity-0"
+            : "pointer-events-none -translate-y-full opacity-0"
         )}
       >
         <div className="flex items-center gap-3">
@@ -1041,21 +1060,33 @@ export function ComicReader({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Page Counter */}
-          <span className="rounded-full bg-white/10 px-3 py-1 font-medium text-sm text-white backdrop-blur-sm">
-            {page + 1} / {totalPages}
-          </span>
-
-          {/* Thumbnail Toggle */}
+          {/* Page Counter / Thumbnail Toggle */}
           <Tooltip>
             <TooltipTrigger
               onClick={() => setShowThumbnails(!showThumbnails)}
               render={
                 <Button
                   className={cn(
-                    "text-white hover:bg-white/10 hover:text-white",
+                    "min-w-24 rounded-full bg-white/10 px-3 font-medium text-sm text-white tabular-nums backdrop-blur-sm hover:bg-white/20 hover:text-white",
                     showThumbnails && "bg-white/20"
                   )}
+                  size="sm"
+                  variant="ghost"
+                />
+              }
+            >
+              {page + 1} / {totalPages}
+            </TooltipTrigger>
+            <TooltipContent>Mostrar miniaturas</TooltipContent>
+          </Tooltip>
+
+          {/* HUD Toggle */}
+          <Tooltip>
+            <TooltipTrigger
+              onClick={toggleHud}
+              render={
+                <Button
+                  className="text-white hover:bg-white/10 hover:text-white"
                   size="icon-sm"
                   variant="ghost"
                 />
@@ -1063,7 +1094,7 @@ export function ComicReader({
             >
               <HugeiconsIcon icon={ViewIcon} />
             </TooltipTrigger>
-            <TooltipContent>Mostrar miniaturas</TooltipContent>
+            <TooltipContent>Ocultar interfaz</TooltipContent>
           </Tooltip>
 
           {onChangeMode && (
@@ -1188,7 +1219,7 @@ export function ComicReader({
               isDragging
                 ? "cursor-grabbing"
                 : scale > 1
-                  ? showControls
+                  ? hudVisible && showControls
                     ? "cursor-grab"
                     : "cursor-none"
                   : ""
@@ -1208,9 +1239,9 @@ export function ComicReader({
       <div
         className={cn(
           "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 bg-linear-to-t from-black/80 to-transparent p-4 transition-all duration-300",
-          showControls
+          hudVisible && showControls
             ? "translate-y-0 opacity-100"
-            : "translate-y-full opacity-0"
+            : "pointer-events-none translate-y-full opacity-0"
         )}
       >
         {/* Progress Bar */}
@@ -1322,6 +1353,24 @@ export function ComicReader({
         }}
         open={showThumbnails}
       />
+
+      {!hudVisible && (
+        <Tooltip>
+          <TooltipTrigger
+            onClick={toggleHud}
+            render={
+              <Button
+                className="fixed top-4 right-4 z-30 rounded-full border border-white/15 bg-black/45 text-white shadow-2xl backdrop-blur-md hover:bg-white/10 hover:text-white"
+                size="icon"
+                variant="ghost"
+              />
+            }
+          >
+            <HugeiconsIcon className="size-5" icon={ViewIcon} />
+          </TooltipTrigger>
+          <TooltipContent>Mostrar interfaz</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 }
@@ -1342,6 +1391,8 @@ export function ComicCascadeReader({
   progressQueryKey: readonly unknown[];
 }) {
   const [currentPage, setCurrentPage] = useState(0);
+  const [hudVisible, setHudVisible] = useState(true);
+  const [showThumbnails, setShowThumbnails] = useState(false);
   const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<(HTMLImageElement | null)[]>([]);
@@ -1491,9 +1542,35 @@ export function ComicCascadeReader({
     onExit();
   };
 
+  const scrollToPage = (pageIndex: number) => {
+    pageRefs.current[pageIndex]?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+    setCurrentPage(pageIndex);
+  };
+
+  const toggleHud = () => {
+    setHudVisible((visible) => {
+      if (visible) {
+        setShowThumbnails(false);
+        return false;
+      }
+
+      return true;
+    });
+  };
+
   return (
     <main className="min-h-dvh bg-zinc-950 text-white" ref={containerRef}>
-      <div className="fixed inset-x-0 top-0 z-30 border-white/10 border-b bg-zinc-950/85 px-3 py-3 backdrop-blur-xl md:px-5">
+      <div
+        className={cn(
+          "fixed inset-x-0 top-0 z-30 border-white/10 border-b bg-zinc-950/85 px-3 py-3 backdrop-blur-xl transition-all duration-300 md:px-5",
+          hudVisible
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none -translate-y-full opacity-0"
+        )}
+      >
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 md:gap-3">
             <Button
@@ -1515,9 +1592,39 @@ export function ComicCascadeReader({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full bg-white/10 px-3 py-1 font-medium text-sm text-white tabular-nums">
-              {currentPage + 1} / {totalPages}
-            </span>
+            <Tooltip>
+              <TooltipTrigger
+                onClick={() => setShowThumbnails(!showThumbnails)}
+                render={
+                  <Button
+                    className={cn(
+                      "min-w-24 rounded-full bg-white/10 px-3 font-medium text-sm text-white tabular-nums hover:bg-white/20 hover:text-white",
+                      showThumbnails && "bg-white/20"
+                    )}
+                    size="sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                {currentPage + 1} / {totalPages}
+              </TooltipTrigger>
+              <TooltipContent>Mostrar miniaturas</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                onClick={toggleHud}
+                render={
+                  <Button
+                    className="text-white hover:bg-white/10 hover:text-white"
+                    size="icon-sm"
+                    variant="ghost"
+                  />
+                }
+              >
+                <HugeiconsIcon className="size-4" icon={ViewIcon} />
+              </TooltipTrigger>
+              <TooltipContent>Ocultar interfaz</TooltipContent>
+            </Tooltip>
             <Button
               className="text-white hover:bg-white/10 hover:text-white"
               onClick={() => {
@@ -1542,7 +1649,12 @@ export function ComicCascadeReader({
         <Progress className="mx-auto mt-3 h-1 max-w-5xl" value={progress} />
       </div>
 
-      <div className="mx-auto flex max-w-5xl flex-col items-center gap-3 px-0 pt-24 pb-10 md:gap-4 md:px-5">
+      <div
+        className={cn(
+          "mx-auto flex max-w-5xl flex-col items-center gap-3 px-0 pb-10 transition-[padding] duration-300 md:gap-4 md:px-5",
+          hudVisible ? "pt-24" : "pt-0"
+        )}
+      >
         {images.map((image, index) => (
           <img
             alt={`Página ${index + 1}`}
@@ -1557,6 +1669,35 @@ export function ComicCascadeReader({
           />
         ))}
       </div>
+
+      <ThumbnailPanel
+        currentPage={currentPage}
+        images={images}
+        onClose={() => setShowThumbnails(false)}
+        onSelectPage={(pageIndex) => {
+          scrollToPage(pageIndex);
+          setShowThumbnails(false);
+        }}
+        open={showThumbnails}
+      />
+
+      {!hudVisible && (
+        <Tooltip>
+          <TooltipTrigger
+            onClick={toggleHud}
+            render={
+              <Button
+                className="fixed top-4 right-4 z-30 rounded-full border border-white/15 bg-black/45 text-white shadow-2xl backdrop-blur-md hover:bg-white/10 hover:text-white"
+                size="icon"
+                variant="ghost"
+              />
+            }
+          >
+            <HugeiconsIcon className="size-5" icon={ViewIcon} />
+          </TooltipTrigger>
+          <TooltipContent>Mostrar interfaz</TooltipContent>
+        </Tooltip>
+      )}
     </main>
   );
 }
