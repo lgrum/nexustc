@@ -1095,10 +1095,7 @@ export function ComicReader({
     // image area needs touch/mouse events for zoom/pan
     // oxlint-disable-next-line jsx_a11y/no-static-element-interactions
     <div
-      className={cn(
-        "fixed inset-0 z-50 flex flex-col bg-background",
-        !(hudVisible && showControls) && "cursor-none"
-      )}
+      className="fixed inset-0 z-50 flex flex-col bg-background"
       onMouseLeave={handleMouseUp}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -1286,13 +1283,7 @@ export function ComicReader({
             className={cn(
               "max-h-full max-w-full select-none object-contain",
               isImageLoading ? "opacity-0" : "opacity-100",
-              isDragging
-                ? "cursor-grabbing"
-                : scale > 1
-                  ? hudVisible && showControls
-                    ? "cursor-grab"
-                    : "cursor-none"
-                  : ""
+              isDragging ? "cursor-grabbing" : scale > 1 ? "cursor-grab" : ""
             )}
             draggable={false}
             onLoad={() => setIsImageLoading(false)}

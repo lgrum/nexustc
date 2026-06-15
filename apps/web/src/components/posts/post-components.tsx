@@ -1184,6 +1184,7 @@ export function CreatorSupportCard() {
 
 function CreatorSupportContent() {
   const post = usePost();
+  const label = post.type === "comic" ? "Más del Autor" : "Apoya al Creador";
 
   return (
     <div className="relative flex items-center gap-4">
@@ -1202,9 +1203,7 @@ function CreatorSupportContent() {
         </div>
       )}
       <div className="flex flex-col gap-0.5">
-        <span className="font-[Lexend] font-bold uppercase">
-          Apoya al Creador
-        </span>
+        <span className="font-[Lexend] font-bold uppercase">{label}</span>
         {post.creatorName && (
           <span className="text-primary">{post.creatorName}</span>
         )}
