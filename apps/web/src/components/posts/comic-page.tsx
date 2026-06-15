@@ -37,9 +37,14 @@ import { getCoverImageObjectKey } from "@/lib/post-images";
 import type { EngagementPromptType, PostType } from "@/lib/types";
 import { cn, getBucketUrl } from "@/lib/utils";
 
+import { PostCard } from "../landing/post-card";
+import type { PostProps as PostCardProps } from "../landing/post-card";
 import { Button } from "../ui/button";
+import { Carousel, CarouselContent, CarouselItem } from "../ui/carousel";
+import type { CarouselApi } from "../ui/carousel";
 import { Progress } from "../ui/progress";
 import { Separator } from "../ui/separator";
+import { Skeleton } from "../ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 import { CommentSection } from "./comment-section";
 import { EngagementPromptBlock } from "./engagement-prompt-block";
@@ -50,10 +55,8 @@ import {
   PostContent,
   PostInfo,
   PostPartsSection,
-  PostSidebarContent,
   PostStatsBar,
   PostTagsSection,
-  RelatedGamesSection,
   TranslatorSupportCard,
 } from "./post-components";
 import { PostProvider, usePost } from "./post-context";
@@ -161,8 +164,8 @@ function ComicInfoPage({
   });
 
   return (
-    <div className="relative flex gap-6 pb-4">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div className="relative pb-4">
+      <div className="flex min-w-0 flex-col">
         <ComicHero
           comicProgress={comicProgress}
           progressBadge={progressBadge}
@@ -190,7 +193,7 @@ function ComicInfoPage({
             totalPages={totalPages}
           />
 
-          <div className="md:hidden">
+          <div className="grid gap-3 md:grid-cols-2">
             <CreatorSupportCard />
             <TranslatorSupportCard />
           </div>
@@ -202,18 +205,10 @@ function ComicInfoPage({
             onSelectedPromptChange={setSelectedPrompt}
             selectedPrompt={selectedPrompt}
           />
+          <RecommendedComicsCarousel />
           <DiscordSection />
-          <div className="md:hidden">
-            <RelatedGamesSection />
-          </div>
         </div>
       </div>
-
-      <aside className="hidden w-72 shrink-0 pt-4 pr-4 md:block">
-        <div className="sticky top-22 flex flex-col gap-4">
-          <PostSidebarContent />
-        </div>
-      </aside>
     </div>
   );
 }
@@ -475,7 +470,6 @@ function ComicPagesSection({
       <SectionHeader
         eyebrow="Vista previa"
         icon={GridViewIcon}
-        subtitle="Toca cualquier página para empezar a leer desde ahí"
         title={`${totalPages} ${totalPages === 1 ? "página" : "páginas"}`}
       />
 
@@ -561,6 +555,82 @@ function PagePreviewButton({
         <HugeiconsIcon className="size-3" icon={ArrowRight01Icon} />
       </div>
     </button>
+  );
+}
+
+function RecommendedComicsCarousel() {
+  const comic = usePost();
+  const [api, setApi] = useState<CarouselApi>();
+  const { data: related, isLoading } = useQuery({
+    queryFn: () =>
+      orpcClient.post.getRelated({ postId: comic.id, type: comic.type }),
+    queryKey: ["related", comic.id],
+  });
+
+  if (!isLoading && (!related || related.length === 0)) {
+    return null;
+  }
+
+  return (
+    <section className="flex flex-col gap-4">
+      <div className="flex items-end justify-between gap-4">
+        <SectionHeader
+          eyebrow="Descubre"
+          icon={Book02Icon}
+          title="Recomendados"
+        />
+        <div className="flex shrink-0 gap-2">
+          <Button
+            aria-label="Ver recomendacion anterior"
+            className="rounded-full"
+            onClick={() => api?.scrollPrev()}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <HugeiconsIcon className="size-4" icon={ArrowLeft01Icon} />
+          </Button>
+          <Button
+            aria-label="Ver recomendacion siguiente"
+            className="rounded-full"
+            onClick={() => api?.scrollNext()}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
+          </Button>
+        </div>
+      </div>
+
+      <Carousel
+        opts={{
+          align: "start",
+          dragFree: true,
+        }}
+        setApi={setApi}
+      >
+        <CarouselContent className="-ml-3">
+          {isLoading
+            ? Array.from({ length: 6 }, (_, index) => (
+                <CarouselItem
+                  className="basis-2/3 pl-3 sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5"
+                  key={index}
+                >
+                  <Skeleton className="aspect-3/4 w-full rounded-xl" />
+                </CarouselItem>
+              ))
+            : related?.map((item: PostCardProps) => (
+                <CarouselItem
+                  className="basis-2/3 pl-3 sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5"
+                  key={item.id}
+                >
+                  <PostCard post={item} />
+                </CarouselItem>
+              ))}
+        </CarouselContent>
+      </Carousel>
+    </section>
   );
 }
 
