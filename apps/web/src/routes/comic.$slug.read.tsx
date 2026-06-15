@@ -14,6 +14,7 @@ import { getBucketUrl } from "@/lib/utils";
 type ReaderMode = "fullscreen" | "cascade";
 
 const READER_MODE_STORAGE_KEY = "nexustc:comic-reader-mode";
+const NANOID_PATTERN = /^[0-9A-Za-z]{21}$/;
 
 const readerSearchSchema = z.object({
   mode: z.enum(["fullscreen", "cascade"]).optional(),
@@ -41,9 +42,11 @@ function storeReaderMode(mode: ReaderMode) {
   }
 }
 
-function getComicQueryOptions(slug: string) {
+function getComicQueryOptions(idOrSlug: string) {
   return orpc.post.getPostById.queryOptions({
-    input: { slug, type: "comic" },
+    input: NANOID_PATTERN.test(idOrSlug)
+      ? idOrSlug
+      : { slug: idOrSlug, type: "comic" },
   });
 }
 

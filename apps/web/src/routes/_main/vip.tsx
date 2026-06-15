@@ -330,6 +330,16 @@ function VipFeedCard({
       : item.earlyAccess.currentState === "VIP8_ONLY"
         ? "Desde VIP 8"
         : "Acceso anticipado";
+  const linkTarget =
+    item.type === "comic"
+      ? ({
+          params: { slug: item.slug },
+          to: "/comic/$slug" as const,
+        } as const)
+      : ({
+          params: { id: item.id },
+          to: "/post/$id" as const,
+        } as const);
 
   return (
     <Link
@@ -341,8 +351,8 @@ function VipFeedCard({
           viewerCanAccess: item.earlyAccess.viewerCanAccess,
         })
       }
-      params={{ id: item.id }}
-      to="/post/$id"
+      params={linkTarget.params}
+      to={linkTarget.to}
       preload={false}
     >
       <Card className="h-full overflow-hidden rounded-2xl border-border/70 bg-card/70 p-0 shadow-md backdrop-blur-sm transition-[transform,border-color,box-shadow] duration-200 group-hover:-translate-y-0.5 group-hover:border-amber-400/40 group-hover:shadow-glow-amber-400/15">

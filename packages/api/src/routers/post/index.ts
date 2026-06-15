@@ -790,9 +790,11 @@ export default {
           earlyAccess,
           id: item.id,
           imageObjectKeys: item.imageObjectKeys,
+          slug: earlyAccess.isRestrictedView ? item.id : item.slug,
           title: earlyAccess.isRestrictedView
             ? getMaskedPostLabel(item.id)
             : item.title,
+          type: item.type,
           version: earlyAccess.isRestrictedView ? null : item.version,
         };
       });
