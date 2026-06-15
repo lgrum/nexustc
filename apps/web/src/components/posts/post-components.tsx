@@ -1157,6 +1157,18 @@ export function CreatorSupportCard() {
     return null;
   }
 
+  if (post.type === "comic" && post.creatorId) {
+    return (
+      <Link
+        className="group relative block animate-scale-pulse overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 hover:shadow-glow-secondary/50"
+        params={{ id: post.creatorId }}
+        to="/comic-creator/$id"
+      >
+        <CreatorSupportContent />
+      </Link>
+    );
+  }
+
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
@@ -1165,32 +1177,39 @@ export function CreatorSupportCard() {
       rel="noopener"
       target="_blank"
     >
-      {/* Inner content */}
-      <div className="relative flex items-center gap-4">
-        {post.creatorAvatarObjectKey ? (
-          <img
-            alt={post.creatorName || "Avatar del creador"}
-            src={getBucketUrl(post.creatorAvatarObjectKey)}
-            className="shrink-0 size-16 aspect-square"
-          />
-        ) : (
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
-            <HugeiconsIcon
-              className="size-10 text-primary"
-              icon={FavouriteCircleIcon}
-            />
-          </div>
-        )}
-        <div className="flex flex-col gap-0.5">
-          <span className="font-[Lexend] font-bold uppercase">
-            Apoya al Creador
-          </span>
-          {post.creatorName && (
-            <span className="text-primary">{post.creatorName}</span>
-          )}
-        </div>
-      </div>
+      <CreatorSupportContent />
     </Comp>
+  );
+}
+
+function CreatorSupportContent() {
+  const post = usePost();
+
+  return (
+    <div className="relative flex items-center gap-4">
+      {post.creatorAvatarObjectKey ? (
+        <img
+          alt={post.creatorName || "Avatar del creador"}
+          className="aspect-square size-16 shrink-0"
+          src={getBucketUrl(post.creatorAvatarObjectKey)}
+        />
+      ) : (
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
+          <HugeiconsIcon
+            className="size-10 text-primary"
+            icon={FavouriteCircleIcon}
+          />
+        </div>
+      )}
+      <div className="flex flex-col gap-0.5">
+        <span className="font-[Lexend] font-bold uppercase">
+          Apoya al Creador
+        </span>
+        {post.creatorName && (
+          <span className="text-primary">{post.creatorName}</span>
+        )}
+      </div>
+    </div>
   );
 }
 

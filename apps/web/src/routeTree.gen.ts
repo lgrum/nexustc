@@ -66,6 +66,7 @@ import { Route as MainUserIdRouteImport } from './routes/_main/user.$id'
 import { Route as MainPostIdRouteImport } from './routes/_main/post.$id'
 import { Route as MainNewsIdRouteImport } from './routes/_main/news.$id'
 import { Route as MainComicSlugRouteImport } from './routes/_main/comic.$slug'
+import { Route as MainComicCreatorIdRouteImport } from './routes/_main/comic-creator.$id'
 import { Route as AdminNotificationsArticlesIndexRouteImport } from './routes/admin/notifications/articles/index'
 import { Route as AdminNotificationsAnnouncementsIndexRouteImport } from './routes/admin/notifications/announcements/index'
 import { Route as AdminStickersIdEditRouteImport } from './routes/admin/stickers/$id.edit'
@@ -361,6 +362,11 @@ const MainComicSlugRoute = MainComicSlugRouteImport.update({
   path: '/comic/$slug',
   getParentRoute: () => MainRouteRoute,
 } as any)
+const MainComicCreatorIdRoute = MainComicCreatorIdRouteImport.update({
+  id: '/comic-creator/$id',
+  path: '/comic-creator/$id',
+  getParentRoute: () => MainRouteRoute,
+} as any)
 const AdminNotificationsArticlesIndexRoute =
   AdminNotificationsArticlesIndexRouteImport.update({
     id: '/notifications/articles/',
@@ -432,6 +438,7 @@ export interface FileRoutesByFullPath {
   '/admin/changelog': typeof AdminChangelogRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/': typeof AdminIndexRoute
+  '/comic-creator/$id': typeof MainComicCreatorIdRoute
   '/comic/$slug': typeof MainComicSlugRoute
   '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
@@ -498,6 +505,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/': typeof MainIndexRoute
   '/admin': typeof AdminIndexRoute
+  '/comic-creator/$id': typeof MainComicCreatorIdRoute
   '/comic/$slug': typeof MainComicSlugRoute
   '/news/$id': typeof MainNewsIdRoute
   '/post/$id': typeof MainPostIdRoute
@@ -567,6 +575,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/_main/': typeof MainIndexRoute
   '/admin/': typeof AdminIndexRoute
+  '/_main/comic-creator/$id': typeof MainComicCreatorIdRoute
   '/_main/comic/$slug': typeof MainComicSlugRoute
   '/_main/news/$id': typeof MainNewsIdRoute
   '/_main/post/$id': typeof MainPostIdRoute
@@ -636,6 +645,7 @@ export interface FileRouteTypes {
     | '/admin/changelog'
     | '/api/health'
     | '/admin/'
+    | '/comic-creator/$id'
     | '/comic/$slug'
     | '/news/$id'
     | '/post/$id'
@@ -702,6 +712,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/'
     | '/admin'
+    | '/comic-creator/$id'
     | '/comic/$slug'
     | '/news/$id'
     | '/post/$id'
@@ -770,6 +781,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/_main/'
     | '/admin/'
+    | '/_main/comic-creator/$id'
     | '/_main/comic/$slug'
     | '/_main/news/$id'
     | '/_main/post/$id'
@@ -1229,6 +1241,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MainComicSlugRouteImport
       parentRoute: typeof MainRouteRoute
     }
+    '/_main/comic-creator/$id': {
+      id: '/_main/comic-creator/$id'
+      path: '/comic-creator/$id'
+      fullPath: '/comic-creator/$id'
+      preLoaderRoute: typeof MainComicCreatorIdRouteImport
+      parentRoute: typeof MainRouteRoute
+    }
     '/admin/notifications/articles/': {
       id: '/admin/notifications/articles/'
       path: '/notifications/articles'
@@ -1311,6 +1330,7 @@ interface MainRouteRouteChildren {
   MainTutorialsRoute: typeof MainTutorialsRoute
   MainVipRoute: typeof MainVipRoute
   MainIndexRoute: typeof MainIndexRoute
+  MainComicCreatorIdRoute: typeof MainComicCreatorIdRoute
   MainComicSlugRoute: typeof MainComicSlugRoute
   MainNewsIdRoute: typeof MainNewsIdRoute
   MainPostIdRoute: typeof MainPostIdRoute
@@ -1335,6 +1355,7 @@ const MainRouteRouteChildren: MainRouteRouteChildren = {
   MainTutorialsRoute: MainTutorialsRoute,
   MainVipRoute: MainVipRoute,
   MainIndexRoute: MainIndexRoute,
+  MainComicCreatorIdRoute: MainComicCreatorIdRoute,
   MainComicSlugRoute: MainComicSlugRoute,
   MainNewsIdRoute: MainNewsIdRoute,
   MainPostIdRoute: MainPostIdRoute,
