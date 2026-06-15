@@ -78,6 +78,27 @@ const DEFAULT_SEARCH_PAGE_SIZE = 12;
 const MAX_SEARCH_PAGE_SIZE = 60;
 const VIP_FEED_PAGE_SIZE = 9;
 const WEEKLY_POST_LIMIT = 7;
+
+type RelatedPostResult = {
+  averageRating: number;
+  coverImageObjectKey: string | null;
+  favorites: number;
+  id: string;
+  imageObjectKeys: string[] | null;
+  likes: number;
+  slug: string;
+  terms: {
+    id: string;
+    name: string;
+    taxonomy: string;
+    color: string;
+  }[];
+  thumbnailImageCount: number | null;
+  title: string;
+  type: "post" | "comic";
+  version: string | null;
+  views: number;
+};
 const releasedAtSort = sql<Date>`COALESCE(${post.releasedAt}, ${post.createdAt})`;
 
 export default {
@@ -1910,14 +1931,15 @@ export default {
       const logger = getLogger(context);
       logger?.info(`Fetching related posts for: ${input.postId}`);
 
-      const cacheKey = `rec:v2:${input.postId}`;
+      const cacheKey = `rec:v3:${input.postId}`;
 
       try {
         const redis = await getRedis();
         const cached = await redis.get(cacheKey);
         if (cached) {
           logger?.debug(`Cache hit for related posts: ${input.postId}`);
-          return JSON.parse(cached);
+          const cachedData = JSON.parse(cached) as RelatedPostResult[];
+          return cachedData.filter((item) => item.id !== input.postId);
         }
       } catch (error) {
         logger?.warn("Redis cache read failed for related posts");
@@ -2034,6 +2056,7 @@ export default {
           >`COALESCE(${termsAgg.terms}, '[]'::json)`,
           title: post.title,
           type: post.type,
+          version: post.version,
           views: post.views,
         })
         .from(post)
@@ -2053,7 +2076,9 @@ export default {
         .orderBy(sql`score DESC`)
         .limit(RECOMMENDATION_LIMIT);
 
-      const data = results.map(({ score: _, ...rest }) => rest);
+      const data = results
+        .filter((result) => result.id !== input.postId)
+        .map(({ score: _, ...rest }) => rest);
 
       if (data.length > 0) {
         try {
