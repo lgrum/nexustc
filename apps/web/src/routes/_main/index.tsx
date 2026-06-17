@@ -1,5 +1,6 @@
 import {
   FavouriteIcon,
+  ArrowRight01Icon,
   BookOpenTextIcon,
   Login03Icon,
   StarIcon,
@@ -591,13 +592,37 @@ function RecentPostsSection() {
       )}
 
       {!(isLoading || isError) && (
-        <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
-          {recentPosts?.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-        </div>
+        <>
+          <div className="relative">
+            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+              {recentPosts?.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+            </div>
+            {/* Fade the last row into the funnel below */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-linear-to-b from-transparent to-background" />
+          </div>
+          <BrowseAllGamesFunnel />
+        </>
       )}
     </section>
+  );
+}
+
+function BrowseAllGamesFunnel() {
+  return (
+    <div className="-mt-2 relative z-[60] flex justify-center">
+      <Link
+        className="group inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 py-2 pr-3 pl-4 font-medium text-primary text-sm transition-colors hover:border-primary/45 hover:bg-primary/15"
+        to="/juegos"
+      >
+        Explora todos los juegos
+        <HugeiconsIcon
+          className="size-4 transition-transform group-hover:translate-x-0.5"
+          icon={ArrowRight01Icon}
+        />
+      </Link>
+    </div>
   );
 }
 
