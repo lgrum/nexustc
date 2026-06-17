@@ -19,6 +19,11 @@ const nameUrlCreateSchema = z.object({
   name: z.string().trim().min(1).max(255),
   url: webUrlSchema,
 });
+const optionalNameUrlCreateSchema = nameUrlCreateSchema.extend({
+  url: z
+    .string()
+    .refine((value) => value === "" || webUrlSchema.safeParse(value).success),
+});
 
 type NameUrlFormValue = z.infer<typeof nameUrlCreateSchema>;
 
@@ -33,6 +38,7 @@ type NameUrlCreateDialogProps<TCreated extends NameUrlFormValue> = {
   >[0];
   namePlaceholder: string;
   onCreated?: (item: TCreated) => void;
+  requireUrl?: boolean;
   queryOptions: Parameters<
     ReturnType<typeof useQueryClient>["invalidateQueries"]
   >[0];
@@ -51,6 +57,7 @@ export function NameUrlCreateDialog<TCreated extends NameUrlFormValue>({
   mutationOptions,
   namePlaceholder,
   onCreated,
+  requireUrl = true,
   queryOptions,
   saveLabel,
   successMessage,
@@ -85,7 +92,7 @@ export function NameUrlCreateDialog<TCreated extends NameUrlFormValue>({
       setOpen(false);
     },
     validators: {
-      onSubmit: nameUrlCreateSchema,
+      onSubmit: requireUrl ? nameUrlCreateSchema : optionalNameUrlCreateSchema,
     },
   });
 
@@ -123,7 +130,7 @@ export function NameUrlCreateDialog<TCreated extends NameUrlFormValue>({
                   className="w-full"
                   label="URL"
                   placeholder="https://..."
-                  required
+                  required={requireUrl}
                 />
               )}
             </form.AppField>

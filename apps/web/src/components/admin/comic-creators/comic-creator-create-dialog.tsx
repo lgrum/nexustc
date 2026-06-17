@@ -31,6 +31,7 @@ export function ComicCreatorCreateDialog({
       namePlaceholder="Nombre del creador"
       onCreated={onCreated}
       queryOptions={orpc.comicCreator.admin.list.queryOptions()}
+      requireUrl={false}
       saveLabel="Guardar creador"
       successMessage="Creador creado."
     />

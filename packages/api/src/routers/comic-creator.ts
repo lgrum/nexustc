@@ -21,7 +21,7 @@ import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const comicCreatorInputSchema = z.object({
   name: z.string().trim().min(1).max(255),
-  url: webUrlSchema,
+  url: z.union([webUrlSchema, z.literal("")]),
 });
 const releasedAtSort = sql<Date>`COALESCE(${post.releasedAt}, ${post.createdAt})`;
 
