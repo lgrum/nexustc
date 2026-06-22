@@ -8,6 +8,7 @@ import {
   FavouriteCircleIcon,
   FavouriteIcon,
   Share08Icon,
+  ShuffleSquareIcon,
   StarIcon,
   ViewIcon,
 } from "@hugeicons/core-free-icons";
@@ -15,7 +16,7 @@ import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
@@ -182,6 +183,7 @@ export function PostHero() {
 
 export function PostStatsBar() {
   const post = usePost();
+  const navigate = useNavigate();
 
   const handleShare = async () => {
     try {
@@ -195,6 +197,20 @@ export function PostStatsBar() {
     } catch {
       toast.error("No se pudo copiar el enlace");
     }
+  };
+
+  const handleRandom = async () => {
+    const result = await orpcClient.post.getRandom({ type: post.type });
+    if (!result) {
+      return;
+    }
+
+    if (post.type === "comic") {
+      navigate({ params: { slug: result.slug }, to: "/comic/$slug" });
+      return;
+    }
+
+    navigate({ params: { id: result.slug }, to: "/post/$id" });
   };
 
   const createdAt = format(post.createdAt, "PP", { locale: es });
@@ -278,7 +294,7 @@ export function PostStatsBar() {
         <div className="h-px bg-border/60" />
 
         {/* Action buttons row */}
-        <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-5">
           <LikeButton postId={post.id} />
           <BookmarkButton postId={post.id} />
           <FollowButton contentId={post.id} />
@@ -291,6 +307,27 @@ export function PostStatsBar() {
               Compartir
             </TooltipTrigger>
             <TooltipContent>Copiar enlace al portapapeles</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              onClick={handleRandom}
+              render={
+                <Button
+                  className="h-11 rounded-xl border-white/15 bg-background/60 px-3"
+                  type="button"
+                  variant="outline"
+                />
+              }
+              title={
+                post.type === "comic" ? "Cómic aleatorio" : "Juego aleatorio"
+              }
+            >
+              <HugeiconsIcon className="size-4" icon={ShuffleSquareIcon} />
+              Aleatorio
+            </TooltipTrigger>
+            <TooltipContent>
+              {post.type === "comic" ? "Comic aleatorio" : "Juego aleatorio"}
+            </TooltipContent>
           </Tooltip>
         </div>
       </div>
