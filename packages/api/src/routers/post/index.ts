@@ -1409,7 +1409,7 @@ export default {
           db,
           errors,
         });
-        assertTextIsNotSpammy(input.content, errors);
+        assertTextIsNotSpammy(input.content, errors, session.user.role);
 
         const selectableEngagementPrompts =
           input.engagementPrompt === undefined
@@ -1540,7 +1540,7 @@ export default {
           db,
           errors,
         });
-        assertTextIsNotSpammy(input.content, errors);
+        assertTextIsNotSpammy(input.content, errors, session.user.role);
 
         const viewerTier = await getViewerPatronTier(db, session);
         const tokens = parseTokens(input.content);

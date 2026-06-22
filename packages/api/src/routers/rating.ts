@@ -85,7 +85,7 @@ export default {
         db,
         errors,
       });
-      assertTextIsNotSpammy(review, errors);
+      assertTextIsNotSpammy(review, errors, session.user.role);
 
       await db
         .insert(postRating)
@@ -132,7 +132,7 @@ export default {
         db,
         errors,
       });
-      assertTextIsNotSpammy(review, errors);
+      assertTextIsNotSpammy(review, errors, session.user.role);
 
       await db
         .update(postRating)

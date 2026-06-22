@@ -45,6 +45,10 @@ function block(reason: SpamDetectionReason, message: string) {
   return { message, ok: false, reason } as const;
 }
 
+function canBypassSpamDetection(role: string | null | undefined) {
+  return role === "admin" || role === "owner";
+}
+
 function getCustomTokenRanges(content: string) {
   return [...content.matchAll(COMBINED_TOKEN_PATTERN)].map((match) => ({
     end: match.index! + match[0].length,
@@ -189,7 +193,7 @@ function hasLowDiversity(content: string, words: SpamUnit[]) {
     .replace(COMBINED_TOKEN_PATTERN, "")
     .replaceAll(/\s+/g, "");
 
-  if (compact.length >= 40) {
+  if (compact.length >= 40 && words.length < 8) {
     const uniqueCharacters = new Set(compact).size;
 
     if (uniqueCharacters / compact.length <= 0.18) {
@@ -286,8 +290,13 @@ export function detectSpammyText(content: string): SpamDetectionResult {
 
 export function assertTextIsNotSpammy(
   content: string,
-  errors: { BAD_REQUEST: (input?: { message?: string }) => Error }
+  errors: { BAD_REQUEST: (input?: { message?: string }) => Error },
+  role?: string | null
 ) {
+  if (canBypassSpamDetection(role)) {
+    return;
+  }
+
   const spamResult = detectSpammyText(content);
 
   if (!spamResult.ok) {

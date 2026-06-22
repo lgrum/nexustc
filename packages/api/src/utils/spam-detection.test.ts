@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { detectSpammyText } from "./spam-detection";
+import { assertTextIsNotSpammy, detectSpammyText } from "./spam-detection";
 
 describe("detectSpammyText", () => {
   it("allows normal comments with some emphasis and emoji", () => {
     expect(
       detectSpammyText(
         "Me encanto esta version, el final estuvo buenisimo :party: :heart:"
+      )
+    ).toEqual({ ok: true });
+  });
+
+  it("allows long normal comments without treating natural language as low variety", () => {
+    expect(
+      detectSpammyText(
+        "La escena final me parecio muy buena porque cierra el conflicto con calma, deja claro lo que queria el personaje y ademas conecta bien con los detalles que fueron apareciendo antes."
       )
     ).toEqual({ ok: true });
   });
@@ -77,5 +85,29 @@ describe("detectSpammyText", () => {
       ok: false,
       reason: "too_many_links",
     });
+  });
+
+  it("lets administration roles bypass spam detection", () => {
+    expect(() =>
+      assertTextIsNotSpammy(
+        "spam spam spam spam spam spam spam spam",
+        {
+          BAD_REQUEST: ({ message } = {}) => new Error(message),
+        },
+        "admin"
+      )
+    ).not.toThrow();
+  });
+
+  it("does not let moderators bypass spam detection", () => {
+    expect(() =>
+      assertTextIsNotSpammy(
+        "spam spam spam spam spam spam spam spam",
+        {
+          BAD_REQUEST: ({ message } = {}) => new Error(message),
+        },
+        "moderator"
+      )
+    ).toThrow();
   });
 });
