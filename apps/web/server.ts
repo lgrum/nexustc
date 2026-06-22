@@ -163,11 +163,11 @@ type AssetMetadata = {
  * In-memory asset with ETag and Gzip support
  */
 type InMemoryAsset = {
-  raw: Uint8Array;
-  gz?: Uint8Array;
+  raw: ArrayBuffer;
+  gz?: ArrayBuffer;
   etag?: string;
+  route: string;
   type: string;
-  immutable: boolean;
   size: number;
 };
 
@@ -181,6 +181,12 @@ type PreloadResult = {
 };
 
 const relativePathRegex = /[/\\]/;
+
+function getCacheControl(route: string): string {
+  return route.startsWith("/assets/")
+    ? "public, max-age=31536000, immutable"
+    : "public, max-age=3600";
+}
 
 /**
  * Check if a file is eligible for preloading based on configured patterns
@@ -244,9 +250,7 @@ function createResponseHandler(
 ): (req: Request) => Response {
   return (req: Request) => {
     const headers: Record<string, string> = {
-      "Cache-Control": asset.immutable
-        ? "public, max-age=31536000, immutable"
-        : "public, max-age=3600",
+      "Cache-Control": getCacheControl(asset.route),
       "Content-Type": asset.type,
     };
 
@@ -268,13 +272,11 @@ function createResponseHandler(
     ) {
       headers["Content-Encoding"] = "gzip";
       headers["Content-Length"] = String(asset.gz.byteLength);
-      const gzCopy = new Uint8Array(asset.gz);
-      return new Response(gzCopy, { headers, status: 200 });
+      return new Response(asset.gz, { headers, status: 200 });
     }
 
     headers["Content-Length"] = String(asset.raw.byteLength);
-    const rawCopy = new Uint8Array(asset.raw);
-    return new Response(rawCopy, { headers, status: 200 });
+    return new Response(asset.raw, { headers, status: 200 });
   };
 }
 
@@ -380,9 +382,9 @@ async function initializeStaticRoutes(
           const etag = ENABLE_ETAG ? computeEtag(bytes) : undefined;
           const asset: InMemoryAsset = {
             etag,
-            gz,
-            immutable: true,
-            raw: bytes,
+            gz: gz?.buffer as ArrayBuffer | undefined,
+            raw: bytes.buffer as ArrayBuffer,
+            route,
             size: bytes.byteLength,
             type: metadata.type,
           };
@@ -396,7 +398,7 @@ async function initializeStaticRoutes(
             const fileOnDemand = Bun.file(filepath);
             return new Response(fileOnDemand, {
               headers: {
-                "Cache-Control": "public, max-age=3600",
+                "Cache-Control": getCacheControl(route),
                 "Content-Type": metadata.type,
               },
             });

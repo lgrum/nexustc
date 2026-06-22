@@ -16,21 +16,36 @@ export const db = drizzle(env.DATABASE_URL, {
 });
 
 let client: RedisClientType | null = null;
+let clientPromise: Promise<RedisClientType> | null = null;
 
-export async function getRedis(): Promise<RedisClientType> {
+export function getRedis(): Promise<RedisClientType> {
   if (client?.isOpen) {
-    return client;
+    return Promise.resolve(client);
   }
 
-  client = createClient({ url: env.REDIS_URL });
+  if (!client && clientPromise) {
+    return clientPromise;
+  }
 
-  client.on("error", (err) => {
-    console.error("Redis error", err);
-  });
+  clientPromise = null;
 
-  await client.connect();
+  clientPromise = (async () => {
+    const nextClient = createClient({ url: env.REDIS_URL }) as RedisClientType;
+    nextClient.on("error", (err) => {
+      console.error("Redis error", err);
+    });
 
-  return client;
+    try {
+      await nextClient.connect();
+      client = nextClient;
+      return nextClient;
+    } catch (error) {
+      clientPromise = null;
+      throw error;
+    }
+  })();
+
+  return clientPromise;
 }
 
 // Re-export commonly used drizzle-orm functions to ensure all packages use the same instance

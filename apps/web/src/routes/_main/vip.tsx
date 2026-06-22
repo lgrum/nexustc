@@ -49,7 +49,7 @@ function RouteComponent() {
     queryFn: () => orpcClient.post.getVipFeed({ page: params.page }),
     queryKey: ["posts", "vip-feed", params.page],
     refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
   const { items, pagination } = feed;
 

@@ -10,6 +10,7 @@ declare global {
 }
 
 const DETECTION_THRESHOLD = 1;
+const SESSION_CACHE_KEY = "nexustc:adblock-detected";
 
 function checkDomBait(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -121,6 +122,12 @@ export function useAdblockDetector() {
     let mounted = true;
 
     const runDetection = async () => {
+      const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
+      if (cached !== null) {
+        setState({ checked: true, detected: cached === "true" });
+        return;
+      }
+
       const results = await Promise.all([
         withTimeout(checkDomBait(), 3000, false),
         withTimeout(checkBaitScript(), 5000, false),
@@ -135,7 +142,7 @@ export function useAdblockDetector() {
       const positiveCount = results.filter(Boolean).length;
       const detected = positiveCount >= DETECTION_THRESHOLD;
 
-      console.log(results);
+      sessionStorage.setItem(SESSION_CACHE_KEY, String(detected));
 
       setState({ checked: true, detected });
     };

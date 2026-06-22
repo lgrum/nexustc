@@ -172,6 +172,9 @@ function HeroSection() {
             <img
               alt={main.title}
               className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+              decoding="async"
+              fetchPriority="high"
+              loading="eager"
               src={getBucketUrl(mainImage)}
             />
           )}
@@ -287,6 +290,8 @@ function HeroSecondaryCard({ post }: { post: PostProps }) {
         <img
           alt={post.title}
           className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.05]"
+          decoding="async"
+          loading="lazy"
           src={getBucketUrl(cover)}
         />
       ) : (
@@ -611,7 +616,7 @@ function RecentPostsSection() {
 
 function BrowseAllGamesFunnel() {
   return (
-    <div className="-mt-2 relative z-[60] flex justify-center">
+    <div className="-mt-2 relative z-60 flex justify-center">
       <Link
         className="group inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 py-2 pr-3 pl-4 font-medium text-primary text-sm transition-colors hover:border-primary/45 hover:bg-primary/15"
         to="/juegos"

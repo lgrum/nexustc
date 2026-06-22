@@ -156,6 +156,8 @@ function PostCardContent({
             <img
               alt={post.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              decoding="async"
+              loading="lazy"
               src={images[0]}
             />
           )}
@@ -163,6 +165,8 @@ function PostCardContent({
             <img
               alt={post.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+              decoding="async"
+              loading="lazy"
               src={images[0]}
             />
           )}
@@ -172,7 +176,9 @@ function PostCardContent({
                 <img
                   alt={post.title}
                   className="h-full w-full object-cover"
+                  decoding="async"
                   key={img}
+                  loading="lazy"
                   src={img}
                 />
               ))}
@@ -184,17 +190,23 @@ function PostCardContent({
                 <img
                   alt={post.title}
                   className="h-full w-full object-cover"
+                  decoding="async"
+                  loading="lazy"
                   src={images[0]}
                 />
                 <img
                   alt={post.title}
                   className="h-full w-full object-cover"
+                  decoding="async"
+                  loading="lazy"
                   src={images[1]}
                 />
               </div>
               <img
                 alt={post.title}
                 className="h-full w-full object-cover"
+                decoding="async"
+                loading="lazy"
                 src={images[2]}
               />
             </div>
@@ -205,7 +217,9 @@ function PostCardContent({
                 <img
                   alt={post.title}
                   className="h-full w-full object-cover"
+                  decoding="async"
                   key={img}
+                  loading="lazy"
                   src={img}
                 />
               ))}

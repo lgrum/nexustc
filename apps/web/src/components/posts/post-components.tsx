@@ -1148,6 +1148,7 @@ export function TutorialsSection() {
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 allowFullScreen
                 className="aspect-video w-full border border-border"
+                loading="lazy"
                 referrerPolicy="strict-origin-when-cross-origin"
                 src={tutorial.embedUrl}
                 title="YouTube video player"

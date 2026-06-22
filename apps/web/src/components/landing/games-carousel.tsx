@@ -68,6 +68,8 @@ function GameSpotlightCard({ post, rank }: { post: PostProps; rank: number }) {
             <img
               alt={post.title}
               className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+              decoding="async"
+              loading="lazy"
               src={cover}
             />
           ) : (

@@ -1,11 +1,13 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, asc, desc, eq, sql } from "@repo/db";
+import { and, asc, desc, eq, getRedis, sql } from "@repo/db";
 import { post, term, termPostRelation } from "@repo/db/schema/app";
 import { TAXONOMIES } from "@repo/shared/constants";
 import z from "zod";
 
 import { permissionProcedure, publicProcedure } from "../index";
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
+
+const POPULAR_TAGS_CACHE_SECONDS = 300;
 
 export default {
   create: permissionProcedure({ terms: ["create"] })
@@ -102,15 +104,33 @@ export default {
         minPostUsage: z.number().int().min(1).max(100).default(3),
       })
     )
-    .handler(({ context: { db, ...ctx }, input }) => {
+    .handler(async ({ context: { db, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `Fetching popular tags with at least ${input.minPostUsage} post uses`
       );
 
+      const cacheKey = `terms:popular-tags:v1:${input.minPostUsage}:${input.limit}`;
+      try {
+        const redis = await getRedis();
+        const cached = await redis.get(cacheKey);
+        if (cached) {
+          return JSON.parse(cached) as {
+            color: string | null;
+            id: string;
+            name: string;
+            taxonomy: (typeof TAXONOMIES)[number];
+            usageCount: number;
+          }[];
+        }
+      } catch (error) {
+        logger?.warn("Redis cache read failed for popular tags");
+        logger?.warn(error);
+      }
+
       const tagUsageCount = sql<number>`COUNT(${termPostRelation.postId})`;
 
-      return db
+      const tags = await db
         .select({
           color: term.color,
           id: term.id,
@@ -133,6 +153,18 @@ export default {
         .having(sql`${tagUsageCount} >= ${input.minPostUsage}`)
         .orderBy(desc(tagUsageCount), asc(term.name))
         .limit(input.limit);
+
+      try {
+        const redis = await getRedis();
+        await redis.set(cacheKey, JSON.stringify(tags), {
+          EX: POPULAR_TAGS_CACHE_SECONDS,
+        });
+      } catch (error) {
+        logger?.warn("Redis cache write failed for popular tags");
+        logger?.warn(error);
+      }
+
+      return tags;
     }),
 
   getDashboardList: permissionProcedure({ terms: ["list"] }).handler(
