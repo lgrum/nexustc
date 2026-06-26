@@ -1,13 +1,14 @@
 import { parseTokens } from "@repo/shared/token-parser";
 
 const COMBINED_TOKEN_PATTERN = /:(\w[\w-]*):|\[sticker:(\w[\w-]*)\]/g;
-const URL_PATTERN = /(?:https?:\/\/|www\.)\S+/gi;
+const URL_PATTERN =
+  /\b(?:https?:\/\/|www\.|(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+(?:com|net|org|io|gg|tv|me|co|app|dev|xyz|info|biz|link|site|online|store|club|cloud|art|to|ly|cc|fm|es|ar|br|mx|cl|pe|uy|de|fr|uk|us|ca|au)(?:[/?#:@]\S*)?)/iu;
+const BLOCKED_DOWNLOAD_HOSTS = ["mediafire", "gofile"] as const;
 const WORD_PATTERN = /[\p{L}\p{N}]+/gu;
 const EMOJI_PATTERN = /\p{Extended_Pictographic}/u;
 const REPEATED_CHARACTER_PATTERN = /([\p{L}\p{N}!?,.;:_-])\1{9,}/u;
 const MAX_IDENTICAL_EMOJI_RUN = 8;
 const MAX_IDENTICAL_TOKEN_RUN = 6;
-const MAX_LINKS = 3;
 const MIN_REPEATED_SUBSTRING_LENGTH = 2;
 const MAX_REPEATED_SUBSTRING_LENGTH = 24;
 const MIN_REPEATED_SUBSTRING_REPETITIONS = 4;
@@ -19,7 +20,7 @@ export type SpamDetectionReason =
   | "repeated_substring"
   | "repeated_tokens"
   | "repeated_words"
-  | "too_many_links";
+  | "url";
 
 export type SpamDetectionResult =
   | { ok: true }
@@ -47,6 +48,11 @@ function block(reason: SpamDetectionReason, message: string) {
 
 function canBypassSpamDetection(role: string | null | undefined) {
   return role === "admin" || role === "owner";
+}
+
+function hasBlockedDownloadHost(content: string) {
+  const compact = normalizeText(content).replaceAll(/[^\p{L}\p{N}]+/gu, "");
+  return BLOCKED_DOWNLOAD_HOSTS.some((host) => compact.includes(host));
 }
 
 function getCustomTokenRanges(content: string) {
@@ -217,11 +223,17 @@ export function detectSpammyText(content: string): SpamDetectionResult {
     return { ok: true };
   }
 
-  const linkCount = [...trimmedContent.matchAll(URL_PATTERN)].length;
-  if (linkCount >= MAX_LINKS) {
+  if (URL_PATTERN.test(trimmedContent)) {
     return block(
-      "too_many_links",
-      "Tu mensaje incluye demasiados enlaces. Reducilos antes de enviarlo."
+      "url",
+      "Tu mensaje no puede incluir enlaces. Quitalos antes de enviarlo."
+    );
+  }
+
+  if (hasBlockedDownloadHost(trimmedContent)) {
+    return block(
+      "url",
+      "Tu mensaje no puede incluir enlaces de descarga. Quitalos antes de enviarlo."
     );
   }
 

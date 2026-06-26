@@ -78,12 +78,28 @@ describe("detectSpammyText", () => {
     });
   });
 
-  it("blocks too many links", () => {
-    expect(
-      detectSpammyText("https://a.test https://b.test www.c.test")
-    ).toMatchObject({
+  it("blocks links", () => {
+    expect(detectSpammyText("Mira esto https://example.com")).toMatchObject({
       ok: false,
-      reason: "too_many_links",
+      reason: "url",
+    });
+  });
+
+  it("blocks domain-like text without a protocol", () => {
+    expect(detectSpammyText("Mira example.com cuando puedas")).toMatchObject({
+      ok: false,
+      reason: "url",
+    });
+  });
+
+  it("blocks known download hosts even without a URL", () => {
+    expect(detectSpammyText("Subido a mediafire")).toMatchObject({
+      ok: false,
+      reason: "url",
+    });
+    expect(detectSpammyText("Tambien esta en g o f i l e")).toMatchObject({
+      ok: false,
+      reason: "url",
     });
   });
 
