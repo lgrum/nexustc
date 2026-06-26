@@ -155,6 +155,21 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
     }
   };
 
+  const copyTags = async () => {
+    const tagsById = new Map(groupedTerms.tag?.map((tag) => [tag.id, tag]));
+    const tagNames = form
+      .getFieldValue("tags")
+      .map((tagId) => tagsById.get(tagId)?.name)
+      .filter((name): name is string => Boolean(name));
+
+    try {
+      await navigator.clipboard.writeText(tagNames.join(", "));
+      toast.success("Tags copiados al portapapeles");
+    } catch {
+      toast.error("No se pudieron copiar los tags");
+    }
+  };
+
   return (
     <div className="grid grid-cols-2 gap-4">
       <form.AppField name="title">
@@ -385,6 +400,9 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <Button onClick={copyTags} type="button" variant="outline">
+          Copiar Tags
+        </Button>
       </div>
 
       <form.AppField name="documentStatus">
