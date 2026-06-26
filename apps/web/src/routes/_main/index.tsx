@@ -148,6 +148,10 @@ function HeroSection() {
 
   const posts = featuredPosts.data;
   const main = posts.find((p) => p.position === "main");
+  const mainStatusName = main?.terms?.find(
+    (term) => term.taxonomy === "status"
+  )?.name;
+  const mainVersionClassName = getSecondaryStatusClassName(mainStatusName);
   const [mainImage] = getThumbnailImageObjectKeys(
     main?.imageObjectKeys,
     1,
@@ -190,6 +194,17 @@ function HeroSection() {
             <span className="size-1.5 rounded-full bg-primary animate-pulse" />
             Destacado
           </div>
+
+          {main.version && (
+            <span
+              className={cn(
+                "absolute right-4 top-4 z-10 inline-flex items-center rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider backdrop-blur-md",
+                mainVersionClassName
+              )}
+            >
+              {main.version}
+            </span>
+          )}
 
           {/* Content */}
           <div className="absolute inset-x-0 bottom-0 z-10 p-5 md:p-7">

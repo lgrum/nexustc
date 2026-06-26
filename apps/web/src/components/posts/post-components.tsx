@@ -14,6 +14,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -63,6 +64,34 @@ export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
   averageRating?: number;
   ratingCount?: number;
 };
+
+const ABANDONED_STATUS_NAME = "Abandonado";
+
+export function getVersionBadgeClassName(statusName: string | undefined) {
+  if (statusName === ABANDONED_STATUS_NAME) {
+    return "border-red-500/40 bg-red-500/20 text-red-200";
+  }
+
+  if (
+    statusName !== undefined &&
+    PREMIUM_STATUS_CATEGORIES.ongoing.includes(
+      statusName as (typeof PREMIUM_STATUS_CATEGORIES.ongoing)[number]
+    )
+  ) {
+    return "border-amber-400/40 bg-amber-400/20 text-amber-100";
+  }
+
+  if (
+    statusName !== undefined &&
+    PREMIUM_STATUS_CATEGORIES.completed.includes(
+      statusName as (typeof PREMIUM_STATUS_CATEGORIES.completed)[number]
+    )
+  ) {
+    return "border-emerald-500/40 bg-emerald-500/20 text-emerald-100";
+  }
+
+  return "border-white/25 bg-white/15 text-white/90";
+}
 
 export function PostPage({ post }: { post: PostProps }) {
   const showRestrictedView = post.earlyAccess.isRestrictedView;
@@ -139,6 +168,10 @@ export function PostPage({ post }: { post: PostProps }) {
 
 export function PostHero() {
   const post = usePost();
+  const statusName = post.terms?.find(
+    (term) => term.taxonomy === "status"
+  )?.name;
+  const versionBadgeClassName = getVersionBadgeClassName(statusName);
   const mainImage = getCoverImageObjectKey(
     post.imageObjectKeys,
     post.coverImageObjectKey
@@ -159,7 +192,9 @@ export function PostHero() {
               {post.title}
             </h1>
             <div className="py-2 text-sm">
-              {post.version && <Badge variant="default">{post.version}</Badge>}
+              {post.version && (
+                <Badge className={versionBadgeClassName}>{post.version}</Badge>
+              )}
             </div>
           </div>
         </div>
@@ -169,7 +204,9 @@ export function PostHero() {
             {post.title}
           </h1>
           <div className="flex flex-wrap items-center gap-4">
-            {post.version && <Badge variant="secondary">{post.version}</Badge>}
+            {post.version && (
+              <Badge className={versionBadgeClassName}>{post.version}</Badge>
+            )}
             <Badge className="gap-1.5" variant="secondary">
               <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
               {format(post.createdAt, "d 'de' MMMM, yyyy", { locale: es })}

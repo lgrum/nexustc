@@ -1934,7 +1934,7 @@ export default {
       const logger = getLogger(context);
       logger?.info(`Fetching related posts for: ${input.postId}`);
 
-      const cacheKey = `rec:v3:${input.postId}`;
+      const cacheKey = `rec:v4:${input.postId}`;
 
       try {
         const redis = await getRedis();

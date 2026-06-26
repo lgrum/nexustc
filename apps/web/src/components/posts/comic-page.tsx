@@ -53,6 +53,7 @@ import {
   DiscordSection,
   PostChangelog,
   PostContent,
+  getVersionBadgeClassName,
   PostInfo,
   PostPartsSection,
   PostStatsBar,
@@ -256,6 +257,10 @@ function ComicHero({
     comicProgress?.status === "read" ? "Leer de nuevo" : "Empezar a leer";
   const showResumePrompt =
     comicProgress?.resumePromptEnabled === true && resumePage !== null;
+  const statusName = comic.terms?.find(
+    (term) => term.taxonomy === "status"
+  )?.name;
+  const versionBadgeClassName = getVersionBadgeClassName(statusName);
 
   return (
     <section
@@ -317,7 +322,12 @@ function ComicHero({
               </span>
             )}
             {comic.version && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-background/40 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground backdrop-blur-md">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] backdrop-blur-md",
+                  versionBadgeClassName
+                )}
+              >
                 {comic.version}
               </span>
             )}
