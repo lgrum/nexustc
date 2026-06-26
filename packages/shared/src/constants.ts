@@ -308,6 +308,27 @@ export function isActiveEntitledPatron(
   return patronStatus === "active_patron" && tier !== "none";
 }
 
+export type AdPolicy = "all" | "some" | "none";
+
+export function getAdPolicy(user: {
+  role?: string | null;
+  tier: PatronTier;
+}): AdPolicy {
+  if (user.role && user.role !== "user") {
+    return "none";
+  }
+
+  if (user.tier === "none") {
+    return "all";
+  }
+
+  if (user.tier === "level1" || user.tier === "level3") {
+    return "some";
+  }
+
+  return "none";
+}
+
 type PatronStatusUpdate = {
   isActivePatron: boolean;
   patronSince?: Date | null;

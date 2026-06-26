@@ -27,6 +27,7 @@ import { es } from "date-fns/locale";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
 
+import { AdSlot } from "@/components/ads/ad-slot";
 import { formatCount, SectionHeader } from "@/components/search/library-shared";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
@@ -175,6 +176,12 @@ function ComicInfoPage({
         />
 
         <PostStatsBar />
+
+        {!comic.earlyAccess.isRestrictedView && (
+          <div className="px-4 pt-4">
+            <AdSlot className="eas6a97888e20" zoneId="5950174" />
+          </div>
+        )}
 
         <div className="flex flex-col gap-6 px-4 pt-6">
           {!comic.earlyAccess.isRestrictedView && (

@@ -24,6 +24,7 @@ import Autoplay from "embla-carousel-autoplay";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AdSlot } from "@/components/ads/ad-slot";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
 import { trackEvent } from "@/lib/analytics";
@@ -86,6 +87,11 @@ export function PostPage({ post }: { post: PostProps }) {
           <PostHero />
           <EarlyAccessStatusBanner />
           {!showRestrictedView && <PostStatsBar />}
+          {!showRestrictedView && (
+            <div className="px-4 pt-4 md:hidden">
+              <AdSlot className="eas6a97888e20" zoneId="5950174" />
+            </div>
+          )}
           <div className="flex flex-col gap-4 px-4 pt-4">
             {!showRestrictedView && (
               <div aria-hidden="true" className="h-px" ref={viewTargetRef} />
@@ -732,6 +738,7 @@ export function PostSidebarContent() {
     <div className="flex flex-col gap-4">
       <CreatorSupportCard />
       <TranslatorSupportCard />
+      <AdSlot className="eas6a97888e20" zoneId="5950174" />
 
       <div className="flex flex-col gap-3">
         <div className="section-title">Recomendados</div>

@@ -7,6 +7,7 @@ import type { ErrorComponentProps } from "@tanstack/react-router";
 import { Suspense } from "react";
 
 import { AdblockBlockerDialog } from "@/components/adblock-blocker-dialog";
+import { useViewerAdPolicy } from "@/components/ads/ad-slot";
 import { BottomNav } from "@/components/bottom-nav";
 import { Footer } from "@/components/landing/footer";
 import { Header } from "@/components/landing/header";
@@ -58,10 +59,11 @@ export const Route = createFileRoute("/_main")({
 function MainLayout() {
   const { items } = Route.useLoaderData();
   const { detected } = useAdblockDetector();
+  const { policy } = useViewerAdPolicy();
 
   return (
     <Wrapper marqueeItems={items}>
-      <AdblockBlockerDialog open={detected} />
+      <AdblockBlockerDialog open={detected && policy !== "none"} />
       <Suspense fallback={<LoadingSpinner />}>
         <Outlet />
       </Suspense>
