@@ -1,9 +1,10 @@
 import { Book02Icon, Notification03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import Image from "next/image";
+import Link from "next/link";
 
 import { NotificationFeedList } from "@/components/notifications/notification-feed";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +18,11 @@ import { getBucketUrl } from "@/lib/utils";
 const FOLLOWING_LIMIT = 20;
 
 export function FollowingSection() {
-  const followingQuery = useQuery(
+  const {
+    data: following,
+    isLoading: followingLoading,
+    isPending: followingPending,
+  } = useQuery(
     orpc.notification.getFollowing.queryOptions({
       input: { limit: FOLLOWING_LIMIT },
     })
@@ -43,11 +48,11 @@ export function FollowingSection() {
     })
   );
 
-  if (followingQuery.isLoading || followingQuery.isPending) {
+  if (followingLoading || followingPending) {
     return <FollowingSectionSkeleton />;
   }
 
-  if (!followingQuery.data) {
+  if (!following) {
     return (
       <div className="rounded-[2rem] border border-border bg-card p-6">
         <p className="text-muted-foreground text-sm">
@@ -57,10 +62,8 @@ export function FollowingSection() {
     );
   }
 
-  const games = followingQuery.data.follows.filter(
-    (item) => item.contentType === "post"
-  );
-  const comics = followingQuery.data.follows.filter(
+  const games = following.follows.filter((item) => item.contentType === "post");
+  const comics = following.follows.filter(
     (item) => item.contentType === "comic"
   );
 
@@ -112,7 +115,7 @@ export function FollowingSection() {
           emptyCopy="En cuanto uno de tus títulos seguidos reciba páginas nuevas, noticias del staff o versiones nuevas, lo verás aquí."
           emptyTitle="Aún no hay novedades"
           isMarking={markReadMutation.isPending}
-          items={followingQuery.data.updates}
+          items={following.updates}
           onMarkRead={(notificationId) => {
             trackEvent("notification_mark_read_clicked", {
               notificationId,
@@ -167,15 +170,16 @@ function FollowedContentGrid({
                 contentType: item.contentType,
               })
             }
-            params={{ id: item.contentId }}
-            to="/post/$id"
+            href={`/post/${item.contentId}`}
           >
             <Card className="h-full rounded-[1.5rem] py-0 transition-transform hover:-translate-y-1">
               <div className="relative aspect-[2.1/1] overflow-hidden border-border/50 border-b bg-muted">
                 {imageObjectKey ? (
-                  <img
+                  <Image
                     alt={item.title}
-                    className="h-full w-full object-cover"
+                    className="object-cover"
+                    fill
+                    sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
                     src={getBucketUrl(imageObjectKey)}
                   />
                 ) : null}

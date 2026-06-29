@@ -23,6 +23,6 @@ export function useDebounceEffect(
     return () => {
       clearTimeout(t);
     };
-    // oxlint-disable-next-line eslint-plugin-react-hooks/exhaustive-deps: We intentionally defer dependency management to the user
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- The caller owns the dependency list.
   }, deps);
 }

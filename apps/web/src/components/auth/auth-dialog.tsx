@@ -13,11 +13,11 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import type { TurnstileInstance } from "@marsidev/react-turnstile";
-import { env } from "@repo/env/client";
 import { ALLOWED_EMAIL_DOMAINS } from "@repo/shared/constants";
 import { useStore } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
@@ -52,7 +52,7 @@ export function AuthDialogContent() {
   const loginTurnstileRef = useRef<TurnstileInstance>(null);
   const registerTurnstileRef = useRef<TurnstileInstance>(null);
 
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const loginForm = useAppForm({
     defaultValues: {
@@ -124,7 +124,7 @@ export function AuthDialogContent() {
           method: "email",
           source: "auth_dialog",
         });
-        navigate({ to: "/" });
+        router.push("/");
       } catch (error) {
         trackEvent("login_failed", {
           reason: "exception",
@@ -317,7 +317,7 @@ export function AuthDialogContent() {
                 <div className="-mt-1 flex justify-end">
                   <Link
                     className="text-[12px] text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
-                    to="/forgot-password"
+                    href="/forgot-password"
                   >
                     ¿Olvidaste tu contraseña?
                   </Link>
@@ -616,7 +616,7 @@ function TurnstileContainer({
         theme: "auto",
       }}
       ref={ref}
-      siteKey={env.VITE_TURNSTILE_SITE_KEY}
+      siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
     />
   );
 }

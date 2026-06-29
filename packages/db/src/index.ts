@@ -30,7 +30,13 @@ export function getRedis(): Promise<RedisClientType> {
   clientPromise = null;
 
   clientPromise = (async () => {
-    const nextClient = createClient({ url: env.REDIS_URL }) as RedisClientType;
+    const nextClient = createClient({
+      socket: {
+        connectTimeout: 5000,
+        reconnectStrategy: false,
+      },
+      url: env.REDIS_URL,
+    }) as RedisClientType;
     nextClient.on("error", (err) => {
       console.error("Redis error", err);
     });

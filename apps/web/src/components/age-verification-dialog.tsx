@@ -82,7 +82,6 @@ export function AgeVerificationDialog() {
 
   useEffect(() => {
     if (!open) {
-      setHasReadDisclaimer(false);
       return;
     }
 

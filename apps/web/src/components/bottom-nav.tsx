@@ -11,7 +11,8 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { AuthDialog, AuthDialogContent } from "@/components/auth/auth-dialog";
@@ -25,13 +26,13 @@ import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 export function BottomNav() {
-  const location = useLocation();
+  const pathname = usePathname();
 
   const isActive = (href: string) => {
     if (href === "/") {
-      return location.pathname === "/";
+      return pathname === "/";
     }
-    return location.pathname.startsWith(href);
+    return pathname.startsWith(href);
   };
 
   const isExtrasActive =
@@ -74,13 +75,10 @@ function NavItem({
   icon: IconSvgElement;
   active?: boolean;
 }) {
-  const location = useLocation();
+  const pathname = usePathname();
 
   const isItemActive =
-    active ??
-    (href === "/"
-      ? location.pathname === "/"
-      : location.pathname.startsWith(href));
+    active ?? (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <Link
@@ -91,7 +89,7 @@ function NavItem({
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
       )}
-      to={href}
+      href={href}
     >
       {isItemActive && (
         <span className="absolute top-0 left-1/2 h-0.75 w-6 -translate-x-1/2 rounded-full bg-primary" />
@@ -104,7 +102,7 @@ function NavItem({
 
 function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
   const { data: auth } = authClient.useSession();
-  const navigate = useNavigate();
+  const router = useRouter();
   const [openAuth, setOpenAuth] = useState(false);
 
   return (
@@ -134,24 +132,24 @@ function ExtrasNavMenu({ isActive }: { isActive: boolean }) {
           <span className="font-medium text-[10px]">Extras</span>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="center" side="top" sideOffset={8}>
-          <DropdownMenuItem onClick={() => navigate({ to: "/chronos" })}>
+          <DropdownMenuItem onClick={() => router.push("/chronos")}>
             <HugeiconsIcon icon={Clock01Icon} />
             TheChronos
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate({ to: "/news" })}>
+          <DropdownMenuItem onClick={() => router.push("/news")}>
             <HugeiconsIcon icon={News01Icon} />
             Noticias
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate({ to: "/tutorials" })}>
+          <DropdownMenuItem onClick={() => router.push("/tutorials")}>
             <HugeiconsIcon icon={Book03Icon} />
             Tutoriales
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate({ to: "/memberships" })}>
+          <DropdownMenuItem onClick={() => router.push("/memberships")}>
             <HugeiconsIcon icon={Crown02Icon} />
             Membresías
           </DropdownMenuItem>
           {auth?.session ? (
-            <DropdownMenuItem onClick={() => navigate({ to: "/profile" })}>
+            <DropdownMenuItem onClick={() => router.push("/profile")}>
               <HugeiconsIcon icon={UserIcon} />
               Perfil
             </DropdownMenuItem>

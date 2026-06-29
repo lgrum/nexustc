@@ -136,13 +136,13 @@ export function CommentContent({
 }
 
 export function useEmojiStickerMaps() {
-  const emojiQuery = useQuery({
+  const { data: emojis } = useQuery({
     queryFn: () => orpcClient.emoji.list(),
     queryKey: ["emojis-for-rendering"],
     staleTime: 5 * 60 * 1000,
   });
 
-  const stickerQuery = useQuery({
+  const { data: stickers } = useQuery({
     queryFn: () => orpcClient.sticker.list(),
     queryKey: ["stickers-for-rendering"],
     staleTime: 5 * 60 * 1000,
@@ -153,7 +153,7 @@ export function useEmojiStickerMaps() {
       string,
       { assetKey: string; type: string; displayName: string }
     >();
-    for (const e of emojiQuery.data ?? []) {
+    for (const e of emojis ?? []) {
       map.set(e.name, {
         assetKey: e.assetKey,
         displayName: e.displayName,
@@ -161,14 +161,14 @@ export function useEmojiStickerMaps() {
       });
     }
     return map;
-  }, [emojiQuery.data]);
+  }, [emojis]);
 
   const stickerMap = useMemo(() => {
     const map = new Map<
       string,
       { assetKey: string; type: string; displayName: string }
     >();
-    for (const s of stickerQuery.data ?? []) {
+    for (const s of stickers ?? []) {
       map.set(s.name, {
         assetKey: s.assetKey,
         displayName: s.displayName,
@@ -176,7 +176,7 @@ export function useEmojiStickerMaps() {
       });
     }
     return map;
-  }, [stickerQuery.data]);
+  }, [stickers]);
 
   return { emojiMap, stickerMap };
 }

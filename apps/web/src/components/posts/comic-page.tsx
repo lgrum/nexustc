@@ -21,9 +21,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
 
@@ -114,11 +115,11 @@ export function ComicPage({
     orpc.comicProgress.getByComicId.queryOptions({
       input: { comicId: comic.id },
     });
-  const comicProgressQuery = useQuery({
+  const { data: comicProgressData } = useQuery({
     ...comicProgressQueryOptions,
     enabled: isAuthed,
   });
-  const comicProgress = (comicProgressQuery.data ?? null) as ComicProgressData;
+  const comicProgress = (comicProgressData ?? null) as ComicProgressData;
 
   const setPage = useMemo(
     () => (newPage: number) => {
@@ -126,10 +127,6 @@ export function ComicPage({
     },
     [setComicPage]
   );
-
-  if (!comic) {
-    return <Navigate to="/" />;
-  }
 
   return (
     <PostProvider post={comic}>
@@ -270,10 +267,12 @@ function ComicHero({
       {/* Backdrop: blurred + saturated cover */}
       <div className="pointer-events-none absolute inset-0">
         {coverUrl ? (
-          <img
+          <Image
             alt=""
             aria-hidden
-            className="h-full w-full object-cover saturate-[1.4] blur-2xl scale-110 opacity-50"
+            className="object-cover saturate-[1.4] blur-2xl scale-110 opacity-50"
+            fill
+            sizes="100vw"
             src={coverUrl}
           />
         ) : (
@@ -335,10 +334,8 @@ function ComicHero({
               <Link
                 className="contents"
                 key={tag.id}
-                preload={false}
-                resetScroll={false}
-                search={{ tag: [tag.id] }}
-                to="/comics"
+                href={{ pathname: "/comics", query: { tag: tag.id } }}
+                prefetch={false}
               >
                 <TermBadge tag={tag} />
               </Link>
@@ -412,9 +409,12 @@ function ComicHeroPoster({
       <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90" />
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/15 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:-rotate-1 group-hover:scale-[1.02]">
         {coverUrl ? (
-          <img
+          <Image
             alt={`Portada de ${title}`}
-            className="h-full w-full object-cover"
+            className="object-cover"
+            fill
+            priority
+            sizes="(min-width: 768px) 420px, 75vw"
             src={coverUrl}
           />
         ) : (
@@ -548,10 +548,11 @@ function PagePreviewButton({
       onClick={() => onSelect(index)}
       type="button"
     >
-      <img
+      <Image
         alt={`Página ${index + 1}`}
-        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
-        loading="lazy"
+        className="object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+        fill
+        sizes="(min-width: 1024px) 12vw, (min-width: 768px) 18vw, 40vw"
         src={getBucketUrl(image)}
       />
       {/* Top-left rank chip */}
@@ -724,7 +725,6 @@ export function ComicReader({
     let cancelled = false;
 
     if (!isAuthed) {
-      setReadingSessionId(null);
       return;
     }
 
@@ -1288,6 +1288,7 @@ export function ComicReader({
 
         {/* Main Image */}
         {currentImage && (
+          // eslint-disable-next-line @next/next/no-img-element -- interactive zoom relies on intrinsic dimensions and a direct image ref
           <img
             alt={`Página ${page + 1}`}
             className={cn(
@@ -1506,7 +1507,6 @@ export function ComicCascadeReader({
     let cancelled = false;
 
     if (!isAuthed) {
-      setReadingSessionId(null);
       return;
     }
 
@@ -1727,6 +1727,7 @@ export function ComicCascadeReader({
         )}
       >
         {images.map((image, index) => (
+          // eslint-disable-next-line @next/next/no-img-element -- continuous reader preserves each source image's unknown intrinsic aspect ratio
           <img
             alt={`Página ${index + 1}`}
             className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
@@ -1846,10 +1847,11 @@ function ThumbnailPanel({
                   ref={currentPage === index ? selectedRef : null}
                   type="button"
                 >
-                  <img
+                  <Image
                     alt={`Página ${index + 1}`}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
+                    className="object-cover"
+                    fill
+                    sizes="(min-width: 1024px) 10vw, (min-width: 768px) 15vw, 25vw"
                     src={getBucketUrl(image)}
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent p-1">

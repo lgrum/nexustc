@@ -5,8 +5,13 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**"],
-      "env": ["VITE_TURNSTILE_SITE_KEY", "VITE_ASSETS_BUCKET_URL"]
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": [
+        "NEXT_PUBLIC_ASSETS_BUCKET_URL",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+        "VITE_ASSETS_BUCKET_URL",
+        "VITE_TURNSTILE_SITE_KEY"
+      ]
     },
     "start": {
       "dependsOn": ["^start"]

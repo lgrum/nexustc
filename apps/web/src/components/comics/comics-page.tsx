@@ -15,9 +15,9 @@ import {
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
@@ -71,6 +71,8 @@ type ComicsPageProps = {
   params: ComicSearchParams;
   filteredPosts: PostProps[];
   pagination: SearchPaginationState;
+  popularPosts: PostProps[];
+  trendingPosts: PostProps[];
   onPageChange: (page: number) => void;
   onSearchChange: (params: ComicSearchParams) => void;
   onRandomSelect: (slug: string) => void;
@@ -80,32 +82,12 @@ export function ComicsPage({
   params,
   filteredPosts,
   pagination,
+  popularPosts,
+  trendingPosts,
   onPageChange,
   onSearchChange,
   onRandomSelect,
 }: ComicsPageProps) {
-  const popularQuery = useQuery({
-    queryFn: () =>
-      orpcClient.post.search({
-        orderBy: "views",
-        pageSize: TOP_RANK_LIMIT,
-        type: "comic",
-      }),
-    queryKey: ["comics", "popular"],
-    staleTime: 1000 * 60 * 10,
-  });
-
-  const trendingQuery = useQuery({
-    queryFn: () =>
-      orpcClient.post.search({
-        orderBy: "likes",
-        pageSize: TRENDING_LIMIT,
-        type: "comic",
-      }),
-    queryKey: ["comics", "trending"],
-    staleTime: 1000 * 60 * 10,
-  });
-
   const handleRandomComic = async () => {
     const result = await orpcClient.post.getRandom({ type: "comic" });
     if (result) {
@@ -113,23 +95,20 @@ export function ComicsPage({
     }
   };
 
-  const popular = popularQuery.data?.items ?? [];
-  const trending = trendingQuery.data?.items ?? [];
-
   return (
     <main className="flex w-full flex-col">
       <ComicsHero
-        loading={popularQuery.isPending}
-        posts={popular}
+        loading={false}
+        posts={popularPosts}
         onRandom={handleRandomComic}
       />
 
       <div className="mt-10 px-1 md:px-3">
-        <ComicsTopRanks loading={popularQuery.isPending} posts={popular} />
+        <ComicsTopRanks loading={false} posts={popularPosts} />
       </div>
 
       <div className="mt-12 px-1 md:px-3">
-        <ComicsTrending loading={trendingQuery.isPending} posts={trending} />
+        <ComicsTrending loading={false} posts={trendingPosts} />
       </div>
 
       <div className="mt-10 px-1 md:px-3">
@@ -197,11 +176,13 @@ function ComicsHero({
       {/* Backdrop: blurred + saturated cover */}
       <div className="pointer-events-none absolute inset-0">
         {cover ? (
-          <img
+          <Image
             alt=""
             aria-hidden
-            className="h-full w-full object-cover saturate-[1.4] blur-2xl scale-110 opacity-50 transition-opacity duration-700"
+            className="object-cover saturate-[1.4] blur-2xl scale-110 opacity-50 transition-opacity duration-700"
+            fill
             key={featured.id}
+            sizes="100vw"
             src={cover}
           />
         ) : (
@@ -246,10 +227,8 @@ function ComicsHero({
                 <Link
                   className="contents"
                   key={tag.id}
-                  preload={false}
-                  resetScroll={false}
-                  search={{ tag: [tag.id] }}
-                  to="/comics"
+                  href={{ pathname: "/comics", query: { tag: tag.id } }}
+                  prefetch={false}
                 >
                   <TermBadge tag={tag} />
                 </Link>
@@ -276,9 +255,8 @@ function ComicsHero({
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
               className="h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
-              render={
-                <Link params={{ slug: featured.slug }} to="/comic/$slug" />
-              }
+              nativeButton={false}
+              render={<Link href={`/comic/${featured.slug}`} />}
             >
               <HugeiconsIcon className="size-4" icon={Book02Icon} />
               Leer ahora
@@ -335,18 +313,20 @@ function HeroPoster({ post }: { post: PostProps }) {
   return (
     <Link
       className="group relative mx-auto block aspect-3/4 w-[min(360px,75%)] md:w-[min(420px,100%)]"
-      params={{ slug: post.slug }}
-      preload={false}
-      to="/comic/$slug"
+      href={`/comic/${post.slug}`}
+      prefetch={false}
     >
       {/* Aura behind the poster */}
       <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
 
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/15 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:-rotate-1 group-hover:scale-[1.02]">
         {cover ? (
-          <img
+          <Image
             alt={post.title}
-            className="h-full w-full object-cover"
+            className="object-cover"
+            fill
+            priority
+            sizes="(min-width: 768px) 420px, 75vw"
             src={cover}
           />
         ) : (
@@ -466,16 +446,17 @@ function RankItem({ post, rank }: { post: PostProps; rank: number }) {
     <li>
       <Link
         className="group block h-full"
-        params={{ slug: post.slug }}
-        preload={false}
-        to="/comic/$slug"
+        href={`/comic/${post.slug}`}
+        prefetch={false}
       >
         <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
           <div className="relative aspect-3/4 overflow-hidden">
             {cover ? (
-              <img
+              <Image
                 alt={post.title}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+                className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+                fill
+                sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
                 src={cover}
               />
             ) : (
@@ -577,12 +558,16 @@ function ComicsTrending({
   const [snaps, setSnaps] = useState<number[]>([]);
   const [selected, setSelected] = useState(0);
 
+  const handleApiChange = (nextApi: CarouselApi) => {
+    setApi(nextApi);
+    setSnaps(nextApi?.scrollSnapList() ?? []);
+    setSelected(nextApi?.selectedScrollSnap() ?? 0);
+  };
+
   useEffect(() => {
     if (!api) {
       return;
     }
-    setSnaps(api.scrollSnapList());
-    setSelected(api.selectedScrollSnap());
     const onSelect = () => setSelected(api.selectedScrollSnap());
     const onReInit = () => {
       setSnaps(api.scrollSnapList());
@@ -629,7 +614,7 @@ function ComicsTrending({
                 stopOnInteraction: false,
               }),
             ]}
-            setApi={setApi}
+            setApi={handleApiChange}
           >
             <CarouselContent className="-ml-3">
               {trending.map((post, index) => (
@@ -674,16 +659,17 @@ function TrendingCard({ post, rank }: { post: PostProps; rank: number }) {
   return (
     <Link
       className="group block h-full"
-      params={{ slug: post.slug }}
-      preload={false}
-      to="/comic/$slug"
+      href={`/comic/${post.slug}`}
+      prefetch={false}
     >
       <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
         <div className="relative aspect-3/4 overflow-hidden">
           {cover ? (
-            <img
+            <Image
               alt={post.title}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+              className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+              fill
+              sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
               src={cover}
             />
           ) : (
@@ -794,10 +780,8 @@ function ComicsGenreStrip() {
           <Link
             className="contents"
             key={tag.id}
-            preload={false}
-            resetScroll={false}
-            search={{ tag: [tag.id] }}
-            to="/comics"
+            href={{ pathname: "/comics", query: { tag: tag.id } }}
+            prefetch={false}
           >
             <TermBadge tag={tag} />
           </Link>

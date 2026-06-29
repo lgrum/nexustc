@@ -1,6 +1,5 @@
 import { CircleLockIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link, useLocation } from "@tanstack/react-router";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import {
   animate,
@@ -10,6 +9,8 @@ import {
   useTransform,
   useVelocity,
 } from "motion/react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useRef } from "react";
 
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
@@ -44,14 +45,14 @@ export function Header() {
     <header className="relative z-50 w-full">
       <div className="grid w-full grid-cols-[1fr_auto] items-center px-4 py-3">
         <div className="flex gap-12 items-center">
-          <Link to="/">
+          <Link href="/">
             <Logo />
           </Link>
           <HeaderNav />
         </div>
         <div className="flex items-center justify-end gap-2">
           {user && user.role !== "user" && (
-            <Button nativeButton={false} render={<Link to="/admin" />}>
+            <Button nativeButton={false} render={<Link href="/admin" />}>
               <HugeiconsIcon icon={CircleLockIcon} />
               <span>Admin</span>
             </Button>
@@ -70,15 +71,13 @@ const FADE_OUT = { duration: 0.18, ease: "easeOut" } as const;
 const FADE_IN = { duration: 0.12, ease: "easeOut" } as const;
 
 function HeaderNav() {
-  const location = useLocation();
+  const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef(new Map<string, HTMLAnchorElement>());
 
   const activeHref =
     navItems.find((item) =>
-      item.href === "/"
-        ? location.pathname === "/"
-        : location.pathname.startsWith(item.href)
+      item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
     )?.href ?? null;
 
   // Imperative motion values — written directly from mouse events, zero React
@@ -223,7 +222,7 @@ function NavItem({
           : "text-muted-foreground hover:text-foreground"
       )}
       ref={ref}
-      to={href}
+      href={href}
     >
       {label}
     </Link>
@@ -261,7 +260,7 @@ function ProfileNavItem() {
   }
 
   return (
-    <Link to={href}>
+    <Link href={href}>
       <Avatar className="size-8 rounded-full">
         <AvatarImage src={imageSrc} />
         <AvatarFallback

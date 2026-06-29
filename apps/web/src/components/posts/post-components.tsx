@@ -17,11 +17,13 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -181,10 +183,14 @@ export function PostHero() {
     <div className="relative">
       {mainImage ? (
         <div className="relative overflow-hidden rounded-xl bg-muted">
-          <img
+          <Image
             alt={`Portada de ${post.title}`}
             className="block h-auto w-full"
+            height={900}
+            priority
+            sizes="(min-width: 1024px) 800px, 100vw"
             src={getBucketUrl(mainImage)}
+            width={1600}
           />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 md:p-10">
@@ -220,7 +226,7 @@ export function PostHero() {
 
 export function PostStatsBar() {
   const post = usePost();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleShare = async () => {
     try {
@@ -243,11 +249,11 @@ export function PostStatsBar() {
     }
 
     if (post.type === "comic") {
-      navigate({ params: { slug: result.slug }, to: "/comic/$slug" });
+      router.push(`/comic/${result.slug}`);
       return;
     }
 
-    navigate({ params: { id: result.slug }, to: "/post/$id" });
+    router.push(`/post/${result.slug}`);
   };
 
   const createdAt = format(post.createdAt, "PP", { locale: es });
@@ -298,8 +304,7 @@ export function PostStatsBar() {
           {!post.earlyAccess.isActive && (
             <Link
               className="group relative flex items-center gap-3 rounded-xl border border-amber-400/40 bg-linear-to-r from-amber-400/10 via-amber-400/6 to-transparent px-4 py-3 shadow-glow-amber-400/10 transition-[background-color,border-color,box-shadow] duration-200 hover:border-amber-400/65 hover:bg-amber-400/15 hover:shadow-glow-amber-400/35 md:shrink-0"
-              params={{ id: post.id }}
-              to="/post/reviews/$id"
+              href={`/post/reviews/${post.id}`}
             >
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
                 <HugeiconsIcon
@@ -444,7 +449,7 @@ export function PostActionBar() {
           <Button
             className="border-yellow-600 bg-yellow-600/30 text-white"
             nativeButton={false}
-            render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
+            render={<Link href={`/post/reviews/${post.id}`} />}
           >
             <RatingDisplay
               averageRating={post.averageRating ?? 0}
@@ -661,9 +666,9 @@ function EarlyAccessDownloadGate() {
 
   const tierLabel = post.earlyAccess.requiredTierLabel ?? "VIP";
   const upgradeLink = session?.session ? (
-    <Link to="/profile" />
+    <Link href="/profile" />
   ) : (
-    <Link to="/auth" />
+    <Link href="/auth" />
   );
 
   return (
@@ -864,16 +869,18 @@ export function PostCarousel() {
               {allImages.map((image, index) => (
                 <CarouselItem className="basis-2/3 md:basis-1/3" key={image}>
                   <button
-                    className="group aspect-video w-full cursor-pointer overflow-hidden border border-border bg-card transition-all"
+                    className="group relative aspect-video w-full cursor-pointer overflow-hidden border border-border bg-card transition-all"
                     onClick={() => {
                       setSelectedImageIndex(index);
                       setGalleryOpen(true);
                     }}
                     type="button"
                   >
-                    <img
+                    <Image
                       alt={`Miniatura ${index + 1}`}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                      className="object-cover transition-transform group-hover:scale-110"
+                      fill
+                      sizes="(min-width: 768px) 33vw, 67vw"
                       src={getBucketUrl(image)}
                     />
                   </button>
@@ -1123,7 +1130,7 @@ function PremiumLinksContent({
       </section>
       <PostActionButton
         tone="amber"
-        render={<Link to="/memberships" />}
+        render={<Link href="/memberships" />}
         className="w-auto pl-7"
       >
         Comparar Rangos
@@ -1137,7 +1144,7 @@ function PremiumLinksContent({
 }
 
 export function TutorialsSection() {
-  const tutorials = useQuery(orpc.extras.getTutorials.queryOptions());
+  const { data: tutorials } = useQuery(orpc.extras.getTutorials.queryOptions());
   const [api, setApi] = useState<CarouselApi>();
 
   return (
@@ -1176,7 +1183,7 @@ export function TutorialsSection() {
         setApi={setApi}
       >
         <CarouselContent>
-          {tutorials.data?.map((tutorial) => (
+          {tutorials?.map((tutorial) => (
             <CarouselItem
               className="basis-4/5 p-1 pl-3 md:basis-1/3"
               key={tutorial.id}
@@ -1236,8 +1243,7 @@ export function CreatorSupportCard() {
     return (
       <Link
         className="group relative block animate-scale-pulse overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 hover:shadow-glow-secondary/50"
-        params={{ id: post.creatorId }}
-        to="/comic-creator/$id"
+        href={`/comic-creator/${post.creatorId}`}
       >
         <CreatorSupportContent />
       </Link>
@@ -1264,10 +1270,13 @@ function CreatorSupportContent() {
   return (
     <div className="relative flex items-center gap-4">
       {post.creatorAvatarObjectKey ? (
-        <img
+        <Image
           alt={post.creatorName || "Avatar del creador"}
           className="aspect-square size-16 shrink-0"
+          height={64}
+          sizes="64px"
           src={getBucketUrl(post.creatorAvatarObjectKey)}
+          width={64}
         />
       ) : (
         <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">

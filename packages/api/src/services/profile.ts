@@ -22,6 +22,7 @@ import type { PatronTier } from "@repo/shared/constants";
 import { PROFILE_DEFAULTS } from "@repo/shared/profile";
 import type { ProfileMediaSlot } from "@repo/shared/profile";
 import sharp from "sharp";
+import type { Metadata } from "sharp";
 
 import { getS3Client } from "../utils/s3";
 
@@ -295,7 +296,7 @@ export function getObjectExtension(contentType: string) {
   return extension;
 }
 
-export function inferAnimationDurationMs(metadata: sharp.Metadata) {
+export function inferAnimationDurationMs(metadata: Metadata) {
   if (!metadata.delay) {
     return null;
   }

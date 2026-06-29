@@ -258,17 +258,27 @@ function AssetPreview({
 }
 
 function ProfileSystemConfigCard() {
-  const queryClient = useQueryClient();
-  const systemConfigQuery = useSuspenseQuery(
+  const { data: systemConfig } = useSuspenseQuery(
     orpc.profileAdmin.systemConfig.get.queryOptions()
   );
-  const [maxVisibleEmblems, setMaxVisibleEmblems] = useState(
-    systemConfigQuery.data.maxVisibleEmblems
-  );
 
-  useEffect(() => {
-    setMaxVisibleEmblems(systemConfigQuery.data.maxVisibleEmblems);
-  }, [systemConfigQuery.data.maxVisibleEmblems]);
+  return (
+    <ProfileSystemConfigForm
+      initialMaxVisibleEmblems={systemConfig.maxVisibleEmblems}
+      key={systemConfig.maxVisibleEmblems}
+    />
+  );
+}
+
+function ProfileSystemConfigForm({
+  initialMaxVisibleEmblems,
+}: {
+  initialMaxVisibleEmblems: number;
+}) {
+  const queryClient = useQueryClient();
+  const [maxVisibleEmblems, setMaxVisibleEmblems] = useState(
+    initialMaxVisibleEmblems
+  );
 
   const systemConfigMutation = useMutation({
     mutationFn: () =>
@@ -558,20 +568,26 @@ function ProfileAssignmentsCard({
   users: ProfileAdminUser[] | undefined;
 }) {
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [roleIds, setRoleIds] = useState<string[]>([]);
-  const [emblemIds, setEmblemIds] = useState<string[]>([]);
+  const [assignmentDraft, setAssignmentDraft] = useState({
+    emblemIds: [] as string[],
+    roleIds: [] as string[],
+    userId: "",
+  });
 
-  const assignmentsQuery = useQuery({
+  const { data: assignments } = useQuery({
     ...orpc.profileAdmin.assignments.getUserAssignments.queryOptions({
       input: { userId: selectedUserId || "pending" },
     }),
     enabled: selectedUserId.length > 0,
   });
 
-  useEffect(() => {
-    setRoleIds(assignmentsQuery.data?.roleIds ?? []);
-    setEmblemIds(assignmentsQuery.data?.emblemIds ?? []);
-  }, [assignmentsQuery.data?.emblemIds, assignmentsQuery.data?.roleIds]);
+  const isCurrentUserDraft = assignmentDraft.userId === selectedUserId;
+  const roleIds = isCurrentUserDraft
+    ? assignmentDraft.roleIds
+    : (assignments?.roleIds ?? []);
+  const emblemIds = isCurrentUserDraft
+    ? assignmentDraft.emblemIds
+    : (assignments?.emblemIds ?? []);
 
   const assignmentsMutation = useMutation({
     mutationFn: () =>
@@ -628,11 +644,13 @@ function ProfileAssignmentsCard({
                     <input
                       checked={roleIds.includes(role.id)}
                       onChange={(event) =>
-                        setRoleIds((current) =>
-                          event.target.checked
-                            ? [...current, role.id]
-                            : current.filter((id) => id !== role.id)
-                        )
+                        setAssignmentDraft({
+                          emblemIds,
+                          roleIds: event.target.checked
+                            ? [...roleIds, role.id]
+                            : roleIds.filter((id) => id !== role.id),
+                          userId: selectedUserId,
+                        })
                       }
                       type="checkbox"
                     />
@@ -650,11 +668,13 @@ function ProfileAssignmentsCard({
                     <input
                       checked={emblemIds.includes(emblem.id)}
                       onChange={(event) =>
-                        setEmblemIds((current) =>
-                          event.target.checked
-                            ? [...current, emblem.id]
-                            : current.filter((id) => id !== emblem.id)
-                        )
+                        setAssignmentDraft({
+                          emblemIds: event.target.checked
+                            ? [...emblemIds, emblem.id]
+                            : emblemIds.filter((id) => id !== emblem.id),
+                          roleIds,
+                          userId: selectedUserId,
+                        })
                       }
                       type="checkbox"
                     />
@@ -674,10 +694,10 @@ function ProfileAssignmentsCard({
 }
 
 export function ProfileAdminPage() {
-  const rolesQuery = useSuspenseQuery(
+  const { data: roles } = useSuspenseQuery(
     orpc.profileAdmin.roles.list.queryOptions()
   );
-  const emblemsQuery = useSuspenseQuery(
+  const { data: emblems } = useSuspenseQuery(
     orpc.profileAdmin.emblems.list.queryOptions()
   );
   const usersQuery = useOwnerUsersQuery();
@@ -690,8 +710,8 @@ export function ProfileAdminPage() {
       />
       <ProfileSystemConfigCard />
       <ProfileAssignmentsCard
-        emblems={emblemsQuery.data as EmblemDefinitionListItem[]}
-        roles={rolesQuery.data as RoleDefinitionListItem[]}
+        emblems={emblems as EmblemDefinitionListItem[]}
+        roles={roles as RoleDefinitionListItem[]}
         users={usersQuery.data}
       />
     </div>
@@ -699,7 +719,7 @@ export function ProfileAdminPage() {
 }
 
 export function ProfileRolesAdminPage() {
-  const rolesQuery = useSuspenseQuery(
+  const { data: roles } = useSuspenseQuery(
     orpc.profileAdmin.roles.list.queryOptions()
   );
 
@@ -709,15 +729,13 @@ export function ProfileRolesAdminPage() {
         description="Crea y edita los roles visuales disponibles para los perfiles."
         title="Roles de Perfil"
       />
-      <ProfileRolesSection
-        roles={rolesQuery.data as RoleDefinitionListItem[]}
-      />
+      <ProfileRolesSection roles={roles as RoleDefinitionListItem[]} />
     </div>
   );
 }
 
 export function ProfileEmblemsAdminPage() {
-  const emblemsQuery = useSuspenseQuery(
+  const { data: emblems } = useSuspenseQuery(
     orpc.profileAdmin.emblems.list.queryOptions()
   );
 
@@ -727,9 +745,7 @@ export function ProfileEmblemsAdminPage() {
         description="Crea y edita los emblemas disponibles para asignar en perfiles."
         title="Emblemas de Perfil"
       />
-      <ProfileEmblemsSection
-        emblems={emblemsQuery.data as EmblemDefinitionListItem[]}
-      />
+      <ProfileEmblemsSection emblems={emblems as EmblemDefinitionListItem[]} />
     </div>
   );
 }
@@ -748,10 +764,6 @@ function RoleEditorCard({
   const containerRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState(initial);
   const fieldPrefix = state.id ?? `${mode}-role`;
-
-  useEffect(() => {
-    setState(initial);
-  }, [initial]);
 
   useEffect(() => {
     if (mode !== "update") {
@@ -979,10 +991,6 @@ function EmblemEditorCard({
     mediaForm.store,
     (formState) => formState.values.mediaSelection
   );
-
-  useEffect(() => {
-    setState(initial);
-  }, [initial]);
 
   useEffect(() => {
     if (mode !== "update") {

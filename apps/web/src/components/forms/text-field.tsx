@@ -15,9 +15,10 @@ export function TextField(
   } & React.ComponentProps<"input">
 ) {
   const field = useFieldContext<string>();
+  const { children, className, ...inputProps } = props;
 
   return (
-    <div className={cn("space-y-2", props.className)}>
+    <div className={cn("space-y-2", className)}>
       <Label htmlFor={field.name}>
         {props.label}
         {!!props.required && <span className="text-red-500">*</span>}
@@ -29,11 +30,9 @@ export function TextField(
           placeholder={props.label}
           type="text"
           value={field.state.value}
-          {...props}
-          // oxlint-disable-next-line react/no-children-prop: override the children prop as this is an input element
-          children={undefined}
+          {...inputProps}
         />
-        {props.children}
+        {children}
       </div>
       <ErrorField field={field} />
     </div>

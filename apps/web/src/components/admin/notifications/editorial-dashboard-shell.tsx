@@ -1,8 +1,8 @@
 import { Calendar03Icon, Notification03Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -52,7 +52,7 @@ export function EditorialDashboardHeader({
                   activeDashboard === "announcements" ? "default" : "outline",
               })
             )}
-            to="/admin/notifications/announcements"
+            href="/admin/notifications/announcements"
           >
             Anuncios globales
           </Link>
@@ -62,7 +62,7 @@ export function EditorialDashboardHeader({
                 variant: activeDashboard === "articles" ? "default" : "outline",
               })
             )}
-            to="/admin/notifications/articles"
+            href="/admin/notifications/articles"
           >
             Articulos manuales
           </Link>
@@ -93,7 +93,7 @@ export function EditorialDashboardViewToggle({
             variant: activeView === "list" ? "default" : "outline",
           })
         )}
-        to={listHref}
+        href={listHref}
       >
         {listLabel}
       </Link>
@@ -103,7 +103,7 @@ export function EditorialDashboardViewToggle({
             variant: activeView === "create" ? "default" : "outline",
           })
         )}
-        to={createHref}
+        href={createHref}
       >
         {createLabel}
       </Link>
@@ -174,8 +174,7 @@ export function AdminNotificationCard({
   return (
     <Link
       className="block rounded-[1.35rem] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-primary/40"
-      params={{ id: newsArticleId }}
-      to="/news/$id"
+      href={`/news/${newsArticleId}`}
     >
       {content}
     </Link>

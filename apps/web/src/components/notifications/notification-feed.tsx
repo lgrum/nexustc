@@ -6,9 +6,10 @@ import {
   RefreshIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import Image from "next/image";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -161,16 +162,10 @@ function NotificationFeedCard({
       : null;
   const articleLink =
     item.type === "content_news" && metadataArticleId
-      ? {
-          params: { id: metadataArticleId },
-          to: "/news/$id" as const,
-        }
+      ? `/news/${metadataArticleId}`
       : null;
   const contentLink = item.targetContentId
-    ? {
-        params: { id: item.targetContentId },
-        to: "/post/$id" as const,
-      }
+    ? `/post/${item.targetContentId}`
     : null;
   const openLink = articleLink ?? contentLink;
 
@@ -232,9 +227,11 @@ function NotificationFeedCard({
 
       {item.imageObjectKey ? (
         <div className="relative aspect-[2.4/1] overflow-hidden border-border/40 border-b bg-black/10">
-          <img
+          <Image
             alt={item.title}
-            className="h-full w-full object-cover"
+            className="object-cover"
+            fill
+            sizes="(min-width: 768px) 640px, 100vw"
             src={getBucketUrl(item.imageObjectKey)}
           />
           <div className="absolute inset-0 bg-linear-to-t from-black/70 via-black/10 to-transparent" />
@@ -266,7 +263,7 @@ function NotificationFeedCard({
                   onMarkRead?.(item.id);
                 }
               }}
-              render={<Link params={openLink.params} to={openLink.to} />}
+              render={<Link href={openLink} />}
               size="sm"
               variant="outline"
             >

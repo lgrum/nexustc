@@ -11,8 +11,8 @@ import {
 } from "@tanstack/react-query";
 import {
   useDeferredValue,
+  useCallback,
   useEffect,
-  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -77,9 +77,9 @@ export function BlockNoteEditor({
     initialContent: EMPTY_BLOCK_NOTE_DOCUMENT,
   });
 
-  const handleEditorChange = useEffectEvent(() => {
+  const handleEditorChange = useCallback(() => {
     onChange?.(serializeBlockNoteValue(editor));
-  });
+  }, [editor, onChange]);
 
   useEffect(() => {
     const currentValue = serializeBlockNoteValue(editor);

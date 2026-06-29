@@ -101,12 +101,14 @@ function Carousel({
     if (!api) {
       return;
     }
-    onSelect(api);
     api.on("reInit", onSelect);
     api.on("select", onSelect);
+    const animationFrame = requestAnimationFrame(() => onSelect(api));
 
     return () => {
+      cancelAnimationFrame(animationFrame);
       api?.off("select", onSelect);
+      api?.off("reInit", onSelect);
     };
   }, [api, onSelect]);
 

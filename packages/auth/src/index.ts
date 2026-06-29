@@ -8,7 +8,7 @@ import { emailHarmony } from "better-auth-harmony";
 import { validateEmail } from "better-auth-harmony/email";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
-import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { nextCookies } from "better-auth/next-js";
 
 import { resend } from "./email";
 import { syncPatreonMembership } from "./patreon-sync";
@@ -206,7 +206,7 @@ export const auth = betterAuth({
         return true;
       },
     }),
-    tanstackStartCookies(), // this must be the last plugin in the array
+    nextCookies(), // this must be the last plugin in the array
   ],
   secret: env.BETTER_AUTH_SECRET,
   session: {

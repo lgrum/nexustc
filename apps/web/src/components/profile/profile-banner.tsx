@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { cn, getBucketUrl } from "@/lib/utils";
 
 export function ProfileBanner({
@@ -22,10 +24,12 @@ export function ProfileBanner({
       style={{ backgroundColor: banner.color }}
     >
       {banner.mode === "image" && banner.asset ? (
-        <img
+        <Image
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 size-full object-cover opacity-90"
+          className="object-cover opacity-90"
+          fill
+          sizes="100vw"
           src={getBucketUrl(banner.asset.objectKey)}
         />
       ) : null}
