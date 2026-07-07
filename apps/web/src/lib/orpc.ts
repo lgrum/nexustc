@@ -55,7 +55,7 @@ export function getQueryClient() {
 
 export const queryClient = getQueryClient();
 
-export const getBrowserORPCUrl = () => "/api/rpc";
+export const getBrowserORPCUrl = () => `${window.location.origin}/api/rpc`;
 
 function getORPCClient(): AppRouterClient {
   if (globalThis.$client) {

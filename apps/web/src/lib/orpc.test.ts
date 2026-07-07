@@ -37,6 +37,6 @@ describe("getClientErrorMessage", () => {
 
 describe("getBrowserORPCUrl", () => {
   it("uses the current origin for browser RPC calls", () => {
-    expect(getBrowserORPCUrl()).toBe("/api/rpc");
+    expect(getBrowserORPCUrl()).toBe(`${window.location.origin}/api/rpc`);
   });
 });
