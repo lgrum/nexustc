@@ -12,13 +12,16 @@ export type Context = {
 
 const logger = pino({
   level: process.env.LOG_LEVEL || "error",
-  transport: {
-    options: {
-      colorize: true,
-      depth: null,
-    },
-    target: "pino-pretty",
-  },
+  transport:
+    process.env.NODE_ENV === "development"
+      ? {
+          options: {
+            colorize: true,
+            depth: null,
+          },
+          target: "pino-pretty",
+        }
+      : undefined,
 });
 
 const createBaseContext = (
