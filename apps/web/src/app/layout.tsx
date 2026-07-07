@@ -3,14 +3,19 @@ import Script from "next/script";
 import { Suspense } from "react";
 
 import { Providers } from "./providers";
+import { createPageMetadata, metadataBaseUrl } from "./seo";
 import "../lib/orpc.server"; // for pre-rendering
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  description: "Comunidad, juegos, comics y contenido premium de NeXusTC.",
-  metadataBase: new URL("https://nexustc18.com"),
-  title: "NeXusTC",
+  ...createPageMetadata(),
+  applicationName: "NeXusTC",
+  metadataBase: new URL(metadataBaseUrl),
+  robots: {
+    follow: true,
+    index: true,
+  },
 };
 
 export default function RootLayout({

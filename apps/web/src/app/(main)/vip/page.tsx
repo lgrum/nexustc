@@ -5,11 +5,14 @@ import { headers } from "next/headers";
 
 import { orpcClient } from "@/lib/orpc";
 
+import { createPageMetadata } from "../../seo";
 import { VipClient } from "./vip-client";
 
-export const metadata: Metadata = {
-  title: "NeXusTC - VIP",
-};
+export const metadata: Metadata = createPageMetadata({
+  description: "Contenido VIP y novedades premium para miembros de NeXusTC.",
+  path: "/vip",
+  title: "VIP",
+});
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 

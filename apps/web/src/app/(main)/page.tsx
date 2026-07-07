@@ -1,8 +1,12 @@
+import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 
 import { orpcClient } from "@/lib/orpc";
 
+import { createPageMetadata } from "../seo";
 import { HomeClient } from "./home-client";
+
+export const metadata: Metadata = createPageMetadata();
 
 const safeResult = <T,>(data: T | undefined, error?: { code?: string }) =>
   data

@@ -1,4 +1,5 @@
 import { auth } from "@repo/auth";
+import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 import { headers } from "next/headers";
 
@@ -8,10 +9,17 @@ import {
 } from "@/components/search/catalog-search";
 import { orpcClient } from "@/lib/orpc";
 
+import { createPageMetadata } from "../../seo";
 import { ComicsClient } from "./comics-client";
 
 const TOP_RANK_LIMIT = 10;
 const TRENDING_LIMIT = 14;
+
+export const metadata: Metadata = createPageMetadata({
+  description: "Explora cómics, novelas visuales y contenido por tags.",
+  path: "/comics",
+  title: "Cómics",
+});
 
 type RawSearchParams = Record<string, string | string[] | undefined>;
 

@@ -3,12 +3,17 @@ import { db } from "@repo/db";
 import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 
+import { createPageMetadata } from "../../seo";
 import { NewsClient } from "./news-client";
 
 const NEWS_LIMIT = 36;
 
 export const metadata: Metadata = {
-  title: "NeXusTC - News",
+  ...createPageMetadata({
+    description: "Noticias, anuncios y novedades oficiales de NeXusTC.",
+    path: "/news",
+    title: "Noticias",
+  }),
 };
 
 async function getNewsArticles() {

@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 
 import { getBucketUrl } from "@/lib/utils";
 
+import { createPageMetadata } from "../../../seo";
 import { NewsArticleClient } from "./news-article-client";
 
 type PageProps = {
@@ -33,20 +34,12 @@ export async function generateMetadata({
   const imageUrl = article.bannerImageObjectKey
     ? getBucketUrl(article.bannerImageObjectKey)
     : undefined;
-  const title = `NeXusTC - ${article.title}`;
-
-  return {
-    title,
-    openGraph: {
-      images: imageUrl ? [imageUrl] : undefined,
-      title,
-    },
-    twitter: {
-      card: imageUrl ? "summary_large_image" : "summary",
-      images: imageUrl ? [imageUrl] : undefined,
-      title,
-    },
-  };
+  return createPageMetadata({
+    description: article.summary,
+    image: imageUrl,
+    path: `/news/${id}`,
+    title: article.title,
+  });
 }
 
 export default async function Page({ params }: PageProps) {

@@ -3,24 +3,26 @@ import { cacheLife, cacheTag } from "next/cache";
 
 import { Markdown } from "@/components/markdown";
 
+import { createPageMetadata } from "../seo";
+
 type StaticPageSlug = "about" | "legal" | "privacy" | "terms";
 
 const fallbackBySlug = {
   about: {
     heading: "Sobre Nosotros",
-    title: "NeXusTC - Sobre Nosotros",
+    title: "Sobre Nosotros",
   },
   legal: {
     heading: "Aviso Legal",
-    title: "NeXusTC - Aviso Legal",
+    title: "Aviso Legal",
   },
   privacy: {
-    heading: "Politica de Privacidad",
-    title: "NeXusTC - Politica de Privacidad",
+    heading: "Política de Privacidad",
+    title: "Política de Privacidad",
   },
   terms: {
-    heading: "Terminos y Condiciones",
-    title: "NeXusTC - Terminos y Condiciones",
+    heading: "Términos y Condiciones",
+    title: "Términos y Condiciones",
   },
 } as const;
 
@@ -40,9 +42,10 @@ export async function getStaticPage(slug: StaticPageSlug) {
 
 export async function getStaticPageMetadata(slug: StaticPageSlug) {
   const page = await getStaticPage(slug);
-  return {
-    title: page?.title ? `NeXusTC - ${page.title}` : fallbackBySlug[slug].title,
-  };
+  return createPageMetadata({
+    path: `/${slug}`,
+    title: page?.title ?? fallbackBySlug[slug].title,
+  });
 }
 
 export async function StaticPage({ slug }: { slug: StaticPageSlug }) {

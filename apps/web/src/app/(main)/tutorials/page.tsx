@@ -2,6 +2,7 @@ import { db } from "@repo/db";
 import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 
+import { createPageMetadata } from "@/app/seo";
 import { TutorialCard } from "@/components/landing/tutorial-card";
 
 type Tutorial = {
@@ -11,9 +12,11 @@ type Tutorial = {
   title: string;
 };
 
-export const metadata: Metadata = {
-  title: "NeXusTC - Tutoriales",
-};
+export const metadata: Metadata = createPageMetadata({
+  description: "Tutoriales, guías y recursos para aprender a usar NeXusTC.",
+  path: "/tutorials",
+  title: "Tutoriales",
+});
 
 async function getTutorials() {
   "use cache";

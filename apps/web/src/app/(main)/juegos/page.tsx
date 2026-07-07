@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 
+import { createPageMetadata } from "@/app/seo";
 import {
   gameSearchParamsSchema,
   getGameTermIds,
@@ -60,6 +62,12 @@ async function getCachedGamesData(
 
   return await fetchGamesData(params);
 }
+
+export const metadata: Metadata = createPageMetadata({
+  description: "Explora juegos, demos y contenido por tags.",
+  path: "/juegos",
+  title: "Juegos",
+});
 
 export default async function Page({
   searchParams,
