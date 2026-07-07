@@ -37,7 +37,7 @@ async function getAnonymousComic(idOrSlug: string) {
   cacheLife("minutes");
   cacheTag("content", `content:${idOrSlug}`);
 
-  return orpcClient.post.getPostById(getComicInput(idOrSlug), {
+  return await orpcClient.post.getPostById(getComicInput(idOrSlug), {
     context: { cache: true },
   });
 }

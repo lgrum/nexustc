@@ -10,10 +10,11 @@ import { TextField } from "@/components/forms/text-field";
 import { TextareaField } from "@/components/forms/textarea-field";
 
 const BlockNoteField = dynamic(
-  () =>
-    import("@/components/forms/blocknote-field").then(
-      (module) => module.BlockNoteField
-    ),
+  async () => {
+    const { BlockNoteField: Field } =
+      await import("@/components/forms/blocknote-field");
+    return Field;
+  },
   { ssr: false }
 );
 

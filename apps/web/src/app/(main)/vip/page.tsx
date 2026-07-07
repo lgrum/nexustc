@@ -26,7 +26,10 @@ async function getAnonymousVipFeed(page: number) {
   cacheLife("minutes");
   cacheTag("vip-feed");
 
-  return orpcClient.post.getVipFeed({ page }, { context: { cache: true } });
+  return await orpcClient.post.getVipFeed(
+    { page },
+    { context: { cache: true } }
+  );
 }
 
 export default async function Page({

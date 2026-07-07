@@ -1,26 +1,15 @@
-"use client";
-
 import { Calendar03Icon, News01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 
+import { BlockNoteContent } from "@/components/blocknote-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { trackEvent } from "@/lib/analytics";
 import { getBucketUrl } from "@/lib/utils";
-
-const BlockNoteContent = dynamic(
-  () =>
-    import("@/components/blocknote-content").then(
-      (mod) => mod.BlockNoteContent
-    ),
-  { ssr: false }
-);
 
 type NewsArticle = {
   bannerImageObjectKey: string | null;
@@ -38,15 +27,6 @@ function getContentHref(article: NewsArticle) {
   return article.contentType === "comic"
     ? `/comic/${article.contentId}`
     : `/post/${article.contentId}`;
-}
-
-function trackRelatedClick(article: NewsArticle, source: string) {
-  trackEvent("news_related_content_clicked", {
-    articleId: article.id,
-    contentId: article.contentId,
-    contentType: article.contentType,
-    source,
-  });
 }
 
 export function NewsArticleClient({ article }: { article: NewsArticle }) {
@@ -98,9 +78,9 @@ export function NewsArticleClient({ article }: { article: NewsArticle }) {
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <Badge className="rounded-full" variant="outline">
               <HugeiconsIcon className="mr-1 size-3.5" icon={Calendar03Icon} />
-              {format(new Date(article.publishedAt ?? new Date()), "PPp", {
-                locale: es,
-              })}
+              {article.publishedAt
+                ? format(new Date(article.publishedAt), "PPp", { locale: es })
+                : "Sin fecha"}
             </Badge>
             <Badge className="rounded-full" variant="outline">
               {article.contentType === "comic" ? "Comic" : "Juego"} relacionado
@@ -116,12 +96,7 @@ export function NewsArticleClient({ article }: { article: NewsArticle }) {
           <div className="flex flex-wrap gap-3">
             <Button
               nativeButton={false}
-              render={
-                <Link
-                  href={contentHref}
-                  onClick={() => trackRelatedClick(article, "article_header")}
-                />
-              }
+              render={<Link href={contentHref} />}
               variant="outline"
             >
               Ver {article.contentType === "comic" ? "comic" : "juego"}
@@ -160,14 +135,7 @@ export function NewsArticleClient({ article }: { article: NewsArticle }) {
               <Button
                 className="w-full"
                 nativeButton={false}
-                render={
-                  <Link
-                    href={contentHref}
-                    onClick={() =>
-                      trackRelatedClick(article, "article_sidebar")
-                    }
-                  />
-                }
+                render={<Link href={contentHref} />}
               >
                 Abrir contenido
               </Button>

@@ -58,7 +58,7 @@ async function getCachedGamesData(
   cacheLife("minutes");
   cacheTag("catalog:games");
 
-  return fetchGamesData(params);
+  return await fetchGamesData(params);
 }
 
 export default async function Page({

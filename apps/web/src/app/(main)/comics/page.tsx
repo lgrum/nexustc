@@ -64,7 +64,7 @@ async function getAnonymousCatalogData(
   cacheLife("minutes");
   cacheTag("catalog:comics");
 
-  return fetchAnonymousCatalogData(params);
+  return await fetchAnonymousCatalogData(params);
 }
 
 async function fetchAnonymousCatalogData(

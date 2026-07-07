@@ -1,5 +1,3 @@
-"use client";
-
 import {
   ArrowLeft01Icon,
   Book02Icon,
@@ -9,15 +7,12 @@ import {
   ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { useSuspenseQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import Link from "next/link";
 
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
-import { formatCount } from "@/components/search/library-shared";
 import { Button } from "@/components/ui/button";
-import { orpc } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, getBucketUrl } from "@/lib/utils";
 
@@ -36,23 +31,23 @@ type ComicCreatorData = {
   };
 };
 
-function getComicCreatorQueryOptions(id: string) {
-  return orpc.comicCreator.getById.queryOptions({
-    input: { id },
-  });
+const COMPACT_FORMATTER = new Intl.NumberFormat("es", {
+  maximumFractionDigits: 1,
+  notation: "compact",
+});
+
+function formatCount(value: number | undefined | null) {
+  return value === undefined || value === null
+    ? "0"
+    : COMPACT_FORMATTER.format(value);
 }
 
 export function ComicCreatorClient({
-  id,
   initialData,
 }: {
-  id: string;
   initialData: ComicCreatorData;
 }) {
-  const { data } = useSuspenseQuery({
-    ...getComicCreatorQueryOptions(id),
-    initialData,
-  });
+  const data = initialData;
   const heroImages = data.items
     .flatMap((comic) =>
       getThumbnailImageObjectKeys(

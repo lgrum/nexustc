@@ -30,7 +30,7 @@ export function VipClient({
   const { items, pagination } = feed;
 
   const handlePageChange = useCallback(
-    async (page: number) => {
+    (page: number) => {
       router.push(page > 1 ? `/vip?page=${page}` : "/vip", { scroll: false });
     },
     [router]

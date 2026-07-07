@@ -52,5 +52,5 @@ export default async function Page({ params }: PageProps) {
   const { id } = await params;
   const data = await getComicCreator(id);
 
-  return <ComicCreatorClient id={id} initialData={data} />;
+  return <ComicCreatorClient initialData={data} />;
 }

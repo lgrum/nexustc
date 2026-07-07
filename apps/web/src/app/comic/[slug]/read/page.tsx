@@ -38,7 +38,7 @@ async function getAnonymousComic(slug: string) {
   cacheLife("minutes");
   cacheTag("content", `content:${slug}`);
 
-  return orpcClient.post.getPostById(getComicInput(slug), {
+  return await orpcClient.post.getPostById(getComicInput(slug), {
     context: { cache: true },
   });
 }
@@ -96,8 +96,7 @@ export async function generateMetadata({
 }
 
 export default async function Page({ params, searchParams }: PageProps) {
-  const { slug } = await params;
-  const search = await searchParams;
+  const [{ slug }, search] = await Promise.all([params, searchParams]);
   const comic = await getComic(slug);
   const mode = getStringParam(search.mode);
   const page = Number(getStringParam(search.page) ?? 0);

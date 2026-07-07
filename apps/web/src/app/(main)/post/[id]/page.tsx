@@ -37,7 +37,7 @@ async function getAnonymousPost(idOrSlug: string) {
   cacheLife("minutes");
   cacheTag("content", `content:${idOrSlug}`);
 
-  return orpcClient.post.getPostById(getPostInput(idOrSlug), {
+  return await orpcClient.post.getPostById(getPostInput(idOrSlug), {
     context: { cache: true },
   });
 }
