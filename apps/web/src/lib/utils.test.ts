@@ -1,11 +1,11 @@
-import { getDeterministicHue, getPixelCropRegion } from "./utils";
-
-vi.mock(import("@repo/env/client"), () => ({
+vi.mock("@repo/env", () => ({
   env: {
-    VITE_ASSETS_BUCKET_URL: "https://assets.example.com",
-    VITE_TURNSTILE_SITE_KEY: "test-site-key",
+    NEXT_PUBLIC_ASSETS_BUCKET_URL: "https://assets.example.com",
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: "test-site-key",
   },
 }));
+
+const { getDeterministicHue, getPixelCropRegion } = await import("./utils");
 
 describe(getPixelCropRegion, () => {
   it("converts percent crop values into pixel bounds", () => {

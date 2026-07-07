@@ -4,6 +4,7 @@ import { AlertCircleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import type { TurnstileInstance } from "@marsidev/react-turnstile";
+import { env } from "@repo/env";
 import { useStore } from "@tanstack/react-form";
 import { Facehash } from "facehash";
 import Link from "next/link";
@@ -407,7 +408,7 @@ function TurnstileContainer({
         theme: "auto",
       }}
       ref={ref}
-      siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
+      siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
     />
   );
 }

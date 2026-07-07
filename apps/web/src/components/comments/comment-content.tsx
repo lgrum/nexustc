@@ -2,6 +2,7 @@ import { PATRON_TIER_GRADIENTS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { renderTokenizedContent } from "@repo/shared/token-parser";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
 
@@ -91,12 +92,13 @@ export function CommentContent({
             );
           }
           return (
-            <img
+            <Image
               alt={emojiData.displayName}
               className="inline size-8 align-middle"
+              height={32}
               key={key}
-              loading="lazy"
               src={src}
+              width={32}
             />
           );
         }
@@ -119,12 +121,13 @@ export function CommentContent({
             );
           }
           return (
-            <img
+            <Image
               alt={stickerData.displayName}
               className="my-2 block h-40 w-40 object-contain"
+              height={160}
               key={key}
-              loading="lazy"
               src={src}
+              width={160}
             />
           );
         }

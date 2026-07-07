@@ -6,6 +6,7 @@ import { PATRON_TIERS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import Image from "next/image";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -30,10 +31,12 @@ const columns: ColumnDef<Emoji>[] = [
   {
     accessorKey: "assetKey",
     cell: (info) => (
-      <img
+      <Image
         alt={info.row.original.displayName}
         className="size-8"
+        height={32}
         src={getBucketUrl(info.row.original.assetKey)}
+        width={32}
       />
     ),
     header: "Vista previa",

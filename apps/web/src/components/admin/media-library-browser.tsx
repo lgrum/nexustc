@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import Image from "next/image";
 import { useMemo } from "react";
 
 import {
@@ -199,11 +200,13 @@ function MediaItemCard({
   return (
     <div className="overflow-hidden rounded-2xl border border-border/70 bg-card flex flex-row">
       <div className="aspect-4/3 overflow-hidden bg-muted">
-        <img
+        <Image
           alt={item.objectKey}
           className="h-full w-full object-cover transition-transform duration-300 hover:scale-[1.03]"
-          loading="lazy"
+          height={300}
+          sizes="(min-width: 1536px) 25vw, (min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
           src={getBucketUrl(item.objectKey)}
+          width={400}
         />
       </div>
       <div className="space-y-3 px-3 py-2">

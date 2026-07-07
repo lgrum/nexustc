@@ -1,6 +1,7 @@
 "use client";
 
 import { Turnstile } from "@marsidev/react-turnstile";
+import { env } from "@repo/env";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -100,7 +101,7 @@ export function ForgotPasswordClient() {
                   size: "flexible",
                   theme: "auto",
                 }}
-                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
               />
             )}
           </form.AppField>

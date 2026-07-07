@@ -13,6 +13,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import type { TurnstileInstance } from "@marsidev/react-turnstile";
+import { env } from "@repo/env";
 import { ALLOWED_EMAIL_DOMAINS } from "@repo/shared/constants";
 import { useStore } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
@@ -616,7 +617,7 @@ function TurnstileContainer({
         theme: "auto",
       }}
       ref={ref}
-      siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
+      siteKey={env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
     />
   );
 }

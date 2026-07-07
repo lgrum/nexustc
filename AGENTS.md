@@ -143,7 +143,7 @@ bun run db:generate      # Generate migrations from schema
 ## Environment Variables
 
 Required: `DATABASE_URL`, `REDIS_URL`
-Build-time: `VITE_TURNSTILE_SITE_KEY`, `VITE_ASSETS_BUCKET_URL`
+Build-time: `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_ASSETS_BUCKET_URL`
 
 Always run `bun run check` before committing to ensure code passes Ultracite/Biome rules.
 

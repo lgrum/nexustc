@@ -150,7 +150,7 @@ Required for development:
 
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_URL` - Redis connection string
-- Build-time: `VITE_TURNSTILE_SITE_KEY`, `VITE_ASSETS_BUCKET_URL`
+- Build-time: `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `NEXT_PUBLIC_ASSETS_BUCKET_URL`
 
 Configuration files are in `apps/web/.env` (for development)
 

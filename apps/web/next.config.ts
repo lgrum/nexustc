@@ -1,20 +1,19 @@
-import { config } from "dotenv";
 import type { NextConfig } from "next";
 
-config({ path: "../../.env" });
-process.env.NEXT_PUBLIC_ASSETS_BUCKET_URL ??=
-  process.env.VITE_ASSETS_BUCKET_URL;
-process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ??=
-  process.env.VITE_TURNSTILE_SITE_KEY;
-process.env.SHRINKME_TOKEN ??= "missing-shrinkme-token";
+const assetsBucketUrl = process.env.NEXT_PUBLIC_ASSETS_BUCKET_URL;
+if (!assetsBucketUrl) {
+  throw new Error("NEXT_PUBLIC_ASSETS_BUCKET_URL is required");
+}
+
+const assetHost = new URL(assetsBucketUrl);
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
   images: {
     remotePatterns: [
       {
-        hostname: "**",
-        protocol: "https",
+        hostname: assetHost.hostname,
+        protocol: assetHost.protocol.replace(":", "") as "http" | "https",
       },
     ],
   },
