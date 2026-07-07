@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/outfit";
-@import "@fontsource/lexend";
 @plugin "@tailwindcss/typography";
 
 @source "../node_modules/@blocknote/shadcn";
@@ -55,10 +53,11 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --font-sans: Outfit, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: Lexend, ui-sans-serif, sans-serif, system-ui;
+  --font-sans: var(--font-outfit-next), ui-sans-serif, sans-serif, system-ui;
+  --font-serif: var(--font-lexend-next), ui-sans-serif, sans-serif, system-ui;
   --font-mono: JetBrains Mono, ui-monospace, monospace;
-  --font-lexend: Lexend, ui-sans-serif, sans-serif, system-ui;
+  --font-lexend-family:
+    var(--font-lexend-next), ui-sans-serif, sans-serif, system-ui;
   --radius: 0.875rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
@@ -115,10 +114,11 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
-  --font-sans: Outfit, ui-sans-serif, sans-serif, system-ui;
-  --font-serif: Lexend, ui-sans-serif, sans-serif, system-ui;
+  --font-sans: var(--font-outfit-next), ui-sans-serif, sans-serif, system-ui;
+  --font-serif: var(--font-lexend-next), ui-sans-serif, sans-serif, system-ui;
   --font-mono: JetBrains Mono, ui-monospace, monospace;
-  --font-lexend: Lexend, ui-sans-serif, sans-serif, system-ui;
+  --font-lexend-family:
+    var(--font-lexend-next), ui-sans-serif, sans-serif, system-ui;
   --radius: 0.875rem;
   --shadow-x: 0px;
   --shadow-y: 1px;
@@ -175,9 +175,10 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --font-sans: "Outfit Variable", sans-serif;
-  --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+  --font-sans: var(--font-outfit-next), ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, ui-monospace, monospace;
+  --font-serif: var(--font-lexend-next), ui-sans-serif, sans-serif, system-ui;
+  --font-lexend: var(--font-lexend-next), ui-sans-serif, sans-serif, system-ui;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -315,7 +316,7 @@
 
 /* Section title: quieter label, still recognizable */
 .section-title {
-  font-family: var(--font-lexend);
+  font-family: var(--font-lexend-family);
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
@@ -367,7 +368,7 @@
 
 /* Editorial display heading */
 .display-heading {
-  font-family: var(--font-lexend);
+  font-family: var(--font-lexend-family);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.02;

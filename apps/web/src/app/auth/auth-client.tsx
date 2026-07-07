@@ -233,7 +233,7 @@ export function AuthClient() {
         {/* Logo */}
         <div className="mb-6 text-center">
           <Link href="/">
-            <h1 className="font-[Lexend] font-extrabold text-3xl">
+            <h1 className="font-lexend font-extrabold text-3xl">
               <span className="bg-linear-to-br from-primary to-accent bg-clip-text text-transparent">
                 NeXusTC
               </span>

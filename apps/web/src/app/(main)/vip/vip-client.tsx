@@ -60,7 +60,7 @@ export function VipClient({
                 <HugeiconsIcon className="size-6" icon={Clock01Icon} />
               </div>
               <div className="flex flex-col gap-1">
-                <h2 className="font-[Lexend] font-semibold text-xl text-foreground">
+                <h2 className="font-lexend font-semibold text-xl text-foreground">
                   La vitrina VIP está vacía por ahora
                 </h2>
                 <p className="max-w-xl text-muted-foreground text-sm leading-relaxed">
@@ -263,7 +263,7 @@ function VipCountdown({
         <HugeiconsIcon className="size-3" icon={Clock01Icon} />
         {label}
       </span>
-      <div className="flex items-baseline gap-1 font-[Lexend] tabular-nums">
+      <div className="flex items-baseline gap-1 font-lexend tabular-nums">
         {parts.map((part, index) => (
           <span className="inline-flex items-baseline" key={part.suffix}>
             {index > 0 && (
@@ -348,7 +348,7 @@ function VipFeedCard({
 
           <CardContent className="flex h-full flex-col gap-4 p-5">
             <div className="flex flex-col gap-2">
-              <h2 className="font-[Lexend] font-semibold text-foreground text-xl leading-tight">
+              <h2 className="font-lexend font-semibold text-foreground text-xl leading-tight">
                 {item.title}
               </h2>
               <p className="text-muted-foreground text-sm leading-relaxed">

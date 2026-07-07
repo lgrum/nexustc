@@ -343,7 +343,7 @@ function ComicHero({
           </div>
 
           {/* Stats row */}
-          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-[Lexend] text-sm tabular-nums text-muted-foreground">
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-lexend text-sm tabular-nums text-muted-foreground">
             <HeroStat icon={ViewIcon} value={formatCount(comic.views)} />
             <HeroStat
               icon={FavouriteIcon}

@@ -185,7 +185,7 @@ export function NotificationCenter() {
         <Drawer onOpenChange={handleOpenChange} open={open}>
           <DrawerContent className="isolate max-h-[82vh] rounded-t-[2rem] border-border/70 bg-background/96 shadow-[0_-24px_90px_-40px_hsl(var(--foreground)/0.8)] supports-backdrop-filter:bg-background/80 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150">
             <DrawerHeader className="border-border/60 border-b px-4 pb-4 text-left">
-              <DrawerTitle className="font-[Lexend] text-xl">
+              <DrawerTitle className="font-lexend text-xl">
                 Notificaciones
               </DrawerTitle>
               <DrawerDescription>

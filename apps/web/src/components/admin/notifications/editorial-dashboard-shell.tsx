@@ -38,7 +38,7 @@ export function EditorialDashboardHeader({
               Centro editorial
             </span>
           </div>
-          <h1 className="mt-3 font-[Lexend] font-bold text-3xl">{title}</h1>
+          <h1 className="mt-3 font-lexend font-bold text-3xl">{title}</h1>
           <p className="mt-3 text-muted-foreground text-sm leading-6">
             {description}
           </p>

@@ -194,7 +194,7 @@ export function PostHero() {
           />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 md:p-10">
-            <h1 className="mb-2 font-[Lexend] font-bold text-white text-xl drop-shadow-lg md:text-4xl">
+            <h1 className="mb-2 font-lexend font-bold text-white text-xl drop-shadow-lg md:text-4xl">
               {post.title}
             </h1>
             <div className="py-2 text-sm">
@@ -206,7 +206,7 @@ export function PostHero() {
         </div>
       ) : (
         <div className="flex flex-col gap-4 bg-linear-to-br from-primary/20 via-primary/10 to-transparent p-8 md:p-12">
-          <h1 className="font-[Lexend] font-bold text-3xl md:text-5xl">
+          <h1 className="font-lexend font-bold text-3xl md:text-5xl">
             {post.title}
           </h1>
           <div className="flex flex-wrap items-center gap-4">
@@ -683,7 +683,7 @@ function EarlyAccessDownloadGate() {
         </div>
 
         <div className="flex max-w-lg flex-col items-center gap-2 text-center">
-          <h3 className="font-[Lexend] font-bold text-amber-50 text-xl md:text-2xl">
+          <h3 className="font-lexend font-bold text-amber-50 text-xl md:text-2xl">
             Descarga reservada a {tierLabel}
           </h3>
           <p className="text-amber-100/80 text-sm leading-relaxed">
@@ -1220,7 +1220,7 @@ export function DiscordSection() {
           />
         }
       >
-        <div className="inline-flex items-center gap-4 text-center font-[Lexend] font-bold text-2xl text-white uppercase">
+        <div className="inline-flex items-center gap-4 text-center font-lexend font-bold text-2xl text-white uppercase">
           <DiscordLogo className="size-8" /> Únete a nuestro Discord
         </div>
       </ShinyButton>
@@ -1287,7 +1287,7 @@ function CreatorSupportContent() {
         </div>
       )}
       <div className="flex flex-col gap-0.5">
-        <span className="font-[Lexend] font-bold uppercase">{label}</span>
+        <span className="font-lexend font-bold uppercase">{label}</span>
         {post.creatorName && (
           <span className="text-primary">{post.creatorName}</span>
         )}
@@ -1312,11 +1312,11 @@ export function TranslatorSupportCard() {
       target="_blank"
     >
       <div className="relative flex items-center gap-4">
-        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-accent/20 to-secondary/20 font-[Lexend] font-bold text-primary">
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-accent/20 to-secondary/20 font-lexend font-bold text-primary">
           TR
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="font-[Lexend] font-bold uppercase">Traduccion</span>
+          <span className="font-lexend font-bold uppercase">Traduccion</span>
           <span className="text-primary">{translator.name}</span>
         </div>
       </div>

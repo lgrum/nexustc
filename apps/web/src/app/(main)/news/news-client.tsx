@@ -33,7 +33,7 @@ export function NewsClient({ articles }: { articles: NewsArticle[] }) {
             News
           </span>
         </div>
-        <h1 className="mt-3 font-[Lexend] font-bold text-3xl">
+        <h1 className="mt-3 font-lexend font-bold text-3xl">
           TODAS LAS NOTICIAS - Reunidas En Un Solo Lugar
         </h1>
         <p className="mt-3 max-w-3xl text-muted-foreground text-sm leading-6">
@@ -100,7 +100,7 @@ export function NewsClient({ articles }: { articles: NewsArticle[] }) {
                       {formatNewsDate(article.publishedAt)}
                     </Badge>
                   </div>
-                  <CardTitle className="text-balance font-[Lexend] text-xl leading-tight">
+                  <CardTitle className="text-balance font-lexend text-xl leading-tight">
                     {article.title}
                   </CardTitle>
                   <p className="text-muted-foreground text-sm leading-6">

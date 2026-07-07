@@ -165,7 +165,7 @@ function PromptRotator({
         <div className="flex flex-1 flex-col gap-3">
           <p
             className={cn(
-              "text-balance font-[Lexend] text-base text-foreground leading-relaxed transition-opacity text-center md:text-left md:text-xl",
+              "text-balance font-lexend text-base text-foreground leading-relaxed transition-opacity text-center md:text-left md:text-xl",
               prefersReducedMotion ? "duration-0" : "duration-250",
               isFading ? "opacity-0" : "opacity-100"
             )}

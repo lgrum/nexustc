@@ -236,7 +236,7 @@ function ComicsHero({
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-[Lexend] text-sm tabular-nums text-muted-foreground">
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-lexend text-sm tabular-nums text-muted-foreground">
             <Stat icon={ViewIcon} value={formatCount(featured.views)} />
             <Stat
               icon={FavouriteIcon}
@@ -338,7 +338,7 @@ function HeroPoster({ post }: { post: PostProps }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/60 to-transparent" />
 
         {/* Corner rank */}
-        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-black/55 px-2 py-1 font-[Lexend] text-[10px] font-bold uppercase tracking-[0.18em] text-primary backdrop-blur-md">
+        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-black/55 px-2 py-1 font-lexend text-[10px] font-bold uppercase tracking-[0.18em] text-primary backdrop-blur-md">
           <HugeiconsIcon className="size-3" icon={Crown02Icon} />
           #1
         </div>
@@ -1124,7 +1124,7 @@ function PageCountRangePopover({
           <div className="absolute right-0 z-40 mt-2 w-[min(340px,90vw)] rounded-2xl border border-white/10 bg-popover/95 p-4 shadow-2xl backdrop-blur-md">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-[Lexend] font-bold text-sm">Páginas</p>
+                <p className="font-lexend font-bold text-sm">Páginas</p>
                 <p className="text-muted-foreground text-xs">
                   Filtra por cantidad de páginas.
                 </p>

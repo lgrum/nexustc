@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Lexend, Outfit } from "next/font/google";
 import Script from "next/script";
 import { Suspense } from "react";
 
@@ -7,6 +8,19 @@ import { createPageMetadata, metadataBaseUrl } from "./seo";
 import "../lib/orpc.server"; // for pre-rendering
 
 import "./globals.css";
+
+const outfit = Outfit({
+  display: "swap",
+  subsets: ["latin"],
+  variable: "--font-outfit-next",
+});
+
+const lexend = Lexend({
+  display: "swap",
+  subsets: ["latin"],
+  variable: "--font-lexend-next",
+  weight: "400",
+});
 
 export const metadata: Metadata = {
   ...createPageMetadata(),
@@ -24,7 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html className="dark" lang="es" suppressHydrationWarning>
+    <html
+      className={`${outfit.variable} ${lexend.variable} dark`}
+      lang="es"
+      suppressHydrationWarning
+    >
       <body className="min-h-full bg-background text-foreground antialiased">
         <Suspense fallback={null}>
           <Providers>{children}</Providers>

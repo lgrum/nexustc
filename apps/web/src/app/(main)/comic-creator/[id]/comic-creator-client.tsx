@@ -156,7 +156,7 @@ export function ComicCreatorClient({
               className="mx-auto size-10 text-muted-foreground"
               icon={Book02Icon}
             />
-            <h2 className="mt-4 font-[Lexend] font-semibold text-lg">
+            <h2 className="mt-4 font-lexend font-semibold text-lg">
               Sin comics visibles
             </h2>
             <p className="mx-auto mt-1 max-w-md text-muted-foreground text-sm">
@@ -211,7 +211,7 @@ function CreatorStat({
         <HugeiconsIcon className="size-4 text-primary" icon={icon} />
         {label}
       </div>
-      <div className="mt-2 font-[Lexend] font-bold text-2xl text-foreground">
+      <div className="mt-2 font-lexend font-bold text-2xl text-foreground">
         {value}
       </div>
     </div>

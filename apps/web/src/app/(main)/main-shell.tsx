@@ -13,7 +13,7 @@ import { useAdblockDetector } from "@/hooks/use-adblock-detector";
 
 function Marquee({ items }: { items: readonly MarqueeItem[] }) {
   return (
-    <div className="flex w-max shrink-0 items-center gap-10 py-2 pr-10 font-[Lexend] font-semibold text-[11px] uppercase tracking-[0.22em]">
+    <div className="flex w-max shrink-0 items-center gap-10 py-2 pr-10 font-lexend font-semibold text-[11px] uppercase tracking-[0.22em]">
       {items.map((item, idx) => {
         const content = item.url ? (
           <a

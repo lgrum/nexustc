@@ -55,7 +55,7 @@ export function NewsArticleClient({ article }: { article: NewsArticle }) {
                   News editorial
                 </Badge>
               </div>
-              <h1 className="mt-3 max-w-4xl font-[Lexend] font-bold text-3xl text-white drop-shadow-lg md:text-5xl">
+              <h1 className="mt-3 max-w-4xl font-lexend font-bold text-3xl text-white drop-shadow-lg md:text-5xl">
                 {article.title}
               </h1>
             </div>
@@ -68,7 +68,7 @@ export function NewsArticleClient({ article }: { article: NewsArticle }) {
                 News editorial
               </span>
             </div>
-            <h1 className="mt-3 max-w-4xl font-[Lexend] font-bold text-3xl md:text-5xl">
+            <h1 className="mt-3 max-w-4xl font-lexend font-bold text-3xl md:text-5xl">
               {article.title}
             </h1>
           </div>
@@ -124,7 +124,7 @@ export function NewsArticleClient({ article }: { article: NewsArticle }) {
                 Relacionado
               </p>
               <div className="space-y-2">
-                <p className="font-[Lexend] font-semibold text-lg leading-tight">
+                <p className="font-lexend font-semibold text-lg leading-tight">
                   {article.contentTitle}
                 </p>
                 <p className="text-muted-foreground text-sm">

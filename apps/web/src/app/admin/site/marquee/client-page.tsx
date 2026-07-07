@@ -189,7 +189,7 @@ function MarqueeEditor({ initialItems }: { initialItems: MarqueeDraftItem[] }) {
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <h2 className="font-semibold text-lg">Vista previa</h2>
         <div className="overflow-hidden whitespace-nowrap rounded-md bg-primary">
-          <div className="flex w-max gap-8 px-4 py-2 text-black font-[Lexend] font-bold text-sm uppercase tracking-widest">
+          <div className="flex w-max gap-8 px-4 py-2 text-black font-lexend font-bold text-sm uppercase tracking-widest">
             {currentItems.map((item) =>
               item.text.trim() && item.url.trim() ? (
                 <a

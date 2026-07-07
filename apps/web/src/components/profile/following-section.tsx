@@ -76,7 +76,7 @@ export function FollowingSection() {
             Siguiendo
           </span>
         </div>
-        <h2 className="font-[Lexend] font-bold text-2xl">
+        <h2 className="font-lexend font-bold text-2xl">
           Tu radar de juegos y comics
         </h2>
         <p className="max-w-2xl text-muted-foreground text-sm leading-6">
