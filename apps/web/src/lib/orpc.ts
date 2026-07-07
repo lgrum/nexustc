@@ -55,6 +55,8 @@ export function getQueryClient() {
 
 export const queryClient = getQueryClient();
 
+export const getBrowserORPCUrl = () => "/api/rpc";
+
 function getORPCClient(): AppRouterClient {
   if (globalThis.$client) {
     return globalThis.$client;
@@ -76,7 +78,7 @@ function getORPCClient(): AppRouterClient {
         throw new TypeError("RPCLink is not allowed on the server side.");
       }
 
-      return `${process.env.BETTER_AUTH_URL ?? "http://localhost:3000"}/api/rpc`;
+      return getBrowserORPCUrl();
     },
   });
 

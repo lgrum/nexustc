@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { getClientErrorMessage } from "./client-error";
+import { getBrowserORPCUrl } from "./orpc";
 
 describe("getClientErrorMessage", () => {
   it("uses explicit server error messages", () => {
@@ -31,5 +32,11 @@ describe("getClientErrorMessage", () => {
     expect(getClientErrorMessage(null, "No se pudo guardar.")).toBe(
       "No se pudo guardar."
     );
+  });
+});
+
+describe("getBrowserORPCUrl", () => {
+  it("uses the current origin for browser RPC calls", () => {
+    expect(getBrowserORPCUrl()).toBe("/api/rpc");
   });
 });
