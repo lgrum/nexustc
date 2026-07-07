@@ -1,6 +1,6 @@
 import { ArrowRight01Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -90,7 +90,7 @@ export function RatingSection({ stats }: RatingSectionProps) {
         <div className="flex flex-wrap items-center gap-3">
           <RatingButton postId={stats.id} />
           {stats.ratingCount > 0 && (
-            <Link params={{ id: stats.id }} to="/post/reviews/$id">
+            <Link href={`/post/reviews/${stats.id}`}>
               <Button>
                 <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
               </Button>

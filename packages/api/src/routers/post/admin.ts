@@ -342,7 +342,10 @@ export default {
 
       await db
         .update(post)
-        .set({ isWeekly: false })
+        .set({
+          isWeekly: false,
+          updatedAt: sql`${post.updatedAt}`,
+        })
         .where(eq(post.isWeekly, true));
       logger?.debug("Cleared previous weekly posts");
 
@@ -350,6 +353,7 @@ export default {
         .update(post)
         .set({
           isWeekly: true,
+          updatedAt: sql`${post.updatedAt}`,
         })
         .where(inArray(post.id, input));
       logger?.info(`Successfully set ${input.length} posts as weekly`);

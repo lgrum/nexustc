@@ -1198,7 +1198,10 @@ export default {
 
       await db
         .update(post)
-        .set({ views: sql`${post.views} + 1` })
+        .set({
+          updatedAt: sql`${post.updatedAt}`,
+          views: sql`${post.views} + 1`,
+        })
         .where(eq(post.id, input.postId));
 
       logger?.info(`View count incremented for post ${input.postId}`);
@@ -1931,7 +1934,7 @@ export default {
       const logger = getLogger(context);
       logger?.info(`Fetching related posts for: ${input.postId}`);
 
-      const cacheKey = `rec:v3:${input.postId}`;
+      const cacheKey = `rec:v4:${input.postId}`;
 
       try {
         const redis = await getRedis();

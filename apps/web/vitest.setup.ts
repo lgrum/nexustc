@@ -1,7 +1,2 @@
-import { cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
-
-// Cleanup after each test
-afterEach(() => {
-  cleanup();
-});
+process.env.NEXT_PUBLIC_ASSETS_BUCKET_URL ??= "https://assets.example.com";
+process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ??= "test-site-key";

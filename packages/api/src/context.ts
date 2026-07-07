@@ -21,15 +21,23 @@ const logger = pino({
   },
 });
 
+const createBaseContext = (
+  headers: Headers,
+  session: Context["session"]
+): Context => ({
+  headers,
+  session,
+  db,
+  [CONTEXT_LOGGER_SYMBOL]: logger,
+});
+
 export async function createContext(headers: Headers): Promise<Context> {
   const session = await auth.api.getSession({
     headers,
   });
 
-  return {
-    headers,
-    session,
-    db,
-    [CONTEXT_LOGGER_SYMBOL]: logger,
-  };
+  return createBaseContext(headers, session);
 }
+
+export const createPublicContext = (): Context =>
+  createBaseContext(new Headers(), null);

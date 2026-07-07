@@ -1,0 +1,38 @@
+export const cacheTagsByMutation = new Map<string, readonly string[]>([
+  ["comic/admin/create", ["catalog:comics", "content", "home", "vip-feed"]],
+  ["comic/admin/delete", ["catalog:comics", "content", "home", "vip-feed"]],
+  ["comic/admin/edit", ["catalog:comics", "content", "home", "vip-feed"]],
+  ["chronos/update", ["chronos"]],
+  ["engagementQuestion/create", ["content"]],
+  ["engagementQuestion/delete", ["content"]],
+  ["engagementQuestion/edit", ["content"]],
+  ["extras/createTutorial", ["tutorials"]],
+  ["extras/deleteTutorial", ["tutorials"]],
+  ["notification/admin/archive", ["news"]],
+  ["notification/admin/createNewsArticle", ["news"]],
+  ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
+  ["post/admin/delete", ["catalog:games", "content", "home", "vip-feed"]],
+  ["post/admin/edit", ["catalog:games", "content", "home", "vip-feed"]],
+  ["post/admin/uploadFeaturedPosts", ["home"]],
+  ["post/admin/uploadWeeklyPosts", ["home"]],
+  ["profile/finalizeUpload", ["profiles"]],
+  ["profile/removeAvatar", ["profiles"]],
+  ["profile/removeBanner", ["profiles"]],
+  ["profile/updateAppearance", ["profiles"]],
+  ["profileAdmin/assignments/setUserAssignments", ["profiles"]],
+  ["profileAdmin/emblems/create", ["profiles"]],
+  ["profileAdmin/emblems/delete", ["profiles"]],
+  ["profileAdmin/emblems/update", ["profiles"]],
+  ["profileAdmin/roles/create", ["profiles"]],
+  ["profileAdmin/roles/delete", ["profiles"]],
+  ["profileAdmin/roles/update", ["profiles"]],
+  ["siteConfig/updateMarquee", ["site-config"]],
+  ["staticPage/update", ["static-pages"]],
+  ["term/create", ["catalog:comics", "catalog:games", "content", "home"]],
+  ["term/delete", ["catalog:comics", "catalog:games", "content", "home"]],
+  ["term/edit", ["catalog:comics", "catalog:games", "content", "home"]],
+]);
+
+export function getCacheTagsForProcedure(procedurePath: string) {
+  return cacheTagsByMutation.get(procedurePath) ?? [];
+}

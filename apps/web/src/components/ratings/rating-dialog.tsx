@@ -12,7 +12,7 @@ import {
   RATING_REVIEW_MIN_LENGTH,
 } from "@repo/shared/constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -315,7 +315,7 @@ function RatingDialogContent({
             <div className="hidden flex-1 sm:block" />
             <Button
               className="h-11 w-full gap-2 rounded-lg border-border/70 text-[12.5px] text-muted-foreground hover:text-foreground sm:w-auto sm:shrink-0 sm:px-4"
-              render={<Link to="/review-guidelines" />}
+              render={<Link href="/review-guidelines" />}
               variant="outline"
             >
               <HugeiconsIcon

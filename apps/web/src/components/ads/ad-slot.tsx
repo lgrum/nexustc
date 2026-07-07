@@ -1,3 +1,5 @@
+"use client";
+
 import { getAdPolicy } from "@repo/shared/constants";
 import type { AdPolicy, PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";

@@ -53,7 +53,7 @@ export function FollowButton({ contentId }: FollowButtonProps) {
     }
   );
 
-  const followStateQuery = useQuery({
+  const { data: followState, isLoading: followStateLoading } = useQuery({
     ...followStateQueryOptions,
     enabled: isAuthed,
   });
@@ -147,9 +147,9 @@ export function FollowButton({ contentId }: FollowButtonProps) {
     );
   }
 
-  const isFollowing = followStateQuery.data ?? false;
+  const isFollowing = followState ?? false;
   const isLoading =
-    followStateQuery.isLoading ||
+    followStateLoading ||
     followMutation.isPending ||
     unfollowMutation.isPending;
 

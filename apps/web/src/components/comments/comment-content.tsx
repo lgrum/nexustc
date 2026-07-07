@@ -2,6 +2,7 @@ import { PATRON_TIER_GRADIENTS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { renderTokenizedContent } from "@repo/shared/token-parser";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
 
@@ -91,12 +92,13 @@ export function CommentContent({
             );
           }
           return (
-            <img
+            <Image
               alt={emojiData.displayName}
               className="inline size-8 align-middle"
+              height={32}
               key={key}
-              loading="lazy"
               src={src}
+              width={32}
             />
           );
         }
@@ -119,12 +121,13 @@ export function CommentContent({
             );
           }
           return (
-            <img
+            <Image
               alt={stickerData.displayName}
               className="my-2 block h-40 w-40 object-contain"
+              height={160}
               key={key}
-              loading="lazy"
               src={src}
+              width={160}
             />
           );
         }
@@ -136,13 +139,13 @@ export function CommentContent({
 }
 
 export function useEmojiStickerMaps() {
-  const emojiQuery = useQuery({
+  const { data: emojis } = useQuery({
     queryFn: () => orpcClient.emoji.list(),
     queryKey: ["emojis-for-rendering"],
     staleTime: 5 * 60 * 1000,
   });
 
-  const stickerQuery = useQuery({
+  const { data: stickers } = useQuery({
     queryFn: () => orpcClient.sticker.list(),
     queryKey: ["stickers-for-rendering"],
     staleTime: 5 * 60 * 1000,
@@ -153,7 +156,7 @@ export function useEmojiStickerMaps() {
       string,
       { assetKey: string; type: string; displayName: string }
     >();
-    for (const e of emojiQuery.data ?? []) {
+    for (const e of emojis ?? []) {
       map.set(e.name, {
         assetKey: e.assetKey,
         displayName: e.displayName,
@@ -161,14 +164,14 @@ export function useEmojiStickerMaps() {
       });
     }
     return map;
-  }, [emojiQuery.data]);
+  }, [emojis]);
 
   const stickerMap = useMemo(() => {
     const map = new Map<
       string,
       { assetKey: string; type: string; displayName: string }
     >();
-    for (const s of stickerQuery.data ?? []) {
+    for (const s of stickers ?? []) {
       map.set(s.name, {
         assetKey: s.assetKey,
         displayName: s.displayName,
@@ -176,7 +179,7 @@ export function useEmojiStickerMaps() {
       });
     }
     return map;
-  }, [stickerQuery.data]);
+  }, [stickers]);
 
   return { emojiMap, stickerMap };
 }

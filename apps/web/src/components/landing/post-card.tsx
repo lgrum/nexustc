@@ -1,7 +1,8 @@
 import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
-import { Link } from "@tanstack/react-router";
+import Image from "next/image";
+import Link from "next/link";
 
 import { trackEvent } from "@/lib/analytics";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
@@ -84,27 +85,17 @@ function getComicProgressBadge(
 
 export function PostCard({ post }: PostCardProps) {
   if (post.type === "comic") {
-    return (
-      <PostCardContent
-        params={{ slug: post.slug }}
-        post={post}
-        to="/comic/$slug"
-      />
-    );
+    return <PostCardContent href={`/comic/${post.slug}`} post={post} />;
   }
 
-  return (
-    <PostCardContent params={{ id: post.slug }} post={post} to="/post/$id" />
-  );
+  return <PostCardContent href={`/post/${post.slug}`} post={post} />;
 }
 
 function PostCardContent({
-  params,
+  href,
   post,
-  to,
 }: PostCardProps & {
-  params: { id: string } | { slug: string };
-  to: "/post/$id" | "/comic/$slug";
+  href: string;
 }) {
   const thumbnailImageCount =
     post.type === "comic" ? 1 : (post.thumbnailImageCount ?? 4);
@@ -130,9 +121,8 @@ function PostCardContent({
           source: "catalog",
         })
       }
-      params={params}
-      preload={false}
-      to={to}
+      href={href}
+      prefetch={false}
     >
       <Card
         className="card-hover relative rounded-t-xl h-full pb-0.75"
@@ -153,33 +143,36 @@ function PostCardContent({
             <div className="h-full w-full bg-linear-to-br from-muted to-card" />
           )}
           {post.type === "comic" && count > 0 && (
-            <img
+            <Image
               alt={post.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-              decoding="async"
-              loading="lazy"
+              height={800}
+              sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
               src={images[0]}
+              width={600}
             />
           )}
           {post.type === "post" && count === 1 && (
-            <img
+            <Image
               alt={post.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-              decoding="async"
-              loading="lazy"
+              height={720}
+              sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
               src={images[0]}
+              width={1280}
             />
           )}
           {post.type === "post" && count === 2 && (
             <div className="grid h-full w-full grid-cols-2 gap-px bg-border">
               {images.map((img) => (
-                <img
+                <Image
                   alt={post.title}
                   className="h-full w-full object-cover"
-                  decoding="async"
+                  height={720}
                   key={img}
-                  loading="lazy"
+                  sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 16.5vw, 25vw"
                   src={img}
+                  width={640}
                 />
               ))}
             </div>
@@ -187,40 +180,44 @@ function PostCardContent({
           {post.type === "post" && count === 3 && (
             <div className="grid h-full w-full grid-cols-2 gap-px bg-border">
               <div className="grid min-h-0 grid-rows-2 gap-px bg-border">
-                <img
+                <Image
                   alt={post.title}
                   className="h-full w-full object-cover"
-                  decoding="async"
-                  loading="lazy"
+                  height={360}
+                  sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 16.5vw, 25vw"
                   src={images[0]}
+                  width={640}
                 />
-                <img
+                <Image
                   alt={post.title}
                   className="h-full w-full object-cover"
-                  decoding="async"
-                  loading="lazy"
+                  height={360}
+                  sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 16.5vw, 25vw"
                   src={images[1]}
+                  width={640}
                 />
               </div>
-              <img
+              <Image
                 alt={post.title}
                 className="h-full w-full object-cover"
-                decoding="async"
-                loading="lazy"
+                height={720}
+                sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 16.5vw, 25vw"
                 src={images[2]}
+                width={640}
               />
             </div>
           )}
           {post.type === "post" && count >= 4 && (
             <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-px bg-border">
               {images.map((img) => (
-                <img
+                <Image
                   alt={post.title}
                   className="h-full w-full object-cover"
-                  decoding="async"
+                  height={360}
                   key={img}
-                  loading="lazy"
+                  sizes="(min-width: 1280px) 12.5vw, (min-width: 768px) 16.5vw, 25vw"
                   src={img}
+                  width={640}
                 />
               ))}
             </div>

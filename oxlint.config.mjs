@@ -1,10 +1,10 @@
 import { defineConfig } from "oxlint";
 import core from "ultracite/oxlint/core";
+import next from "ultracite/oxlint/next";
 import react from "ultracite/oxlint/react";
-import remix from "ultracite/oxlint/remix";
 
 export default defineConfig({
-  extends: [core, react, remix],
+  extends: [core, react, next],
   ignorePatterns: ["routeTree.gen.ts"],
   rules: {
     "no-promise-executor-return": "off",

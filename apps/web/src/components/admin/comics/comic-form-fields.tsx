@@ -155,6 +155,21 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
     }
   };
 
+  const copyTags = async () => {
+    const tagsById = new Map(groupedTerms.tag?.map((tag) => [tag.id, tag]));
+    const tagNames = form
+      .getFieldValue("tags")
+      .map((tagId) => tagsById.get(tagId)?.name)
+      .filter((name): name is string => Boolean(name));
+
+    try {
+      await navigator.clipboard.writeText(tagNames.join(", "));
+      toast.success("Tags copiados al portapapeles");
+    } catch {
+      toast.error("No se pudieron copiar los tags");
+    }
+  };
+
   return (
     <div className="grid grid-cols-2 gap-4">
       <form.AppField name="title">
@@ -181,7 +196,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
                 VIP Early Access
               </div>
               <div className="space-y-1">
-                <h2 className="font-[Lexend] font-bold text-white text-xl">
+                <h2 className="font-lexend font-bold text-white text-xl">
                   Estreno escalonado
                 </h2>
                 <p className="max-w-2xl text-amber-50/80 text-sm leading-relaxed">
@@ -262,7 +277,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
               <div className="font-medium text-[11px] text-amber-200 uppercase tracking-[0.22em]">
                 Salida pública
               </div>
-              <div className="mt-2 font-[Lexend] font-bold text-3xl text-white">
+              <div className="mt-2 font-lexend font-bold text-3xl text-white">
                 {totalEarlyAccessHours}h
               </div>
               <p className="mt-2 max-w-48 text-amber-50/75 text-sm leading-relaxed">
@@ -385,6 +400,9 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        <Button onClick={copyTags} type="button" variant="outline">
+          Copiar Tags
+        </Button>
       </div>
 
       <form.AppField name="documentStatus">

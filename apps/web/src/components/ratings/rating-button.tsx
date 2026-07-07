@@ -1,7 +1,7 @@
 import { Login02Icon, StarIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useState } from "react";
 
 import { SignedIn } from "@/components/auth/signed-in";
@@ -69,7 +69,7 @@ export function RatingButton({ postId }: RatingButtonProps) {
       <SignedOut>
         <Link
           className="group inline-flex h-10 items-center gap-2 rounded-full border border-border/70 bg-card/60 px-4 font-medium text-[12.5px] text-muted-foreground outline-none transition-colors duration-200 hover:border-amber-400/40 hover:bg-amber-400/5 hover:text-amber-100 focus-visible:ring-2 focus-visible:ring-ring/50"
-          to="/auth"
+          href="/auth"
         >
           <HugeiconsIcon
             className="size-4 transition-colors duration-200 group-hover:text-amber-200"

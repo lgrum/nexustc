@@ -1,4 +1,4 @@
-import { env } from "@repo/env/client";
+import { env } from "@repo/env";
 import { clsx } from "clsx";
 import type { ClassValue } from "clsx";
 import type { FacehashProps } from "facehash";
@@ -222,7 +222,7 @@ export function getBucketUrl(object: string) {
     return object;
   }
 
-  return `${env.VITE_ASSETS_BUCKET_URL}/${object}`;
+  return `${env.NEXT_PUBLIC_ASSETS_BUCKET_URL}/${object}`;
 }
 
 const TIER_BREAKPOINTS = {

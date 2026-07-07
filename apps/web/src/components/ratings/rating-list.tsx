@@ -10,9 +10,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import type { Role } from "@repo/shared/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
@@ -228,11 +228,7 @@ export function RatingList({ postId }: RatingListProps) {
             key={rating.userId}
           >
             {author ? (
-              <Link
-                className="shrink-0"
-                params={{ id: author.id }}
-                to="/user/$id"
-              >
+              <Link className="shrink-0" href={`/user/${author.id}`}>
                 <ProfileAvatar
                   className="size-10 ring-2 ring-background transition-transform group-hover:scale-105"
                   user={author}
@@ -251,8 +247,7 @@ export function RatingList({ postId }: RatingListProps) {
                     {author ? (
                       <Link
                         className="min-w-0 max-w-full"
-                        params={{ id: author.id }}
-                        to="/user/$id"
+                        href={`/user/${author.id}`}
                       >
                         <UserLabel
                           className="font-semibold transition-colors hover:text-primary"

@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import {
   Popover,
   PopoverContent,
@@ -68,19 +70,23 @@ export function ProfileRoleBadges({
               }}
             >
               {icon && (
-                <img
+                <Image
                   alt=""
                   aria-hidden="true"
                   className="size-4 rounded-full object-cover"
+                  height={16}
                   src={getBucketUrl(icon.objectKey)}
+                  width={16}
                 />
               )}
               <span>{role.name}</span>
               {overlay && (
-                <img
+                <Image
                   alt=""
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 size-full rounded-full object-cover opacity-25"
+                  fill
+                  sizes="64px"
                   src={getBucketUrl(overlay.objectKey)}
                 />
               )}

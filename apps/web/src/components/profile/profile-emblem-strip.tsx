@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import {
   Popover,
   PopoverContent,
@@ -38,11 +40,13 @@ export function ProfileEmblemStrip({
             }
           >
             {emblem.icon ? (
-              <img
+              <Image
                 alt=""
                 aria-hidden="true"
                 className="size-8 object-contain"
+                height={32}
                 src={getBucketUrl(emblem.icon.objectKey)}
+                width={32}
               />
             ) : (
               <span className="font-semibold text-sm">

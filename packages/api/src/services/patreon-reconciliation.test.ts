@@ -164,6 +164,7 @@ describe(reconcilePatreonMemberships, () => {
         fetchMembership: vi
           .fn()
           .mockRejectedValue(new Error("gateway timeout")),
+        now: () => new Date("2026-05-29T12:00:00.000Z"),
       },
       dryRun: false,
     });

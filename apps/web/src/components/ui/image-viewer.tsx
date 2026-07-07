@@ -35,7 +35,13 @@ type ImageViewerProps = {
   title?: string;
 };
 
-export function ImageViewer({
+export function ImageViewer({ ...props }: ImageViewerProps) {
+  const resetKey = props.open ? `open-${props.initialIndex ?? 0}` : "closed";
+
+  return <ImageViewerContent key={resetKey} {...props} />;
+}
+
+function ImageViewerContent({
   images,
   initialIndex = 0,
   open,
@@ -65,17 +71,6 @@ export function ImageViewer({
 
   const canGoPrev = currentIndex > 0;
   const canGoNext = currentIndex < images.length - 1;
-
-  // Reset state when gallery opens
-  useEffect(() => {
-    if (open) {
-      setCurrentIndex(initialIndex);
-      setIsImageLoading(true);
-      setScale(1);
-      setPosition({ x: 0, y: 0 });
-      setShowControls(true);
-    }
-  }, [open, initialIndex]);
 
   // Zoom functions
   const resetZoom = useCallback(() => {

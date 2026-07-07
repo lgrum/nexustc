@@ -6,8 +6,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
-import { Link } from "@tanstack/react-router";
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import {
@@ -58,18 +59,17 @@ function GameSpotlightCard({ post, rank }: { post: PostProps; rank: number }) {
   return (
     <Link
       className="group block h-full"
-      params={{ id: post.slug }}
-      preload={false}
-      to="/post/$id"
+      href={`/post/${post.slug}`}
+      prefetch={false}
     >
       <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-border/70 bg-card shadow-lg">
         <div className="relative aspect-16/10 overflow-hidden">
           {cover ? (
-            <img
+            <Image
               alt={post.title}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
-              decoding="async"
-              loading="lazy"
+              className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+              fill
+              sizes="(min-width: 1280px) 25vw, (min-width: 768px) 40vw, 85vw"
               src={cover}
             />
           ) : (
@@ -158,13 +158,16 @@ export function GamesCarousel({ games }: { games: PostProps[] }) {
   const [snaps, setSnaps] = useState<number[]>([]);
   const [selected, setSelected] = useState(0);
 
+  const handleApiChange = (nextApi: CarouselApi) => {
+    setApi(nextApi);
+    setSnaps(nextApi?.scrollSnapList() ?? []);
+    setSelected(nextApi?.selectedScrollSnap() ?? 0);
+  };
+
   useEffect(() => {
     if (!api) {
       return;
     }
-    setSnaps(api.scrollSnapList());
-    setSelected(api.selectedScrollSnap());
-
     const onSelect = () => setSelected(api.selectedScrollSnap());
     const onReInit = () => {
       setSnaps(api.scrollSnapList());
@@ -192,7 +195,7 @@ export function GamesCarousel({ games }: { games: PostProps[] }) {
             stopOnInteraction: false,
           }),
         ]}
-        setApi={setApi}
+        setApi={handleApiChange}
       >
         <CarouselContent className="-ml-4">
           {games.map((game, index) => (

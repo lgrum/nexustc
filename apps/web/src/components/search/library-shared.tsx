@@ -413,7 +413,7 @@ export function SectionHeader({
           <HugeiconsIcon className="size-4" icon={icon} />
         </span>
         <div className="min-w-0">
-          <p className="font-[Lexend] text-[10.5px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+          <p className="font-lexend text-[10.5px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
             {eyebrow}
           </p>
           <h2 className="display-heading mt-0.5 text-balance text-[22px] leading-tight md:text-[26px]">
@@ -450,7 +450,7 @@ export function LibraryEmptyState({
         className="mx-auto size-9 text-muted-foreground/80"
         icon={Search01Icon}
       />
-      <p className="mt-4 font-[Lexend] font-semibold text-base">
+      <p className="mt-4 font-lexend font-semibold text-base">
         {isFiltered ? "Sin resultados" : unfilteredTitle}
       </p>
       <p className="mx-auto mt-1.5 max-w-sm text-muted-foreground text-sm">
