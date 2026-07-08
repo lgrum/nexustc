@@ -4,7 +4,7 @@ import { getAdPolicy } from "@repo/shared/constants";
 import type { AdPolicy, PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/lib/orpc";
@@ -63,9 +63,13 @@ export function AdSlot({
   reduced?: boolean;
   zoneId: string;
 }) {
+  const pathname = usePathname();
   const { isLoading, policy } = useViewerAdPolicy();
   const mediaMatches = useMediaMatches(media);
-  const canServe = useAdCooldown(cooldownKey, cooldownMs);
+  const canServe = useAdCooldown(cooldownKey, cooldownMs, pathname);
+  const markServed = useCallback(() => {
+    markAdCooldown(cooldownKey);
+  }, [cooldownKey]);
 
   if (
     isLoading ||
@@ -80,6 +84,9 @@ export function AdSlot({
   return (
     <ExoClickAd
       className={className}
+      cooldownKey={cooldownKey}
+      cooldownMs={cooldownMs}
+      onServed={markServed}
       providerSrc={providerSrc}
       zoneId={zoneId}
     />
@@ -97,15 +104,14 @@ export function PopunderAdScript({
 }) {
   const { isLoading, policy } = useViewerAdPolicy();
   const mediaMatches = useMediaMatches(media);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (isLoading || !mediaMatches || policy === "none") {
       return;
     }
 
-    if (document.querySelector(`#${scriptId}`)) {
-      return;
-    }
+    document.querySelector(`#${scriptId}`)?.remove();
 
     const script = document.createElement("script");
     script.async = true;
@@ -113,7 +119,7 @@ export function PopunderAdScript({
     script.src = src;
     script.type = "application/javascript";
     document.body.append(script);
-  }, [isLoading, mediaMatches, policy, scriptId, src]);
+  }, [isLoading, mediaMatches, pathname, policy, scriptId, src]);
 
   return null;
 }
@@ -140,7 +146,8 @@ function useMediaMatches(media: "desktop" | "mobile" | undefined) {
 
 function useAdCooldown(
   key: string | undefined,
-  cooldownMs: number | undefined
+  cooldownMs: number | undefined,
+  pathname: string
 ) {
   const [canServe, setCanServe] = useState(!key || !cooldownMs);
 
@@ -152,26 +159,57 @@ function useAdCooldown(
     const storageKey = `nexustc-ad:${key}`;
     try {
       const lastServedAt = Number(window.localStorage.getItem(storageKey) ?? 0);
-      const nextCanServe = Date.now() - lastServedAt >= cooldownMs;
-      setCanServe(nextCanServe);
-
-      if (nextCanServe) {
-        window.localStorage.setItem(storageKey, String(Date.now()));
-      }
+      setCanServe(Date.now() - lastServedAt >= cooldownMs);
     } catch {
       setCanServe(true);
     }
-  }, [cooldownMs, key]);
+  }, [cooldownMs, key, pathname]);
 
   return canServe;
 }
 
+function markAdCooldown(key: string | undefined) {
+  if (!key) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(`nexustc-ad:${key}`, String(Date.now()));
+  } catch {
+    // Storage can be unavailable; serving the ad is still better than crashing.
+  }
+}
+
+function isAdCooldownReady(
+  key: string | undefined,
+  cooldownMs: number | undefined
+) {
+  if (!key || !cooldownMs) {
+    return true;
+  }
+
+  try {
+    const lastServedAt = Number(
+      window.localStorage.getItem(`nexustc-ad:${key}`) ?? 0
+    );
+    return Date.now() - lastServedAt >= cooldownMs;
+  } catch {
+    return true;
+  }
+}
+
 function ExoClickAd({
   className,
+  cooldownKey,
+  cooldownMs,
+  onServed,
   providerSrc,
   zoneId,
 }: {
   className: string;
+  cooldownKey?: string;
+  cooldownMs?: number;
+  onServed: () => void;
   providerSrc: string;
   zoneId: string;
 }) {
@@ -200,10 +238,15 @@ function ExoClickAd({
       return;
     }
 
+    if (!isAdCooldownReady(cooldownKey, cooldownMs)) {
+      return;
+    }
+
     window.__nexustcExoClickServedSlots.add(servedKey);
     window.AdProvider = window.AdProvider || [];
     window.AdProvider.push({ serve: {} });
-  }, [pathname, providerSrc, zoneId]);
+    onServed();
+  }, [cooldownKey, cooldownMs, onServed, pathname, providerSrc, zoneId]);
 
   return <ins className={className} data-zoneid={zoneId} />;
 }

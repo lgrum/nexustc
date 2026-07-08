@@ -27,6 +27,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AD_ACTION_CLASS_NAME,
+  AD_INTERSTITIAL_SCRIPT_SRC,
+  AD_POPUNDER_DESKTOP_SCRIPT_SRC,
+  AD_POPUNDER_MOBILE_SCRIPT_SRC,
+} from "@/components/ads/ad-config";
 import { AdSlot, PopunderAdScript } from "@/components/ads/ad-slot";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
@@ -69,10 +75,6 @@ export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
 };
 
 const ABANDONED_STATUS_NAME = "Abandonado";
-const ACTION_AD_CLASS_NAME = "nxtc-interstitial nxtc-popunder-post";
-const EXOCLICK_INTERSTITIAL_SCRIPT_SRC = "https://a.pemsrv.com/ad-provider.js";
-const POPUNDER_DESKTOP_SCRIPT_SRC = "/ads/popunder-desktop.js";
-const POPUNDER_MOBILE_SCRIPT_SRC = "/ads/popunder-mobile.js";
 
 export function getVersionBadgeClassName(statusName: string | undefined) {
   if (statusName === ABANDONED_STATUS_NAME) {
@@ -135,26 +137,26 @@ export function PostPage({ post }: { post: PostProps }) {
             <AdSlot
               className="eas6a97888e33"
               media="mobile"
-              providerSrc={EXOCLICK_INTERSTITIAL_SCRIPT_SRC}
+              providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
               reduced
               zoneId="5950220"
             />
             <AdSlot
               className="eas6a97888e35"
               media="desktop"
-              providerSrc={EXOCLICK_INTERSTITIAL_SCRIPT_SRC}
+              providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
               reduced
               zoneId="5950226"
             />
             <PopunderAdScript
               media="mobile"
               scriptId="nexustc-popunder-mobile"
-              src={POPUNDER_MOBILE_SCRIPT_SRC}
+              src={AD_POPUNDER_MOBILE_SCRIPT_SRC}
             />
             <PopunderAdScript
               media="desktop"
               scriptId="nexustc-popunder-desktop"
-              src={POPUNDER_DESKTOP_SCRIPT_SRC}
+              src={AD_POPUNDER_DESKTOP_SCRIPT_SRC}
             />
             {!showRestrictedView && <PostChangelog />}
             {!showRestrictedView && <PostPartsSection />}
@@ -1033,7 +1035,7 @@ export function PostContent() {
           <CardContent className="px-6">
             {hasDownloadLinks && (
               <TabsContent value="downloads">
-                <Markdown externalLinkClassName={ACTION_AD_CLASS_NAME}>
+                <Markdown externalLinkClassName={AD_ACTION_CLASS_NAME}>
                   {post.adsLinks ?? ""}
                 </Markdown>
               </TabsContent>
