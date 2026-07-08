@@ -3,6 +3,7 @@
 import { getAdPolicy } from "@repo/shared/constants";
 import type { AdPolicy, PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 import { authClient } from "@/lib/auth-client";
@@ -14,6 +15,7 @@ const EXOCLICK_SCRIPT_SRC = "https://a.magsrv.com/ad-provider.js";
 declare global {
   interface Window {
     AdProvider?: { serve: Record<string, never> }[];
+    __nexustcExoClickServedPath?: string;
   }
 }
 
@@ -67,6 +69,8 @@ function ExoClickAd({
   className: string;
   zoneId: string;
 }) {
+  const pathname = usePathname();
+
   useEffect(() => {
     if (!document.querySelector(`#${EXOCLICK_SCRIPT_ID}`)) {
       const script = document.createElement("script");
@@ -77,9 +81,14 @@ function ExoClickAd({
       document.head.append(script);
     }
 
+    if (window.__nexustcExoClickServedPath === pathname) {
+      return;
+    }
+
+    window.__nexustcExoClickServedPath = pathname;
     window.AdProvider = window.AdProvider || [];
     window.AdProvider.push({ serve: {} });
-  }, []);
+  }, [pathname]);
 
   return <ins className={className} data-zoneid={zoneId} />;
 }
