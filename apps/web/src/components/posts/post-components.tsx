@@ -735,6 +735,7 @@ export function PostTagsSection() {
   const post = usePost();
   const groupedTerms = Object.groupBy(post.terms, (term) => term.taxonomy);
   const hasTags = post.terms.length > 0;
+  const tagsPathname = post.type === "comic" ? "/comics" : "/juegos";
 
   return (
     hasTags && (
@@ -758,7 +759,14 @@ export function PostTagsSection() {
             <div className="glow-line" />
             <div className="flex flex-wrap gap-2">
               {groupedTerms.tag.map((term) => (
-                <TermBadge key={term.id} tag={term} />
+                <Link
+                  className="contents"
+                  href={{ pathname: tagsPathname, query: { tag: term.id } }}
+                  key={term.id}
+                  prefetch={false}
+                >
+                  <TermBadge tag={term} />
+                </Link>
               ))}
             </div>
           </>
