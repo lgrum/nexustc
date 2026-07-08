@@ -778,7 +778,14 @@ export function PostTagsSection() {
 
 export function PostSidebarContent() {
   const post = usePost();
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+
+  useEffect(() => {
+    setRelatedEnabled(true);
+  }, []);
+
   const { data: related, isLoading } = useQuery({
+    enabled: relatedEnabled,
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
     queryKey: ["related", post.id],
@@ -797,7 +804,7 @@ export function PostSidebarContent() {
             Array.from({ length: 5 }, (_, i) => (
               <Skeleton className="h-28 w-full" key={i} />
             ))}
-          {!isLoading && related?.length === 0 && (
+          {relatedEnabled && !isLoading && related?.length === 0 && (
             <p className="text-center text-muted-foreground text-sm">
               Sin recomendaciones disponibles
             </p>
@@ -813,7 +820,14 @@ export function PostSidebarContent() {
 
 export function RelatedGamesSection() {
   const post = usePost();
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+
+  useEffect(() => {
+    setRelatedEnabled(true);
+  }, []);
+
   const { data: related, isLoading } = useQuery({
+    enabled: relatedEnabled,
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
     queryKey: ["related", post.id],
@@ -836,7 +850,7 @@ export function RelatedGamesSection() {
           ))}
         </div>
       )}
-      {!isLoading && (!related || related.length === 0) && (
+      {relatedEnabled && !isLoading && (!related || related.length === 0) && (
         <p className="text-center text-muted-foreground text-sm">
           Sin recomendaciones disponibles
         </p>
