@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
+import { Suspense } from "react";
 
+import { LoadingSpinner } from "@/components/loading-spinner";
 import { orpcClient } from "@/lib/orpc";
 
 import { createPageMetadata } from "../seo";
@@ -41,7 +43,15 @@ async function getHomeData() {
   };
 }
 
-export default async function Page() {
+async function HomePageContent() {
   const loaderData = await getHomeData();
   return <HomeClient loaderData={loaderData} />;
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<LoadingSpinner className="my-20" />}>
+      <HomePageContent />
+    </Suspense>
+  );
 }
