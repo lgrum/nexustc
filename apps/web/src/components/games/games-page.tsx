@@ -8,9 +8,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
-import { useMemo, useRef } from "react";
+import { Fragment, useMemo, useRef } from "react";
 import { z } from "zod";
 
+import { AdSlot } from "@/components/ads/ad-slot";
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
 import {
@@ -100,6 +101,10 @@ const FILTER_GROUPS: {
   },
 ];
 
+const CATALOG_AD_INTERVAL = 10;
+const CATALOG_AD_CLASS_NAME = "eas6a97888e20 col-span-full";
+const CATALOG_AD_ZONE_ID = "5950178";
+
 export function GamesPage({
   filteredPosts,
   onRandom,
@@ -140,6 +145,7 @@ export function GamesPage({
         onSearchChange={onSearchChange}
         params={params}
       />
+      <AdSlot className="eas6a97888e20" zoneId={CATALOG_AD_ZONE_ID} />
 
       <div className="glow-line" />
 
@@ -152,8 +158,17 @@ export function GamesPage({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
-            {filteredPosts.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {filteredPosts.map((post, index) => (
+              <Fragment key={post.id}>
+                <PostCard post={post} />
+                {(index + 1) % CATALOG_AD_INTERVAL === 0 &&
+                  index !== filteredPosts.length - 1 && (
+                    <AdSlot
+                      className={CATALOG_AD_CLASS_NAME}
+                      zoneId={CATALOG_AD_ZONE_ID}
+                    />
+                  )}
+              </Fragment>
             ))}
           </div>
           <LibraryPagination

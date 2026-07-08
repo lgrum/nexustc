@@ -21,6 +21,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createContext, use } from "react";
 
+import { AdSlot } from "@/components/ads/ad-slot";
 import {
   AuthDialog,
   AuthDialogContent,
@@ -87,6 +88,8 @@ function HomeContent() {
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         <HeroSection />
+
+        <AdSlot className="eas6a97888e20" zoneId="5950174" />
 
         <section className="py-5 space-y-3">
           <div className="px-3">

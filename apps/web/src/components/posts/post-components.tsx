@@ -118,11 +118,6 @@ export function PostPage({ post }: { post: PostProps }) {
           <PostHero />
           <EarlyAccessStatusBanner />
           {!showRestrictedView && <PostStatsBar />}
-          {!showRestrictedView && (
-            <div className="px-4 pt-4 md:hidden">
-              <AdSlot className="eas6a97888e20" zoneId="5950174" />
-            </div>
-          )}
           <div className="flex flex-col gap-4 px-4 pt-4">
             {!showRestrictedView && (
               <div aria-hidden="true" className="h-px" ref={viewTargetRef} />
@@ -131,6 +126,7 @@ export function PostPage({ post }: { post: PostProps }) {
             <PostInfo />
             <PostContent />
             <PostTagsSection />
+            <AdSlot className="eas6a97888e20" zoneId="5950190" />
             {!showRestrictedView && <PostChangelog />}
             {!showRestrictedView && <PostPartsSection />}
             {showCreatorSupport && (

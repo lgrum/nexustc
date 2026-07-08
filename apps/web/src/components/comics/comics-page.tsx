@@ -18,9 +18,10 @@ import { useStore } from "@tanstack/react-form";
 import Autoplay from "embla-carousel-autoplay";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
+import { AdSlot } from "@/components/ads/ad-slot";
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
 import {
@@ -64,6 +65,9 @@ const HERO_PAGINATE_DELAY_MS = 7000;
 const TOP_RANK_LIMIT = 10;
 const TRENDING_LIMIT = 14;
 const GENRE_STRIP_LIMIT = 14;
+const CATALOG_AD_INTERVAL = 10;
+const CATALOG_AD_CLASS_NAME = "eas6a97888e20 col-span-full";
+const CATALOG_AD_ZONE_ID = "5950178";
 
 type ComicSearchParams = z.infer<typeof comicSearchParamsSchema>;
 
@@ -842,6 +846,7 @@ function ComicsLibrary({
         onSearchChange={onSearchChange}
         params={params}
       />
+      <AdSlot className="eas6a97888e20" zoneId={CATALOG_AD_ZONE_ID} />
 
       <div className="glow-line" />
 
@@ -854,8 +859,17 @@ function ComicsLibrary({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {posts.map((post, index) => (
+              <Fragment key={post.id}>
+                <PostCard post={post} />
+                {(index + 1) % CATALOG_AD_INTERVAL === 0 &&
+                  index !== posts.length - 1 && (
+                    <AdSlot
+                      className={CATALOG_AD_CLASS_NAME}
+                      zoneId={CATALOG_AD_ZONE_ID}
+                    />
+                  )}
+              </Fragment>
             ))}
           </div>
           <LibraryPagination
