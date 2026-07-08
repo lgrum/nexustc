@@ -28,7 +28,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
 
-import { AdSlot } from "@/components/ads/ad-slot";
+import { AdSlot, PopunderAdScript } from "@/components/ads/ad-slot";
 import { formatCount, SectionHeader } from "@/components/search/library-shared";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
@@ -65,6 +65,10 @@ import {
 import { PostProvider, usePost } from "./post-context";
 
 const PAGES_PREVIEW_LIMIT = 8;
+const ACTION_AD_CLASS_NAME = "nxtc-interstitial nxtc-popunder-post";
+const EXOCLICK_INTERSTITIAL_SCRIPT_SRC = "https://a.pemsrv.com/ad-provider.js";
+const POPUNDER_DESKTOP_SCRIPT_SRC = "/ads/popunder-desktop.js";
+const POPUNDER_MOBILE_SCRIPT_SRC = "/ads/popunder-mobile.js";
 
 type ComicProgressData = {
   currentPageCount: number;
@@ -189,6 +193,30 @@ function ComicInfoPage({
           <PostContent />
           <PostInfo />
           <PostTagsSection />
+          <AdSlot
+            className="eas6a97888e33"
+            media="mobile"
+            providerSrc={EXOCLICK_INTERSTITIAL_SCRIPT_SRC}
+            reduced
+            zoneId="5950220"
+          />
+          <AdSlot
+            className="eas6a97888e35"
+            media="desktop"
+            providerSrc={EXOCLICK_INTERSTITIAL_SCRIPT_SRC}
+            reduced
+            zoneId="5950226"
+          />
+          <PopunderAdScript
+            media="mobile"
+            scriptId="nexustc-popunder-mobile"
+            src={POPUNDER_MOBILE_SCRIPT_SRC}
+          />
+          <PopunderAdScript
+            media="desktop"
+            scriptId="nexustc-popunder-desktop"
+            src={POPUNDER_DESKTOP_SCRIPT_SRC}
+          />
           <PostChangelog />
           <PostPartsSection />
 
@@ -373,7 +401,10 @@ function ComicHero({
           {/* CTAs */}
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
-              className="h-12 rounded-xl bg-primary px-5 font-semibold text-[15px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              className={cn(
+                ACTION_AD_CLASS_NAME,
+                "h-12 rounded-xl bg-primary px-5 font-semibold text-[15px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              )}
               onClick={() => setPage(0)}
               type="button"
             >
@@ -383,7 +414,10 @@ function ComicHero({
             </Button>
             {showResumePrompt && (
               <Button
-                className="h-12 rounded-xl border-primary/40 bg-background/40 px-4 font-semibold text-[14px] text-primary backdrop-blur-md hover:bg-background/70"
+                className={cn(
+                  ACTION_AD_CLASS_NAME,
+                  "h-12 rounded-xl border-primary/40 bg-background/40 px-4 font-semibold text-[14px] text-primary backdrop-blur-md hover:bg-background/70"
+                )}
                 onClick={() => setPage(resumePage - 1)}
                 type="button"
                 variant="outline"
@@ -551,7 +585,10 @@ function PagePreviewButton({
 }) {
   return (
     <button
-      className="group relative aspect-3/4 overflow-hidden rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-[0_18px_40px_-22px_oklch(0.795_0.184_86.047/0.6)]"
+      className={cn(
+        ACTION_AD_CLASS_NAME,
+        "group relative aspect-3/4 overflow-hidden rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-[0_18px_40px_-22px_oklch(0.795_0.184_86.047/0.6)]"
+      )}
       onClick={() => onSelect(index)}
       type="button"
     >

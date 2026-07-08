@@ -122,6 +122,7 @@ function HomeContent() {
           <AuthAction />
           <div className="glow-line" />
           <ActiveUsersSection />
+          <AdSlot className="eas6a97888e2" media="desktop" zoneId="5950218" />
           <div className="glow-line" />
           <TagsSection />
           <div className="glow-line" />

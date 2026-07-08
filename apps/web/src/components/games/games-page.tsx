@@ -104,6 +104,7 @@ const FILTER_GROUPS: {
 const CATALOG_AD_INTERVAL = 10;
 const CATALOG_AD_CLASS_NAME = "eas6a97888e20 col-span-full";
 const CATALOG_AD_ZONE_ID = "5950178";
+const CATALOG_MOBILE_AD_ZONE_ID = "5950210";
 
 export function GamesPage({
   filteredPosts,
@@ -146,6 +147,11 @@ export function GamesPage({
         params={params}
       />
       <AdSlot className="eas6a97888e20" zoneId={CATALOG_AD_ZONE_ID} />
+      <AdSlot
+        className="eas6a97888e10"
+        media="mobile"
+        zoneId={CATALOG_MOBILE_AD_ZONE_ID}
+      />
 
       <div className="glow-line" />
 

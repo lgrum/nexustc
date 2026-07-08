@@ -68,6 +68,8 @@ const GENRE_STRIP_LIMIT = 14;
 const CATALOG_AD_INTERVAL = 10;
 const CATALOG_AD_CLASS_NAME = "eas6a97888e20 col-span-full";
 const CATALOG_AD_ZONE_ID = "5950178";
+const ACTION_AD_CLASS_NAME = "nxtc-interstitial nxtc-popunder-post";
+const CATALOG_MOBILE_AD_ZONE_ID = "5950210";
 
 type ComicSearchParams = z.infer<typeof comicSearchParamsSchema>;
 
@@ -258,7 +260,10 @@ function ComicsHero({
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
-              className="h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              className={cn(
+                ACTION_AD_CLASS_NAME,
+                "h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              )}
               nativeButton={false}
               render={<Link href={`/comic/${featured.slug}`} />}
             >
@@ -847,6 +852,11 @@ function ComicsLibrary({
         params={params}
       />
       <AdSlot className="eas6a97888e20" zoneId={CATALOG_AD_ZONE_ID} />
+      <AdSlot
+        className="eas6a97888e10"
+        media="mobile"
+        zoneId={CATALOG_MOBILE_AD_ZONE_ID}
+      />
 
       <div className="glow-line" />
 

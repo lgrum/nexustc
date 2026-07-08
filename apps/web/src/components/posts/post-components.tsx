@@ -27,7 +27,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { AdSlot } from "@/components/ads/ad-slot";
+import { AdSlot, PopunderAdScript } from "@/components/ads/ad-slot";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
 import { trackEvent } from "@/lib/analytics";
@@ -69,6 +69,10 @@ export type PostProps = Omit<PostType, "favorites" | "isWeekly" | "status"> & {
 };
 
 const ABANDONED_STATUS_NAME = "Abandonado";
+const ACTION_AD_CLASS_NAME = "nxtc-interstitial nxtc-popunder-post";
+const EXOCLICK_INTERSTITIAL_SCRIPT_SRC = "https://a.pemsrv.com/ad-provider.js";
+const POPUNDER_DESKTOP_SCRIPT_SRC = "/ads/popunder-desktop.js";
+const POPUNDER_MOBILE_SCRIPT_SRC = "/ads/popunder-mobile.js";
 
 export function getVersionBadgeClassName(statusName: string | undefined) {
   if (statusName === ABANDONED_STATUS_NAME) {
@@ -127,6 +131,31 @@ export function PostPage({ post }: { post: PostProps }) {
             <PostContent />
             <PostTagsSection />
             <AdSlot className="eas6a97888e20" zoneId="5950190" />
+            <AdSlot className="eas6a97888e10" media="mobile" zoneId="5950210" />
+            <AdSlot
+              className="eas6a97888e33"
+              media="mobile"
+              providerSrc={EXOCLICK_INTERSTITIAL_SCRIPT_SRC}
+              reduced
+              zoneId="5950220"
+            />
+            <AdSlot
+              className="eas6a97888e35"
+              media="desktop"
+              providerSrc={EXOCLICK_INTERSTITIAL_SCRIPT_SRC}
+              reduced
+              zoneId="5950226"
+            />
+            <PopunderAdScript
+              media="mobile"
+              scriptId="nexustc-popunder-mobile"
+              src={POPUNDER_MOBILE_SCRIPT_SRC}
+            />
+            <PopunderAdScript
+              media="desktop"
+              scriptId="nexustc-popunder-desktop"
+              src={POPUNDER_DESKTOP_SCRIPT_SRC}
+            />
             {!showRestrictedView && <PostChangelog />}
             {!showRestrictedView && <PostPartsSection />}
             {showCreatorSupport && (
@@ -791,7 +820,7 @@ export function PostSidebarContent() {
     <div className="flex flex-col gap-4">
       <CreatorSupportCard />
       <TranslatorSupportCard />
-      <AdSlot className="eas6a97888e20" zoneId="5950174" />
+      <AdSlot className="eas6a97888e2" media="desktop" zoneId="5950218" />
 
       <div className="flex flex-col gap-3">
         <div className="section-title">Recomendados</div>
@@ -1004,7 +1033,9 @@ export function PostContent() {
           <CardContent className="px-6">
             {hasDownloadLinks && (
               <TabsContent value="downloads">
-                <Markdown>{post.adsLinks ?? ""}</Markdown>
+                <Markdown externalLinkClassName={ACTION_AD_CLASS_NAME}>
+                  {post.adsLinks ?? ""}
+                </Markdown>
               </TabsContent>
             )}
             {hasPremium && (
