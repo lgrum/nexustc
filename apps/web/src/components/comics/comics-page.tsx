@@ -18,9 +18,17 @@ import { useStore } from "@tanstack/react-form";
 import Autoplay from "embla-carousel-autoplay";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
+import {
+  AD_ACTION_CLASS_NAME,
+  AD_CATALOG_CLASS_NAME,
+  AD_CATALOG_INTERVAL,
+  AD_CATALOG_MOBILE_ZONE_ID,
+  AD_CATALOG_ZONE_ID,
+} from "@/components/ads/ad-config";
+import { AdSlot } from "@/components/ads/ad-slot";
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
 import {
@@ -254,7 +262,10 @@ function ComicsHero({
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
-              className="h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              className={cn(
+                AD_ACTION_CLASS_NAME,
+                "h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              )}
               nativeButton={false}
               render={<Link href={`/comic/${featured.slug}`} />}
             >
@@ -842,6 +853,12 @@ function ComicsLibrary({
         onSearchChange={onSearchChange}
         params={params}
       />
+      <AdSlot className="eas6a97888e20" zoneId={AD_CATALOG_ZONE_ID} />
+      <AdSlot
+        className="eas6a97888e10"
+        media="mobile"
+        zoneId={AD_CATALOG_MOBILE_ZONE_ID}
+      />
 
       <div className="glow-line" />
 
@@ -854,8 +871,17 @@ function ComicsLibrary({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {posts.map((post, index) => (
+              <Fragment key={post.id}>
+                <PostCard post={post} />
+                {(index + 1) % AD_CATALOG_INTERVAL === 0 &&
+                  index !== posts.length - 1 && (
+                    <AdSlot
+                      className={AD_CATALOG_CLASS_NAME}
+                      zoneId={AD_CATALOG_ZONE_ID}
+                    />
+                  )}
+              </Fragment>
             ))}
           </div>
           <LibraryPagination

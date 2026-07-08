@@ -5,7 +5,11 @@ import react from "ultracite/oxlint/react";
 
 export default defineConfig({
   extends: [core, react, next],
-  ignorePatterns: ["routeTree.gen.ts"],
+  ignorePatterns: [
+    "routeTree.gen.ts",
+    "apps/web/public/ads/popunder-desktop.js",
+    "apps/web/public/ads/popunder-mobile.js",
+  ],
   rules: {
     "no-promise-executor-return": "off",
     "no-use-before-define": "off",

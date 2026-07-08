@@ -2,15 +2,25 @@
 
 import type { MarqueeItem } from "@repo/shared/schemas";
 import { DEFAULT_MARQUEE_ITEMS } from "@repo/shared/schemas";
+import { usePathname } from "next/navigation";
 import { Suspense } from "react";
 
 import { AdblockBlockerDialog } from "@/components/adblock-blocker-dialog";
-import { useViewerAdPolicy } from "@/components/ads/ad-slot";
+import { AdSlot, useViewerAdPolicy } from "@/components/ads/ad-slot";
 import { BottomNav } from "@/components/bottom-nav";
 import { Footer } from "@/components/landing/footer";
 import { Header } from "@/components/landing/header";
 import { LoadingSpinner } from "@/components/loading-spinner";
 import { useAdblockDetector } from "@/hooks/use-adblock-detector";
+
+const PUSH_NOTIFICATION_COOLDOWN_MS = 30 * 60 * 1000;
+const AD_EXCLUDED_PATHS = [
+  "/login",
+  "/register",
+  "/profile",
+  "/memberships",
+  "/checkout",
+];
 
 function Marquee({ items }: { items: readonly MarqueeItem[] }) {
   return (
@@ -54,7 +64,11 @@ export function MainShell({
   marqueeItems?: readonly MarqueeItem[];
 }) {
   const { detected } = useAdblockDetector();
+  const pathname = usePathname();
   const { policy } = useViewerAdPolicy();
+  const showFloatingNotification = !AD_EXCLUDED_PATHS.some((path) =>
+    pathname.startsWith(path)
+  );
 
   return (
     <>
@@ -81,6 +95,14 @@ export function MainShell({
           <Footer />
         </div>
       </div>
+      {showFloatingNotification && (
+        <AdSlot
+          className="eas6a97888e42"
+          cooldownKey="push-notification"
+          cooldownMs={PUSH_NOTIFICATION_COOLDOWN_MS}
+          zoneId="5950918"
+        />
+      )}
       <BottomNav />
     </>
   );

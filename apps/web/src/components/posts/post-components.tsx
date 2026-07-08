@@ -27,7 +27,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { AdSlot } from "@/components/ads/ad-slot";
+import {
+  AD_ACTION_CLASS_NAME,
+  AD_INTERSTITIAL_SCRIPT_SRC,
+  AD_POPUNDER_DESKTOP_SCRIPT_SRC,
+  AD_POPUNDER_MOBILE_SCRIPT_SRC,
+} from "@/components/ads/ad-config";
+import { AdSlot, PopunderAdScript } from "@/components/ads/ad-slot";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
 import { trackEvent } from "@/lib/analytics";
@@ -118,11 +124,6 @@ export function PostPage({ post }: { post: PostProps }) {
           <PostHero />
           <EarlyAccessStatusBanner />
           {!showRestrictedView && <PostStatsBar />}
-          {!showRestrictedView && (
-            <div className="px-4 pt-4 md:hidden">
-              <AdSlot className="eas6a97888e20" zoneId="5950174" />
-            </div>
-          )}
           <div className="flex flex-col gap-4 px-4 pt-4">
             {!showRestrictedView && (
               <div aria-hidden="true" className="h-px" ref={viewTargetRef} />
@@ -131,6 +132,32 @@ export function PostPage({ post }: { post: PostProps }) {
             <PostInfo />
             <PostContent />
             <PostTagsSection />
+            <AdSlot className="eas6a97888e20" zoneId="5950190" />
+            <AdSlot className="eas6a97888e10" media="mobile" zoneId="5950210" />
+            <AdSlot
+              className="eas6a97888e33"
+              media="mobile"
+              providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
+              reduced
+              zoneId="5950220"
+            />
+            <AdSlot
+              className="eas6a97888e35"
+              media="desktop"
+              providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
+              reduced
+              zoneId="5950226"
+            />
+            <PopunderAdScript
+              media="mobile"
+              scriptId="nexustc-popunder-mobile"
+              src={AD_POPUNDER_MOBILE_SCRIPT_SRC}
+            />
+            <PopunderAdScript
+              media="desktop"
+              scriptId="nexustc-popunder-desktop"
+              src={AD_POPUNDER_DESKTOP_SCRIPT_SRC}
+            />
             {!showRestrictedView && <PostChangelog />}
             {!showRestrictedView && <PostPartsSection />}
             {showCreatorSupport && (
@@ -735,6 +762,7 @@ export function PostTagsSection() {
   const post = usePost();
   const groupedTerms = Object.groupBy(post.terms, (term) => term.taxonomy);
   const hasTags = post.terms.length > 0;
+  const tagsPathname = post.type === "comic" ? "/comics" : "/juegos";
 
   return (
     hasTags && (
@@ -758,7 +786,14 @@ export function PostTagsSection() {
             <div className="glow-line" />
             <div className="flex flex-wrap gap-2">
               {groupedTerms.tag.map((term) => (
-                <TermBadge key={term.id} tag={term} />
+                <Link
+                  className="contents"
+                  href={{ pathname: tagsPathname, query: { tag: term.id } }}
+                  key={term.id}
+                  prefetch={false}
+                >
+                  <TermBadge tag={term} />
+                </Link>
               ))}
             </div>
           </>
@@ -770,7 +805,14 @@ export function PostTagsSection() {
 
 export function PostSidebarContent() {
   const post = usePost();
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+
+  useEffect(() => {
+    setRelatedEnabled(true);
+  }, []);
+
   const { data: related, isLoading } = useQuery({
+    enabled: relatedEnabled,
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
     queryKey: ["related", post.id],
@@ -780,7 +822,7 @@ export function PostSidebarContent() {
     <div className="flex flex-col gap-4">
       <CreatorSupportCard />
       <TranslatorSupportCard />
-      <AdSlot className="eas6a97888e20" zoneId="5950174" />
+      <AdSlot className="eas6a97888e2" media="desktop" zoneId="5950218" />
 
       <div className="flex flex-col gap-3">
         <div className="section-title">Recomendados</div>
@@ -789,7 +831,7 @@ export function PostSidebarContent() {
             Array.from({ length: 5 }, (_, i) => (
               <Skeleton className="h-28 w-full" key={i} />
             ))}
-          {!isLoading && related?.length === 0 && (
+          {relatedEnabled && !isLoading && related?.length === 0 && (
             <p className="text-center text-muted-foreground text-sm">
               Sin recomendaciones disponibles
             </p>
@@ -805,7 +847,14 @@ export function PostSidebarContent() {
 
 export function RelatedGamesSection() {
   const post = usePost();
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+
+  useEffect(() => {
+    setRelatedEnabled(true);
+  }, []);
+
   const { data: related, isLoading } = useQuery({
+    enabled: relatedEnabled,
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
     queryKey: ["related", post.id],
@@ -828,7 +877,7 @@ export function RelatedGamesSection() {
           ))}
         </div>
       )}
-      {!isLoading && (!related || related.length === 0) && (
+      {relatedEnabled && !isLoading && (!related || related.length === 0) && (
         <p className="text-center text-muted-foreground text-sm">
           Sin recomendaciones disponibles
         </p>
@@ -986,7 +1035,9 @@ export function PostContent() {
           <CardContent className="px-6">
             {hasDownloadLinks && (
               <TabsContent value="downloads">
-                <Markdown>{post.adsLinks ?? ""}</Markdown>
+                <Markdown externalLinkClassName={AD_ACTION_CLASS_NAME}>
+                  {post.adsLinks ?? ""}
+                </Markdown>
               </TabsContent>
             )}
             {hasPremium && (

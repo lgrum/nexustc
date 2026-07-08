@@ -70,7 +70,8 @@ export function ComicReadClient({
     if (!initialMode) {
       const storedMode = getStoredReaderMode();
       router.replace(
-        `/comic/${slug}/read?mode=${storedMode}&page=${selectedPage}`
+        `/comic/${slug}/read?mode=${storedMode}&page=${selectedPage}`,
+        { scroll: false }
       );
       return;
     }
@@ -88,7 +89,9 @@ export function ComicReadClient({
       return;
     }
 
-    router.push(`/comic/${slug}/read?mode=fullscreen&page=${nextPage}`);
+    router.push(`/comic/${slug}/read?mode=fullscreen&page=${nextPage}`, {
+      scroll: false,
+    });
   };
 
   return (
@@ -100,9 +103,15 @@ export function ComicReadClient({
           isAuthed={isAuthed}
           onChangeMode={(nextPage) => {
             storeReaderMode("fullscreen");
-            router.push(`/comic/${slug}/read?mode=fullscreen&page=${nextPage}`);
+            router.push(
+              `/comic/${slug}/read?mode=fullscreen&page=${nextPage}`,
+              {
+                scroll: false,
+              }
+            );
           }}
           onExit={navigateToInfo}
+          page={selectedPage}
           progressQueryKey={progressQueryKey}
         />
       ) : (
@@ -113,7 +122,8 @@ export function ComicReadClient({
           onChangeMode={() => {
             storeReaderMode("cascade");
             router.push(
-              `/comic/${slug}/read?mode=cascade&page=${selectedPage}`
+              `/comic/${slug}/read?mode=cascade&page=${selectedPage}`,
+              { scroll: false }
             );
           }}
           page={selectedPage}

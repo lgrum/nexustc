@@ -4,7 +4,13 @@ function isExternalLink(href: string | undefined) {
   return /^https?:\/\//i.test(href ?? "");
 }
 
-export function Markdown({ children }: { children: string }) {
+export function Markdown({
+  children,
+  externalLinkClassName,
+}: {
+  children: string;
+  externalLinkClassName?: string;
+}) {
   return (
     <div
       className="prose dark:prose-invert wrap-break-word w-full max-w-full [&_a]:text-primary"
@@ -15,7 +21,12 @@ export function Markdown({ children }: { children: string }) {
           a: ({ children: linkChildren, href }) => {
             if (isExternalLink(href)) {
               return (
-                <a href={href} rel="noopener noreferrer" target="_blank">
+                <a
+                  className={externalLinkClassName}
+                  href={href}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
                   {linkChildren}
                 </a>
               );
