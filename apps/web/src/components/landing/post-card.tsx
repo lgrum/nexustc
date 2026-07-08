@@ -19,6 +19,7 @@ export type PostProps = {
   version: string | null;
   type: "post" | "comic";
   coverImageObjectKey?: string | null;
+  featuredThumbnailImageObjectKey?: string | null;
   imageObjectKeys: string[] | null;
   thumbnailImageCount?: number | null;
   favorites: number;

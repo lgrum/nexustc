@@ -59,6 +59,7 @@ const MediaCropDialog = lazy(
 type MediaFieldProps = {
   className?: string;
   crop?: {
+    aspect?: number;
     description: string;
     title: string;
   };
@@ -878,6 +879,7 @@ export function MediaField({
           <MediaCropDialog
             description={crop.description}
             imageSrc={pendingCrop.previewUrl}
+            aspect={crop.aspect}
             onConfirm={async (nextCrop: ImagePercentCrop) => {
               try {
                 const croppedFile = await cropImage(pendingCrop.file, nextCrop);

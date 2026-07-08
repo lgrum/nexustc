@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, eq, inArray, sql } from "@repo/db";
-import { featuredPost, post } from "@repo/db/schema/app";
+import { featuredPost, media, post } from "@repo/db/schema/app";
 import z from "zod";
 
 import { permissionProcedure } from "../../index";
@@ -13,6 +13,8 @@ import {
 import {
   postCreateInputSchema,
   postEditInputSchema,
+  optionalSingleDeferredMediaSelectionInputSchema,
+  withDeferredMediaSelections,
 } from "../../utils/deferred-media";
 import {
   createPostCoverImageObjectKeySelect,
@@ -163,6 +165,13 @@ export default {
         order: featuredPost.order,
         position: featuredPost.position,
         postId: featuredPost.postId,
+        thumbnailImageObjectKey: sql<string | null>`(
+          SELECT ${media.objectKey}
+          FROM ${media}
+          WHERE ${media.id} = ${featuredPost.thumbnailMediaId}
+          LIMIT 1
+        )`,
+        thumbnailMediaId: featuredPost.thumbnailMediaId,
         title: post.title,
         version: post.version,
       })
@@ -277,7 +286,13 @@ export default {
     .input(
       z.object({
         mainPostId: z.string(),
+        mainThumbnailSelection:
+          optionalSingleDeferredMediaSelectionInputSchema.default([]),
         secondaryPostIds: z.array(z.string()).length(2),
+        secondaryThumbnailSelections: z
+          .array(optionalSingleDeferredMediaSelectionInputSchema)
+          .length(2)
+          .default([[], []]),
       })
     )
     .handler(async ({ context: { db, ...ctx }, input, errors }) => {
@@ -307,28 +322,52 @@ export default {
         throw errors.FORBIDDEN();
       }
 
-      await db.transaction(async (tx) => {
-        await tx.delete(featuredPost);
-        logger?.debug("Cleared previous featured posts");
+      return await withDeferredMediaSelections({
+        db,
+        onComplete: async ({ orderedSelections, tx }) => {
+          const mainThumbnailMediaId = orderedSelections[0]?.[0]?.id ?? null;
+          const secondaryThumbnailMediaIds = [
+            orderedSelections[1]?.[0]?.id ?? null,
+            orderedSelections[2]?.[0]?.id ?? null,
+          ];
 
-        await tx.insert(featuredPost).values([
-          {
-            order: 0,
-            position: "main",
-            postId: input.mainPostId,
-          },
-          {
-            order: 1,
-            position: "secondary",
-            postId: input.secondaryPostIds[0]!,
-          },
-          {
-            order: 2,
-            position: "secondary",
-            postId: input.secondaryPostIds[1]!,
-          },
-        ]);
-        logger?.info("Successfully set 3 new featured posts");
+          await tx.delete(featuredPost);
+          logger?.debug("Cleared previous featured posts");
+
+          await tx.insert(featuredPost).values([
+            {
+              order: 0,
+              position: "main",
+              postId: input.mainPostId,
+              thumbnailMediaId: mainThumbnailMediaId,
+            },
+            {
+              order: 1,
+              position: "secondary",
+              postId: input.secondaryPostIds[0]!,
+              thumbnailMediaId: secondaryThumbnailMediaIds[0],
+            },
+            {
+              order: 2,
+              position: "secondary",
+              postId: input.secondaryPostIds[1]!,
+              thumbnailMediaId: secondaryThumbnailMediaIds[1],
+            },
+          ]);
+          logger?.info("Successfully set 3 new featured posts");
+
+          return {
+            mainThumbnailMediaId,
+            secondaryThumbnailMediaIds,
+          };
+        },
+        ownerKind: "Juego",
+        resourceName: "Posts destacados",
+        selections: [
+          input.mainThumbnailSelection,
+          input.secondaryThumbnailSelections[0] ?? [],
+          input.secondaryThumbnailSelections[1] ?? [],
+        ],
       });
     }),
 

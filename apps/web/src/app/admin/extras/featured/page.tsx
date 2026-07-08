@@ -13,7 +13,9 @@ export default async function Page() {
   let loaderError: LoaderError = null;
   let initialSelection: FeaturedSelection = {
     mainPostId: null,
+    mainThumbnailMediaId: null,
     secondaryPostIds: [null, null],
+    secondaryThumbnailMediaIds: [null, null],
   };
 
   if (isDefined) {
@@ -32,9 +34,14 @@ export default async function Page() {
 
     initialSelection = {
       mainPostId: main?.postId ?? null,
+      mainThumbnailMediaId: main?.thumbnailMediaId ?? null,
       secondaryPostIds: [
         secondary[0]?.postId ?? null,
         secondary[1]?.postId ?? null,
+      ],
+      secondaryThumbnailMediaIds: [
+        secondary[0]?.thumbnailMediaId ?? null,
+        secondary[1]?.thumbnailMediaId ?? null,
       ],
     };
   }
