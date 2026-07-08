@@ -12,8 +12,10 @@ const MAX_IDENTICAL_TOKEN_RUN = 6;
 const MIN_REPEATED_SUBSTRING_LENGTH = 2;
 const MAX_REPEATED_SUBSTRING_LENGTH = 24;
 const MIN_REPEATED_SUBSTRING_REPETITIONS = 4;
+const EXCESSIVE_BLANK_LINES_PATTERN = /\n[ \t]*\n[ \t]*\n/u;
 
 export type SpamDetectionReason =
+  | "blank_lines"
   | "low_diversity"
   | "repeated_characters"
   | "repeated_emoji"
@@ -220,7 +222,16 @@ export function detectSpammyText(content: string): SpamDetectionResult {
   const trimmedContent = content.trim();
 
   if (trimmedContent.length === 0) {
-    return { ok: true };
+    return content.length === 0
+      ? { ok: true }
+      : block("blank_lines", "Tu mensaje necesita algo de texto.");
+  }
+
+  if (EXCESSIVE_BLANK_LINES_PATTERN.test(content)) {
+    return block(
+      "blank_lines",
+      "Tu mensaje tiene demasiadas lineas vacias seguidas."
+    );
   }
 
   if (URL_PATTERN.test(trimmedContent)) {

@@ -85,6 +85,24 @@ describe("detectSpammyText", () => {
     });
   });
 
+  it("blocks blank-only messages", () => {
+    expect(detectSpammyText("\n\n\n\n\n\n\n\n\n\n")).toMatchObject({
+      ok: false,
+      reason: "blank_lines",
+    });
+  });
+
+  it("blocks excessive blank line runs", () => {
+    expect(detectSpammyText("Me gusto\n\n\npero esto sobra")).toMatchObject({
+      ok: false,
+      reason: "blank_lines",
+    });
+  });
+
+  it("allows ordinary paragraph breaks", () => {
+    expect(detectSpammyText("Me gusto\n\nBuen trabajo")).toEqual({ ok: true });
+  });
+
   it("blocks domain-like text without a protocol", () => {
     expect(detectSpammyText("Mira example.com cuando puedas")).toMatchObject({
       ok: false,
@@ -106,7 +124,7 @@ describe("detectSpammyText", () => {
   it("lets administration roles bypass spam detection", () => {
     expect(() =>
       assertTextIsNotSpammy(
-        "spam spam spam spam spam spam spam spam",
+        "spam spam spam spam spam spam spam spam\n\n\n",
         {
           BAD_REQUEST: ({ message } = {}) => new Error(message),
         },

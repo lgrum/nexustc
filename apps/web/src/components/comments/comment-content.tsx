@@ -57,7 +57,7 @@ export function CommentContent({
   return (
     <div
       className={cn(
-        "text-foreground/90 text-base leading-relaxed",
+        "whitespace-pre-wrap text-foreground/90 text-base leading-relaxed",
         tierContentStyle &&
           "rounded-xl border-2 border-transparent p-4 shadow-sm",
         className
