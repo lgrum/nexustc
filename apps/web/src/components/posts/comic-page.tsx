@@ -1460,6 +1460,7 @@ export function ComicCascadeReader({
   isAuthed,
   onChangeMode,
   onExit,
+  page,
   progressQueryKey,
 }: {
   comic: PostType;
@@ -1467,9 +1468,10 @@ export function ComicCascadeReader({
   isAuthed: boolean;
   onChangeMode: (page: number) => void;
   onExit: () => void;
+  page: number;
   progressQueryKey: readonly unknown[];
 }) {
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(page);
   const [hudVisible, setHudVisible] = useState(true);
   const [showThumbnails, setShowThumbnails] = useState(false);
   const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
@@ -1620,13 +1622,20 @@ export function ComicCascadeReader({
     onExit();
   };
 
-  const scrollToPage = (pageIndex: number) => {
+  const scrollToPage = (
+    pageIndex: number,
+    behavior: ScrollBehavior = "smooth"
+  ) => {
     pageRefs.current[pageIndex]?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
+      behavior,
+      block: "center",
     });
     setCurrentPage(pageIndex);
   };
+
+  useEffect(() => {
+    scrollToPage(page, "auto");
+  }, [page]);
 
   const toggleHud = () => {
     setHudVisible((visible) => {
@@ -1734,18 +1743,25 @@ export function ComicCascadeReader({
         )}
       >
         {images.map((image, index) => (
-          // eslint-disable-next-line @next/next/no-img-element -- continuous reader preserves each source image's unknown intrinsic aspect ratio
-          <img
-            alt={`Página ${index + 1}`}
-            className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
-            data-page-index={index}
+          <button
+            aria-label={`Ir a la página ${index + 1}`}
+            className="block w-full cursor-pointer border-0 bg-transparent p-0"
             key={image}
-            loading={index < 2 ? "eager" : "lazy"}
-            ref={(element) => {
-              pageRefs.current[index] = element;
-            }}
-            src={getBucketUrl(image)}
-          />
+            onClick={() => scrollToPage(index)}
+            type="button"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- continuous reader preserves each source image's unknown intrinsic aspect ratio */}
+            <img
+              alt={`Página ${index + 1}`}
+              className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
+              data-page-index={index}
+              loading={index < 2 ? "eager" : "lazy"}
+              ref={(element) => {
+                pageRefs.current[index] = element;
+              }}
+              src={getBucketUrl(image)}
+            />
+          </button>
         ))}
       </div>
 
