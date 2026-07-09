@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   createDeferredMediaItemsFromFiles,
   getDeferredMediaPreviewSource,
@@ -83,6 +84,20 @@ type SelectedMediaDisplayItem = {
 type PendingCrop = {
   file: File;
   previewUrl: string;
+};
+
+type MediaBrowserSectionProps = {
+  currentFolderId: string | null;
+  deferredSearch: string;
+  isConvertingFiles: boolean;
+  isSingle: boolean;
+  onFileSelection: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onFolderChange: (folderId: string | null) => void;
+  onMediaToggle: (mediaId: string) => void;
+  ownerKind: MediaOwnerKind;
+  search: string;
+  selectedExistingIds: Set<string>;
+  setSearch: React.Dispatch<React.SetStateAction<string>>;
 };
 
 function normalizeValue(value: DeferredMediaSelection | null | undefined) {
@@ -130,10 +145,6 @@ export function MediaField({
   const listQueryOptions = orpc.media.admin.list.queryOptions();
   const { data: library } = useSuspenseQuery(listQueryOptions);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
-  const browseQueryOptions = orpc.media.admin.browse.queryOptions(
-    currentFolderId ? { input: { folderId: currentFolderId } } : {}
-  );
-  const { data: browseData } = useSuspenseQuery(browseQueryOptions);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -271,38 +282,6 @@ export function MediaField({
     },
     [pendingCrop]
   );
-
-  const normalizedSearch = deferredSearch.trim().toLowerCase();
-  const visibleFolders = useMemo(
-    () =>
-      normalizedSearch === ""
-        ? browseData.folders
-        : browseData.folders.filter((folder) =>
-            folder.name.toLowerCase().includes(normalizedSearch)
-          ),
-    [browseData.folders, normalizedSearch]
-  );
-  const visibleLibrary = useMemo(() => {
-    const filteredLibrary =
-      normalizedSearch === ""
-        ? browseData.items
-        : browseData.items.filter((item) =>
-            item.objectKey.toLowerCase().includes(normalizedSearch)
-          );
-
-    return [...filteredLibrary].toSorted((left, right) => {
-      const leftSelected = selectedExistingIds.has(left.id) ? 1 : 0;
-      const rightSelected = selectedExistingIds.has(right.id) ? 1 : 0;
-
-      if (leftSelected !== rightSelected) {
-        return rightSelected - leftSelected;
-      }
-
-      return (
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
-      );
-    });
-  }, [browseData.items, normalizedSearch, selectedExistingIds]);
 
   // const createFolderMutation = useMutation({
   //   mutationFn: async (name: string) =>
@@ -578,182 +557,21 @@ export function MediaField({
           </DialogHeader>
 
           <div className="flex max-h-[72dvh] min-h-0 flex-col">
-            <section className="flex min-h-0 flex-1 flex-col">
-              <div className="border-b border-border/70 px-5 py-4 sm:px-6">
-                <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
-                  <div className="flex flex-col gap-4">
-                    <MediaFolderBreadcrumbs
-                      breadcrumbs={browseData.breadcrumbs}
-                      onNavigateRoot={() => setCurrentFolderId(null)}
-                      onNavigateToFolder={(folderId) =>
-                        setCurrentFolderId(folderId)
-                      }
-                    />
-
-                    <div className="space-y-1">
-                      <div className="font-medium text-sm">
-                        Biblioteca de media
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Navega carpetas virtuales, prepara archivos nuevos y
-                        confirma la seleccion. Los archivos pendientes se
-                        subirán cuando guardes este {ownerKind.toLowerCase()}.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-col gap-3 md:flex-row">
-                      <div className="relative min-w-0 flex-1">
-                        <HugeiconsIcon
-                          className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground"
-                          icon={Search01Icon}
-                        />
-                        <Input
-                          className="pl-9"
-                          onChange={(event) => setSearch(event.target.value)}
-                          placeholder={`Buscar dentro de ${browseData.currentFolder?.name ?? "la raiz"}`}
-                          value={search}
-                        />
-                      </div>
-
-                      <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
-                        <div className="relative w-full md:w-auto">
-                          <Input
-                            accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
-                            className="absolute inset-0 cursor-pointer opacity-0"
-                            disabled={isConvertingFiles}
-                            multiple={!isSingle}
-                            onChange={handleFileSelection}
-                            type="file"
-                          />
-                          <Button
-                            className="w-full md:w-auto"
-                            disabled={isConvertingFiles}
-                            type="button"
-                          >
-                            <HugeiconsIcon
-                              className="size-4"
-                              icon={ImageAdd02Icon}
-                            />
-                            {isConvertingFiles
-                              ? "Convirtiendo..."
-                              : "Agregar archivos"}
-                          </Button>
-                        </div>
-
-                        {/* <CreateMediaFolderDialog
-                          isPending={createFolderMutation.isPending}
-                          onCreate={async (name) => {
-                            await createFolderMutation.mutateAsync(name);
-                          }}
-                          parentLabel={browseData.currentFolder?.name}
-                        /> */}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
-                {visibleFolders.length > 0 || visibleLibrary.length > 0 ? (
-                  <div className="space-y-6">
-                    {visibleFolders.length > 0 ? (
-                      <section className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-sm">Carpetas</div>
-                          <Badge variant="secondary">
-                            {visibleFolders.length}
-                          </Badge>
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                          {visibleFolders.map((folder) => (
-                            <MediaFolderCard
-                              folder={folder}
-                              key={folder.id}
-                              onOpen={(folderId) =>
-                                setCurrentFolderId(folderId)
-                              }
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    ) : null}
-
-                    {visibleLibrary.length > 0 ? (
-                      <section className="space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium text-sm">Archivos</div>
-                          <Badge variant="secondary">
-                            {visibleLibrary.length}
-                          </Badge>
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                          {visibleLibrary.map((item) => {
-                            const isSelected = selectedExistingIds.has(item.id);
-
-                            return (
-                              <button
-                                aria-pressed={isSelected}
-                                className={cn(
-                                  "group overflow-hidden rounded-2xl border bg-card text-left transition-all",
-                                  isSelected
-                                    ? "border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/30"
-                                    : "border-border/70 hover:border-primary/35"
-                                )}
-                                key={item.id}
-                                onClick={() => toggleDraftSelection(item.id)}
-                                type="button"
-                              >
-                                <div className="relative aspect-video overflow-hidden bg-muted">
-                                  <img
-                                    alt={item.objectKey}
-                                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
-                                    loading="lazy"
-                                    src={getBucketUrl(item.objectKey)}
-                                  />
-                                  <div className="absolute top-3 right-3">
-                                    <Badge
-                                      variant={
-                                        isSelected ? "default" : "secondary"
-                                      }
-                                    >
-                                      {isSelected ? "Seleccionado" : "Elegir"}
-                                    </Badge>
-                                  </div>
-                                </div>
-
-                                <div className="space-y-2 p-3">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <Badge variant="outline">
-                                      {item.usageCount} uso
-                                      {item.usageCount === 1 ? "" : "s"}
-                                    </Badge>
-                                    <span className="text-muted-foreground text-xs">
-                                      {new Date(
-                                        item.createdAt
-                                      ).toLocaleDateString()}
-                                    </span>
-                                  </div>
-
-                                  <div className="line-clamp-2 font-mono text-xs leading-5 text-muted-foreground">
-                                    {item.objectKey}
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </section>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="flex min-h-60 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center text-sm text-muted-foreground">
-                    {normalizedSearch
-                      ? "No hay carpetas ni media que coincidan con esa busqueda."
-                      : "Esta carpeta todavia no tiene contenido."}
-                  </div>
-                )}
-              </div>
-            </section>
+            <Suspense fallback={<MediaBrowserSectionFallback />}>
+              <MediaBrowserSection
+                currentFolderId={currentFolderId}
+                deferredSearch={deferredSearch}
+                isConvertingFiles={isConvertingFiles}
+                isSingle={isSingle}
+                onFileSelection={handleFileSelection}
+                onFolderChange={setCurrentFolderId}
+                onMediaToggle={toggleDraftSelection}
+                ownerKind={ownerKind}
+                search={search}
+                selectedExistingIds={selectedExistingIds}
+                setSearch={setSearch}
+              />
+            </Suspense>
 
             <section className="border-t border-border/70 bg-muted/20">
               <div className="border-b border-border/70 px-5 py-4 sm:px-6">
@@ -867,7 +685,7 @@ export function MediaField({
       {selectedMedia.length > 0 ? (
         <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-muted-foreground text-xs">
           {selectedMedia.some((item) => item.isPending)
-            ? "Los archivos marcados como nuevos se subirán solo cuando guardes el formulario."
+            ? "Los archivos marcados como nuevos se subiran solo cuando guardes el formulario."
             : "La seleccion actual usa media ya existente en la biblioteca."}
         </div>
       ) : null}
@@ -909,5 +727,223 @@ export function MediaField({
         </Suspense>
       ) : null}
     </div>
+  );
+}
+
+function MediaBrowserSection({
+  currentFolderId,
+  deferredSearch,
+  isConvertingFiles,
+  isSingle,
+  onFileSelection,
+  onFolderChange,
+  onMediaToggle,
+  ownerKind,
+  search,
+  selectedExistingIds,
+  setSearch,
+}: MediaBrowserSectionProps) {
+  const browseQueryOptions = orpc.media.admin.browse.queryOptions(
+    currentFolderId ? { input: { folderId: currentFolderId } } : {}
+  );
+  const { data: browseData } = useSuspenseQuery(browseQueryOptions);
+  const normalizedSearch = deferredSearch.trim().toLowerCase();
+  const visibleFolders = useMemo(
+    () =>
+      normalizedSearch === ""
+        ? browseData.folders
+        : browseData.folders.filter((folder) =>
+            folder.name.toLowerCase().includes(normalizedSearch)
+          ),
+    [browseData.folders, normalizedSearch]
+  );
+  const visibleLibrary = useMemo(() => {
+    const filteredLibrary =
+      normalizedSearch === ""
+        ? browseData.items
+        : browseData.items.filter((item) =>
+            item.objectKey.toLowerCase().includes(normalizedSearch)
+          );
+
+    return [...filteredLibrary].toSorted((left, right) => {
+      const leftSelected = selectedExistingIds.has(left.id) ? 1 : 0;
+      const rightSelected = selectedExistingIds.has(right.id) ? 1 : 0;
+
+      if (leftSelected !== rightSelected) {
+        return rightSelected - leftSelected;
+      }
+
+      return (
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+      );
+    });
+  }, [browseData.items, normalizedSearch, selectedExistingIds]);
+
+  return (
+    <section className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+        <div className="rounded-2xl border border-border/70 bg-muted/25 p-4">
+          <div className="flex flex-col gap-4">
+            <MediaFolderBreadcrumbs
+              breadcrumbs={browseData.breadcrumbs}
+              onNavigateRoot={() => onFolderChange(null)}
+              onNavigateToFolder={onFolderChange}
+            />
+
+            <div className="space-y-1">
+              <div className="font-medium text-sm">Biblioteca de media</div>
+              <p className="text-sm text-muted-foreground">
+                Navega carpetas virtuales, prepara archivos nuevos y confirma la
+                seleccion. Los archivos pendientes se subiran cuando guardes
+                este {ownerKind.toLowerCase()}.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-3 md:flex-row">
+              <div className="relative min-w-0 flex-1">
+                <HugeiconsIcon
+                  className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground"
+                  icon={Search01Icon}
+                />
+                <Input
+                  className="pl-9"
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={`Buscar dentro de ${browseData.currentFolder?.name ?? "la raiz"}`}
+                  value={search}
+                />
+              </div>
+
+              <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
+                <div className="relative w-full md:w-auto">
+                  <Input
+                    accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    disabled={isConvertingFiles}
+                    multiple={!isSingle}
+                    onChange={onFileSelection}
+                    type="file"
+                  />
+                  <Button
+                    className="w-full md:w-auto"
+                    disabled={isConvertingFiles}
+                    type="button"
+                  >
+                    <HugeiconsIcon className="size-4" icon={ImageAdd02Icon} />
+                    {isConvertingFiles ? "Convirtiendo..." : "Agregar archivos"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5">
+        {visibleFolders.length > 0 || visibleLibrary.length > 0 ? (
+          <div className="space-y-6">
+            {visibleFolders.length > 0 ? (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium text-sm">Carpetas</div>
+                  <Badge variant="secondary">{visibleFolders.length}</Badge>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {visibleFolders.map((folder) => (
+                    <MediaFolderCard
+                      folder={folder}
+                      key={folder.id}
+                      onOpen={onFolderChange}
+                    />
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {visibleLibrary.length > 0 ? (
+              <section className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-medium text-sm">Archivos</div>
+                  <Badge variant="secondary">{visibleLibrary.length}</Badge>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {visibleLibrary.map((item) => {
+                    const isSelected = selectedExistingIds.has(item.id);
+
+                    return (
+                      <button
+                        aria-pressed={isSelected}
+                        className={cn(
+                          "group overflow-hidden rounded-2xl border bg-card text-left transition-all",
+                          isSelected
+                            ? "border-primary shadow-lg shadow-primary/10 ring-2 ring-primary/30"
+                            : "border-border/70 hover:border-primary/35"
+                        )}
+                        key={item.id}
+                        onClick={() => onMediaToggle(item.id)}
+                        type="button"
+                      >
+                        <div className="relative aspect-video overflow-hidden bg-muted">
+                          <img
+                            alt={item.objectKey}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                            loading="lazy"
+                            src={getBucketUrl(item.objectKey)}
+                          />
+                          <div className="absolute top-3 right-3">
+                            <Badge
+                              variant={isSelected ? "default" : "secondary"}
+                            >
+                              {isSelected ? "Seleccionado" : "Elegir"}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge variant="outline">
+                              {item.usageCount} uso
+                              {item.usageCount === 1 ? "" : "s"}
+                            </Badge>
+                            <span className="text-muted-foreground text-xs">
+                              {new Date(item.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          <div className="line-clamp-2 font-mono text-xs leading-5 text-muted-foreground">
+                            {item.objectKey}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        ) : (
+          <div className="flex min-h-60 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-background/70 px-6 py-10 text-center text-sm text-muted-foreground">
+            {normalizedSearch
+              ? "No hay carpetas ni media que coincidan con esa busqueda."
+              : "Esta carpeta todavia no tiene contenido."}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MediaBrowserSectionFallback() {
+  return (
+    <section className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-border/70 px-5 py-4 sm:px-6">
+        <div className="flex items-center gap-2 rounded-2xl border border-border/70 bg-muted/25 p-4 text-muted-foreground text-sm">
+          <Spinner className="size-4" />
+          Cargando biblioteca...
+        </div>
+      </div>
+      <div className="flex min-h-60 flex-1 items-center justify-center px-5 py-4 text-muted-foreground">
+        <Spinner className="size-5" />
+      </div>
+    </section>
   );
 }

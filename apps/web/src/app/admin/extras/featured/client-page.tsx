@@ -89,19 +89,28 @@ export function ClientPage({
     useState<FeaturedSelection>(initialSelection);
   const [savedSelectedPosts, setSavedSelectedPosts] =
     useState<FeaturedSelection>(initialSelection);
-  const initialThumbnailValues = useMemo(
-    () => createThumbnailFormValues(initialSelection),
-    [initialSelection]
+  const savedThumbnailValues = useMemo(
+    () => createThumbnailFormValues(savedSelectedPosts),
+    [savedSelectedPosts]
   );
-  const [savedThumbnailFingerprint, setSavedThumbnailFingerprint] = useState(
-    () => getThumbnailFingerprint(initialThumbnailValues)
+  const savedThumbnailFingerprint = useMemo(
+    () => getThumbnailFingerprint(savedThumbnailValues),
+    [savedThumbnailValues]
   );
   const [blockerDialogOpen, setBlockerDialogOpen] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const router = useRouter();
+  const featuredPostsQueryOptions =
+    orpc.post.admin.getFeaturedPosts.queryOptions();
+  const mediaBrowseQueryOptions = orpc.media.admin.browse.queryOptions();
+  const mediaListQueryOptions = orpc.media.admin.list.queryOptions();
+  const postsQueryOptions =
+    safeOrpc.post.admin.getFeaturedSelectionPosts.queryOptions({
+      input: { search: debouncedSearch },
+    });
 
   const featuredForm = useAppForm({
-    defaultValues: initialThumbnailValues,
+    defaultValues: savedThumbnailValues,
     onSubmit: async ({ value }) => {
       if (!isValid) {
         return;
@@ -128,13 +137,10 @@ export function ClientPage({
           result.secondaryThumbnailMediaIds[1],
         ],
       } satisfies FeaturedSelection;
-      const savedThumbnailValues = createThumbnailFormValues(savedSelection);
+      const nextThumbnailValues = createThumbnailFormValues(savedSelection);
 
       setSavedSelectedPosts(savedSelection);
-      setSavedThumbnailFingerprint(
-        getThumbnailFingerprint(savedThumbnailValues)
-      );
-      featuredForm.reset(savedThumbnailValues);
+      featuredForm.reset(nextThumbnailValues);
       setSearch("");
       setDebouncedSearch("");
     },
@@ -227,11 +233,7 @@ export function ClientPage({
     [search]
   );
 
-  const postsQuery = useQuery(
-    safeOrpc.post.admin.getFeaturedSelectionPosts.queryOptions({
-      input: { search: debouncedSearch },
-    })
-  );
+  const postsQuery = useQuery(postsQueryOptions);
   const postsData = postsQuery.data;
 
   type PostType = {
@@ -262,17 +264,12 @@ export function ClientPage({
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        predicate: (query) => {
-          const [key] = query.queryKey;
-          return (
-            typeof key === "string" &&
-            (key.includes("getFeaturedSelectionPosts") ||
-              key.includes("getFeaturedPosts") ||
-              key.includes("media"))
-          );
-        },
-      });
+      await Promise.all([
+        queryClient.invalidateQueries(featuredPostsQueryOptions),
+        queryClient.invalidateQueries(mediaBrowseQueryOptions),
+        queryClient.invalidateQueries(mediaListQueryOptions),
+        queryClient.invalidateQueries(postsQueryOptions),
+      ]);
 
       toast.success("Posts destacados actualizados correctamente", {
         duration: 3000,
