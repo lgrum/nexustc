@@ -413,6 +413,12 @@ export default {
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
+          featuredThumbnailImageObjectKey: sql<string | null>`(
+            SELECT ${media.objectKey}
+            FROM ${media}
+            WHERE ${media.id} = ${featuredPost.thumbnailMediaId}
+            LIMIT 1
+          )`,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           order: featuredPost.order,
           position: featuredPost.position,

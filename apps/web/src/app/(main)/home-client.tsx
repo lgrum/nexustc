@@ -150,11 +150,12 @@ function HeroSection() {
     (term) => term.taxonomy === "status"
   )?.name;
   const mainVersionClassName = getSecondaryStatusClassName(mainStatusName);
-  const [mainImage] = getThumbnailImageObjectKeys(
+  const [fallbackMainImage] = getThumbnailImageObjectKeys(
     main?.imageObjectKeys,
     1,
     main?.coverImageObjectKey
   );
+  const mainImage = main?.featuredThumbnailImageObjectKey ?? fallbackMainImage;
   const secondary = posts
     .filter((p) => p.position === "secondary")
     .toSorted((a, b) => a.order - b.order);
@@ -281,11 +282,12 @@ function getSecondaryStatusClassName(statusName: string | undefined) {
 }
 
 function HeroSecondaryCard({ post }: { post: PostProps }) {
-  const [cover] = getThumbnailImageObjectKeys(
+  const [fallbackCover] = getThumbnailImageObjectKeys(
     post.imageObjectKeys,
     1,
     post.coverImageObjectKey
   );
+  const cover = post.featuredThumbnailImageObjectKey ?? fallbackCover;
   const statusName = post.terms?.find(
     (term) => term.taxonomy === "status"
   )?.name;
