@@ -370,9 +370,15 @@ export function ClientPage({
       <div className="flex flex-row items-center gap-4">
         <h2>Posts Seleccionados</h2>
         <Button
-          disabled={!(hasChanges && isValid)}
+          disabled={featuredMutation.isPending || !(hasChanges && isValid)}
           loading={featuredMutation.isPending}
-          onClick={() => featuredForm.handleSubmit()}
+          onClick={() => {
+            if (featuredMutation.isPending) {
+              return;
+            }
+
+            featuredForm.handleSubmit();
+          }}
           type="button"
         >
           Actualizar
