@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, eq, inArray, sql } from "@repo/db";
-import { featuredPost, media, post } from "@repo/db/schema/app";
+import { featuredPost, post } from "@repo/db/schema/app";
 import z from "zod";
 
 import { permissionProcedure } from "../../index";
@@ -165,12 +165,6 @@ export default {
         order: featuredPost.order,
         position: featuredPost.position,
         postId: featuredPost.postId,
-        thumbnailImageObjectKey: sql<string | null>`(
-          SELECT ${media.objectKey}
-          FROM ${media}
-          WHERE ${media.id} = ${featuredPost.thumbnailMediaId}
-          LIMIT 1
-        )`,
         thumbnailMediaId: featuredPost.thumbnailMediaId,
         title: post.title,
         version: post.version,

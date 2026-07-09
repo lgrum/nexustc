@@ -342,6 +342,9 @@ export function ClientPage({
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (event.nativeEvent.submitter === null) {
+          return;
+        }
         featuredForm.handleSubmit();
       }}
     >
