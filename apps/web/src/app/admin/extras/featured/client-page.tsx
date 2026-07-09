@@ -46,7 +46,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
 import { useAppForm } from "@/hooks/use-app-form";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
-import { createDeferredMediaSelectionFromExistingId } from "@/lib/deferred-media";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  createEmptyDeferredMediaSelection,
+} from "@/lib/deferred-media";
 import type { DeferredMediaSelection } from "@/lib/deferred-media";
 import { orpc, queryClient, safeOrpc } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
@@ -246,10 +249,8 @@ export function ClientPage({
     (post) => post.id === selectedPosts.mainPostId
   );
 
-  const displayedSecondaryPosts = allPosts.filter(
-    (post) =>
-      post.id === selectedPosts.secondaryPostIds[0] ||
-      post.id === selectedPosts.secondaryPostIds[1]
+  const displayedSecondaryPosts = selectedPosts.secondaryPostIds.map((postId) =>
+    allPosts.find((post) => post.id === postId)
   );
 
   const featuredMutation = useMutation({
@@ -322,39 +323,57 @@ export function ClientPage({
 
   const setPostPosition = (postId: string, position: string) => {
     if (position === "main") {
-      setSelectedPosts((prev) => ({ ...prev, mainPostId: postId }));
+      setSelectedPosts((prev) => {
+        if (prev.mainPostId !== postId) {
+          featuredForm.setFieldValue(
+            "mainThumbnailSelection",
+            createEmptyDeferredMediaSelection()
+          );
+        }
+
+        return { ...prev, mainPostId: postId };
+      });
     } else if (position === "secondary-1") {
-      setSelectedPosts((prev) => ({
-        ...prev,
-        secondaryPostIds: [postId, prev.secondaryPostIds[1]],
-      }));
+      setSelectedPosts((prev) => {
+        if (prev.secondaryPostIds[0] !== postId) {
+          featuredForm.setFieldValue(
+            "secondaryOneThumbnailSelection",
+            createEmptyDeferredMediaSelection()
+          );
+        }
+
+        return {
+          ...prev,
+          secondaryPostIds: [postId, prev.secondaryPostIds[1]],
+        };
+      });
     } else if (position === "secondary-2") {
-      setSelectedPosts((prev) => ({
-        ...prev,
-        secondaryPostIds: [prev.secondaryPostIds[0], postId],
-      }));
+      setSelectedPosts((prev) => {
+        if (prev.secondaryPostIds[1] !== postId) {
+          featuredForm.setFieldValue(
+            "secondaryTwoThumbnailSelection",
+            createEmptyDeferredMediaSelection()
+          );
+        }
+
+        return {
+          ...prev,
+          secondaryPostIds: [prev.secondaryPostIds[0], postId],
+        };
+      });
     }
   };
 
   return (
-    <form
-      className="flex flex-col gap-6"
-      onSubmit={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.nativeEvent.submitter === null) {
-          return;
-        }
-        featuredForm.handleSubmit();
-      }}
-    >
+    <main className="flex flex-col gap-6">
       <h1 className="font-bold text-2xl">Posts Destacados</h1>
       <div className="flex flex-row items-center gap-4">
         <h2>Posts Seleccionados</h2>
         <Button
           disabled={!(hasChanges && isValid)}
           loading={featuredMutation.isPending}
-          type="submit"
+          onClick={() => featuredForm.handleSubmit()}
+          type="button"
         >
           Actualizar
         </Button>
@@ -420,32 +439,34 @@ export function ClientPage({
         <div>
           <h3 className="mb-2 font-semibold">Secundarios</h3>
           <ItemGroup className="grid grid-cols-2 gap-4">
-            {displayedSecondaryPosts.map((post) => (
-              <Item className="overflow-hidden" key={post.id} variant="muted">
-                <ItemMedia className="size-12" variant="image">
-                  <img
-                    alt={post.title}
-                    src={getBucketUrl(
-                      getThumbnailImageObjectKeys(
-                        post.imageObjectKeys,
-                        1,
-                        post.coverImageObjectKey
-                      )[0] ?? ""
+            {displayedSecondaryPosts.map((post, index) =>
+              post ? (
+                <Item className="overflow-hidden" key={post.id} variant="muted">
+                  <ItemMedia className="size-12" variant="image">
+                    <img
+                      alt={post.title}
+                      src={getBucketUrl(
+                        getThumbnailImageObjectKeys(
+                          post.imageObjectKeys,
+                          1,
+                          post.coverImageObjectKey
+                        )[0] ?? ""
+                      )}
+                    />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle className="w-fit min-w-0 text-ellipsis">
+                      Secundario #{index + 1}: {post.title}
+                    </ItemTitle>
+                    {!!post.version && (
+                      <ItemDescription>{post.version}</ItemDescription>
                     )}
-                  />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="w-fit min-w-0 text-ellipsis">
-                    {post.title}
-                  </ItemTitle>
-                  {!!post.version && (
-                    <ItemDescription>{post.version}</ItemDescription>
-                  )}
-                </ItemContent>
-              </Item>
-            ))}
+                  </ItemContent>
+                </Item>
+              ) : null
+            )}
           </ItemGroup>
-          {displayedSecondaryPosts.length === 0 && (
+          {displayedSecondaryPosts.every((post) => !post) && (
             <p className="text-muted-foreground text-sm">
               No hay posts secundarios seleccionados
             </p>
@@ -599,7 +620,7 @@ export function ClientPage({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </form>
+    </main>
   );
 }
 
