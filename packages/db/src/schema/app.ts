@@ -458,6 +458,9 @@ export const featuredPost = pgTable(
     id: text("id").primaryKey().$defaultFn(generateId),
     order: integer("order").notNull(),
     position: featuredPositionEnum("position").notNull(),
+    thumbnailMediaId: text("thumbnail_media_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     postId: text("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),
@@ -466,6 +469,7 @@ export const featuredPost = pgTable(
   (table) => [
     index("featured_post_post_id_idx").on(table.postId),
     index("featured_post_position_idx").on(table.position),
+    index("featured_post_thumbnail_media_id_idx").on(table.thumbnailMediaId),
   ]
 );
 
@@ -1231,6 +1235,7 @@ export const postRelations = relations(post, ({ many, one }) => ({
 export const mediaRelations = relations(media, ({ many, one }) => ({
   coveredPosts: many(post),
   creators: many(creator),
+  featuredPosts: many(featuredPost),
   folder: one(mediaFolder, {
     fields: [media.folderId],
     references: [mediaFolder.id],
@@ -1267,6 +1272,10 @@ export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
   post: one(post, {
     fields: [featuredPost.postId],
     references: [post.id],
+  }),
+  thumbnailMedia: one(media, {
+    fields: [featuredPost.thumbnailMediaId],
+    references: [media.id],
   }),
 }));
 

@@ -4,6 +4,7 @@ import { asc, eq, inArray, isNull, sql } from "@repo/db";
 import type * as RepoDb from "@repo/db";
 import {
   emoji,
+  featuredPost,
   media,
   mediaFolder,
   post,
@@ -93,9 +94,22 @@ function buildMediaUsageAggs(db: Database) {
     .groupBy(sticker.mediaId)
     .as("sticker_media_usage");
 
+  const featuredUsageAgg = db
+    .select({
+      featuredUsageCount: sql<number>`COUNT(*)::integer`.as(
+        "featured_usage_count"
+      ),
+      mediaId: featuredPost.thumbnailMediaId,
+    })
+    .from(featuredPost)
+    .where(sql`${featuredPost.thumbnailMediaId} IS NOT NULL`)
+    .groupBy(featuredPost.thumbnailMediaId)
+    .as("featured_media_usage");
+
   return {
     coverUsageAgg,
     emojiUsageAgg,
+    featuredUsageAgg,
     postUsageAgg,
     stickerUsageAgg,
   };
@@ -189,8 +203,13 @@ export default {
           .groupBy(media.folderId)
           .as("media_folder_media_count");
 
-        const { coverUsageAgg, emojiUsageAgg, postUsageAgg, stickerUsageAgg } =
-          buildMediaUsageAggs(db);
+        const {
+          coverUsageAgg,
+          emojiUsageAgg,
+          featuredUsageAgg,
+          postUsageAgg,
+          stickerUsageAgg,
+        } = buildMediaUsageAggs(db);
 
         const folders = await db
           .select({
@@ -221,6 +240,7 @@ export default {
               COALESCE(${postUsageAgg.postUsageCount}, 0)
               + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
               + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
+              + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
               + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
             `,
           })
@@ -228,6 +248,7 @@ export default {
           .leftJoin(coverUsageAgg, eq(coverUsageAgg.mediaId, media.id))
           .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
           .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
+          .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
           .leftJoin(stickerUsageAgg, eq(stickerUsageAgg.mediaId, media.id))
           .where(
             targetFolder
@@ -283,8 +304,13 @@ export default {
       const logger = getLogger(ctx);
       logger?.info("Fetching admin media library");
 
-      const { coverUsageAgg, emojiUsageAgg, postUsageAgg, stickerUsageAgg } =
-        buildMediaUsageAggs(db);
+      const {
+        coverUsageAgg,
+        emojiUsageAgg,
+        featuredUsageAgg,
+        postUsageAgg,
+        stickerUsageAgg,
+      } = buildMediaUsageAggs(db);
 
       return db
         .select({
@@ -296,6 +322,7 @@ export default {
             COALESCE(${postUsageAgg.postUsageCount}, 0)
             + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
             + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
+            + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
             + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
           `,
         })
@@ -303,6 +330,7 @@ export default {
         .leftJoin(coverUsageAgg, eq(coverUsageAgg.mediaId, media.id))
         .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
         .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
+        .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
         .leftJoin(stickerUsageAgg, eq(stickerUsageAgg.mediaId, media.id))
         .orderBy(sql`${media.createdAt} DESC`);
     }),

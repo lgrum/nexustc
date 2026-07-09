@@ -2,6 +2,7 @@
 
 import { Search01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import { useStore } from "@tanstack/react-form";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -43,14 +44,30 @@ import {
 } from "@/components/ui/item";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Spinner } from "@/components/ui/spinner";
+import { useAppForm } from "@/hooks/use-app-form";
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  createEmptyDeferredMediaSelection,
+} from "@/lib/deferred-media";
+import type { DeferredMediaSelection } from "@/lib/deferred-media";
 import { orpc, queryClient, safeOrpc } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
+const FEATURED_THUMBNAIL_ASPECT = 4 / 3;
+
 export type FeaturedSelection = {
   mainPostId: string | null;
+  mainThumbnailMediaId: string | null;
   secondaryPostIds: [string | null, string | null];
+  secondaryThumbnailMediaIds: [string | null, string | null];
+};
+
+type FeaturedThumbnailFormValues = {
+  mainThumbnailSelection: DeferredMediaSelection;
+  secondaryOneThumbnailSelection: DeferredMediaSelection;
+  secondaryTwoThumbnailSelection: DeferredMediaSelection;
 };
 
 export type LoaderError = {
@@ -72,9 +89,57 @@ export function ClientPage({
     useState<FeaturedSelection>(initialSelection);
   const [savedSelectedPosts, setSavedSelectedPosts] =
     useState<FeaturedSelection>(initialSelection);
+  const initialThumbnailValues = useMemo(
+    () => createThumbnailFormValues(initialSelection),
+    [initialSelection]
+  );
+  const [savedThumbnailFingerprint, setSavedThumbnailFingerprint] = useState(
+    () => getThumbnailFingerprint(initialThumbnailValues)
+  );
   const [blockerDialogOpen, setBlockerDialogOpen] = useState(false);
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const router = useRouter();
+
+  const featuredForm = useAppForm({
+    defaultValues: initialThumbnailValues,
+    onSubmit: async ({ value }) => {
+      if (!isValid) {
+        return;
+      }
+
+      const result = await featuredMutation.mutateAsync({
+        mainPostId: selectedPosts.mainPostId!,
+        mainThumbnailSelection: value.mainThumbnailSelection,
+        secondaryPostIds: [
+          selectedPosts.secondaryPostIds[0]!,
+          selectedPosts.secondaryPostIds[1]!,
+        ],
+        secondaryThumbnailSelections: [
+          value.secondaryOneThumbnailSelection,
+          value.secondaryTwoThumbnailSelection,
+        ],
+      });
+      const savedSelection = {
+        mainPostId: selectedPosts.mainPostId,
+        mainThumbnailMediaId: result.mainThumbnailMediaId,
+        secondaryPostIds: selectedPosts.secondaryPostIds,
+        secondaryThumbnailMediaIds: [
+          result.secondaryThumbnailMediaIds[0],
+          result.secondaryThumbnailMediaIds[1],
+        ],
+      } satisfies FeaturedSelection;
+      const savedThumbnailValues = createThumbnailFormValues(savedSelection);
+
+      setSavedSelectedPosts(savedSelection);
+      setSavedThumbnailFingerprint(
+        getThumbnailFingerprint(savedThumbnailValues)
+      );
+      featuredForm.reset(savedThumbnailValues);
+      setSearch("");
+      setDebouncedSearch("");
+    },
+  });
+  const thumbnailValues = useStore(featuredForm.store, (state) => state.values);
 
   const hasChanges = useMemo(
     () =>
@@ -82,8 +147,14 @@ export function ClientPage({
       selectedPosts.secondaryPostIds[0] !==
         savedSelectedPosts.secondaryPostIds[0] ||
       selectedPosts.secondaryPostIds[1] !==
-        savedSelectedPosts.secondaryPostIds[1],
-    [selectedPosts, savedSelectedPosts]
+        savedSelectedPosts.secondaryPostIds[1] ||
+      getThumbnailFingerprint(thumbnailValues) !== savedThumbnailFingerprint,
+    [
+      selectedPosts,
+      savedSelectedPosts,
+      savedThumbnailFingerprint,
+      thumbnailValues,
+    ]
   );
 
   const isValid = useMemo(
@@ -178,10 +249,8 @@ export function ClientPage({
     (post) => post.id === selectedPosts.mainPostId
   );
 
-  const displayedSecondaryPosts = allPosts.filter(
-    (post) =>
-      post.id === selectedPosts.secondaryPostIds[0] ||
-      post.id === selectedPosts.secondaryPostIds[1]
+  const displayedSecondaryPosts = selectedPosts.secondaryPostIds.map((postId) =>
+    allPosts.find((post) => post.id === postId)
   );
 
   const featuredMutation = useMutation({
@@ -199,14 +268,11 @@ export function ClientPage({
           return (
             typeof key === "string" &&
             (key.includes("getFeaturedSelectionPosts") ||
-              key.includes("getFeaturedPosts"))
+              key.includes("getFeaturedPosts") ||
+              key.includes("media"))
           );
         },
       });
-
-      setSavedSelectedPosts({ ...selectedPosts });
-      setSearch("");
-      setDebouncedSearch("");
 
       toast.success("Posts destacados actualizados correctamente", {
         duration: 3000,
@@ -242,20 +308,6 @@ export function ClientPage({
     );
   }
 
-  const updateFeatured = async () => {
-    if (!isValid) {
-      return;
-    }
-
-    await featuredMutation.mutateAsync({
-      mainPostId: selectedPosts.mainPostId!,
-      secondaryPostIds: [
-        selectedPosts.secondaryPostIds[0]!,
-        selectedPosts.secondaryPostIds[1]!,
-      ],
-    });
-  };
-
   const getPostPosition = (postId: string): string | null => {
     if (selectedPosts.mainPostId === postId) {
       return "main";
@@ -271,17 +323,44 @@ export function ClientPage({
 
   const setPostPosition = (postId: string, position: string) => {
     if (position === "main") {
-      setSelectedPosts((prev) => ({ ...prev, mainPostId: postId }));
+      setSelectedPosts((prev) => {
+        if (prev.mainPostId !== postId) {
+          featuredForm.setFieldValue(
+            "mainThumbnailSelection",
+            createEmptyDeferredMediaSelection()
+          );
+        }
+
+        return { ...prev, mainPostId: postId };
+      });
     } else if (position === "secondary-1") {
-      setSelectedPosts((prev) => ({
-        ...prev,
-        secondaryPostIds: [postId, prev.secondaryPostIds[1]],
-      }));
+      setSelectedPosts((prev) => {
+        if (prev.secondaryPostIds[0] !== postId) {
+          featuredForm.setFieldValue(
+            "secondaryOneThumbnailSelection",
+            createEmptyDeferredMediaSelection()
+          );
+        }
+
+        return {
+          ...prev,
+          secondaryPostIds: [postId, prev.secondaryPostIds[1]],
+        };
+      });
     } else if (position === "secondary-2") {
-      setSelectedPosts((prev) => ({
-        ...prev,
-        secondaryPostIds: [prev.secondaryPostIds[0], postId],
-      }));
+      setSelectedPosts((prev) => {
+        if (prev.secondaryPostIds[1] !== postId) {
+          featuredForm.setFieldValue(
+            "secondaryTwoThumbnailSelection",
+            createEmptyDeferredMediaSelection()
+          );
+        }
+
+        return {
+          ...prev,
+          secondaryPostIds: [prev.secondaryPostIds[0], postId],
+        };
+      });
     }
   };
 
@@ -291,9 +370,16 @@ export function ClientPage({
       <div className="flex flex-row items-center gap-4">
         <h2>Posts Seleccionados</h2>
         <Button
-          disabled={!(hasChanges && isValid)}
+          disabled={featuredMutation.isPending || !(hasChanges && isValid)}
           loading={featuredMutation.isPending}
-          onClick={updateFeatured}
+          onClick={() => {
+            if (featuredMutation.isPending) {
+              return;
+            }
+
+            featuredForm.handleSubmit();
+          }}
+          type="button"
         >
           Actualizar
         </Button>
@@ -338,41 +424,93 @@ export function ClientPage({
               No hay post principal seleccionado
             </p>
           )}
+          <featuredForm.AppField name="mainThumbnailSelection">
+            {(field) => (
+              <field.MediaField
+                crop={{
+                  aspect: FEATURED_THUMBNAIL_ASPECT,
+                  description:
+                    "Recorta la miniatura del landing en formato 4:3.",
+                  title: "Recortar miniatura destacada",
+                }}
+                description="Opcional. Si queda vacia, se usara la portada o primera imagen del post."
+                label="Miniatura del landing"
+                maxItems={1}
+                ownerKind="Juego"
+              />
+            )}
+          </featuredForm.AppField>
         </div>
 
         <div>
           <h3 className="mb-2 font-semibold">Secundarios</h3>
           <ItemGroup className="grid grid-cols-2 gap-4">
-            {displayedSecondaryPosts.map((post) => (
-              <Item className="overflow-hidden" key={post.id} variant="muted">
-                <ItemMedia className="size-12" variant="image">
-                  <img
-                    alt={post.title}
-                    src={getBucketUrl(
-                      getThumbnailImageObjectKeys(
-                        post.imageObjectKeys,
-                        1,
-                        post.coverImageObjectKey
-                      )[0] ?? ""
+            {displayedSecondaryPosts.map((post, index) =>
+              post ? (
+                <Item className="overflow-hidden" key={post.id} variant="muted">
+                  <ItemMedia className="size-12" variant="image">
+                    <img
+                      alt={post.title}
+                      src={getBucketUrl(
+                        getThumbnailImageObjectKeys(
+                          post.imageObjectKeys,
+                          1,
+                          post.coverImageObjectKey
+                        )[0] ?? ""
+                      )}
+                    />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle className="w-fit min-w-0 text-ellipsis">
+                      Secundario #{index + 1}: {post.title}
+                    </ItemTitle>
+                    {!!post.version && (
+                      <ItemDescription>{post.version}</ItemDescription>
                     )}
-                  />
-                </ItemMedia>
-                <ItemContent>
-                  <ItemTitle className="w-fit min-w-0 text-ellipsis">
-                    {post.title}
-                  </ItemTitle>
-                  {!!post.version && (
-                    <ItemDescription>{post.version}</ItemDescription>
-                  )}
-                </ItemContent>
-              </Item>
-            ))}
+                  </ItemContent>
+                </Item>
+              ) : null
+            )}
           </ItemGroup>
-          {displayedSecondaryPosts.length === 0 && (
+          {displayedSecondaryPosts.every((post) => !post) && (
             <p className="text-muted-foreground text-sm">
               No hay posts secundarios seleccionados
             </p>
           )}
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <featuredForm.AppField name="secondaryOneThumbnailSelection">
+              {(field) => (
+                <field.MediaField
+                  crop={{
+                    aspect: FEATURED_THUMBNAIL_ASPECT,
+                    description:
+                      "Recorta la miniatura del primer secundario en formato 4:3.",
+                    title: "Recortar miniatura secundaria #1",
+                  }}
+                  description="Opcional. Si queda vacia, se usara la portada o primera imagen del post."
+                  label="Miniatura secundaria #1"
+                  maxItems={1}
+                  ownerKind="Juego"
+                />
+              )}
+            </featuredForm.AppField>
+            <featuredForm.AppField name="secondaryTwoThumbnailSelection">
+              {(field) => (
+                <field.MediaField
+                  crop={{
+                    aspect: FEATURED_THUMBNAIL_ASPECT,
+                    description:
+                      "Recorta la miniatura del segundo secundario en formato 4:3.",
+                    title: "Recortar miniatura secundaria #2",
+                  }}
+                  description="Opcional. Si queda vacia, se usara la portada o primera imagen del post."
+                  label="Miniatura secundaria #2"
+                  maxItems={1}
+                  ownerKind="Juego"
+                />
+              )}
+            </featuredForm.AppField>
+          </div>
         </div>
       </div>
 
@@ -490,4 +628,38 @@ export function ClientPage({
       </AlertDialog>
     </main>
   );
+}
+
+function createThumbnailFormValues(
+  selection: FeaturedSelection
+): FeaturedThumbnailFormValues {
+  return {
+    mainThumbnailSelection: createDeferredMediaSelectionFromExistingId(
+      selection.mainThumbnailMediaId
+    ),
+    secondaryOneThumbnailSelection: createDeferredMediaSelectionFromExistingId(
+      selection.secondaryThumbnailMediaIds[0]
+    ),
+    secondaryTwoThumbnailSelection: createDeferredMediaSelectionFromExistingId(
+      selection.secondaryThumbnailMediaIds[1]
+    ),
+  };
+}
+
+function getSelectionFingerprint(selection: DeferredMediaSelection) {
+  return selection
+    .map((item) =>
+      item.kind === "existing"
+        ? `existing:${item.mediaId}`
+        : `pending:${item.file.name}:${item.file.size}:${item.file.lastModified}`
+    )
+    .join("|");
+}
+
+function getThumbnailFingerprint(values: FeaturedThumbnailFormValues) {
+  return [
+    getSelectionFingerprint(values.mainThumbnailSelection),
+    getSelectionFingerprint(values.secondaryOneThumbnailSelection),
+    getSelectionFingerprint(values.secondaryTwoThumbnailSelection),
+  ].join("::");
 }
