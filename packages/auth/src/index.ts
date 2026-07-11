@@ -17,6 +17,10 @@ import { syncPatreonMembership } from "./patreon-sync";
 import { adminPlugin } from "./plugins/admin";
 import { patreonPlugin } from "./plugins/patreon";
 import { turnstilePlugin } from "./plugins/turnstile";
+import {
+  consumeTwoFactorOtpDeliveryFailure,
+  markTwoFactorOtpDeliveryFailed,
+} from "./two-factor-delivery";
 
 type NewsletterOptInUser = {
   email: string;
@@ -119,6 +123,7 @@ export const auth = betterAuth({
       banned: false,
       banReason: null,
       banExpires: null,
+      twoFactorEnabled: false,
       // Your additional fields
       ...additionalFields,
       // ID must be last to match database output order
@@ -155,6 +160,18 @@ export const auth = betterAuth({
   },
 
   hooks: {
+    // oxlint-disable-next-line require-await
+    after: createAuthMiddleware(async (ctx) => {
+      if (
+        ctx.path === "/two-factor/send-otp" &&
+        consumeTwoFactorOtpDeliveryFailure(ctx.context)
+      ) {
+        throw new APIError("SERVICE_UNAVAILABLE", {
+          code: "TWO_FACTOR_OTP_DELIVERY_FAILED",
+          message: "No se pudo enviar el código. Inténtalo nuevamente.",
+        });
+      }
+    }),
     // oxlint-disable-next-line require-await
     before: createAuthMiddleware(async (ctx) => {
       if (ctx.path !== "/sign-up/email") {
@@ -194,18 +211,28 @@ export const auth = betterAuth({
       issuer: "NeXusTC",
       otpOptions: {
         period: 3,
-        sendOTP: async ({ otp, user }) => {
-          const { error } = await resend.emails.send({
-            from: "NeXusTC <noreply@accounts.nexustc18.com>",
-            to: user.email,
-            subject: "Tu código de verificación",
-            react: TwoFactorCode({ code: otp }),
-          });
-
-          if (error) {
-            throw new Error("Failed to send two-factor code", {
-              cause: error,
+        sendOTP: async ({ otp, user }, ctx) => {
+          let deliveryError: unknown;
+          try {
+            const { error } = await resend.emails.send({
+              from: "NeXusTC <noreply@accounts.nexustc18.com>",
+              to: user.email,
+              subject: "Tu código de verificación",
+              react: TwoFactorCode({ code: otp }),
             });
+            deliveryError = error;
+          } catch (error) {
+            deliveryError = error;
+          }
+
+          if (deliveryError) {
+            ctx?.context.logger.error(
+              "Failed to send two-factor code",
+              deliveryError
+            );
+            if (ctx) {
+              markTwoFactorOtpDeliveryFailed(ctx.context);
+            }
           }
         },
       },

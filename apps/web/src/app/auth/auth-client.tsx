@@ -9,7 +9,7 @@ import { useStore } from "@tanstack/react-form";
 import { Facehash } from "facehash";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -80,6 +80,11 @@ export function AuthClient() {
   const loginTurnstileRef = useRef<TurnstileInstance>(null);
   const registerTurnstileRef = useRef<TurnstileInstance>(null);
   const router = useRouter();
+
+  useEffect(
+    () => () => clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE),
+    []
+  );
 
   const loginForm = useAppForm({
     defaultValues: {

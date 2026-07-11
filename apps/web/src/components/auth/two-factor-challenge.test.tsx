@@ -42,4 +42,37 @@ describe("TwoFactorChallenge", () => {
 
     await waitFor(() => expect(sendOtp).toHaveBeenCalledOnce());
   });
+
+  it("keeps the send action available when email delivery fails", async () => {
+    sendOtp.mockResolvedValueOnce({
+      data: null,
+      error: {
+        code: "TWO_FACTOR_OTP_DELIVERY_FAILED",
+        message: "No se pudo enviar el código. Inténtalo nuevamente.",
+      },
+    });
+
+    render(
+      <TwoFactorChallenge
+        methods={["otp"]}
+        onCancel={vi.fn()}
+        onVerified={vi.fn()}
+      />
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Enviar código por email" })
+    );
+
+    expect(
+      await screen.findByText(
+        "No se pudo enviar el código. Inténtalo nuevamente."
+      )
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "Enviar código por email" })
+        .hasAttribute("disabled")
+    ).toBe(false);
+  });
 });
