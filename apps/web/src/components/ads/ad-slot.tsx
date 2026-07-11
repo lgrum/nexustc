@@ -6,11 +6,11 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { AD_PRIMARY_SCRIPT_SRC } from "@/components/ads/ad-config";
 import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/lib/orpc";
 
 const EXOCLICK_SCRIPT_ID = "exoclick-ad-provider";
-const EXOCLICK_SCRIPT_SRC = "https://a.magsrv.com/ad-provider.js";
 const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
 const DESKTOP_MEDIA_QUERY = "(min-width: 768px)";
 
@@ -51,7 +51,7 @@ export function AdSlot({
   cooldownKey,
   cooldownMs,
   media,
-  providerSrc = EXOCLICK_SCRIPT_SRC,
+  providerSrc = AD_PRIMARY_SCRIPT_SRC,
   reduced = false,
   zoneId,
 }: {

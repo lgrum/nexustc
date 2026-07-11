@@ -23,6 +23,11 @@ type EarlyAccessPostRecord = {
   vip8EarlyAccessHours: number;
 };
 
+type ViewablePostRecord = EarlyAccessPostRecord & {
+  releasedAt: Date | null;
+  status: "draft" | "pending" | "publish" | "trash";
+};
+
 type EarlyAccessUpdateInput = {
   documentStatus: "draft" | "pending" | "publish" | "trash";
   enabled: boolean;
@@ -107,6 +112,42 @@ export function getPostEarlyAccessView(
     schedule: buildPostEarlyAccessSchedule(item),
     viewerTier: viewer.tier,
   });
+}
+
+export function canViewPost(
+  item: ViewablePostRecord,
+  viewer: { role?: string | null; tier: PatronTier },
+  now = new Date()
+): boolean {
+  if (
+    item.status !== "publish" ||
+    (item.releasedAt !== null && item.releasedAt > now)
+  ) {
+    return false;
+  }
+
+  return !getPostEarlyAccessView(
+    item,
+    { role: viewer.role ?? undefined, tier: viewer.tier },
+    now
+  ).isRestrictedView;
+}
+
+export function redactEarlyAccessMedia<
+  T extends {
+    content: string;
+    coverImageObjectKey: string | null;
+    imageObjectKeys: string[] | null;
+  },
+>(item: T, isRestrictedView: boolean): T {
+  return isRestrictedView
+    ? {
+        ...item,
+        content: "",
+        coverImageObjectKey: null,
+        imageObjectKeys: [],
+      }
+    : item;
 }
 
 export function publicCatalogVisibilityCondition(now = new Date()) {

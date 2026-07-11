@@ -42,11 +42,18 @@ export function getRedis(): Promise<RedisClientType> {
     return Promise.resolve(client);
   }
 
-  if (!client && clientPromise) {
+  if (clientPromise) {
     return clientPromise;
   }
 
-  clientPromise = null;
+  if (client) {
+    try {
+      client.destroy();
+    } catch {
+      // Ignore cleanup errors from the stale client.
+    }
+    client = null;
+  }
 
   clientPromise = (async () => {
     const nextClient = createClient({
@@ -63,6 +70,7 @@ export function getRedis(): Promise<RedisClientType> {
     try {
       await withTimeout(nextClient.connect(), REDIS_CONNECT_TIMEOUT_MS);
       client = nextClient;
+      clientPromise = null;
       return nextClient;
     } catch (error) {
       client = null;

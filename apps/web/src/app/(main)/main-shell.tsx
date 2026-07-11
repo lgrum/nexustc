@@ -1,5 +1,6 @@
 "use client";
 
+import { env } from "@repo/env";
 import type { MarqueeItem } from "@repo/shared/schemas";
 import { DEFAULT_MARQUEE_ITEMS } from "@repo/shared/schemas";
 import { usePathname } from "next/navigation";
@@ -63,9 +64,11 @@ export function MainShell({
   children: React.ReactNode;
   marqueeItems?: readonly MarqueeItem[];
 }) {
-  const { detected } = useAdblockDetector();
   const pathname = usePathname();
   const { policy } = useViewerAdPolicy();
+  const { detected } = useAdblockDetector(
+    env.NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED && policy !== "none"
+  );
   const showFloatingNotification = !AD_EXCLUDED_PATHS.some((path) =>
     pathname.startsWith(path)
   );

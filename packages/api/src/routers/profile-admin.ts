@@ -1,4 +1,4 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, inArray } from "@repo/db";
@@ -20,6 +20,7 @@ import {
   getObjectExtension,
   getOrCreateProfileSystemConfig,
   inspectProfileMediaAsset,
+  PROFILE_MEDIA_MAX_BYTES,
   validateProfileMediaUpload,
 } from "../services/profile";
 import type { ProfileEntitlements } from "../services/profile";
@@ -373,7 +374,11 @@ export default {
     finalizeUpload: ownerProcedure
       .input(
         z.object({
-          contentLength: z.number().int().positive(),
+          contentLength: z
+            .number()
+            .int()
+            .positive()
+            .max(PROFILE_MEDIA_MAX_BYTES),
           contentType: uploadContentTypeSchema,
           objectKey: z.string().min(1),
           slot: ownerSlotsSchema,
@@ -382,6 +387,19 @@ export default {
       .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
         const logger = getLogger(ctx);
         logger?.info(`Finalizing owner asset ${input.objectKey}`);
+        const deleteRejectedUpload = async () => {
+          try {
+            await getS3Client().send(
+              new DeleteObjectCommand({
+                Bucket: env.R2_ASSETS_BUCKET_NAME,
+                Key: input.objectKey,
+              })
+            );
+          } catch (cleanupError) {
+            logger?.warn(`Failed to delete rejected asset ${input.objectKey}`);
+            logger?.warn(cleanupError);
+          }
+        };
 
         if (
           !input.objectKey.startsWith(
@@ -391,9 +409,13 @@ export default {
           throw errors.FORBIDDEN({ message: "Asset inválido." });
         }
 
-        const validation = await inspectProfileMediaAsset(input.objectKey);
+        let validation: Awaited<ReturnType<typeof inspectProfileMediaAsset>>;
 
         try {
+          validation = await inspectProfileMediaAsset(input.objectKey, {
+            contentLength: input.contentLength,
+            contentType: input.contentType,
+          });
           validateProfileMediaUpload({
             contentType: input.contentType,
             entitlements: {
@@ -409,34 +431,44 @@ export default {
             validation,
           });
         } catch (error) {
+          await deleteRejectedUpload();
           throw errors.BAD_REQUEST({
             message: error instanceof Error ? error.message : "Asset inválido.",
           });
         }
 
-        const [asset] = await db
-          .insert(profileMediaAsset)
-          .values({
-            durationMs: validation.durationMs,
-            fileSizeBytes: validation.fileSizeBytes,
-            height: validation.height,
-            isAnimated: validation.isAnimated,
-            mimeType: input.contentType,
-            objectKey: input.objectKey,
-            ownerUserId: session.user.id,
-            slot: input.slot,
-            validationStatus: "ready",
-            width: validation.width,
-          })
-          .returning();
+        try {
+          const [asset] = await db
+            .insert(profileMediaAsset)
+            .values({
+              durationMs: validation.durationMs,
+              fileSizeBytes: validation.fileSizeBytes,
+              height: validation.height,
+              isAnimated: validation.isAnimated,
+              mimeType: input.contentType,
+              objectKey: input.objectKey,
+              ownerUserId: session.user.id,
+              slot: input.slot,
+              validationStatus: "ready",
+              width: validation.width,
+            })
+            .returning();
 
-        return asset;
+          return asset;
+        } catch (error) {
+          await deleteRejectedUpload();
+          throw error;
+        }
       }),
 
     getUploadPolicy: ownerProcedure
       .input(
         z.object({
-          contentLength: z.number().int().positive(),
+          contentLength: z
+            .number()
+            .int()
+            .positive()
+            .max(PROFILE_MEDIA_MAX_BYTES),
           contentType: uploadContentTypeSchema,
           slot: ownerSlotsSchema,
         })

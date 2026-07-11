@@ -16,6 +16,7 @@ import {
   getProfileEntitlements,
   getPublicProfile,
   inspectProfileMediaAsset,
+  PROFILE_MEDIA_MAX_BYTES,
   validateProfileMediaUpload,
 } from "../services/profile";
 import {
@@ -47,7 +48,7 @@ export default {
   finalizeUpload: protectedProcedure
     .input(
       z.object({
-        contentLength: z.number().int().positive(),
+        contentLength: z.number().int().positive().max(PROFILE_MEDIA_MAX_BYTES),
         contentType: uploadContentTypeSchema,
         objectKey: z.string().min(1),
         slot: z.enum(["avatar", "banner"]),
@@ -69,7 +70,10 @@ export default {
         session.user.id,
         session.user.role
       );
-      const validation = await inspectProfileMediaAsset(input.objectKey);
+      const validation = await inspectProfileMediaAsset(input.objectKey, {
+        contentLength: input.contentLength,
+        contentType: input.contentType,
+      });
 
       try {
         validateProfileMediaUpload({
@@ -214,7 +218,7 @@ export default {
   getUploadPolicy: protectedProcedure
     .input(
       z.object({
-        contentLength: z.number().int().positive(),
+        contentLength: z.number().int().positive().max(PROFILE_MEDIA_MAX_BYTES),
         contentType: uploadContentTypeSchema,
         slot: z.enum(["avatar", "banner"]),
       })

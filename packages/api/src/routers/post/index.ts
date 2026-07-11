@@ -62,6 +62,7 @@ import {
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
+  redactEarlyAccessMedia,
 } from "../../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
@@ -810,13 +811,18 @@ export default {
           }
         );
 
+        const visibleItem = redactEarlyAccessMedia(
+          item,
+          earlyAccess.isRestrictedView
+        );
+
         return {
-          content: item.content,
-          coverImageObjectKey: item.coverImageObjectKey,
+          content: visibleItem.content,
+          coverImageObjectKey: visibleItem.coverImageObjectKey,
           createdAt: item.createdAt,
           earlyAccess,
           id: item.id,
-          imageObjectKeys: item.imageObjectKeys,
+          imageObjectKeys: visibleItem.imageObjectKeys,
           slug: earlyAccess.isRestrictedView ? item.id : item.slug,
           title: earlyAccess.isRestrictedView
             ? getMaskedPostLabel(item.id)
@@ -1031,6 +1037,10 @@ export default {
         vip8EarlyAccessHours: _vip8EarlyAccessHours,
         ...postData
       } = result[0]!;
+      const visiblePostData = redactEarlyAccessMedia(
+        postData,
+        earlyAccess.isRestrictedView
+      );
 
       const engagementPrompts = await getResolvedEngagementPromptsForPost(
         db,
@@ -1109,7 +1119,7 @@ export default {
           : [];
 
       return {
-        ...postData,
+        ...visiblePostData,
         adsLinks: earlyAccess.isRestrictedView ? "" : postData.adsLinks,
         changelog: earlyAccess.isRestrictedView ? "" : postData.changelog,
         creatorAvatarObjectKey: earlyAccess.hideCreatorSupport
@@ -1122,15 +1132,20 @@ export default {
           ? []
           : engagementPrompts,
         premiumLinksAccess,
-        series: postData.seriesId
-          ? {
-              id: postData.seriesId,
-              title: postData.seriesTitle ?? "",
-              type: postData.type,
-            }
-          : null,
+        series:
+          postData.seriesId && !earlyAccess.isRestrictedView
+            ? {
+                id: postData.seriesId,
+                title: postData.seriesTitle ?? "",
+                type: postData.type,
+              }
+            : null,
         seriesParts,
-        terms: postData.terms,
+        slug: earlyAccess.isRestrictedView ? postData.id : postData.slug,
+        terms: earlyAccess.isRestrictedView ? [] : postData.terms,
+        thumbnailImageCount: earlyAccess.isRestrictedView
+          ? 0
+          : postData.thumbnailImageCount,
         title: earlyAccess.isRestrictedView
           ? getMaskedPostLabel(postData.id)
           : postData.title,

@@ -5,6 +5,10 @@ const httpUrlSchema = z.url({ protocol: /^https?$/ });
 
 export const env = createEnv({
   client: {
+    NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((value) => value === "true"),
     NEXT_PUBLIC_ASSETS_BUCKET_URL: httpUrlSchema,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.string(),
   },
@@ -34,6 +38,8 @@ export const env = createEnv({
     CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
     DATABASE_URL: process.env.DATABASE_URL,
     EXE_TOKEN: process.env.EXE_TOKEN,
+    NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED:
+      process.env.NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED,
     NEXT_PUBLIC_ASSETS_BUCKET_URL: process.env.NEXT_PUBLIC_ASSETS_BUCKET_URL,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
     PATREON_CAMPAIGN_ID: process.env.PATREON_CAMPAIGN_ID,

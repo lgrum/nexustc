@@ -34,6 +34,11 @@ import {
   publicProcedure,
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
+import {
+  canViewPost,
+  getViewerPatronTier,
+  publicCatalogVisibilityCondition,
+} from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const RECENT_USERS_WINDOW_SECONDS = 60 * 10;
@@ -142,11 +147,15 @@ export default {
           id: post.id,
           slug: post.slug,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
+          earlyAccessEnabled: post.earlyAccessEnabled,
+          earlyAccessStartedAt: post.earlyAccessStartedAt,
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          releasedAt: post.releasedAt,
+          status: post.status,
 
           terms: sql<
             {
@@ -159,6 +168,8 @@ export default {
           title: post.title,
 
           type: post.type,
+          vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+          vip8EarlyAccessHours: post.vip8EarlyAccessHours,
 
           version: post.version,
           views: post.views,
@@ -180,8 +191,29 @@ export default {
         `Fetched ${result.length} posts for user ${session.user.id} bookmarks`
       );
 
+      const viewer = {
+        role: session.user.role,
+        tier: await getViewerPatronTier(db, session),
+      };
+      const visibleBookmarks = result.flatMap((bookmark) => {
+        if (!canViewPost(bookmark, viewer)) {
+          return [];
+        }
+
+        const {
+          earlyAccessEnabled: _earlyAccessEnabled,
+          earlyAccessStartedAt: _earlyAccessStartedAt,
+          releasedAt: _releasedAt,
+          status: _status,
+          vip12EarlyAccessHours: _vip12EarlyAccessHours,
+          vip8EarlyAccessHours: _vip8EarlyAccessHours,
+          ...visibleBookmark
+        } = bookmark;
+        return [visibleBookmark];
+      });
+
       return attachComicCatalogProgress(db, {
-        items: result,
+        items: visibleBookmarks,
         userId: session.user.id,
       });
     }
@@ -208,6 +240,26 @@ export default {
       }
 
       if (input.bookmarked) {
+        const targetPost = await db.query.post.findFirst({
+          columns: {
+            earlyAccessEnabled: true,
+            earlyAccessStartedAt: true,
+            releasedAt: true,
+            status: true,
+            type: true,
+            vip12EarlyAccessHours: true,
+            vip8EarlyAccessHours: true,
+          },
+          where: eq(post.id, input.postId),
+        });
+
+        if (
+          !targetPost ||
+          !canViewPost(targetPost, { role: session.user.role, tier })
+        ) {
+          throw errors.NOT_FOUND();
+        }
+
         const bookmarks = await db
           .select({ count: sql<number>`count(*)`.as("count") })
           .from(postBookmark)
@@ -596,6 +648,7 @@ export default {
           and(
             eq(post.status, "publish"),
             eq(postBookmark.userId, input.userId),
+            publicCatalogVisibilityCondition(),
             sql`${user.banned} IS DISTINCT FROM true`
           )
         )

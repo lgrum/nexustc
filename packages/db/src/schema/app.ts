@@ -550,7 +550,7 @@ export const engagementQuestion = pgTable(
     isGlobal: boolean("is_global").notNull().default(false),
     locale: text("locale").notNull().default("es"),
     tagTermId: text("tag_term_id").references(() => term.id, {
-      onDelete: "cascade",
+      onDelete: "set null",
     }),
     text: text("text").notNull(),
     ...timestamps,

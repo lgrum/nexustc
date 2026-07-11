@@ -4,7 +4,6 @@ import type { tutorials as TutorialTable } from "@repo/db/schema/app";
 import { tutorials } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { webUrlSchema } from "@repo/shared/schemas";
-import { customAlphabet } from "nanoid/non-secure";
 import z from "zod";
 
 import {
@@ -13,20 +12,8 @@ import {
   publicProcedure,
 } from "../index";
 
-const nanoid = customAlphabet(
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-  9
-);
-
 type Tutorial = typeof TutorialTable.$inferSelect;
 
-const HTML_TITLE_REGEX = /<title[^>]*>([\s\S]*?)<\/title>/i;
-const META_TITLE_REGEXES = [
-  /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-  /<meta[^>]+name=["']title["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-  /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["'][^>]*>/i,
-  /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']title["'][^>]*>/i,
-] as const;
 const shortenerResponseSchema = z.object({
   shortenedUrl: webUrlSchema,
   status: z.string(),
@@ -55,74 +42,12 @@ const shortenerCountSchema = z.union([
   z.literal(3),
 ]);
 
-const decodeHtmlEntities = (value: string): string =>
-  value
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&nbsp;", " ");
-
-const normalizeAlias = (value: string | null): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = value
-    .normalize("NFKD")
-    .replaceAll(/[\u0300-\u036F]/g, "")
-    .replaceAll(/[^a-zA-Z0-9\s-]/g, " ")
-    .trim()
-    .replaceAll(/\s+/g, "-")
-    .replaceAll(/-+/g, "-")
-    .toLowerCase()
-    .slice(0, 20);
-
-  return normalized.length > 0 ? normalized : undefined;
-};
-
-const getTitleMatch = (html: string): string | null => {
-  for (const regex of META_TITLE_REGEXES) {
-    const match = html.match(regex)?.[1];
-
-    if (match) {
-      return decodeHtmlEntities(match).trim();
-    }
-  }
-
-  const titleMatch = html.match(HTML_TITLE_REGEX)?.[1];
-  return titleMatch ? decodeHtmlEntities(titleMatch).trim() : null;
-};
-
-const getAliasFromUrl = async (url: string): Promise<string | undefined> => {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (compatible; NeXusTC URLShortener/1.0; +https://nexustc18.com)",
-      },
-    });
-
-    if (!response.ok) {
-      return undefined;
-    }
-
-    const html = await response.text();
-    return `${normalizeAlias(getTitleMatch(html))}-${nanoid()}`;
-  } catch {
-    return undefined;
-  }
-};
-
 const shortenWithProvider = async ({
-  alias,
   logger,
   onError,
   provider,
   url,
 }: {
-  alias?: string;
   logger?: ReturnType<typeof getLogger>;
   onError: (message: string) => never;
   provider: (typeof shortenerProviders)[number];
@@ -133,14 +58,8 @@ const shortenWithProvider = async ({
     url,
   });
 
-  if (alias) {
-    searchParams.set("alias", alias);
-  }
-
   const requestUrl = `${provider.url}?${searchParams.toString()}`;
-  logger?.info(
-    `Calling shortener ${provider.name} with alias ${alias ? `"${alias}"` : "none"}`
-  );
+  logger?.info(`Calling shortener ${provider.name}`);
 
   const response = await (async (): Promise<Response> => {
     try {
@@ -234,17 +153,12 @@ export default {
       const logger = getLogger(ctx);
       logger?.info(`Shortening URL: ${input.url}`);
 
-      const alias = await getAliasFromUrl(input.url);
-      logger?.info(
-        `Resolved alias for shortening: ${alias ? `"${alias}"` : "not available"}`
-      );
       let shortenedUrl = input.url;
       const selectedProviders = shortenerProviders.slice(-input.shortenerCount);
 
       try {
         for (const provider of selectedProviders) {
           shortenedUrl = await shortenWithProvider({
-            alias,
             logger,
             onError: (message) => {
               throw errors.INTERNAL_SERVER_ERROR({ message });
