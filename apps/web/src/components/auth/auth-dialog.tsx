@@ -19,7 +19,15 @@ import { useStore } from "@tanstack/react-form";
 import type { AnyFieldApi } from "@tanstack/react-form";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import z from "zod";
 
@@ -28,6 +36,13 @@ import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
 import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
+import {
+  beginTwoFactorRedirect,
+  clearPendingTwoFactorMethods,
+  getPendingTwoFactorMethods,
+  useIsTwoFactorRedirectActive,
+  usePendingTwoFactorMethods,
+} from "@/lib/two-factor-redirect";
 import { cn } from "@/lib/utils";
 
 import {
@@ -37,9 +52,95 @@ import {
   ItemMedia,
   ItemTitle,
 } from "../ui/item";
+import { TwoFactorChallenge } from "./two-factor-challenge";
 
-export function AuthDialog({ ...props }: Dialog.Root.Props) {
-  return <Dialog.Root {...props} />;
+type AuthDialogContextValue = {
+  close: () => void;
+  scope: string;
+};
+
+const AuthDialogScopeContext = createContext<AuthDialogContextValue | null>(
+  null
+);
+
+type AuthDialogProps = Omit<Dialog.Root.Props, "children"> & {
+  children: ReactNode;
+};
+
+const useAuthDialogScope = () => {
+  const scope = useContext(AuthDialogScopeContext);
+  if (!scope) {
+    throw new Error("AuthDialogContent must be rendered inside AuthDialog");
+  }
+  return scope;
+};
+
+export function AuthDialog({
+  children,
+  defaultOpen = false,
+  onOpenChange,
+  onOpenChangeComplete,
+  open,
+  ...props
+}: AuthDialogProps) {
+  const scope = useId();
+  const actionsRef = useRef<Dialog.Root.Actions>(null);
+  const isTwoFactorRedirectActive = useIsTwoFactorRedirectActive(scope);
+  const [isClosingTwoFactor, setIsClosingTwoFactor] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const isControlled = open !== undefined;
+
+  useEffect(() => () => clearPendingTwoFactorMethods(scope), [scope]);
+
+  const handleOpenChange: NonNullable<Dialog.Root.Props["onOpenChange"]> = (
+    nextOpen,
+    eventDetails
+  ) => {
+    const isUserDismissal =
+      eventDetails.reason === "close-press" ||
+      eventDetails.reason === "escape-key" ||
+      eventDetails.reason === "outside-press" ||
+      eventDetails.reason === "trigger-press";
+
+    if (!nextOpen && isTwoFactorRedirectActive && isUserDismissal) {
+      setIsClosingTwoFactor(true);
+    }
+
+    if (!isControlled) {
+      setInternalOpen(nextOpen);
+    }
+    onOpenChange?.(nextOpen, eventDetails);
+  };
+
+  const handleOpenChangeComplete = (nextOpen: boolean) => {
+    if (!nextOpen && isClosingTwoFactor) {
+      clearPendingTwoFactorMethods(scope);
+      setIsClosingTwoFactor(false);
+    }
+    onOpenChangeComplete?.(nextOpen);
+  };
+
+  const close = () => {
+    setIsClosingTwoFactor(true);
+    actionsRef.current?.close();
+  };
+
+  return (
+    <AuthDialogScopeContext.Provider value={{ close, scope }}>
+      <Dialog.Root
+        {...props}
+        actionsRef={actionsRef}
+        onOpenChange={handleOpenChange}
+        onOpenChangeComplete={handleOpenChangeComplete}
+        open={
+          !isClosingTwoFactor &&
+          (isTwoFactorRedirectActive || (isControlled ? open : internalOpen))
+        }
+      >
+        {children}
+      </Dialog.Root>
+    </AuthDialogScopeContext.Provider>
+  );
 }
 
 export function AuthDialogTrigger({ ...props }: Dialog.Trigger.Props) {
@@ -47,9 +148,11 @@ export function AuthDialogTrigger({ ...props }: Dialog.Trigger.Props) {
 }
 
 export function AuthDialogContent() {
+  const { close, scope } = useAuthDialogScope();
   const [tab, setTab] = useState("login");
   const [formError, setFormError] = useState<string>();
   const [showVerificationDialog, setShowVerificationDialog] = useState(false);
+  const twoFactorMethods = usePendingTwoFactorMethods(scope);
   const loginTurnstileRef = useRef<TurnstileInstance>(null);
   const registerTurnstileRef = useRef<TurnstileInstance>(null);
 
@@ -80,19 +183,21 @@ export function AuthDialogContent() {
 
       try {
         setFormError(undefined);
+        beginTwoFactorRedirect(scope);
 
         const { error: authError } = await toast
           .promise(
-            authClient.signIn.email({
-              callbackURL: window.location.origin,
-              email: data.email,
-              fetchOptions: {
+            authClient.signIn.email(
+              {
+                email: data.email,
+                password: data.password,
+              },
+              {
                 headers: {
                   "x-captcha-response": data.turnstileToken,
                 },
-              },
-              password: data.password,
-            }),
+              }
+            ),
             {
               loading: "Iniciando sesión...",
             }
@@ -100,6 +205,7 @@ export function AuthDialogContent() {
           .unwrap();
 
         if (authError) {
+          clearPendingTwoFactorMethods(scope);
           if (authError.status === 403) {
             trackEvent("login_failed", {
               reason: "email_unverified",
@@ -121,12 +227,27 @@ export function AuthDialogContent() {
           return;
         }
 
+        const methods = getPendingTwoFactorMethods(scope);
+        if (methods) {
+          if (!methods.includes("totp")) {
+            const { error: otpError } = await authClient.twoFactor.sendOtp();
+            if (otpError) {
+              clearPendingTwoFactorMethods(scope);
+              setFormError(getErrorMessage(otpError));
+              return;
+            }
+          }
+          return;
+        }
+
+        clearPendingTwoFactorMethods(scope);
         trackEvent("login_completed", {
           method: "email",
           source: "auth_dialog",
         });
         router.push("/");
       } catch (error) {
+        clearPendingTwoFactorMethods(scope);
         trackEvent("login_failed", {
           reason: "exception",
           source: "auth_dialog",
@@ -276,171 +397,191 @@ export function AuthDialogContent() {
         </header>
 
         <div className="relative px-6 pb-6">
-          <Tabs.Root onValueChange={handleTabChange} value={tab}>
-            <Tabs.List className="mb-5 inline-flex h-10 w-full items-center gap-1 rounded-lg border border-border/60 bg-muted/40 p-1">
-              <AuthTabTrigger value="login">Iniciar Sesión</AuthTabTrigger>
-              <AuthTabTrigger value="register">Registrarse</AuthTabTrigger>
-            </Tabs.List>
+          {twoFactorMethods ? (
+            <TwoFactorChallenge
+              methods={twoFactorMethods}
+              onCancel={() => clearPendingTwoFactorMethods(scope)}
+              onVerified={(method) => {
+                trackEvent("login_completed", {
+                  method,
+                  source: "auth_dialog",
+                });
+                close();
+                router.push("/");
+                router.refresh();
+              }}
+            />
+          ) : (
+            <Tabs.Root
+              className="slide-in-from-left-2 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+              onValueChange={handleTabChange}
+              value={tab}
+            >
+              <Tabs.List className="mb-5 inline-flex h-10 w-full items-center gap-1 rounded-lg border border-border/60 bg-muted/40 p-1">
+                <AuthTabTrigger value="login">Iniciar Sesión</AuthTabTrigger>
+                <AuthTabTrigger value="register">Registrarse</AuthTabTrigger>
+              </Tabs.List>
 
-            <Tabs.Panel className="outline-none" value="login">
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  loginForm.handleSubmit();
-                }}
-              >
-                <loginForm.AppField name="email">
-                  {(field) => (
-                    <AuthField
-                      autoComplete="email"
-                      field={field}
-                      icon={Mail01Icon}
-                      label="Email"
-                      placeholder="tu@correo.com"
-                      type="email"
-                    />
-                  )}
-                </loginForm.AppField>
-                <loginForm.AppField name="password">
-                  {(field) => (
-                    <AuthField
-                      autoComplete="current-password"
-                      field={field}
-                      icon={SquareLock01Icon}
-                      label="Contraseña"
-                      placeholder="••••••••"
-                      type="password"
-                    />
-                  )}
-                </loginForm.AppField>
-                <div className="-mt-1 flex justify-end">
-                  <Link
-                    className="text-[12px] text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
-                    href="/forgot-password"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </Link>
-                </div>
-                <loginForm.AppField name="turnstileToken">
-                  {(field) => (
-                    <TurnstileContainer
-                      ref={loginTurnstileRef}
-                      setToken={(token) => field.setValue(token)}
-                    />
-                  )}
-                </loginForm.AppField>
-                {!!formError && <AuthErrorBanner message={formError} />}
-                {!!showVerificationDialog && (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[12.5px] text-emerald-100/90 leading-snug">
-                    <p className="font-semibold text-emerald-50">
-                      Verifica tu correo
-                    </p>
-                    <p className="text-emerald-200/80">
-                      Te enviamos un enlace de verificación a tu casilla.
-                    </p>
+              <Tabs.Panel className="outline-none" value="login">
+                <form
+                  className="flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    loginForm.handleSubmit();
+                  }}
+                >
+                  <loginForm.AppField name="email">
+                    {(field) => (
+                      <AuthField
+                        autoComplete="email"
+                        field={field}
+                        icon={Mail01Icon}
+                        label="Email"
+                        placeholder="tu@correo.com"
+                        type="email"
+                      />
+                    )}
+                  </loginForm.AppField>
+                  <loginForm.AppField name="password">
+                    {(field) => (
+                      <AuthField
+                        autoComplete="current-password"
+                        field={field}
+                        icon={SquareLock01Icon}
+                        label="Contraseña"
+                        placeholder="••••••••"
+                        type="password"
+                      />
+                    )}
+                  </loginForm.AppField>
+                  <div className="-mt-1 flex justify-end">
+                    <Link
+                      className="text-[12px] text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline"
+                      href="/forgot-password"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </Link>
                   </div>
-                )}
-                <loginForm.AppForm>
-                  <loginForm.SubmitButton className="h-11 w-full rounded-lg font-semibold text-[13.5px] tracking-wide shadow-glow-primary/20 transition-[background-color,box-shadow] duration-200 hover:shadow-glow-primary/40">
-                    Iniciar Sesión
-                  </loginForm.SubmitButton>
-                </loginForm.AppForm>
-              </form>
-            </Tabs.Panel>
+                  <loginForm.AppField name="turnstileToken">
+                    {(field) => (
+                      <TurnstileContainer
+                        ref={loginTurnstileRef}
+                        setToken={(token) => field.setValue(token)}
+                      />
+                    )}
+                  </loginForm.AppField>
+                  {!!formError && <AuthErrorBanner message={formError} />}
+                  {!!showVerificationDialog && (
+                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5 text-[12.5px] text-emerald-100/90 leading-snug">
+                      <p className="font-semibold text-emerald-50">
+                        Verifica tu correo
+                      </p>
+                      <p className="text-emerald-200/80">
+                        Te enviamos un enlace de verificación a tu casilla.
+                      </p>
+                    </div>
+                  )}
+                  <loginForm.AppForm>
+                    <loginForm.SubmitButton className="h-11 w-full rounded-lg font-semibold text-[13.5px] tracking-wide shadow-glow-primary/20 transition-[background-color,box-shadow] duration-200 hover:shadow-glow-primary/40">
+                      Iniciar Sesión
+                    </loginForm.SubmitButton>
+                  </loginForm.AppForm>
+                </form>
+              </Tabs.Panel>
 
-            <Tabs.Panel className="outline-none" value="register">
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  registerForm.handleSubmit();
-                }}
-              >
-                <registerForm.AppField name="name">
-                  {(field) => (
-                    <AuthField
-                      autoComplete="username"
-                      field={field}
-                      icon={UserIcon}
-                      label="Nombre de Usuario"
-                      placeholder="Tu alias"
-                    />
-                  )}
-                </registerForm.AppField>
-                <registerForm.AppField name="email">
-                  {(field) => (
-                    <AuthField
-                      autoComplete="email"
-                      field={field}
-                      icon={Mail01Icon}
-                      label="Email"
-                      placeholder="tu@correo.com"
-                      type="email"
-                    />
-                  )}
-                </registerForm.AppField>
-                <Item>
-                  <ItemMedia variant="icon">
-                    <HugeiconsIcon icon={ShieldQuestionMarkIcon} />
-                  </ItemMedia>
-                  <ItemContent>
-                    <ItemTitle>Proveedores permitidos</ItemTitle>
-                    <ItemDescription>
-                      Gmail, Outlook, Yahoo, ProtonMail y iCloud.
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-                <registerForm.AppField name="password">
-                  {(field) => (
-                    <AuthField
-                      autoComplete="new-password"
-                      field={field}
-                      icon={SquareLock01Icon}
-                      label="Contraseña"
-                      placeholder="Mínimo 8 caracteres"
-                      type="password"
-                    />
-                  )}
-                </registerForm.AppField>
-                <registerForm.AppField name="confirmPassword">
-                  {(field) => (
-                    <AuthField
-                      autoComplete="new-password"
-                      field={field}
-                      icon={SquareLock01Icon}
-                      label="Confirmar Contraseña"
-                      placeholder="Repite tu contraseña"
-                      type="password"
-                    />
-                  )}
-                </registerForm.AppField>
-                <registerForm.AppField name="newsletterOptIn">
-                  {(field) => <NewsletterOptInField field={field} />}
-                </registerForm.AppField>
-                <registerForm.AppField name="turnstileToken">
-                  {(field) => (
-                    <TurnstileContainer
-                      ref={registerTurnstileRef}
-                      setToken={(token) => field.setValue(token)}
-                    />
-                  )}
-                </registerForm.AppField>
-                {!!formError && <AuthErrorBanner message={formError} />}
-                <registerForm.AppForm>
-                  <registerForm.SubmitButton className="group h-11 w-full rounded-lg font-semibold text-[13.5px] tracking-wide shadow-glow-primary/20 transition-[background-color,box-shadow] duration-200 hover:shadow-glow-primary/40">
-                    <span>Crear cuenta</span>
-                    <HugeiconsIcon
-                      className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
-                      icon={ArrowRight01Icon}
-                    />
-                  </registerForm.SubmitButton>
-                </registerForm.AppForm>
-              </form>
-            </Tabs.Panel>
-          </Tabs.Root>
+              <Tabs.Panel className="outline-none" value="register">
+                <form
+                  className="flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    registerForm.handleSubmit();
+                  }}
+                >
+                  <registerForm.AppField name="name">
+                    {(field) => (
+                      <AuthField
+                        autoComplete="username"
+                        field={field}
+                        icon={UserIcon}
+                        label="Nombre de Usuario"
+                        placeholder="Tu alias"
+                      />
+                    )}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="email">
+                    {(field) => (
+                      <AuthField
+                        autoComplete="email"
+                        field={field}
+                        icon={Mail01Icon}
+                        label="Email"
+                        placeholder="tu@correo.com"
+                        type="email"
+                      />
+                    )}
+                  </registerForm.AppField>
+                  <Item>
+                    <ItemMedia variant="icon">
+                      <HugeiconsIcon icon={ShieldQuestionMarkIcon} />
+                    </ItemMedia>
+                    <ItemContent>
+                      <ItemTitle>Proveedores permitidos</ItemTitle>
+                      <ItemDescription>
+                        Gmail, Outlook, Yahoo, ProtonMail y iCloud.
+                      </ItemDescription>
+                    </ItemContent>
+                  </Item>
+                  <registerForm.AppField name="password">
+                    {(field) => (
+                      <AuthField
+                        autoComplete="new-password"
+                        field={field}
+                        icon={SquareLock01Icon}
+                        label="Contraseña"
+                        placeholder="Mínimo 8 caracteres"
+                        type="password"
+                      />
+                    )}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="confirmPassword">
+                    {(field) => (
+                      <AuthField
+                        autoComplete="new-password"
+                        field={field}
+                        icon={SquareLock01Icon}
+                        label="Confirmar Contraseña"
+                        placeholder="Repite tu contraseña"
+                        type="password"
+                      />
+                    )}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="newsletterOptIn">
+                    {(field) => <NewsletterOptInField field={field} />}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="turnstileToken">
+                    {(field) => (
+                      <TurnstileContainer
+                        ref={registerTurnstileRef}
+                        setToken={(token) => field.setValue(token)}
+                      />
+                    )}
+                  </registerForm.AppField>
+                  {!!formError && <AuthErrorBanner message={formError} />}
+                  <registerForm.AppForm>
+                    <registerForm.SubmitButton className="group h-11 w-full rounded-lg font-semibold text-[13.5px] tracking-wide shadow-glow-primary/20 transition-[background-color,box-shadow] duration-200 hover:shadow-glow-primary/40">
+                      <span>Crear cuenta</span>
+                      <HugeiconsIcon
+                        className="size-4 transition-transform duration-200 group-hover:translate-x-0.5"
+                        icon={ArrowRight01Icon}
+                      />
+                    </registerForm.SubmitButton>
+                  </registerForm.AppForm>
+                </form>
+              </Tabs.Panel>
+            </Tabs.Root>
+          )}
         </div>
       </Dialog.Popup>
     </Dialog.Portal>

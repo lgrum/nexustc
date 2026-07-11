@@ -13,13 +13,22 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import z from "zod";
 
+import { TwoFactorChallenge } from "@/components/auth/two-factor-challenge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
 import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
+import {
+  beginTwoFactorRedirect,
+  clearPendingTwoFactorMethods,
+  getPendingTwoFactorMethods,
+  usePendingTwoFactorMethods,
+} from "@/lib/two-factor-redirect";
 import { defaultFacehashProps } from "@/lib/utils";
+
+const AUTH_PAGE_TWO_FACTOR_SCOPE = "auth-page";
 
 const loginSchema = z.object({
   email: z.email("Email invÃ¡lido"),
@@ -64,6 +73,9 @@ export function AuthClient() {
   const [tab, setTab] = useState("login");
   const [formError, setFormError] = useState<string>();
   const [showVerificationDialog, setShowVerificationDialog] = useState(false);
+  const twoFactorMethods = usePendingTwoFactorMethods(
+    AUTH_PAGE_TWO_FACTOR_SCOPE
+  );
   const loginTurnstileRef = useRef<TurnstileInstance>(null);
   const registerTurnstileRef = useRef<TurnstileInstance>(null);
   const router = useRouter();
@@ -88,19 +100,21 @@ export function AuthClient() {
 
       try {
         setFormError(undefined);
+        beginTwoFactorRedirect(AUTH_PAGE_TWO_FACTOR_SCOPE);
 
         const { error: authError } = await toast
           .promise(
-            authClient.signIn.email({
-              callbackURL: window.location.origin,
-              email: data.email,
-              fetchOptions: {
+            authClient.signIn.email(
+              {
+                email: data.email,
+                password: data.password,
+              },
+              {
                 headers: {
                   "x-captcha-response": data.turnstileToken,
                 },
-              },
-              password: data.password,
-            }),
+              }
+            ),
             {
               loading: "Iniciando sesiÃ³n...",
             }
@@ -108,6 +122,7 @@ export function AuthClient() {
           .unwrap();
 
         if (authError) {
+          clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
           if (authError.status === 403) {
             trackEvent("login_failed", {
               reason: "email_unverified",
@@ -127,12 +142,27 @@ export function AuthClient() {
           return;
         }
 
+        const methods = getPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
+        if (methods) {
+          if (!methods.includes("totp")) {
+            const { error: otpError } = await authClient.twoFactor.sendOtp();
+            if (otpError) {
+              clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
+              setFormError(getErrorMessage(otpError));
+              return;
+            }
+          }
+          return;
+        }
+
+        clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
         trackEvent("login_completed", {
           method: "email",
           source: "auth_page",
         });
         router.push("/");
       } catch (error) {
+        clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
         trackEvent("login_failed", {
           reason: "exception",
           source: "auth_page",
@@ -246,146 +276,166 @@ export function AuthClient() {
 
         {/* Auth card */}
         <div className="border border-border bg-card p-5">
-          <Tabs
-            defaultValue="login"
-            onValueChange={(newTab) => {
-              trackEvent(
-                newTab === "register" ? "signup_started" : "login_started",
-                { source: "auth_page" }
-              );
-              setTab(newTab);
-              loginForm.resetField("turnstileToken");
-              registerForm.resetField("turnstileToken");
-              loginTurnstileRef.current?.reset();
-              registerTurnstileRef.current?.reset();
-              setFormError(undefined);
-            }}
-            value={tab}
-          >
-            <TabsList className="mb-4 w-full">
-              <TabsTrigger value="login">Iniciar SesiÃ³n</TabsTrigger>
-              <TabsTrigger value="register">Registrarse</TabsTrigger>
-            </TabsList>
+          {twoFactorMethods ? (
+            <TwoFactorChallenge
+              methods={twoFactorMethods}
+              onCancel={() =>
+                clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE)
+              }
+              onVerified={(method) => {
+                clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
+                trackEvent("login_completed", {
+                  method,
+                  source: "auth_page",
+                });
+                router.push("/");
+                router.refresh();
+              }}
+            />
+          ) : (
+            <Tabs
+              className="slide-in-from-left-2 animate-in fade-in-0 duration-200 motion-reduce:animate-none"
+              defaultValue="login"
+              onValueChange={(newTab) => {
+                trackEvent(
+                  newTab === "register" ? "signup_started" : "login_started",
+                  { source: "auth_page" }
+                );
+                setTab(newTab);
+                loginForm.resetField("turnstileToken");
+                registerForm.resetField("turnstileToken");
+                loginTurnstileRef.current?.reset();
+                registerTurnstileRef.current?.reset();
+                setFormError(undefined);
+              }}
+              value={tab}
+            >
+              <TabsList className="mb-4 w-full">
+                <TabsTrigger value="login">Iniciar SesiÃ³n</TabsTrigger>
+                <TabsTrigger value="register">Registrarse</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="login">
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  loginForm.handleSubmit();
-                }}
-              >
-                <loginForm.AppField name="email">
-                  {(field) => <field.TextField label="Email" type="email" />}
-                </loginForm.AppField>
-                <loginForm.AppField name="password">
-                  {(field) => (
-                    <field.TextField label="ContraseÃ±a" type="password" />
+              <TabsContent value="login">
+                <form
+                  className="flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    loginForm.handleSubmit();
+                  }}
+                >
+                  <loginForm.AppField name="email">
+                    {(field) => <field.TextField label="Email" type="email" />}
+                  </loginForm.AppField>
+                  <loginForm.AppField name="password">
+                    {(field) => (
+                      <field.TextField label="ContraseÃ±a" type="password" />
+                    )}
+                  </loginForm.AppField>
+                  <Link href="/forgot-password">
+                    <Button className="p-0" type="button" variant="link">
+                      Â¿Olvidaste tu contraseÃ±a?
+                    </Button>
+                  </Link>
+                  <loginForm.AppField name="turnstileToken">
+                    {(field) => (
+                      <TurnstileContainer
+                        ref={loginTurnstileRef}
+                        setToken={(token) => field.setValue(token)}
+                      />
+                    )}
+                  </loginForm.AppField>
+                  {!!formError && (
+                    <Alert variant="destructive">
+                      <HugeiconsIcon icon={AlertCircleIcon} />
+                      <AlertDescription>{formError}</AlertDescription>
+                    </Alert>
                   )}
-                </loginForm.AppField>
-                <Link href="/forgot-password">
-                  <Button className="p-0" type="button" variant="link">
-                    Â¿Olvidaste tu contraseÃ±a?
-                  </Button>
-                </Link>
-                <loginForm.AppField name="turnstileToken">
-                  {(field) => (
-                    <TurnstileContainer
-                      ref={loginTurnstileRef}
-                      setToken={(token) => field.setValue(token)}
-                    />
+                  <loginForm.AppForm>
+                    <loginForm.SubmitButton>
+                      Iniciar SesiÃ³n
+                    </loginForm.SubmitButton>
+                  </loginForm.AppForm>
+                  {!!showVerificationDialog && (
+                    <Alert variant="default">
+                      <AlertTitle>Verifica tu correo</AlertTitle>
+                      <AlertDescription>
+                        <span>
+                          Se ha enviado una verificaciÃ³n a su casilla de
+                          correo.
+                          <br />
+                          Por favor, verifiquela para poder acceder al sitio,
+                        </span>
+                      </AlertDescription>
+                    </Alert>
                   )}
-                </loginForm.AppField>
-                {!!formError && (
-                  <Alert variant="destructive">
-                    <HugeiconsIcon icon={AlertCircleIcon} />
-                    <AlertDescription>{formError}</AlertDescription>
-                  </Alert>
-                )}
-                <loginForm.AppForm>
-                  <loginForm.SubmitButton>
-                    Iniciar SesiÃ³n
-                  </loginForm.SubmitButton>
-                </loginForm.AppForm>
-                {!!showVerificationDialog && (
-                  <Alert variant="default">
-                    <AlertTitle>Verifica tu correo</AlertTitle>
-                    <AlertDescription>
-                      <span>
-                        Se ha enviado una verificaciÃ³n a su casilla de correo.
-                        <br />
-                        Por favor, verifiquela para poder acceder al sitio,
-                      </span>
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </form>
-            </TabsContent>
+                </form>
+              </TabsContent>
 
-            <TabsContent value="register">
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  registerForm.handleSubmit();
-                }}
-              >
-                <div className="flex w-full justify-center">
-                  <Facehash
-                    name={registerName}
-                    {...defaultFacehashProps}
-                    className="w-16 place-items-center rounded-full border"
-                    size={64}
-                  />
-                </div>
-                <registerForm.AppField name="name">
-                  {(field) => (
-                    <field.TextField
-                      label="Nombre de Usuario"
-                      placeholder="Usuario"
+              <TabsContent value="register">
+                <form
+                  className="flex flex-col gap-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    registerForm.handleSubmit();
+                  }}
+                >
+                  <div className="flex w-full justify-center">
+                    <Facehash
+                      name={registerName}
+                      {...defaultFacehashProps}
+                      className="w-16 place-items-center rounded-full border"
+                      size={64}
                     />
+                  </div>
+                  <registerForm.AppField name="name">
+                    {(field) => (
+                      <field.TextField
+                        label="Nombre de Usuario"
+                        placeholder="Usuario"
+                      />
+                    )}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="email">
+                    {(field) => <field.TextField label="Email" type="email" />}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="password">
+                    {(field) => (
+                      <field.TextField label="ContraseÃ±a" type="password" />
+                    )}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="confirmPassword">
+                    {(field) => (
+                      <field.TextField
+                        label="Confirmar ContraseÃ±a"
+                        type="password"
+                      />
+                    )}
+                  </registerForm.AppField>
+                  <registerForm.AppField name="turnstileToken">
+                    {(field) => (
+                      <TurnstileContainer
+                        ref={registerTurnstileRef}
+                        setToken={(token) => field.setValue(token)}
+                      />
+                    )}
+                  </registerForm.AppField>
+                  {!!formError && (
+                    <Alert variant="destructive">
+                      <HugeiconsIcon icon={AlertCircleIcon} />
+                      <AlertDescription>{formError}</AlertDescription>
+                    </Alert>
                   )}
-                </registerForm.AppField>
-                <registerForm.AppField name="email">
-                  {(field) => <field.TextField label="Email" type="email" />}
-                </registerForm.AppField>
-                <registerForm.AppField name="password">
-                  {(field) => (
-                    <field.TextField label="ContraseÃ±a" type="password" />
-                  )}
-                </registerForm.AppField>
-                <registerForm.AppField name="confirmPassword">
-                  {(field) => (
-                    <field.TextField
-                      label="Confirmar ContraseÃ±a"
-                      type="password"
-                    />
-                  )}
-                </registerForm.AppField>
-                <registerForm.AppField name="turnstileToken">
-                  {(field) => (
-                    <TurnstileContainer
-                      ref={registerTurnstileRef}
-                      setToken={(token) => field.setValue(token)}
-                    />
-                  )}
-                </registerForm.AppField>
-                {!!formError && (
-                  <Alert variant="destructive">
-                    <HugeiconsIcon icon={AlertCircleIcon} />
-                    <AlertDescription>{formError}</AlertDescription>
-                  </Alert>
-                )}
-                <registerForm.AppForm>
-                  <registerForm.SubmitButton>
-                    Registrarse
-                  </registerForm.SubmitButton>
-                </registerForm.AppForm>
-              </form>
-            </TabsContent>
-          </Tabs>
+                  <registerForm.AppForm>
+                    <registerForm.SubmitButton>
+                      Registrarse
+                    </registerForm.SubmitButton>
+                  </registerForm.AppForm>
+                </form>
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </div>
     </main>

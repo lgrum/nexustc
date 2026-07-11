@@ -3,12 +3,14 @@ import { env } from "@repo/env";
 import { ALLOWED_EMAIL_DOMAINS } from "@repo/shared/constants";
 import { ConfirmEmail } from "@repo/transactional/emails/confirm-email";
 import { ResetPassword } from "@repo/transactional/emails/reset-password";
+import { TwoFactorCode } from "@repo/transactional/emails/two-factor-code";
 import { APIError, betterAuth } from "better-auth";
 import { emailHarmony } from "better-auth-harmony";
 import { validateEmail } from "better-auth-harmony/email";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
+import { twoFactor } from "better-auth/plugins/two-factor";
 
 import { resend } from "./email";
 import { syncPatreonMembership } from "./patreon-sync";
@@ -64,6 +66,7 @@ const subscribeVerifiedNewsletterContact = async (
 };
 
 export const auth = betterAuth({
+  appName: "NeXusTC",
   account: {
     accountLinking: {
       allowDifferentEmails: true,
@@ -187,6 +190,26 @@ export const auth = betterAuth({
     // }),
     patreonPlugin(),
     turnstilePlugin(),
+    twoFactor({
+      issuer: "NeXusTC",
+      otpOptions: {
+        period: 3,
+        sendOTP: async ({ otp, user }) => {
+          const { error } = await resend.emails.send({
+            from: "NeXusTC <noreply@accounts.nexustc18.com>",
+            to: user.email,
+            subject: "Tu código de verificación",
+            react: TwoFactorCode({ code: otp }),
+          });
+
+          if (error) {
+            throw new Error("Failed to send two-factor code", {
+              cause: error,
+            });
+          }
+        },
+      },
+    }),
     emailHarmony({
       validator: (email) => {
         if (!validateEmail(email)) {
@@ -208,6 +231,15 @@ export const auth = betterAuth({
     }),
     nextCookies(), // this must be the last plugin in the array
   ],
+  rateLimit: {
+    customRules: {
+      "/two-factor/send-otp": {
+        max: 3,
+        window: 60 * 60,
+      },
+    },
+    enabled: true,
+  },
   secret: env.BETTER_AUTH_SECRET,
   session: {
     cookieCache: {
