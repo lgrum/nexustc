@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowLeft01Icon,
   Book02Icon,

@@ -38,3 +38,28 @@ test("root layout keeps expected hydration mismatch suppression", () => {
 
   expect(source).toContain("suppressHydrationWarning");
 });
+
+test("admin shell leaves route loading to the admin segment", () => {
+  const source = read("src/app/admin/admin-shell.tsx");
+
+  expect(source).not.toContain(
+    "<Suspense fallback={<Loader />}>{children}</Suspense>"
+  );
+  expect(source).toMatch(/<ImpersonationBanner \/>\s*\{children\}/);
+});
+
+test("tracked post cards render on the client", () => {
+  const source = read("src/components/landing/post-card.tsx");
+
+  expect(source.trimStart()).toMatch(/^"use client";/);
+  expect(source).toContain('trackEvent("content_card_clicked"');
+});
+
+test("comic creator page wrapper renders on the client", () => {
+  const source = read(
+    "src/app/(main)/comic-creator/[id]/comic-creator-client.tsx"
+  );
+
+  expect(source.trimStart()).toMatch(/^"use client";/);
+  expect(source).toContain('render={<Link href="/comics" />}');
+});

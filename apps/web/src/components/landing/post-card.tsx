@@ -1,3 +1,5 @@
+"use client";
+
 import { FavouriteIcon, StarIcon, ViewIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";

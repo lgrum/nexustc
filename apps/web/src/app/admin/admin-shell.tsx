@@ -5,7 +5,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import type { Permissions } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
 import Link from "next/link";
-import { Suspense } from "react";
 
 import { URLShortenerDialog } from "@/components/admin/url-shortener-dialog";
 import { ImpersonationBanner } from "@/components/admin/users/impersonation-banner";
@@ -14,7 +13,6 @@ import {
   HasPermissions,
   HasRole,
 } from "@/components/auth/has-role";
-import Loader from "@/components/loader";
 import {
   Collapsible,
   CollapsibleContent,
@@ -350,7 +348,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <main className="container w-full p-4">
         <ImpersonationBanner />
-        <Suspense fallback={<Loader />}>{children}</Suspense>
+        {children}
       </main>
     </SidebarProvider>
   );
