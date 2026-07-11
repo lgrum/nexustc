@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getInitialTwoFactorMethod, getTwoFactorMethods } from "./two-factor";
+import {
+  canUseBackupCode,
+  getInitialTwoFactorMethod,
+  getTwoFactorMethods,
+} from "./two-factor";
 import {
   beginTwoFactorRedirect,
   clearPendingTwoFactorMethods,
@@ -25,15 +29,25 @@ describe("getInitialTwoFactorMethod", () => {
     expect(getTwoFactorMethods({ twoFactorRedirect: false })).toBeUndefined();
   });
 
-  it("keeps a pending challenge across component remounts", () => {
+  it("only offers backup codes for authenticator-enabled challenges", () => {
+    expect(canUseBackupCode(["otp"])).toBe(false);
+    expect(canUseBackupCode(["totp", "otp"])).toBe(true);
+    expect(canUseBackupCode(["backup"])).toBe(true);
+  });
+
+  it("keeps concurrent pending challenges isolated by scope", () => {
     beginTwoFactorRedirect("dialog-a");
+    beginTwoFactorRedirect("dialog-b");
     expect(isTwoFactorRedirectActive("dialog-a")).toBe(true);
-    expect(isTwoFactorRedirectActive("dialog-b")).toBe(false);
-    setPendingTwoFactorMethods(["totp", "otp"]);
+    expect(isTwoFactorRedirectActive("dialog-b")).toBe(true);
+    setPendingTwoFactorMethods("dialog-a", ["totp", "otp"]);
+    setPendingTwoFactorMethods("dialog-b", ["otp"]);
     expect(getPendingTwoFactorMethods("dialog-a")).toEqual(["totp", "otp"]);
-    expect(getPendingTwoFactorMethods("dialog-b")).toBeUndefined();
+    expect(getPendingTwoFactorMethods("dialog-b")).toEqual(["otp"]);
     clearPendingTwoFactorMethods("dialog-a");
     expect(isTwoFactorRedirectActive("dialog-a")).toBe(false);
+    expect(isTwoFactorRedirectActive("dialog-b")).toBe(true);
     expect(getPendingTwoFactorMethods("dialog-a")).toBeUndefined();
+    clearPendingTwoFactorMethods("dialog-b");
   });
 });

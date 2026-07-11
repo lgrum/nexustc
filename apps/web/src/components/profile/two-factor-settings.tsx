@@ -56,6 +56,7 @@ export function TwoFactorSettings({
     setCode("");
     setError(undefined);
     setFlow(nextFlow);
+    setIsPending(false);
     setPassword("");
     setStep("password");
     setTotpUri("");
@@ -71,6 +72,14 @@ export function TwoFactorSettings({
     );
   };
 
+  const showRequestError = (requestError: unknown) => {
+    setError(
+      requestError instanceof Error
+        ? requestError.message
+        : "No se pudo completar la operación"
+    );
+  };
+
   const submitPassword = async () => {
     if (!password) {
       setError("Ingresa tu contraseña");
@@ -79,52 +88,54 @@ export function TwoFactorSettings({
 
     setError(undefined);
     setIsPending(true);
+    try {
+      if (flow === "enable") {
+        const { data, error: authError } = await authClient.twoFactor.enable({
+          password,
+        });
 
-    if (flow === "enable") {
-      const { data, error: authError } = await authClient.twoFactor.enable({
+        if (authError) {
+          showError(authError);
+          return;
+        }
+
+        setBackupCodes(data.backupCodes);
+        setTotpUri(data.totpURI);
+        setStep("scan");
+        return;
+      }
+
+      if (flow === "backup") {
+        const { data, error: authError } =
+          await authClient.twoFactor.generateBackupCodes({ password });
+
+        if (authError) {
+          showError(authError);
+          return;
+        }
+
+        setBackupCodes(data.backupCodes);
+        setStep("codes");
+        return;
+      }
+
+      const { error: authError } = await authClient.twoFactor.disable({
         password,
       });
-      setIsPending(false);
 
       if (authError) {
         showError(authError);
         return;
       }
 
-      setBackupCodes(data.backupCodes);
-      setTotpUri(data.totpURI);
-      setStep("scan");
-      return;
-    }
-
-    if (flow === "backup") {
-      const { data, error: authError } =
-        await authClient.twoFactor.generateBackupCodes({ password });
+      setIsEnabled(false);
+      setIsOpen(false);
+      toast.success("Verificación en dos pasos desactivada");
+    } catch (requestError) {
+      showRequestError(requestError);
+    } finally {
       setIsPending(false);
-
-      if (authError) {
-        showError(authError);
-        return;
-      }
-
-      setBackupCodes(data.backupCodes);
-      setStep("codes");
-      return;
     }
-
-    const { error: authError } = await authClient.twoFactor.disable({
-      password,
-    });
-    setIsPending(false);
-
-    if (authError) {
-      showError(authError);
-      return;
-    }
-
-    setIsEnabled(false);
-    setIsOpen(false);
-    toast.success("Verificación en dos pasos desactivada");
   };
 
   const verifyAuthenticator = async () => {
@@ -135,20 +146,25 @@ export function TwoFactorSettings({
 
     setError(undefined);
     setIsPending(true);
-    const { error: authError } = await authClient.twoFactor.verifyTotp({
-      code: code.trim(),
-      trustDevice,
-    });
-    setIsPending(false);
+    try {
+      const { error: authError } = await authClient.twoFactor.verifyTotp({
+        code: code.trim(),
+        trustDevice,
+      });
 
-    if (authError) {
-      showError(authError);
-      return;
+      if (authError) {
+        showError(authError);
+        return;
+      }
+
+      setIsEnabled(true);
+      setStep("codes");
+      toast.success("Verificación en dos pasos activada");
+    } catch (requestError) {
+      showRequestError(requestError);
+    } finally {
+      setIsPending(false);
     }
-
-    setIsEnabled(true);
-    setStep("codes");
-    toast.success("Verificación en dos pasos activada");
   };
 
   const copyBackupCodes = async () => {

@@ -2,8 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 
-let pendingMethods: string[] | undefined;
-let pendingScope: string | undefined;
+const pendingMethodsByScope = new Map<string, string[] | undefined>();
 const listeners = new Set<() => void>();
 
 const subscribe = (listener: () => void) => {
@@ -18,31 +17,31 @@ const notify = () => {
 };
 
 export const beginTwoFactorRedirect = (scope: string) => {
-  pendingMethods = undefined;
-  pendingScope = scope;
+  pendingMethodsByScope.set(scope, undefined);
   notify();
 };
 
 export const getPendingTwoFactorMethods = (scope: string) =>
-  pendingScope === scope ? pendingMethods : undefined;
+  pendingMethodsByScope.get(scope);
 
 export const isTwoFactorRedirectActive = (scope: string) =>
-  pendingScope === scope;
+  pendingMethodsByScope.has(scope);
 
-export const setPendingTwoFactorMethods = (methods?: string[]) => {
-  if (!pendingScope) {
+export const setPendingTwoFactorMethods = (
+  scope: string,
+  methods?: string[]
+) => {
+  if (!pendingMethodsByScope.has(scope)) {
     return;
   }
-  pendingMethods = methods;
+  pendingMethodsByScope.set(scope, methods);
   notify();
 };
 
 export const clearPendingTwoFactorMethods = (scope: string) => {
-  if (pendingScope !== scope) {
+  if (!pendingMethodsByScope.delete(scope)) {
     return;
   }
-  pendingMethods = undefined;
-  pendingScope = undefined;
   notify();
 };
 

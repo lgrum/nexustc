@@ -36,10 +36,11 @@ import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
 import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
+import { getTwoFactorMethods } from "@/lib/two-factor";
 import {
   beginTwoFactorRedirect,
   clearPendingTwoFactorMethods,
-  getPendingTwoFactorMethods,
+  setPendingTwoFactorMethods,
   useIsTwoFactorRedirectActive,
   usePendingTwoFactorMethods,
 } from "@/lib/two-factor-redirect";
@@ -185,7 +186,7 @@ export function AuthDialogContent() {
         setFormError(undefined);
         beginTwoFactorRedirect(scope);
 
-        const { error: authError } = await toast
+        const { data: signInData, error: authError } = await toast
           .promise(
             authClient.signIn.email(
               {
@@ -214,7 +215,6 @@ export function AuthDialogContent() {
             toast.error(
               "Por favor verifica tu dirección de correo electrónico antes de iniciar sesión. Se te ha enviado un nuevo correo de verificación."
             );
-            resetChallenge();
             return;
           }
 
@@ -223,20 +223,12 @@ export function AuthDialogContent() {
             source: "auth_dialog",
           });
           setFormError(getErrorMessage(authError));
-          resetChallenge();
           return;
         }
 
-        const methods = getPendingTwoFactorMethods(scope);
+        const methods = getTwoFactorMethods(signInData);
         if (methods) {
-          if (!methods.includes("totp")) {
-            const { error: otpError } = await authClient.twoFactor.sendOtp();
-            if (otpError) {
-              clearPendingTwoFactorMethods(scope);
-              setFormError(getErrorMessage(otpError));
-              return;
-            }
-          }
+          setPendingTwoFactorMethods(scope, methods);
           return;
         }
 
@@ -255,8 +247,9 @@ export function AuthDialogContent() {
         setFormError(
           error instanceof Error ? error.message : "Error desconocido"
         );
+      } finally {
+        resetChallenge();
       }
-      resetChallenge();
     },
   });
 

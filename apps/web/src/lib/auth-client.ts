@@ -9,16 +9,10 @@ import {
 import type { AccessControl } from "better-auth/plugins/access";
 import { createAuthClient } from "better-auth/react";
 
-import { setPendingTwoFactorMethods } from "@/lib/two-factor-redirect";
-
 export const authClient = createAuthClient({
   plugins: [
     inferAdditionalFields<typeof auth>(),
-    twoFactorClient({
-      onTwoFactorRedirect: ({ twoFactorMethods }) => {
-        setPendingTwoFactorMethods(twoFactorMethods ?? []);
-      },
-    }),
+    twoFactorClient(),
     genericOAuthClient(),
     adminClient({
       ac: ac as AccessControl,

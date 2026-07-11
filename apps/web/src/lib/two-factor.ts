@@ -3,6 +3,9 @@ export type TwoFactorMethod = "otp" | "totp";
 export const getInitialTwoFactorMethod = (methods: string[]): TwoFactorMethod =>
   methods.includes("totp") ? "totp" : "otp";
 
+export const canUseBackupCode = (methods: string[]) =>
+  methods.includes("backup") || methods.includes("totp");
+
 export const getTwoFactorMethods = (data: unknown): string[] | undefined => {
   if (
     !data ||

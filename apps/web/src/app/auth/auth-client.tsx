@@ -20,10 +20,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppForm } from "@/hooks/use-app-form";
 import { trackEvent } from "@/lib/analytics";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
+import { getTwoFactorMethods } from "@/lib/two-factor";
 import {
   beginTwoFactorRedirect,
   clearPendingTwoFactorMethods,
-  getPendingTwoFactorMethods,
+  setPendingTwoFactorMethods,
   usePendingTwoFactorMethods,
 } from "@/lib/two-factor-redirect";
 import { defaultFacehashProps } from "@/lib/utils";
@@ -102,7 +103,7 @@ export function AuthClient() {
         setFormError(undefined);
         beginTwoFactorRedirect(AUTH_PAGE_TWO_FACTOR_SCOPE);
 
-        const { error: authError } = await toast
+        const { data: signInData, error: authError } = await toast
           .promise(
             authClient.signIn.email(
               {
@@ -142,16 +143,9 @@ export function AuthClient() {
           return;
         }
 
-        const methods = getPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
+        const methods = getTwoFactorMethods(signInData);
         if (methods) {
-          if (!methods.includes("totp")) {
-            const { error: otpError } = await authClient.twoFactor.sendOtp();
-            if (otpError) {
-              clearPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE);
-              setFormError(getErrorMessage(otpError));
-              return;
-            }
-          }
+          setPendingTwoFactorMethods(AUTH_PAGE_TWO_FACTOR_SCOPE, methods);
           return;
         }
 

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/input-otp";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
 import type { TwoFactorMethod } from "@/lib/two-factor";
-import { getInitialTwoFactorMethod } from "@/lib/two-factor";
+import { canUseBackupCode, getInitialTwoFactorMethod } from "@/lib/two-factor";
 
 type ChallengeMethod = TwoFactorMethod | "backup";
 
@@ -36,26 +36,36 @@ export function TwoFactorChallenge({
   const [code, setCode] = useState("");
   const [error, setError] = useState<string>();
   const [isPending, setIsPending] = useState(false);
-  const [otpSent, setOtpSent] = useState(!methods.includes("totp"));
+  const [otpSent, setOtpSent] = useState(false);
   const [trustDevice, setTrustDevice] = useState(false);
 
   const sendEmailOtp = async (): Promise<boolean> => {
     setError(undefined);
     setIsPending(true);
-    const { error: sendError } = await authClient.twoFactor.sendOtp();
-    setIsPending(false);
+    try {
+      const { error: sendError } = await authClient.twoFactor.sendOtp();
 
-    if (sendError) {
+      if (sendError) {
+        setError(
+          getAuthErrorMessage(sendError.code) ??
+            sendError.message ??
+            "No se pudo enviar el código"
+        );
+        return false;
+      }
+
+      setOtpSent(true);
+      return true;
+    } catch (requestError) {
       setError(
-        getAuthErrorMessage(sendError.code) ??
-          sendError.message ??
-          "No se pudo enviar el código"
+        requestError instanceof Error
+          ? requestError.message
+          : "No se pudo enviar el código"
       );
       return false;
+    } finally {
+      setIsPending(false);
     }
-
-    setOtpSent(true);
-    return true;
   };
 
   const selectMethod = (nextMethod: ChallengeMethod) => {
@@ -79,37 +89,48 @@ export function TwoFactorChallenge({
     setError(undefined);
     setIsPending(true);
     const normalizedCode = code.trim();
-    const result =
-      method === "totp"
-        ? await authClient.twoFactor.verifyTotp({
-            code: normalizedCode,
-            trustDevice,
-          })
-        : method === "otp"
-          ? await authClient.twoFactor.verifyOtp({
+    try {
+      const result =
+        method === "totp"
+          ? await authClient.twoFactor.verifyTotp({
               code: normalizedCode,
               trustDevice,
             })
-          : await authClient.twoFactor.verifyBackupCode({
-              code: normalizedCode,
-              disableSession: false,
-              trustDevice,
-            });
-    if (result.error) {
-      setIsPending(false);
-      setError(
-        getAuthErrorMessage(result.error.code) ??
-          result.error.message ??
-          "No se pudo verificar el código"
-      );
-      return;
-    }
+          : method === "otp"
+            ? await authClient.twoFactor.verifyOtp({
+                code: normalizedCode,
+                trustDevice,
+              })
+            : await authClient.twoFactor.verifyBackupCode({
+                code: normalizedCode,
+                disableSession: false,
+                trustDevice,
+              });
+      if (result.error) {
+        setError(
+          getAuthErrorMessage(result.error.code) ??
+            result.error.message ??
+            "No se pudo verificar el código"
+        );
+        return;
+      }
 
-    await onVerified(method);
+      await onVerified(method);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "No se pudo verificar el código"
+      );
+    } finally {
+      setIsPending(false);
+    }
   };
 
   const isEmail = method === "otp";
   const isBackup = method === "backup";
+  const isWaitingForEmailOtp = isEmail && !otpSent;
+  const showBackupCodeOption = canUseBackupCode(methods);
 
   return (
     <form
@@ -132,7 +153,9 @@ export function TwoFactorChallenge({
         <h2 className="font-semibold text-lg">Verificación en dos pasos</h2>
         <p className="text-muted-foreground text-sm">
           {isEmail
-            ? "Ingresa el código que enviamos a tu correo."
+            ? otpSent
+              ? "Ingresa el código que enviamos a tu correo."
+              : "Solicita un código para continuar por email."
             : isBackup
               ? "Ingresa uno de tus códigos de respaldo."
               : "Ingresa el código de tu aplicación autenticadora."}
@@ -140,7 +163,11 @@ export function TwoFactorChallenge({
       </div>
 
       <div className="flex flex-col gap-2">
-        {isBackup ? (
+        {isWaitingForEmailOtp ? (
+          <Button disabled={isPending} onClick={sendEmailOtp} type="button">
+            {isPending ? "Enviando..." : "Enviar código por email"}
+          </Button>
+        ) : isBackup ? (
           <Input
             autoComplete="off"
             autoFocus
@@ -194,13 +221,16 @@ export function TwoFactorChallenge({
         </p>
       )}
 
-      <Button disabled={isPending} type="submit">
-        {isPending ? "Verificando..." : "Verificar"}
-      </Button>
+      {!isWaitingForEmailOtp && (
+        <Button disabled={isPending} type="submit">
+          {isPending ? "Verificando..." : "Verificar"}
+        </Button>
+      )}
 
       <div className="flex flex-wrap justify-center gap-1">
         {method !== "totp" && methods.includes("totp") && (
           <Button
+            disabled={isPending}
             onClick={() => selectMethod("totp")}
             type="button"
             variant="link"
@@ -209,12 +239,18 @@ export function TwoFactorChallenge({
           </Button>
         )}
         {method !== "otp" && methods.includes("otp") && (
-          <Button onClick={selectEmailOtp} type="button" variant="link">
+          <Button
+            disabled={isPending}
+            onClick={selectEmailOtp}
+            type="button"
+            variant="link"
+          >
             Enviar código por email
           </Button>
         )}
-        {method !== "backup" && (
+        {method !== "backup" && showBackupCodeOption && (
           <Button
+            disabled={isPending}
             onClick={() => selectMethod("backup")}
             type="button"
             variant="link"
@@ -234,7 +270,12 @@ export function TwoFactorChallenge({
           Reenviar código
         </Button>
       )}
-      <Button onClick={onCancel} type="button" variant="ghost">
+      <Button
+        disabled={isPending}
+        onClick={onCancel}
+        type="button"
+        variant="ghost"
+      >
         Volver al inicio de sesión
       </Button>
     </form>
