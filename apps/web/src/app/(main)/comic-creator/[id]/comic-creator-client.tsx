@@ -178,7 +178,7 @@ function CreatorBackdrop({ imageKeys }: { imageKeys: string[] }) {
       <div className="absolute inset-0 bg-linear-to-br from-primary/20 via-card to-secondary/10" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,oklch(0.76_0.18_20/0.24),transparent_32%),radial-gradient(circle_at_85%_20%,oklch(0.74_0.17_250/0.2),transparent_30%)]" />
       <div className="absolute inset-0 bg-linear-to-t from-background via-background/65 to-background/20" />
-      <div className="absolute right-4 bottom-4 hidden grid-cols-2 gap-2 opacity-45 blur-[0.2px] md:grid">
+      <div className="absolute right-98 bottom-4 hidden grid-cols-2 gap-2 opacity-45 blur-[0.2px] lg:grid">
         {imageKeys.map((imageKey, index) => (
           <Image
             alt=""

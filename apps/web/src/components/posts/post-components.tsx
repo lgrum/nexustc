@@ -1300,7 +1300,7 @@ export function CreatorSupportCard() {
   if (post.type === "comic" && post.creatorId) {
     return (
       <Link
-        className="group relative block animate-scale-pulse overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 hover:shadow-glow-secondary/50"
+        className="group relative block overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:shadow-glow-secondary/50"
         href={`/comic-creator/${post.creatorId}`}
       >
         <CreatorSupportContent />
@@ -1311,7 +1311,7 @@ export function CreatorSupportCard() {
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
-      className="group relative block overflow-hidden animate-scale-pulse ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 rounded-full bg-linear-to-br from-secondary/30 to-transparent hover:shadow-glow-secondary/50"
+      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:shadow-glow-secondary/50"
       href={post.creatorLink}
       rel="noopener"
       target="_blank"
@@ -1364,7 +1364,7 @@ export function TranslatorSupportCard() {
 
   return (
     <a
-      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-primary/25 to-transparent ring-1 ring-primary/60 transition-all hover:scale-105 hover:shadow-glow-primary/30"
+      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-primary/25 to-transparent ring-1 ring-primary/60 transition-all hover:shadow-glow-primary/30"
       href={translator.url}
       rel="noopener"
       target="_blank"
