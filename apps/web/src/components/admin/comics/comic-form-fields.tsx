@@ -288,12 +288,12 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         </div>
       </section>
 
-      <div className="col-span-2 flex flex-row gap-4">
-        <div className="flex-1 space-y-4">
+      <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-4">
+        <div className="min-w-0 space-y-4">
           <form.AppField name="adsLinks">
             {(field) => (
               <field.TextareaField
-                className="h-40 resize-none"
+                className="h-40 min-w-0 resize-none"
                 label="Links con Anuncios"
               />
             )}
@@ -322,11 +322,11 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
           </Tooltip>
           <div className="w-px flex-1 bg-border" />
         </div>
-        <div className="flex flex-1 flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <form.AppField name="premiumLinks">
             {(field) => (
               <field.TextareaField
-                className="h-40 resize-none"
+                className="h-40 min-w-0 resize-none"
                 label="Links Premium"
               />
             )}
@@ -334,11 +334,11 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         </div>
       </div>
 
-      <div className="col-span-2 flex flex-row gap-4">
-        <div className="flex-1 space-y-4 rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
+      <div className="col-span-2 grid grid-cols-2 gap-4">
+        <div className="min-w-0 space-y-4 break-words rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
           <Markdown>{adsLinks}</Markdown>
         </div>
-        <div className="flex-1 space-y-4 rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
+        <div className="min-w-0 space-y-4 break-words rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
           <Markdown>{premiumLinks}</Markdown>
         </div>
       </div>
