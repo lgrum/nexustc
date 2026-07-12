@@ -22,6 +22,7 @@ import { DiscordLogo } from "@/components/icons/discord";
 import { PatreonLogo } from "@/components/icons/patreon";
 import { AppearanceSection } from "@/components/profile/appearance-section";
 import { FollowingSection } from "@/components/profile/following-section";
+import { TwoFactorSettings } from "@/components/profile/two-factor-settings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -82,10 +83,11 @@ export function ProfileClient() {
           })
         }
       >
-        <TabsList className="w-full">
+        <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden sm:justify-center">
           <TabsTrigger value="appearance">Apariencia</TabsTrigger>
           <TabsTrigger value="following">Siguiendo</TabsTrigger>
           <TabsTrigger value="account">Cuenta</TabsTrigger>
+          <TabsTrigger value="security">Seguridad</TabsTrigger>
           <TabsTrigger value="password">Contraseña</TabsTrigger>
         </TabsList>
         <TabsContent value="appearance">
@@ -96,6 +98,12 @@ export function ProfileClient() {
         </TabsContent>
         <TabsContent value="account">
           <AccountsSection />
+        </TabsContent>
+        <TabsContent value="security">
+          <TwoFactorSettings
+            email={auth.data.user.email}
+            enabled={Boolean(auth.data.user.twoFactorEnabled)}
+          />
         </TabsContent>
         <TabsContent value="password">
           <div className="rounded-4xl border border-border bg-card p-4">

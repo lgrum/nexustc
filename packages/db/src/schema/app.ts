@@ -61,6 +61,7 @@ export const user = pgTable(
     name: varchar("name", { length: 16 }).notNull(),
     newsletterOptIn: boolean("newsletter_opt_in").default(false).notNull(),
     role: text("role").default("user").notNull(),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
     ...timestamps,
   },
   (table) => [
@@ -124,6 +125,27 @@ export const verification = pgTable(
     ...timestamps,
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)]
+);
+
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    backupCodes: text("backup_codes").notNull(),
+    failedVerificationCount: integer("failed_verification_count")
+      .default(0)
+      .notNull(),
+    id: text("id").primaryKey(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    secret: text("secret").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true).notNull(),
+  },
+  (table) => [
+    index("two_factor_secret_idx").on(table.secret),
+    index("two_factor_user_id_idx").on(table.userId),
+  ]
 );
 
 export const patron = pgTable(
@@ -194,6 +216,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   profileRoleAssignments: many(profileRoleAssignment),
   profileSettings: one(profileSettings),
   sessions: many(session),
+  twoFactors: many(twoFactor),
 }));
 
 export const patronRelations = relations(patron, ({ one }) => ({
@@ -213,6 +236,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
+  user: one(user, {
+    fields: [twoFactor.userId],
     references: [user.id],
   }),
 }));

@@ -457,26 +457,6 @@ function AuthAction() {
     return null;
   }
 
-  if (auth.isPending) {
-    return (
-      <Button
-        className="min-h-14 cursor-default rounded-xl border border-sidebar-border/70 bg-sidebar-accent/50 px-3 py-3 shadow-[0_10px_30px_-20px_hsl(var(--sidebar-accent-foreground))]"
-        size="lg"
-        variant="ghost"
-      >
-        <div className="size-10 animate-pulse rounded-full bg-sidebar-border" />
-        <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-          <span className="w-24 animate-pulse rounded bg-sidebar-border text-transparent">
-            Cargando
-          </span>
-          <span className="w-16 animate-pulse rounded bg-sidebar-border text-transparent text-xs">
-            Estado
-          </span>
-        </span>
-      </Button>
-    );
-  }
-
   if (user) {
     const labelUser = profileSummary ?? user;
 
@@ -511,34 +491,52 @@ function AuthAction() {
 
   return (
     <AuthDialog>
-      <AuthDialogTrigger
-        render={
-          <Button
-            className={cn(
-              "min-h-14 cursor-pointer rounded-xl border border-primary/30 bg-card/60 px-3 py-3 transition-all duration-200 hover:border-primary/60 hover:bg-card",
-              "group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:p-0!"
-            )}
-            size="lg"
-            variant="ghost"
-          />
-        }
-      >
-        <Facehash
-          className="size-12 rounded-full border border-primary/25"
-          name=""
-          {...defaultFacehashProps}
-        />
-        <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
-          <span className="font-semibold text-sm">Iniciar sesión</span>
-          <span className="truncate text-sidebar-foreground/70 text-xs">
-            Accede a tu perfil
+      {auth.isPending ? (
+        <Button
+          className="min-h-14 cursor-default rounded-xl border border-sidebar-border/70 bg-sidebar-accent/50 px-3 py-3 shadow-[0_10px_30px_-20px_hsl(var(--sidebar-accent-foreground))]"
+          size="lg"
+          variant="ghost"
+        >
+          <div className="size-10 animate-pulse rounded-full bg-sidebar-border" />
+          <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+            <span className="w-24 animate-pulse rounded bg-sidebar-border text-transparent">
+              Cargando
+            </span>
+            <span className="w-16 animate-pulse rounded bg-sidebar-border text-transparent text-xs">
+              Estado
+            </span>
           </span>
-        </span>
-        <HugeiconsIcon
-          className="ml-auto size-4 text-primary group-data-[collapsible=icon]:hidden"
-          icon={Login03Icon}
-        />
-      </AuthDialogTrigger>
+        </Button>
+      ) : (
+        <AuthDialogTrigger
+          render={
+            <Button
+              className={cn(
+                "min-h-14 cursor-pointer rounded-xl border border-primary/30 bg-card/60 px-3 py-3 transition-all duration-200 hover:border-primary/60 hover:bg-card",
+                "group-data-[collapsible=icon]:size-11! group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:p-0!"
+              )}
+              size="lg"
+              variant="ghost"
+            />
+          }
+        >
+          <Facehash
+            className="size-12 rounded-full border border-primary/25"
+            name=""
+            {...defaultFacehashProps}
+          />
+          <span className="flex min-w-0 flex-1 flex-col items-start leading-tight">
+            <span className="font-semibold text-sm">Iniciar sesión</span>
+            <span className="truncate text-sidebar-foreground/70 text-xs">
+              Accede a tu perfil
+            </span>
+          </span>
+          <HugeiconsIcon
+            className="ml-auto size-4 text-primary group-data-[collapsible=icon]:hidden"
+            icon={Login03Icon}
+          />
+        </AuthDialogTrigger>
+      )}
       <AuthDialogContent />
     </AuthDialog>
   );
