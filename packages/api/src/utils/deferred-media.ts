@@ -59,7 +59,18 @@ export const deferredMediaSelectionInputSchema = z
 
 export const comicMediaSelectionInputSchema = z
   .array(comicMediaItemInputSchema)
-  .max(COMIC_MEDIA_MAX_ITEMS);
+  .max(COMIC_MEDIA_MAX_ITEMS)
+  .superRefine((selection, context) => {
+    for (const [index, item] of selection.entries()) {
+      if (item.kind === "pending") {
+        context.addIssue({
+          code: "custom",
+          message: "Comic pages must use direct uploads",
+          path: [index],
+        });
+      }
+    }
+  });
 
 export const requiredSingleDeferredMediaSelectionInputSchema =
   deferredMediaSelectionInputSchema.min(1).max(1);

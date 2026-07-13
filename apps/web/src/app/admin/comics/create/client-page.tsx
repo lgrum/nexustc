@@ -9,12 +9,17 @@ import { toast } from "sonner";
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
-import { uploadDeferredComicSelection } from "@/lib/comic-page-upload-client";
+import {
+  isRecoverableComicUploadSessionError,
+  uploadDeferredComicSelection,
+} from "@/lib/comic-page-upload-client";
 import {
   comicAdminFormSchema,
+  createComicMediaSelectionInput,
   createEmptyComicDeferredMediaSelection,
   createEmptyDeferredMediaSelection,
   isDeferredPendingMediaItem,
+  resetComicUploadSessionSelection,
 } from "@/lib/deferred-media";
 import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
@@ -63,6 +68,8 @@ export function ClientPage({
       vip8EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip8Hours),
     },
     onSubmit: async (formData) => {
+      let { comicUploadSessionId, mediaSelection } = formData.value;
+
       try {
         const slugCheck = await orpcClient.comic.admin.checkSlug({
           title: formData.value.title,
@@ -80,9 +87,6 @@ export function ClientPage({
             return;
           }
         }
-
-        let { comicUploadSessionId } = formData.value;
-        let { mediaSelection } = formData.value;
 
         if (mediaSelection.some(isDeferredPendingMediaItem)) {
           if (!comicUploadSessionId) {
@@ -106,8 +110,10 @@ export function ClientPage({
                 });
               }
             },
-            onSelectionChange: (selection) =>
-              form.setFieldValue("mediaSelection", selection),
+            onSelectionChange: (selection) => {
+              mediaSelection = selection;
+              form.setFieldValue("mediaSelection", selection);
+            },
             selection: mediaSelection,
             sessionId: comicUploadSessionId,
           });
@@ -120,7 +126,7 @@ export function ClientPage({
               ...formData.value,
               acceptSlugDeduplication: slugCheck.duplicate || undefined,
               comicUploadSessionId,
-              mediaSelection,
+              mediaSelection: createComicMediaSelectionInput(mediaSelection),
             }),
             {
               error: (error) => ({
@@ -137,6 +143,13 @@ export function ClientPage({
         router.replace("/admin/comics/create");
         router.refresh();
       } catch (error) {
+        if (isRecoverableComicUploadSessionError(error)) {
+          comicUploadSessionId = undefined;
+          mediaSelection = resetComicUploadSessionSelection(mediaSelection);
+          form.setFieldValue("comicUploadSessionId", undefined);
+          form.setFieldValue("mediaSelection", mediaSelection);
+        }
+
         toast.error(`Error al crear comic: ${getClientErrorMessage(error)}`, {
           dismissible: true,
           duration: 10_000,

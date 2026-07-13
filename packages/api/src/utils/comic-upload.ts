@@ -1,5 +1,6 @@
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
@@ -12,6 +13,7 @@ import {
 import { getS3Client } from "./s3";
 
 export const COMIC_UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const WEBP_HEADER_END_BYTE = 15;
 
 export type ComicUploadObjectMetadata = {
   contentLength?: number;
@@ -40,6 +42,30 @@ export function isValidComicUploadObject(object: ComicUploadObjectMetadata) {
   );
 }
 
+export function isWebpHeader(bytes: Uint8Array) {
+  if (bytes.byteLength < WEBP_HEADER_END_BYTE + 1) {
+    return false;
+  }
+
+  const isRiff =
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46;
+  const isWebp =
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50;
+  const isSupportedChunk =
+    bytes[12] === 0x56 &&
+    bytes[13] === 0x50 &&
+    bytes[14] === 0x38 &&
+    (bytes[15] === 0x20 || bytes[15] === 0x4c || bytes[15] === 0x58);
+
+  return isRiff && isWebp && isSupportedChunk;
+}
+
 export async function validateComicUploadObjects(objectKeys: string[]) {
   for (
     let start = 0;
@@ -47,24 +73,39 @@ export async function validateComicUploadObjects(objectKeys: string[]) {
     start += COMIC_UPLOAD_BATCH_SIZE
   ) {
     const objects = await Promise.all(
-      objectKeys.slice(start, start + COMIC_UPLOAD_BATCH_SIZE).map(
-        async (objectKey) =>
-          await getS3Client().send(
-            new HeadObjectCommand({
-              Bucket: env.R2_ASSETS_BUCKET_NAME,
-              Key: objectKey,
-            })
-          )
-      )
+      objectKeys
+        .slice(start, start + COMIC_UPLOAD_BATCH_SIZE)
+        .map(async (objectKey) => {
+          const [metadata, headerObject] = await Promise.all([
+            getS3Client().send(
+              new HeadObjectCommand({
+                Bucket: env.R2_ASSETS_BUCKET_NAME,
+                Key: objectKey,
+              })
+            ),
+            getS3Client().send(
+              new GetObjectCommand({
+                Bucket: env.R2_ASSETS_BUCKET_NAME,
+                Key: objectKey,
+                Range: `bytes=0-${WEBP_HEADER_END_BYTE}`,
+              })
+            ),
+          ]);
+          const header = await headerObject.Body?.transformToByteArray();
+
+          return { header, metadata };
+        })
     );
 
     if (
       objects.some(
         (object) =>
           !isValidComicUploadObject({
-            contentLength: object.ContentLength,
-            contentType: object.ContentType,
-          })
+            contentLength: object.metadata.ContentLength,
+            contentType: object.metadata.ContentType,
+          }) ||
+          !object.header ||
+          !isWebpHeader(object.header)
       )
     ) {
       return false;

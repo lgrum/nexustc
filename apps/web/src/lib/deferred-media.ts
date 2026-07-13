@@ -28,8 +28,10 @@ export const deferredPendingMediaItemSchema = z.object({
 });
 
 export const deferredUploadedMediaItemSchema = z.object({
+  file: z.file().mime([...MEDIA_IMAGE_MIME_TYPES]),
   kind: z.literal("uploaded"),
   objectKey: z.string().min(1),
+  previewUrl: z.string().min(1),
   selectionId: z.string().min(1),
 });
 
@@ -189,7 +191,7 @@ export function getDeferredMediaPreviewSource(
   }
 
   if (item.kind === "uploaded") {
-    return item.objectKey;
+    return item.previewUrl;
   }
 
   return item.objectKey ?? mediaById.get(item.mediaId)?.objectKey ?? null;
@@ -208,8 +210,39 @@ export function revokeDeferredMediaPreviewUrls(
   items: ComicDeferredMediaSelection
 ) {
   for (const item of items) {
-    if (item.kind === "pending") {
+    if (item.kind === "pending" || item.kind === "uploaded") {
       URL.revokeObjectURL(item.previewUrl);
     }
   }
+}
+
+export function resetComicUploadSessionSelection(
+  selection: ComicDeferredMediaSelection
+): ComicDeferredMediaSelection {
+  return selection.map((item) =>
+    item.kind === "uploaded"
+      ? {
+          file: item.file,
+          kind: "pending" as const,
+          previewUrl: item.previewUrl,
+          selectionId: item.selectionId,
+        }
+      : item
+  );
+}
+
+export function createComicMediaSelectionInput(
+  selection: ComicDeferredMediaSelection
+) {
+  return selection.map((item) => {
+    if (item.kind === "existing") {
+      return { kind: item.kind, mediaId: item.mediaId };
+    }
+
+    if (item.kind === "uploaded") {
+      return { kind: item.kind, objectKey: item.objectKey };
+    }
+
+    throw new Error("Comic pages must be uploaded before submission");
+  });
 }

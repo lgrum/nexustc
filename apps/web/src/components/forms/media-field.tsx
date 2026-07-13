@@ -44,7 +44,6 @@ import { sortComicFiles } from "@/lib/comic-page-upload";
 import {
   createDeferredMediaItemsFromFiles,
   getDeferredMediaPreviewSource,
-  isDeferredPendingMediaItem,
 } from "@/lib/deferred-media";
 import type {
   ComicDeferredMediaItem,
@@ -279,7 +278,7 @@ export function MediaField({
   useEffect(() => {
     const nextPreviewUrls = new Set(
       [...selectedItems, ...draftSelectedItems]
-        .filter(isDeferredPendingMediaItem)
+        .filter((item) => item.kind === "pending" || item.kind === "uploaded")
         .map((item) => item.previewUrl)
     );
 

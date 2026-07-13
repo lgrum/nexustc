@@ -9,12 +9,17 @@ import { toast } from "sonner";
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
-import { uploadDeferredComicSelection } from "@/lib/comic-page-upload-client";
+import {
+  isRecoverableComicUploadSessionError,
+  uploadDeferredComicSelection,
+} from "@/lib/comic-page-upload-client";
 import {
   comicAdminEditFormSchema,
+  createComicMediaSelectionInput,
   createComicDeferredMediaSelectionFromExistingIds,
   createDeferredMediaSelectionFromExistingIds,
   isDeferredPendingMediaItem,
+  resetComicUploadSessionSelection,
 } from "@/lib/deferred-media";
 import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 
@@ -123,13 +128,22 @@ export function ClientPage({
                 });
               }
             },
-            onSelectionChange: (selection) =>
-              form.setFieldValue("mediaSelection", selection),
+            onSelectionChange: (selection) => {
+              mediaSelection = selection;
+              form.setFieldValue("mediaSelection", selection);
+            },
             selection: mediaSelection,
             sessionId: comicUploadSessionId,
           });
         }
       } catch (error) {
+        if (isRecoverableComicUploadSessionError(error)) {
+          comicUploadSessionId = undefined;
+          mediaSelection = resetComicUploadSessionSelection(mediaSelection);
+          form.setFieldValue("comicUploadSessionId", undefined);
+          form.setFieldValue("mediaSelection", mediaSelection);
+        }
+
         toast.error(`Error al editar comic: ${getClientErrorMessage(error)}`, {
           dismissible: true,
           duration: 10_000,
@@ -139,24 +153,35 @@ export function ClientPage({
         toast.dismiss("comic-page-upload");
       }
 
-      await toast
-        .promise(
-          mutation.mutateAsync({
-            ...formData.value,
-            acceptSlugDeduplication: slugCheck.duplicate || undefined,
-            comicUploadSessionId,
-            mediaSelection,
-          }),
-          {
-            error: (error) => ({
-              duration: 10_000,
-              message: `Error al editar comic: ${getClientErrorMessage(error)}`,
+      try {
+        await toast
+          .promise(
+            mutation.mutateAsync({
+              ...formData.value,
+              acceptSlugDeduplication: slugCheck.duplicate || undefined,
+              comicUploadSessionId,
+              mediaSelection: createComicMediaSelectionInput(mediaSelection),
             }),
-            loading: "Editando comic...",
-            success: "Comic editado!",
-          }
-        )
-        .unwrap();
+            {
+              error: (error) => ({
+                duration: 10_000,
+                message: `Error al editar comic: ${getClientErrorMessage(error)}`,
+              }),
+              loading: "Editando comic...",
+              success: "Comic editado!",
+            }
+          )
+          .unwrap();
+      } catch (error) {
+        if (isRecoverableComicUploadSessionError(error)) {
+          form.setFieldValue("comicUploadSessionId", undefined);
+          form.setFieldValue(
+            "mediaSelection",
+            resetComicUploadSessionSelection(mediaSelection)
+          );
+        }
+        return;
+      }
 
       await queryClient.invalidateQueries(
         orpc.comic.admin.getDashboardList.queryOptions()

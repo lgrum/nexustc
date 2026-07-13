@@ -36,4 +36,14 @@ describe("comic media input", () => {
       false
     );
   });
+
+  it("rejects server-proxied comic page files", () => {
+    const page = new File(["page"], "page.webp", { type: "image/webp" });
+
+    expect(
+      comicMediaSelectionInputSchema.safeParse([
+        { file: page, kind: "pending" },
+      ]).success
+    ).toBe(false);
+  });
 });

@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, eq, gt, ne, sql } from "@repo/db";
+import { and, eq, ne, sql } from "@repo/db";
 import {
   comicUploadSession,
   comicCreator,
@@ -75,11 +75,10 @@ async function resolveComicUploadSession(params: {
   }
 
   const uploadSession = await params.db.query.comicUploadSession.findFirst({
-    columns: { comicId: true, finalizedAt: true, id: true },
+    columns: { comicId: true, expiresAt: true, finalizedAt: true, id: true },
     where: and(
       eq(comicUploadSession.id, sessionId),
-      eq(comicUploadSession.userId, params.userId),
-      gt(comicUploadSession.expiresAt, new Date())
+      eq(comicUploadSession.userId, params.userId)
     ),
   });
   const hasDuplicateKeys = new Set(objectKeys).size !== objectKeys.length;
@@ -99,7 +98,15 @@ async function resolveComicUploadSession(params: {
   }
 
   if (uploadSession.finalizedAt) {
-    return uploadSession;
+    throw params.errors.BAD_REQUEST({
+      message: "Comic upload session already finalized",
+    });
+  }
+
+  if (uploadSession.expiresAt <= new Date()) {
+    throw params.errors.BAD_REQUEST({
+      message: "Comic upload session expired",
+    });
   }
 
   try {
@@ -426,10 +433,6 @@ export async function createContent({
         })
       : null;
 
-  if (uploadSession?.finalizedAt) {
-    return uploadSession.comicId;
-  }
-
   return await withDeferredMediaSelections({
     db,
     onComplete: async ({ orderedSelections, tx }) => {
@@ -610,10 +613,6 @@ export async function editContent({
           userId: ctx.session.user.id,
         })
       : null;
-
-  if (uploadSession?.finalizedAt) {
-    return uploadSession.comicId;
-  }
 
   const updatedPostId = await withDeferredMediaSelections({
     db,

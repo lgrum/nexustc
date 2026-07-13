@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   getComicUploadPrefix,
   isValidComicUploadObject,
+  isWebpHeader,
   ownsComicUploadKeys,
 } from "./comic-upload";
 
@@ -50,5 +51,16 @@ describe("comic upload validation", () => {
         contentType: "image/webp",
       })
     ).toBe(false);
+  });
+
+  it("checks the uploaded bytes for a supported WebP header", () => {
+    const header = new Uint8Array([
+      0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50,
+      0x38, 0x58,
+    ]);
+
+    expect(isWebpHeader(header)).toBe(true);
+    expect(isWebpHeader(new Uint8Array(header).fill(0, 8, 12))).toBe(false);
+    expect(isWebpHeader(header.slice(0, 12))).toBe(false);
   });
 });
