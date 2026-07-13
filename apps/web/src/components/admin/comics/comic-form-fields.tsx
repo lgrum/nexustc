@@ -2,6 +2,7 @@ import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
 import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
+import { COMIC_MEDIA_MAX_ITEMS } from "@repo/shared/media";
 import { useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -449,7 +450,9 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         {(field) => (
           <field.MediaField
             description="Selecciona y ordena las paginas del comic desde la biblioteca central."
+            directUpload
             label="Media"
+            maxItems={COMIC_MEDIA_MAX_ITEMS}
             ownerKind="Comic"
           />
         )}

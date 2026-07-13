@@ -10,8 +10,16 @@ import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
 import {
+  isRecoverableComicUploadSessionError,
+  uploadDeferredComicSelection,
+} from "@/lib/comic-page-upload-client";
+import {
   comicAdminFormSchema,
+  createComicMediaSelectionInput,
+  createEmptyComicDeferredMediaSelection,
   createEmptyDeferredMediaSelection,
+  isDeferredPendingMediaItem,
+  resetComicUploadSessionSelection,
 } from "@/lib/deferred-media";
 import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
@@ -35,6 +43,7 @@ export function ClientPage({
     defaultValues: {
       adsLinks: "",
       censorship: "",
+      comicUploadSessionId: undefined as string | undefined,
       coverImageSelection: createEmptyDeferredMediaSelection(),
       creatorId: null as string | null,
       creatorLink: "",
@@ -42,7 +51,7 @@ export function ClientPage({
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
       earlyAccessEnabled: Boolean(EARLY_ACCESS_DEFAULTS.enabled),
       manualEngagementQuestions: [] as string[],
-      mediaSelection: createEmptyDeferredMediaSelection(),
+      mediaSelection: createEmptyComicDeferredMediaSelection(),
       premiumLinks: "",
       releasedAt: null as Date | null,
       seriesId: null as string | null,
@@ -59,6 +68,8 @@ export function ClientPage({
       vip8EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip8Hours),
     },
     onSubmit: async (formData) => {
+      let { comicUploadSessionId, mediaSelection } = formData.value;
+
       try {
         const slugCheck = await orpcClient.comic.admin.checkSlug({
           title: formData.value.title,
@@ -77,11 +88,45 @@ export function ClientPage({
           }
         }
 
+        if (mediaSelection.some(isDeferredPendingMediaItem)) {
+          if (!comicUploadSessionId) {
+            const uploadSession =
+              await orpcClient.comic.admin.beginCreateUpload({
+                title: formData.value.title,
+              });
+            comicUploadSessionId = uploadSession.sessionId;
+            form.setFieldValue("comicUploadSessionId", uploadSession.sessionId);
+          }
+
+          mediaSelection = await uploadDeferredComicSelection({
+            onProgress: (completed, total) => {
+              if (
+                completed === 0 ||
+                completed === total ||
+                completed % 10 === 0
+              ) {
+                toast.loading(`Subiendo paginas ${completed}/${total}`, {
+                  id: "comic-page-upload",
+                });
+              }
+            },
+            onSelectionChange: (selection) => {
+              mediaSelection = selection;
+              form.setFieldValue("mediaSelection", selection);
+            },
+            selection: mediaSelection,
+            sessionId: comicUploadSessionId,
+          });
+        }
+        toast.dismiss("comic-page-upload");
+
         await toast
           .promise(
             orpcClient.comic.admin.create({
               ...formData.value,
               acceptSlugDeduplication: slugCheck.duplicate || undefined,
+              comicUploadSessionId,
+              mediaSelection: createComicMediaSelectionInput(mediaSelection),
             }),
             {
               error: (error) => ({
@@ -98,11 +143,19 @@ export function ClientPage({
         router.replace("/admin/comics/create");
         router.refresh();
       } catch (error) {
+        if (isRecoverableComicUploadSessionError(error)) {
+          comicUploadSessionId = undefined;
+          mediaSelection = resetComicUploadSessionSelection(mediaSelection);
+          form.setFieldValue("comicUploadSessionId", undefined);
+          form.setFieldValue("mediaSelection", mediaSelection);
+        }
+
         toast.error(`Error al crear comic: ${getClientErrorMessage(error)}`, {
           dismissible: true,
           duration: 10_000,
         });
       } finally {
+        toast.dismiss("comic-page-upload");
         toast.dismiss("creating");
       }
     },

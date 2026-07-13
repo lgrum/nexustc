@@ -1,8 +1,10 @@
 import { DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
-import { asc, eq, inArray, isNull, sql } from "@repo/db";
+import { and, asc, eq, gt, inArray, isNull, sql } from "@repo/db";
 import type * as RepoDb from "@repo/db";
 import {
+  comicUploadSession,
   emoji,
   featuredPost,
   media,
@@ -13,12 +15,33 @@ import {
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
-import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
+import {
+  COMIC_MEDIA_MAX_ITEMS,
+  COMIC_UPLOAD_BATCH_SIZE,
+  COMIC_UPLOAD_MAX_BYTES,
+  MEDIA_IMAGE_MIME_TYPES,
+} from "@repo/shared/media";
 import z from "zod";
 
 import { permissionProcedure } from "../index";
+import {
+  COMIC_UPLOAD_URL_TTL_SECONDS,
+  getComicUploadObjectKey,
+  isIssuedComicUploadObjectKey,
+  listComicUploadObjects,
+} from "../utils/comic-upload";
 import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
+
+const comicUploadObjectsSchema = z
+  .array(
+    z.object({
+      contentLength: z.number().int().positive().max(COMIC_UPLOAD_MAX_BYTES),
+      objectKey: z.string().min(1).optional(),
+    })
+  )
+  .min(1)
+  .max(COMIC_UPLOAD_BATCH_SIZE);
 
 const mediaUploadSchema = z.object({
   folderId: z.string().nullable().optional(),
@@ -167,6 +190,106 @@ async function getMediaFolderBreadcrumbs(
 
 export default {
   admin: {
+    createComicUploadUrls: permissionProcedure({
+      files: ["upload"],
+    })
+      .input(
+        z.object({
+          objects: comicUploadObjectsSchema,
+          sessionId: z.string().min(1),
+        })
+      )
+      .handler(async ({ context: { db, session }, errors, input }) => {
+        const newObjectCount = input.objects.filter(
+          (object) => !object.objectKey
+        ).length;
+        const [uploadSession] = await db
+          .update(comicUploadSession)
+          .set({
+            issuedObjectCount: sql`${comicUploadSession.issuedObjectCount} + ${newObjectCount}`,
+          })
+          .where(
+            and(
+              eq(comicUploadSession.id, input.sessionId),
+              eq(comicUploadSession.userId, session.user.id),
+              gt(comicUploadSession.expiresAt, new Date()),
+              isNull(comicUploadSession.finalizedAt),
+              sql`${comicUploadSession.issuedObjectCount} <= ${COMIC_MEDIA_MAX_ITEMS - newObjectCount}`
+            )
+          )
+          .returning({
+            comicId: comicUploadSession.comicId,
+            id: comicUploadSession.id,
+            issuedObjectCount: comicUploadSession.issuedObjectCount,
+          });
+
+        if (!uploadSession) {
+          throw errors.BAD_REQUEST({
+            message: "Comic upload session expired or full",
+          });
+        }
+
+        const previousIssuedObjectCount =
+          uploadSession.issuedObjectCount - newObjectCount;
+        if (
+          input.objects.some(
+            ({ objectKey }) =>
+              objectKey &&
+              !isIssuedComicUploadObjectKey(
+                uploadSession.comicId,
+                uploadSession.id,
+                objectKey,
+                previousIssuedObjectCount
+              )
+          )
+        ) {
+          throw errors.BAD_REQUEST({ message: "Invalid comic upload object" });
+        }
+
+        const uploadedObjectKeys = input.objects.some(
+          ({ objectKey }) => objectKey
+        )
+          ? new Set(
+              await listComicUploadObjects(
+                uploadSession.comicId,
+                uploadSession.id
+              )
+            )
+          : new Set<string>();
+        let nextObjectIndex = previousIssuedObjectCount + 1;
+
+        return await Promise.all(
+          input.objects.map(async ({ contentLength, objectKey }) => {
+            const nextObjectKey =
+              objectKey ??
+              getComicUploadObjectKey(
+                uploadSession.comicId,
+                uploadSession.id,
+                nextObjectIndex
+              );
+            if (!objectKey) {
+              nextObjectIndex += 1;
+            }
+            if (uploadedObjectKeys.has(nextObjectKey)) {
+              return { objectKey: nextObjectKey, presignedUrl: null };
+            }
+            const presignedUrl = await getSignedUrl(
+              getS3Client(),
+              new PutObjectCommand({
+                Bucket: env.R2_ASSETS_BUCKET_NAME,
+                ContentLength: contentLength,
+                ContentType: "image/webp",
+                IfNoneMatch: "*",
+                Key: nextObjectKey,
+              }),
+              { expiresIn: COMIC_UPLOAD_URL_TTL_SECONDS }
+            );
+
+            return { objectKey: nextObjectKey, presignedUrl };
+          })
+        );
+      }),
+
     browse: permissionProcedure({
       media: ["list"],
     })
