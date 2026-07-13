@@ -365,6 +365,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
           <field.SelectField
             label="Estado"
             options={mapTermOptions(groupedTerms.status)}
+            required
           />
         )}
       </form.AppField>
