@@ -1,8 +1,10 @@
 import { DeleteObjectsCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
-import { asc, eq, inArray, isNull, sql } from "@repo/db";
+import { and, asc, eq, gt, inArray, isNull, sql } from "@repo/db";
 import type * as RepoDb from "@repo/db";
 import {
+  comicUploadSession,
   emoji,
   featuredPost,
   media,
@@ -13,12 +15,26 @@ import {
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
-import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
+import {
+  COMIC_UPLOAD_BATCH_SIZE,
+  COMIC_UPLOAD_MAX_BYTES,
+  MEDIA_IMAGE_MIME_TYPES,
+} from "@repo/shared/media";
 import z from "zod";
 
 import { permissionProcedure } from "../index";
+import { getComicUploadPrefix } from "../utils/comic-upload";
 import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
+
+const comicUploadObjectsSchema = z
+  .array(
+    z.object({
+      contentLength: z.number().int().positive().max(COMIC_UPLOAD_MAX_BYTES),
+    })
+  )
+  .min(1)
+  .max(COMIC_UPLOAD_BATCH_SIZE);
 
 const mediaUploadSchema = z.object({
   folderId: z.string().nullable().optional(),
@@ -167,6 +183,54 @@ async function getMediaFolderBreadcrumbs(
 
 export default {
   admin: {
+    createComicUploadUrls: permissionProcedure({
+      files: ["upload"],
+    })
+      .input(
+        z.object({
+          objects: comicUploadObjectsSchema,
+          sessionId: z.string().min(1),
+        })
+      )
+      .handler(async ({ context: { db, session }, errors, input }) => {
+        const uploadSession = await db.query.comicUploadSession.findFirst({
+          columns: { comicId: true, id: true },
+          where: and(
+            eq(comicUploadSession.id, input.sessionId),
+            eq(comicUploadSession.userId, session.user.id),
+            gt(comicUploadSession.expiresAt, new Date()),
+            isNull(comicUploadSession.finalizedAt)
+          ),
+        });
+
+        if (!uploadSession) {
+          throw errors.BAD_REQUEST({ message: "Comic upload session expired" });
+        }
+
+        const prefix = getComicUploadPrefix(
+          uploadSession.comicId,
+          uploadSession.id
+        );
+
+        return await Promise.all(
+          input.objects.map(async ({ contentLength }) => {
+            const objectKey = `${prefix}${generateId()}.webp`;
+            const presignedUrl = await getSignedUrl(
+              getS3Client(),
+              new PutObjectCommand({
+                Bucket: env.R2_ASSETS_BUCKET_NAME,
+                ContentLength: contentLength,
+                ContentType: "image/webp",
+                Key: objectKey,
+              }),
+              { expiresIn: 3600 }
+            );
+
+            return { objectKey, presignedUrl };
+          })
+        );
+      }),
+
     browse: permissionProcedure({
       media: ["list"],
     })

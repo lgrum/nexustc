@@ -3,7 +3,10 @@ import { and, isNull } from "@repo/db";
 import { media, mediaFolder } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
-import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
+import {
+  COMIC_MEDIA_MAX_ITEMS,
+  MEDIA_IMAGE_MIME_TYPES,
+} from "@repo/shared/media";
 import type { MediaOwnerKind } from "@repo/shared/media";
 import {
   comicCreateSchema,
@@ -34,14 +37,29 @@ const deferredPendingMediaItemSchema = z.object({
   kind: z.literal("pending"),
 });
 
+const deferredUploadedMediaItemSchema = z.object({
+  kind: z.literal("uploaded"),
+  objectKey: z.string().min(1),
+});
+
 export const deferredMediaItemInputSchema = z.discriminatedUnion("kind", [
   deferredExistingMediaItemSchema,
   deferredPendingMediaItemSchema,
 ]);
 
+const comicMediaItemInputSchema = z.discriminatedUnion("kind", [
+  deferredExistingMediaItemSchema,
+  deferredPendingMediaItemSchema,
+  deferredUploadedMediaItemSchema,
+]);
+
 export const deferredMediaSelectionInputSchema = z
   .array(deferredMediaItemInputSchema)
   .max(100);
+
+export const comicMediaSelectionInputSchema = z
+  .array(comicMediaItemInputSchema)
+  .max(COMIC_MEDIA_MAX_ITEMS);
 
 export const requiredSingleDeferredMediaSelectionInputSchema =
   deferredMediaSelectionInputSchema.min(1).max(1);
@@ -70,18 +88,20 @@ export const postEditInputSchema = postEditSchema
 export const comicCreateInputSchema = comicCreateSchema
   .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    comicUploadSessionId: z.string().min(1).optional(),
     coverImageSelection:
       optionalSingleDeferredMediaSelectionInputSchema.default([]),
-    mediaSelection: deferredMediaSelectionInputSchema,
+    mediaSelection: comicMediaSelectionInputSchema,
     thumbnailImageCount: thumbnailImageCountSchema.default(1),
   });
 
 export const comicEditInputSchema = comicEditSchema
   .omit({ coverMediaIds: true, mediaIds: true })
   .extend({
+    comicUploadSessionId: z.string().min(1).optional(),
     coverImageSelection:
       optionalSingleDeferredMediaSelectionInputSchema.default([]),
-    mediaSelection: deferredMediaSelectionInputSchema,
+    mediaSelection: comicMediaSelectionInputSchema,
     thumbnailImageCount: thumbnailImageCountSchema.default(1),
   });
 
@@ -110,7 +130,7 @@ export const newsArticleCreateInputSchema = newsArticleCreateSchema
 export type ContentCreateInput = z.infer<typeof contentCreateInputSchema>;
 export type ContentEditInput = z.infer<typeof contentEditInputSchema>;
 export type DeferredMediaSelectionInput = z.infer<
-  typeof deferredMediaSelectionInputSchema
+  typeof comicMediaSelectionInputSchema
 >;
 
 export type PersistedMediaRecord = {
@@ -272,10 +292,34 @@ async function materializeDeferredMediaSelection(params: {
     .map((item) => item.mediaId);
   const existingMediaQueue = await getOrderedMediaRecords(tx, existingMediaIds);
   const pendingMediaQueue: PersistedMediaRecord[] = [];
+  const uploadedObjectKeys = selection
+    .filter(
+      (item): item is z.infer<typeof deferredUploadedMediaItemSchema> =>
+        item.kind === "uploaded"
+    )
+    .map((item) => item.objectKey);
   const folderId =
-    pendingObjectKeys.length > 0
+    pendingObjectKeys.length > 0 || uploadedObjectKeys.length > 0
       ? await ensureFolderPath(tx, folderNames)
       : null;
+
+  const uploadedMedia =
+    uploadedObjectKeys.length > 0
+      ? await tx
+          .insert(media)
+          .values(
+            uploadedObjectKeys.map((objectKey) => ({ folderId, objectKey }))
+          )
+          .returning({
+            createdAt: media.createdAt,
+            folderId: media.folderId,
+            id: media.id,
+            objectKey: media.objectKey,
+          })
+      : [];
+  const uploadedMediaByKey = new Map(
+    uploadedMedia.map((item) => [item.objectKey, item])
+  );
 
   for (const objectKey of pendingObjectKeys) {
     const [createdMedia] = await tx
@@ -302,7 +346,9 @@ async function materializeDeferredMediaSelection(params: {
     const nextMedia =
       item.kind === "existing"
         ? existingMediaQueue.shift()
-        : pendingMediaQueue.shift();
+        : item.kind === "pending"
+          ? pendingMediaQueue.shift()
+          : uploadedMediaByKey.get(item.objectKey);
 
     if (!nextMedia) {
       throw new Error("Failed to resolve deferred media selection order");

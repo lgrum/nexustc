@@ -1,7 +1,16 @@
 import { getLogger } from "@orpc/experimental-pino";
+import { and, eq, lt } from "@repo/db";
+import { comicUploadSession, post } from "@repo/db/schema/app";
+import { generateId } from "@repo/db/utils";
 import z from "zod";
 
+import type { Context } from "../../context";
 import { permissionProcedure } from "../../index";
+import {
+  COMIC_UPLOAD_SESSION_TTL_MS,
+  deleteComicUploadObjects,
+  listComicUploadObjects,
+} from "../../utils/comic-upload";
 import {
   createContent,
   deleteContent,
@@ -14,7 +23,106 @@ import {
 } from "../../utils/deferred-media";
 import { mapPostWithMedia } from "../../utils/post-media";
 
+const comicUploadSessionInputSchema = z.object({
+  title: z.string().trim().min(1).max(255),
+});
+
+async function cleanupExpiredComicUploads(db: Context["db"], userId: string) {
+  const expiredSessions = await db.query.comicUploadSession.findMany({
+    limit: 5,
+    where: and(
+      eq(comicUploadSession.userId, userId),
+      lt(comicUploadSession.expiresAt, new Date())
+    ),
+  });
+
+  for (const session of expiredSessions) {
+    try {
+      if (!session.finalizedAt) {
+        const objectKeys = await listComicUploadObjects(
+          session.comicId,
+          session.id
+        );
+        await deleteComicUploadObjects(objectKeys);
+      }
+      await db
+        .delete(comicUploadSession)
+        .where(eq(comicUploadSession.id, session.id));
+    } catch {
+      // ponytail: cleanup is opportunistic; add a scheduled sweep if abandoned uploads become frequent.
+    }
+  }
+}
+
+async function createComicUploadSession(params: {
+  comicId?: string;
+  db: Context["db"];
+  title: string;
+  userId: string;
+}) {
+  await cleanupExpiredComicUploads(params.db, params.userId);
+  const expiresAt = new Date(Date.now() + COMIC_UPLOAD_SESSION_TTL_MS);
+  const [uploadSession] = await params.db
+    .insert(comicUploadSession)
+    .values({
+      comicId: params.comicId ?? generateId(),
+      expiresAt,
+      title: params.title,
+      userId: params.userId,
+    })
+    .returning({
+      comicId: comicUploadSession.comicId,
+      expiresAt: comicUploadSession.expiresAt,
+      sessionId: comicUploadSession.id,
+    });
+
+  if (!uploadSession) {
+    throw new Error("Failed to create comic upload session");
+  }
+
+  return uploadSession;
+}
+
 export default {
+  beginCreateUpload: permissionProcedure({
+    comics: ["create"],
+  })
+    .input(comicUploadSessionInputSchema)
+    .handler(
+      async ({ context: { db, session }, input }) =>
+        await createComicUploadSession({
+          db,
+          title: input.title,
+          userId: session.user.id,
+        })
+    ),
+
+  beginEditUpload: permissionProcedure({
+    comics: ["update"],
+  })
+    .input(
+      comicUploadSessionInputSchema.extend({
+        comicId: z.string().min(1),
+      })
+    )
+    .handler(async ({ context: { db, session }, errors, input }) => {
+      const existingComic = await db.query.post.findFirst({
+        columns: { id: true },
+        where: and(eq(post.id, input.comicId), eq(post.type, "comic")),
+      });
+
+      if (!existingComic) {
+        throw errors.NOT_FOUND();
+      }
+
+      return await createComicUploadSession({
+        comicId: existingComic.id,
+        db,
+        title: input.title,
+        userId: session.user.id,
+      });
+    }),
+
   checkSlug: permissionProcedure({
     comics: ["list"],
   })

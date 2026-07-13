@@ -443,6 +443,27 @@ export const mediaFolder = pgTable(
   ]
 );
 
+export const comicUploadSession = pgTable(
+  "comic_upload_session",
+  {
+    comicId: text("comic_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    title: text("title").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("comic_upload_session_expires_at_idx").on(table.expiresAt),
+    index("comic_upload_session_user_id_idx").on(table.userId),
+  ]
+);
+
 export const media = pgTable(
   "media",
   {

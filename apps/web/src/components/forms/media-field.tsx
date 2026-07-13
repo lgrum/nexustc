@@ -40,14 +40,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { sortComicFiles } from "@/lib/comic-page-upload";
 import {
   createDeferredMediaItemsFromFiles,
   getDeferredMediaPreviewSource,
   isDeferredPendingMediaItem,
 } from "@/lib/deferred-media";
 import type {
-  DeferredMediaItem,
-  DeferredMediaSelection,
+  ComicDeferredMediaItem,
+  ComicDeferredMediaSelection,
 } from "@/lib/deferred-media";
 import { orpc } from "@/lib/orpc";
 import { cn, convertImage, cropImage, getBucketUrl } from "@/lib/utils";
@@ -65,6 +66,7 @@ type MediaFieldProps = {
     title: string;
   };
   description?: string;
+  directUpload?: boolean;
   label: string;
   maxItems?: number;
   ownerKind: MediaOwnerKind;
@@ -76,7 +78,7 @@ type SelectedMediaDisplayItem = {
   id: string;
   isPending: boolean;
   previewSrc: string | null;
-  selection: DeferredMediaItem;
+  selection: ComicDeferredMediaItem;
   usageCount: number | null;
   valueLabel: string;
 };
@@ -100,13 +102,13 @@ type MediaBrowserSectionProps = {
   setSearch: React.Dispatch<React.SetStateAction<string>>;
 };
 
-function normalizeValue(value: DeferredMediaSelection | null | undefined) {
+function normalizeValue(value: ComicDeferredMediaSelection | null | undefined) {
   return Array.isArray(value) ? value.filter((item) => item !== undefined) : [];
 }
 
 function createSelectionUpdater(
   setSelectedItems: React.Dispatch<
-    React.SetStateAction<DeferredMediaSelection>
+    React.SetStateAction<ComicDeferredMediaSelection>
   >,
   items: SelectedMediaDisplayItem[]
 ) {
@@ -136,12 +138,13 @@ export function MediaField({
   className,
   crop,
   description,
+  directUpload = false,
   label,
   maxItems,
   ownerKind,
   required,
 }: MediaFieldProps) {
-  const field = useFieldContext<DeferredMediaSelection>();
+  const field = useFieldContext<ComicDeferredMediaSelection>();
   const listQueryOptions = orpc.media.admin.list.queryOptions();
   const { data: library } = useSuspenseQuery(listQueryOptions);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -149,7 +152,7 @@ export function MediaField({
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [draftSelectedItems, setDraftSelectedItems] =
-    useState<DeferredMediaSelection>([]);
+    useState<ComicDeferredMediaSelection>([]);
   const [pendingCrop, setPendingCrop] = useState<PendingCrop | null>(null);
   const [isConvertingFiles, setIsConvertingFiles] = useState(false);
   const previewUrlsRef = useRef<Set<string>>(new Set());
@@ -171,7 +174,9 @@ export function MediaField({
       new Set(
         draftSelectedItems
           .filter(
-            (item): item is Extract<DeferredMediaItem, { kind: "existing" }> =>
+            (
+              item
+            ): item is Extract<ComicDeferredMediaItem, { kind: "existing" }> =>
               item.kind === "existing"
           )
           .map((item) => item.mediaId)
@@ -193,6 +198,18 @@ export function MediaField({
             selection: item,
             usageCount: null,
             valueLabel: item.file.name,
+          };
+        }
+
+        if (item.kind === "uploaded") {
+          return {
+            createdAtLabel: "Subida",
+            id: item.selectionId,
+            isPending: false,
+            previewSrc: previewSource,
+            selection: item,
+            usageCount: null,
+            valueLabel: item.objectKey,
           };
         }
 
@@ -227,6 +244,18 @@ export function MediaField({
             selection: item,
             usageCount: null,
             valueLabel: item.file.name,
+          };
+        }
+
+        if (item.kind === "uploaded") {
+          return {
+            createdAtLabel: "Subida",
+            id: item.selectionId,
+            isPending: false,
+            previewSrc: previewSource,
+            selection: item,
+            usageCount: null,
+            valueLabel: item.objectKey,
           };
         }
 
@@ -310,7 +339,7 @@ export function MediaField({
         return currentSelection.filter((_, index) => index !== existingIndex);
       }
 
-      const nextItem: DeferredMediaItem = {
+      const nextItem: ComicDeferredMediaItem = {
         kind: "existing",
         mediaId,
         selectionId: `existing:${mediaId}`,
@@ -416,13 +445,25 @@ export function MediaField({
   const handleFileSelection = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    const files = [...(event.target.files ?? [])].filter((file) =>
+    const selectedFiles = [...(event.target.files ?? [])].filter((file) =>
       file.type.startsWith("image/")
     );
+    const files = directUpload ? sortComicFiles(selectedFiles) : selectedFiles;
 
     event.target.value = "";
 
     if (files.length === 0) {
+      return;
+    }
+
+    if (directUpload) {
+      const staticFiles = files.filter((file) => file.type !== "image/gif");
+      if (staticFiles.length !== files.length) {
+        toast.error(
+          "Las paginas GIF no son compatibles con la subida directa."
+        );
+      }
+      addFilesToDraftSelection(staticFiles);
       return;
     }
 
@@ -685,7 +726,9 @@ export function MediaField({
       {selectedMedia.length > 0 ? (
         <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-3 text-muted-foreground text-xs">
           {selectedMedia.some((item) => item.isPending)
-            ? "Los archivos marcados como nuevos se subiran solo cuando guardes el formulario."
+            ? directUpload
+              ? "Los archivos nuevos se subiran directamente al guardar el comic."
+              : "Los archivos marcados como nuevos se subiran solo cuando guardes el formulario."
             : "La seleccion actual usa media ya existente en la biblioteca."}
         </div>
       ) : null}

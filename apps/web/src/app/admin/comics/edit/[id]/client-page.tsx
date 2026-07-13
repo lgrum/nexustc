@@ -9,9 +9,12 @@ import { toast } from "sonner";
 import { ComicFormFields } from "@/components/admin/comics/comic-form-fields";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useAppForm } from "@/hooks/use-app-form";
+import { uploadDeferredComicSelection } from "@/lib/comic-page-upload-client";
 import {
   comicAdminEditFormSchema,
+  createComicDeferredMediaSelectionFromExistingIds,
   createDeferredMediaSelectionFromExistingIds,
+  isDeferredPendingMediaItem,
 } from "@/lib/deferred-media";
 import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 
@@ -43,6 +46,7 @@ export function ClientPage({
     defaultValues: {
       adsLinks: oldComic.adsLinks ?? "",
       censorship: terms.censorship?.[0]?.term.id ?? "",
+      comicUploadSessionId: undefined as string | undefined,
       coverImageSelection: createDeferredMediaSelectionFromExistingIds(
         oldComic.coverMedia?.id ? [oldComic.coverMedia.id] : []
       ),
@@ -55,7 +59,7 @@ export function ClientPage({
       id: oldComic.id,
       manualEngagementQuestions:
         oldComic.engagementOverrides?.map((item) => item.text) ?? [],
-      mediaSelection: createDeferredMediaSelectionFromExistingIds(
+      mediaSelection: createComicDeferredMediaSelectionFromExistingIds(
         oldComic.media?.map((item) => item.id) ?? []
       ),
       premiumLinks: oldComic.premiumLinks ?? "",
@@ -94,11 +98,54 @@ export function ClientPage({
         }
       }
 
+      let { mediaSelection } = formData.value;
+      let { comicUploadSessionId } = formData.value;
+      try {
+        if (mediaSelection.some(isDeferredPendingMediaItem)) {
+          if (!comicUploadSessionId) {
+            const uploadSession = await orpcClient.comic.admin.beginEditUpload({
+              comicId: formData.value.id,
+              title: formData.value.title,
+            });
+            comicUploadSessionId = uploadSession.sessionId;
+            form.setFieldValue("comicUploadSessionId", uploadSession.sessionId);
+          }
+
+          mediaSelection = await uploadDeferredComicSelection({
+            onProgress: (completed, total) => {
+              if (
+                completed === 0 ||
+                completed === total ||
+                completed % 10 === 0
+              ) {
+                toast.loading(`Subiendo paginas ${completed}/${total}`, {
+                  id: "comic-page-upload",
+                });
+              }
+            },
+            onSelectionChange: (selection) =>
+              form.setFieldValue("mediaSelection", selection),
+            selection: mediaSelection,
+            sessionId: comicUploadSessionId,
+          });
+        }
+      } catch (error) {
+        toast.error(`Error al editar comic: ${getClientErrorMessage(error)}`, {
+          dismissible: true,
+          duration: 10_000,
+        });
+        return;
+      } finally {
+        toast.dismiss("comic-page-upload");
+      }
+
       await toast
         .promise(
           mutation.mutateAsync({
             ...formData.value,
             acceptSlugDeduplication: slugCheck.duplicate || undefined,
+            comicUploadSessionId,
+            mediaSelection,
           }),
           {
             error: (error) => ({

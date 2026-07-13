@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, eq, ne, sql } from "@repo/db";
+import { and, eq, gt, ne, sql } from "@repo/db";
 import {
+  comicUploadSession,
   comicCreator,
   contentSeries,
   creator,
@@ -17,6 +18,12 @@ import {
   createOrCollapseContentUpdateNotification,
   deriveContentUpdateEvent,
 } from "../services/notification";
+import {
+  deleteComicUploadObjects,
+  listComicUploadObjects,
+  ownsComicUploadKeys,
+  validateComicUploadObjects,
+} from "./comic-upload";
 import type {
   ContentCreateInput,
   ContentEditInput,
@@ -39,6 +46,83 @@ type OrderedMediaRecord = PersistedMediaRecord;
 type ContentType = ContentCreateInput["type"];
 type ContentUpdateCandidate = ReturnType<typeof deriveContentUpdateEvent>;
 type SlugCheckDb = Pick<Context["db"], "select">;
+
+type ComicInput = Extract<
+  ContentCreateInput | ContentEditInput,
+  { type: "comic" }
+>;
+
+async function resolveComicUploadSession(params: {
+  db: Context["db"];
+  errors: HandlerParams<ComicInput>["errors"];
+  expectedComicId?: string;
+  input: ComicInput;
+  userId: string;
+}) {
+  const objectKeys = params.input.mediaSelection
+    .filter((item) => item.kind === "uploaded")
+    .map((item) => item.objectKey);
+  const sessionId = params.input.comicUploadSessionId;
+
+  if (objectKeys.length > 0 && !sessionId) {
+    throw params.errors.BAD_REQUEST({
+      message: "Comic upload session is required",
+    });
+  }
+
+  if (!sessionId) {
+    return null;
+  }
+
+  const uploadSession = await params.db.query.comicUploadSession.findFirst({
+    columns: { comicId: true, finalizedAt: true, id: true },
+    where: and(
+      eq(comicUploadSession.id, sessionId),
+      eq(comicUploadSession.userId, params.userId),
+      gt(comicUploadSession.expiresAt, new Date())
+    ),
+  });
+  const hasDuplicateKeys = new Set(objectKeys).size !== objectKeys.length;
+  const targetsExpectedComic =
+    !params.expectedComicId ||
+    uploadSession?.comicId === params.expectedComicId;
+
+  if (
+    !uploadSession ||
+    !targetsExpectedComic ||
+    hasDuplicateKeys ||
+    !ownsComicUploadKeys(uploadSession.comicId, uploadSession.id, objectKeys)
+  ) {
+    throw params.errors.BAD_REQUEST({
+      message: "Invalid comic upload session",
+    });
+  }
+
+  if (uploadSession.finalizedAt) {
+    return uploadSession;
+  }
+
+  try {
+    const isValid = await validateComicUploadObjects(objectKeys);
+    if (!isValid) {
+      throw new Error("Invalid comic upload object");
+    }
+
+    const selectedKeys = new Set(objectKeys);
+    const uploadedKeys = await listComicUploadObjects(
+      uploadSession.comicId,
+      uploadSession.id
+    );
+    const unusedKeys = uploadedKeys.filter(
+      (objectKey) => !selectedKeys.has(objectKey)
+    );
+    await deleteComicUploadObjects(unusedKeys);
+  } catch {
+    throw params.errors.BAD_REQUEST({ message: "Invalid comic page upload" });
+  }
+
+  return uploadSession;
+}
 
 function resolveReleasedAt(params: {
   contentUpdateCandidate: ContentUpdateCandidate;
@@ -332,6 +416,19 @@ export async function createContent({
   logger?.info(
     `User ${session.user?.id} creating new ${contentType}: "${input.title}"`
   );
+  const uploadSession =
+    input.type === "comic"
+      ? await resolveComicUploadSession({
+          db,
+          errors,
+          input,
+          userId: session.user.id,
+        })
+      : null;
+
+  if (uploadSession?.finalizedAt) {
+    return uploadSession.comicId;
+  }
 
   return await withDeferredMediaSelections({
     db,
@@ -387,6 +484,7 @@ export async function createContent({
       const [postData] = await tx
         .insert(post)
         .values({
+          ...(uploadSession ? { id: uploadSession.comicId } : {}),
           adsLinks:
             input.type === "post" ? input.adsLinks : (input.adsLinks ?? ""),
           authorId: session.user?.id,
@@ -479,6 +577,13 @@ export async function createContent({
         `${contentType} successfully created with ID: ${postData.postId}`
       );
 
+      if (uploadSession) {
+        await tx
+          .update(comicUploadSession)
+          .set({ finalizedAt: new Date() })
+          .where(eq(comicUploadSession.id, uploadSession.id));
+      }
+
       return postData.postId;
     },
     ownerKind: input.type === "post" ? "Juego" : "Comic",
@@ -495,6 +600,20 @@ export async function editContent({
   const logger = getLogger(ctx);
   const contentType = input.type;
   logger?.info(`Editing ${contentType}: ${input.id}`);
+  const uploadSession =
+    input.type === "comic"
+      ? await resolveComicUploadSession({
+          db,
+          errors,
+          expectedComicId: input.id,
+          input,
+          userId: ctx.session.user.id,
+        })
+      : null;
+
+  if (uploadSession?.finalizedAt) {
+    return uploadSession.comicId;
+  }
 
   const updatedPostId = await withDeferredMediaSelections({
     db,
@@ -706,6 +825,13 @@ export async function editContent({
         logger?.info(
           `Generated ${contentUpdateCandidate.updateType} notification for ${contentType} ${postData.postId}`
         );
+      }
+
+      if (uploadSession) {
+        await tx
+          .update(comicUploadSession)
+          .set({ finalizedAt: new Date() })
+          .where(eq(comicUploadSession.id, uploadSession.id));
       }
 
       return postData.postId;
