@@ -11,6 +11,7 @@ import {
   permissionProcedure,
   publicProcedure,
 } from "../index";
+import { getAliasFromUrl } from "../utils/shortener-alias";
 
 type Tutorial = typeof TutorialTable.$inferSelect;
 
@@ -43,11 +44,13 @@ const shortenerCountSchema = z.union([
 ]);
 
 const shortenWithProvider = async ({
+  alias,
   logger,
   onError,
   provider,
   url,
 }: {
+  alias?: string;
   logger?: ReturnType<typeof getLogger>;
   onError: (message: string) => never;
   provider: (typeof shortenerProviders)[number];
@@ -58,8 +61,14 @@ const shortenWithProvider = async ({
     url,
   });
 
+  if (alias) {
+    searchParams.set("alias", alias);
+  }
+
   const requestUrl = `${provider.url}?${searchParams.toString()}`;
-  logger?.info(`Calling shortener ${provider.name}`);
+  logger?.info(
+    `Calling shortener ${provider.name} with alias ${alias ? `"${alias}"` : "none"}`
+  );
 
   const response = await (async (): Promise<Response> => {
     try {
@@ -153,12 +162,17 @@ export default {
       const logger = getLogger(ctx);
       logger?.info(`Shortening URL: ${input.url}`);
 
+      const alias = await getAliasFromUrl(input.url);
+      logger?.info(
+        `Resolved alias for shortening: ${alias ? `"${alias}"` : "not available"}`
+      );
       let shortenedUrl = input.url;
       const selectedProviders = shortenerProviders.slice(-input.shortenerCount);
 
       try {
         for (const provider of selectedProviders) {
           shortenedUrl = await shortenWithProvider({
+            alias,
             logger,
             onError: (message) => {
               throw errors.INTERNAL_SERVER_ERROR({ message });
