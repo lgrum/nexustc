@@ -2,8 +2,10 @@ import { COMIC_UPLOAD_MAX_BYTES } from "@repo/shared/media";
 import { describe, expect, it } from "vitest";
 
 import {
+  getComicUploadObjectKey,
   getComicUploadPrefix,
   getUnreferencedComicUploadKeys,
+  isIssuedComicUploadObjectKey,
   isValidComicUploadObject,
   isWebpHeader,
   ownsComicUploadKeys,
@@ -34,6 +36,17 @@ describe("comic upload validation", () => {
         ["page-1.webp", "page-2.webp"]
       )
     ).toEqual(["unused.webp"]);
+  });
+
+  it("only reuses object slots already issued to the session", () => {
+    const objectKey = getComicUploadObjectKey("comic-1", "session-1", 1000);
+
+    expect(
+      isIssuedComicUploadObjectKey("comic-1", "session-1", objectKey, 1000)
+    ).toBe(true);
+    expect(
+      isIssuedComicUploadObjectKey("comic-1", "session-1", objectKey, 999)
+    ).toBe(false);
   });
 
   it("requires a non-empty WebP within the size limit", () => {

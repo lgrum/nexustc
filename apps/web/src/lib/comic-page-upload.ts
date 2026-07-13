@@ -19,7 +19,7 @@ export type ComicUploadState = UploadItem & {
 type UploadDependencies = {
   convert: (file: File) => Promise<File>;
   createUploadUrls: (
-    files: File[]
+    items: Pick<UploadItem, "file" | "objectKey">[]
   ) => Promise<{ objectKey: string; presignedUrl: string }[]>;
   onChange?: (states: ComicUploadState[]) => void;
   onProgress?: (completed: number, total: number) => void;
@@ -69,7 +69,7 @@ export async function uploadComicPages(
 ) {
   let states: ComicUploadState[] = items.map((item) => ({
     ...item,
-    status: item.objectKey ? "uploaded" : "pending",
+    status: "pending",
   }));
   let completed = 0;
 
@@ -128,7 +128,12 @@ export async function uploadComicPages(
     try {
       const urls =
         ready.length > 0
-          ? await dependencies.createUploadUrls(ready.map(({ file }) => file))
+          ? await dependencies.createUploadUrls(
+              ready.map(({ file, item }) => ({
+                file,
+                objectKey: item.objectKey,
+              }))
+            )
           : [];
       await mapWithConcurrency(
         ready.map(({ file, item }, index) => ({
@@ -143,6 +148,7 @@ export async function uploadComicPages(
             return;
           }
 
+          updateState(item.selectionId, { objectKey: upload.objectKey });
           try {
             await dependencies.upload(file, upload.presignedUrl);
             updateState(item.selectionId, {

@@ -14,6 +14,7 @@ import { getS3Client } from "./s3";
 
 export const COMIC_UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 export const COMIC_UPLOAD_URL_TTL_SECONDS = 60 * 60;
+const COMIC_UPLOAD_OBJECT_NAME_PATTERN = /^([1-9]\d*)\.webp$/;
 const WEBP_HEADER_END_BYTE = 15;
 
 export type ComicUploadObjectMetadata = {
@@ -23,6 +24,28 @@ export type ComicUploadObjectMetadata = {
 
 export function getComicUploadPrefix(comicId: string, sessionId: string) {
   return `media/comic/${comicId}/${sessionId}/`;
+}
+
+export function getComicUploadObjectKey(
+  comicId: string,
+  sessionId: string,
+  objectIndex: number
+) {
+  return `${getComicUploadPrefix(comicId, sessionId)}${objectIndex}.webp`;
+}
+
+export function isIssuedComicUploadObjectKey(
+  comicId: string,
+  sessionId: string,
+  objectKey: string,
+  issuedObjectCount: number
+) {
+  const prefix = getComicUploadPrefix(comicId, sessionId);
+  const match = objectKey.startsWith(prefix)
+    ? COMIC_UPLOAD_OBJECT_NAME_PATTERN.exec(objectKey.slice(prefix.length))
+    : null;
+  const objectIndex = Number(match?.[1]);
+  return Number.isSafeInteger(objectIndex) && objectIndex <= issuedObjectCount;
 }
 
 export function ownsComicUploadKeys(

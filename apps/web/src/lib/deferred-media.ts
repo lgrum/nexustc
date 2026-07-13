@@ -220,14 +220,14 @@ export function resetComicUploadSessionSelection(
   selection: ComicDeferredMediaSelection
 ): ComicDeferredMediaSelection {
   return selection.map((item) =>
-    item.kind === "uploaded"
-      ? {
+    item.kind === "existing"
+      ? item
+      : {
           file: item.file,
           kind: "pending" as const,
           previewUrl: item.previewUrl,
           selectionId: item.selectionId,
         }
-      : item
   );
 }
 

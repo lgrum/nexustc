@@ -19,10 +19,10 @@ const createItems = (count: number) =>
 
 const createDependencies = () => ({
   convert: vi.fn((file: File) => Promise.resolve(file)),
-  createUploadUrls: vi.fn((files: File[]) =>
+  createUploadUrls: vi.fn((items: { file: File; objectKey?: string }[]) =>
     Promise.resolve(
-      files.map((file) => ({
-        objectKey: `uploads/${file.name}.webp`,
+      items.map(({ file, objectKey }) => ({
+        objectKey: objectKey ?? `uploads/${file.name}.webp`,
         presignedUrl: `https://uploads.test/${file.name}`,
       }))
     )
@@ -91,6 +91,7 @@ describe("comic page uploads", () => {
       "page-2",
       "page-3",
     ]);
+    expect(first.states[0]?.objectKey).toBe("uploads/page-1.png.webp");
 
     const retryDependencies = createDependencies();
     const retry = await uploadComicPages(
@@ -99,6 +100,12 @@ describe("comic page uploads", () => {
     );
 
     expect(retryDependencies.upload).toHaveBeenCalledTimes(1);
+    expect(retryDependencies.createUploadUrls).toHaveBeenCalledWith([
+      {
+        file: first.states[0]?.file,
+        objectKey: "uploads/page-1.png.webp",
+      },
+    ]);
     expect(retry.states[0]?.status).toBe("uploaded");
   });
 
@@ -118,18 +125,5 @@ describe("comic page uploads", () => {
       "uploaded",
     ]);
     expect(progress).toHaveBeenLastCalledWith(3, 3);
-  });
-
-  it("reuses an uploaded object key when comic creation is retried", async () => {
-    const retryDependencies = createDependencies();
-    const retry = await uploadComicPages(
-      [{ ...createItems(1)[0]!, objectKey: "uploads/page-1.webp" }],
-      retryDependencies
-    );
-
-    expect(retryDependencies.convert).not.toHaveBeenCalled();
-    expect(retryDependencies.createUploadUrls).not.toHaveBeenCalled();
-    expect(retryDependencies.upload).not.toHaveBeenCalled();
-    expect(retry.states[0]?.status).toBe("uploaded");
   });
 });

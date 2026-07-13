@@ -26,7 +26,8 @@ import z from "zod";
 import { permissionProcedure } from "../index";
 import {
   COMIC_UPLOAD_URL_TTL_SECONDS,
-  getComicUploadPrefix,
+  getComicUploadObjectKey,
+  isIssuedComicUploadObjectKey,
 } from "../utils/comic-upload";
 import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
@@ -35,6 +36,7 @@ const comicUploadObjectsSchema = z
   .array(
     z.object({
       contentLength: z.number().int().positive().max(COMIC_UPLOAD_MAX_BYTES),
+      objectKey: z.string().min(1).optional(),
     })
   )
   .min(1)
@@ -197,10 +199,13 @@ export default {
         })
       )
       .handler(async ({ context: { db, session }, errors, input }) => {
+        const newObjectCount = input.objects.filter(
+          (object) => !object.objectKey
+        ).length;
         const [uploadSession] = await db
           .update(comicUploadSession)
           .set({
-            issuedObjectCount: sql`${comicUploadSession.issuedObjectCount} + ${input.objects.length}`,
+            issuedObjectCount: sql`${comicUploadSession.issuedObjectCount} + ${newObjectCount}`,
           })
           .where(
             and(
@@ -208,12 +213,13 @@ export default {
               eq(comicUploadSession.userId, session.user.id),
               gt(comicUploadSession.expiresAt, new Date()),
               isNull(comicUploadSession.finalizedAt),
-              sql`${comicUploadSession.issuedObjectCount} <= ${COMIC_MEDIA_MAX_ITEMS - input.objects.length}`
+              sql`${comicUploadSession.issuedObjectCount} <= ${COMIC_MEDIA_MAX_ITEMS - newObjectCount}`
             )
           )
           .returning({
             comicId: comicUploadSession.comicId,
             id: comicUploadSession.id,
+            issuedObjectCount: comicUploadSession.issuedObjectCount,
           });
 
         if (!uploadSession) {
@@ -222,14 +228,37 @@ export default {
           });
         }
 
-        const prefix = getComicUploadPrefix(
-          uploadSession.comicId,
-          uploadSession.id
-        );
+        const previousIssuedObjectCount =
+          uploadSession.issuedObjectCount - newObjectCount;
+        if (
+          input.objects.some(
+            ({ objectKey }) =>
+              objectKey &&
+              !isIssuedComicUploadObjectKey(
+                uploadSession.comicId,
+                uploadSession.id,
+                objectKey,
+                previousIssuedObjectCount
+              )
+          )
+        ) {
+          throw errors.BAD_REQUEST({ message: "Invalid comic upload object" });
+        }
+
+        let nextObjectIndex = previousIssuedObjectCount + 1;
 
         return await Promise.all(
-          input.objects.map(async ({ contentLength }) => {
-            const objectKey = `${prefix}${generateId()}.webp`;
+          input.objects.map(async ({ contentLength, objectKey }) => {
+            const nextObjectKey =
+              objectKey ??
+              getComicUploadObjectKey(
+                uploadSession.comicId,
+                uploadSession.id,
+                nextObjectIndex
+              );
+            if (!objectKey) {
+              nextObjectIndex += 1;
+            }
             const presignedUrl = await getSignedUrl(
               getS3Client(),
               new PutObjectCommand({
@@ -237,12 +266,12 @@ export default {
                 ContentLength: contentLength,
                 ContentType: "image/webp",
                 IfNoneMatch: "*",
-                Key: objectKey,
+                Key: nextObjectKey,
               }),
               { expiresIn: COMIC_UPLOAD_URL_TTL_SECONDS }
             );
 
-            return { objectKey, presignedUrl };
+            return { objectKey: nextObjectKey, presignedUrl };
           })
         );
       }),

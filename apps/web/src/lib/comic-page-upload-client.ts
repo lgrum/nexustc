@@ -28,9 +28,12 @@ export async function uploadDeferredComicSelection(params: {
 
   const result = await uploadComicPages(pendingItems, {
     convert: async (file) => await convertImage(file, "webp", 0.82),
-    createUploadUrls: async (files) =>
+    createUploadUrls: async (items) =>
       await orpcClient.media.admin.createComicUploadUrls({
-        objects: files.map((file) => ({ contentLength: file.size })),
+        objects: items.map(({ file, objectKey }) => ({
+          contentLength: file.size,
+          objectKey,
+        })),
         sessionId: params.sessionId,
       }),
     onChange: (states) => {

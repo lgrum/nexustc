@@ -69,6 +69,17 @@ describe("comic media selection", () => {
         selectionId: "page-1",
       },
     ]);
+    expect(
+      resetComicUploadSessionSelection([
+        {
+          file: page1,
+          kind: "pending",
+          objectKey: "media/comic/c1/expired/1.webp",
+          previewUrl: "blob:page-1",
+          selectionId: "page-1",
+        },
+      ])[0]
+    ).not.toHaveProperty("objectKey");
     expect(createComicMediaSelectionInput(pages)).toEqual([
       {
         kind: "uploaded",
