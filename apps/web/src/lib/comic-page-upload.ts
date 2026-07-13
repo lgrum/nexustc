@@ -20,7 +20,7 @@ type UploadDependencies = {
   convert: (file: File) => Promise<File>;
   createUploadUrls: (
     items: Pick<UploadItem, "file" | "objectKey">[]
-  ) => Promise<{ objectKey: string; presignedUrl: string }[]>;
+  ) => Promise<{ objectKey: string; presignedUrl: string | null }[]>;
   onChange?: (states: ComicUploadState[]) => void;
   onProgress?: (completed: number, total: number) => void;
   upload: (file: File, presignedUrl: string) => Promise<void>;
@@ -149,6 +149,11 @@ export async function uploadComicPages(
           }
 
           updateState(item.selectionId, { objectKey: upload.objectKey });
+          if (!upload.presignedUrl) {
+            updateState(item.selectionId, { status: "uploaded" });
+            complete();
+            return;
+          }
           try {
             await dependencies.upload(file, upload.presignedUrl);
             updateState(item.selectionId, {

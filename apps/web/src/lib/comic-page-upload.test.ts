@@ -19,13 +19,16 @@ const createItems = (count: number) =>
 
 const createDependencies = () => ({
   convert: vi.fn((file: File) => Promise.resolve(file)),
-  createUploadUrls: vi.fn((items: { file: File; objectKey?: string }[]) =>
-    Promise.resolve(
-      items.map(({ file, objectKey }) => ({
-        objectKey: objectKey ?? `uploads/${file.name}.webp`,
-        presignedUrl: `https://uploads.test/${file.name}`,
-      }))
-    )
+  createUploadUrls: vi.fn(
+    (
+      items: { file: File; objectKey?: string }[]
+    ): Promise<{ objectKey: string; presignedUrl: string | null }[]> =>
+      Promise.resolve(
+        items.map(({ file, objectKey }) => ({
+          objectKey: objectKey ?? `uploads/${file.name}.webp`,
+          presignedUrl: `https://uploads.test/${file.name}`,
+        }))
+      )
   ),
   upload: vi.fn(() => Promise.resolve()),
 });
@@ -107,6 +110,23 @@ describe("comic page uploads", () => {
       },
     ]);
     expect(retry.states[0]?.status).toBe("uploaded");
+
+    const storedDependencies = createDependencies();
+    storedDependencies.createUploadUrls.mockImplementation((items) =>
+      Promise.resolve(
+        items.map(({ objectKey }) => ({
+          objectKey: objectKey ?? "",
+          presignedUrl: null,
+        }))
+      )
+    );
+    const storedRetry = await uploadComicPages(
+      first.states.filter((item) => item.status === "failed"),
+      storedDependencies
+    );
+
+    expect(storedDependencies.upload).not.toHaveBeenCalled();
+    expect(storedRetry.states[0]?.status).toBe("uploaded");
   });
 
   it("reports conversion failures against the correct page", async () => {

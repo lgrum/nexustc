@@ -28,6 +28,7 @@ import {
   COMIC_UPLOAD_URL_TTL_SECONDS,
   getComicUploadObjectKey,
   isIssuedComicUploadObjectKey,
+  listComicUploadObjects,
 } from "../utils/comic-upload";
 import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
@@ -245,6 +246,16 @@ export default {
           throw errors.BAD_REQUEST({ message: "Invalid comic upload object" });
         }
 
+        const uploadedObjectKeys = input.objects.some(
+          ({ objectKey }) => objectKey
+        )
+          ? new Set(
+              await listComicUploadObjects(
+                uploadSession.comicId,
+                uploadSession.id
+              )
+            )
+          : new Set<string>();
         let nextObjectIndex = previousIssuedObjectCount + 1;
 
         return await Promise.all(
@@ -258,6 +269,9 @@ export default {
               );
             if (!objectKey) {
               nextObjectIndex += 1;
+            }
+            if (uploadedObjectKeys.has(nextObjectKey)) {
+              return { objectKey: nextObjectKey, presignedUrl: null };
             }
             const presignedUrl = await getSignedUrl(
               getS3Client(),
