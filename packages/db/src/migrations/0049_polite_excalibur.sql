@@ -4,6 +4,7 @@ CREATE TABLE "comic_upload_session" (
 	"expires_at" timestamp with time zone NOT NULL,
 	"finalized_at" timestamp with time zone,
 	"id" text PRIMARY KEY NOT NULL,
+	"issued_object_count" integer DEFAULT 0 NOT NULL,
 	"title" text NOT NULL,
 	"user_id" text NOT NULL
 );

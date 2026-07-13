@@ -5,14 +5,11 @@ import type { ComicDeferredMediaSelection } from "@/lib/deferred-media";
 import { orpcClient } from "@/lib/orpc";
 import { convertImage, uploadBlobWithProgress } from "@/lib/utils";
 
-const RECOVERABLE_COMIC_UPLOAD_SESSION_ERRORS = new Set([
-  "Comic upload session expired",
-  "Invalid comic upload session",
-]);
-
 export function isRecoverableComicUploadSessionError(error: unknown) {
-  return RECOVERABLE_COMIC_UPLOAD_SESSION_ERRORS.has(
-    getClientErrorMessage(error)
+  const message = getClientErrorMessage(error);
+  return (
+    message === "Invalid comic upload session" ||
+    message.startsWith("Comic upload session expired")
   );
 }
 
@@ -63,7 +60,9 @@ export async function uploadDeferredComicSelection(params: {
     },
     onProgress: params.onProgress,
     upload: async (file, presignedUrl) =>
-      await uploadBlobWithProgress(file, presignedUrl),
+      await uploadBlobWithProgress(file, presignedUrl, undefined, {
+        "If-None-Match": "*",
+      }),
   });
 
   if (result.error) {

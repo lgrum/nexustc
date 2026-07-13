@@ -98,6 +98,10 @@ async function resolveComicUploadSession(params: {
   }
 
   if (uploadSession.finalizedAt) {
+    if (params.expectedComicId === undefined) {
+      return uploadSession;
+    }
+
     throw params.errors.BAD_REQUEST({
       message: "Comic upload session already finalized",
     });
@@ -432,6 +436,10 @@ export async function createContent({
           userId: session.user.id,
         })
       : null;
+
+  if (uploadSession?.finalizedAt) {
+    return uploadSession.comicId;
+  }
 
   return await withDeferredMediaSelections({
     db,

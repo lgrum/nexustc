@@ -453,6 +453,7 @@ export const comicUploadSession = pgTable(
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     finalizedAt: timestamp("finalized_at", { withTimezone: true }),
     id: text("id").primaryKey().$defaultFn(generateId),
+    issuedObjectCount: integer("issued_object_count").default(0).notNull(),
     title: text("title").notNull(),
     userId: text("user_id")
       .notNull()

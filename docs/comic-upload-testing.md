@@ -2,7 +2,7 @@
 
 ## Isolated environment
 
-Use a disposable PostgreSQL database, R2 bucket, and uploader account. Point the local app's `DATABASE_URL`, `R2_ASSETS_BUCKET_NAME`, R2 credentials, and `NEXT_PUBLIC_ASSETS_BUCKET_URL` at those resources. The R2 bucket must allow browser `PUT` requests from `http://localhost:3000`.
+Use a disposable PostgreSQL database, R2 bucket, and uploader account. Point the local app's `DATABASE_URL`, `R2_ASSETS_BUCKET_NAME`, R2 credentials, and `NEXT_PUBLIC_ASSETS_BUCKET_URL` at those resources. The R2 bucket must allow browser `PUT` requests from `http://localhost:3000` with the `Content-Type` and `If-None-Match` headers.
 
 Never run interruption or cleanup tests against production.
 

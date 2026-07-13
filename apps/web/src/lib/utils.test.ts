@@ -5,7 +5,31 @@ vi.mock("@repo/env", () => ({
   },
 }));
 
-const { getDeterministicHue, getPixelCropRegion } = await import("./utils");
+const { getDeterministicHue, getPixelCropRegion, uploadBlobWithProgress } =
+  await import("./utils");
+
+it("sends upload precondition headers", async () => {
+  const setRequestHeader = vi.spyOn(
+    XMLHttpRequest.prototype,
+    "setRequestHeader"
+  );
+  vi.spyOn(XMLHttpRequest.prototype, "send").mockImplementation(
+    function send() {
+      Object.defineProperty(this, "status", { value: 200 });
+      this.dispatchEvent(new Event("load"));
+    }
+  );
+
+  await uploadBlobWithProgress(
+    new Blob(["page"], { type: "image/webp" }),
+    "https://uploads.test/page.webp",
+    undefined,
+    { "If-None-Match": "*" }
+  );
+
+  expect(setRequestHeader).toHaveBeenCalledWith("If-None-Match", "*");
+  vi.restoreAllMocks();
+});
 
 describe(getPixelCropRegion, () => {
   it("converts percent crop values into pixel bounds", () => {

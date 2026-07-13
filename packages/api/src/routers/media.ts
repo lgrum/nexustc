@@ -16,6 +16,7 @@ import {
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import {
+  COMIC_MEDIA_MAX_ITEMS,
   COMIC_UPLOAD_BATCH_SIZE,
   COMIC_UPLOAD_MAX_BYTES,
   MEDIA_IMAGE_MIME_TYPES,
@@ -193,18 +194,29 @@ export default {
         })
       )
       .handler(async ({ context: { db, session }, errors, input }) => {
-        const uploadSession = await db.query.comicUploadSession.findFirst({
-          columns: { comicId: true, id: true },
-          where: and(
-            eq(comicUploadSession.id, input.sessionId),
-            eq(comicUploadSession.userId, session.user.id),
-            gt(comicUploadSession.expiresAt, new Date()),
-            isNull(comicUploadSession.finalizedAt)
-          ),
-        });
+        const [uploadSession] = await db
+          .update(comicUploadSession)
+          .set({
+            issuedObjectCount: sql`${comicUploadSession.issuedObjectCount} + ${input.objects.length}`,
+          })
+          .where(
+            and(
+              eq(comicUploadSession.id, input.sessionId),
+              eq(comicUploadSession.userId, session.user.id),
+              gt(comicUploadSession.expiresAt, new Date()),
+              isNull(comicUploadSession.finalizedAt),
+              sql`${comicUploadSession.issuedObjectCount} <= ${COMIC_MEDIA_MAX_ITEMS - input.objects.length}`
+            )
+          )
+          .returning({
+            comicId: comicUploadSession.comicId,
+            id: comicUploadSession.id,
+          });
 
         if (!uploadSession) {
-          throw errors.BAD_REQUEST({ message: "Comic upload session expired" });
+          throw errors.BAD_REQUEST({
+            message: "Comic upload session expired or full",
+          });
         }
 
         const prefix = getComicUploadPrefix(
@@ -221,6 +233,7 @@ export default {
                 Bucket: env.R2_ASSETS_BUCKET_NAME,
                 ContentLength: contentLength,
                 ContentType: "image/webp",
+                IfNoneMatch: "*",
                 Key: objectKey,
               }),
               { expiresIn: 3600 }
