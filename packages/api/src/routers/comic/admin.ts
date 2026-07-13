@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, eq, lt } from "@repo/db";
-import { comicUploadSession, post } from "@repo/db/schema/app";
+import { and, eq, inArray, lt } from "@repo/db";
+import { comicUploadSession, media, post } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import z from "zod";
 
@@ -8,7 +8,9 @@ import type { Context } from "../../context";
 import { permissionProcedure } from "../../index";
 import {
   COMIC_UPLOAD_SESSION_TTL_MS,
+  COMIC_UPLOAD_URL_TTL_SECONDS,
   deleteComicUploadObjects,
+  getUnreferencedComicUploadKeys,
   listComicUploadObjects,
 } from "../../utils/comic-upload";
 import {
@@ -28,23 +30,35 @@ const comicUploadSessionInputSchema = z.object({
 });
 
 async function cleanupExpiredComicUploads(db: Context["db"], userId: string) {
+  const cleanupBefore = new Date(
+    Date.now() - COMIC_UPLOAD_URL_TTL_SECONDS * 1000
+  );
   const expiredSessions = await db.query.comicUploadSession.findMany({
     limit: 5,
     where: and(
       eq(comicUploadSession.userId, userId),
-      lt(comicUploadSession.expiresAt, new Date())
+      lt(comicUploadSession.expiresAt, cleanupBefore)
     ),
   });
 
   for (const session of expiredSessions) {
     try {
-      if (!session.finalizedAt) {
-        const objectKeys = await listComicUploadObjects(
-          session.comicId,
-          session.id
-        );
-        await deleteComicUploadObjects(objectKeys);
-      }
+      const objectKeys = await listComicUploadObjects(
+        session.comicId,
+        session.id
+      );
+      const referencedMedia =
+        session.finalizedAt && objectKeys.length > 0
+          ? await db
+              .select({ objectKey: media.objectKey })
+              .from(media)
+              .where(inArray(media.objectKey, objectKeys))
+          : [];
+      const unusedKeys = getUnreferencedComicUploadKeys(
+        objectKeys,
+        referencedMedia.map((item) => item.objectKey)
+      );
+      await deleteComicUploadObjects(unusedKeys);
       await db
         .delete(comicUploadSession)
         .where(eq(comicUploadSession.id, session.id));

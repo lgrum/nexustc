@@ -20,6 +20,7 @@ import {
 } from "../services/notification";
 import {
   deleteComicUploadObjects,
+  getUnreferencedComicUploadKeys,
   listComicUploadObjects,
   ownsComicUploadKeys,
   validateComicUploadObjects,
@@ -119,14 +120,11 @@ async function resolveComicUploadSession(params: {
       throw new Error("Invalid comic upload object");
     }
 
-    const selectedKeys = new Set(objectKeys);
     const uploadedKeys = await listComicUploadObjects(
       uploadSession.comicId,
       uploadSession.id
     );
-    const unusedKeys = uploadedKeys.filter(
-      (objectKey) => !selectedKeys.has(objectKey)
-    );
+    const unusedKeys = getUnreferencedComicUploadKeys(uploadedKeys, objectKeys);
     await deleteComicUploadObjects(unusedKeys);
   } catch {
     throw params.errors.BAD_REQUEST({ message: "Invalid comic page upload" });

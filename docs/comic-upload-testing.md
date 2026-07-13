@@ -70,6 +70,6 @@ Repeat the 10-page test while using browser network controls to:
 
 Only failed pages should remain pending. A finalization retry must reuse uploaded object keys, return the same comic ID after a lost success response, and never change page order.
 
-Unfinished sessions expire after 24 hours. Starting a later upload opportunistically removes expired sessions and their R2 objects; finalized sessions only lose their temporary session row.
+Unfinished sessions expire after 24 hours. Starting a later upload opportunistically removes expired sessions after their final signed URL expires; finalized sessions keep persisted pages and remove unreferenced R2 objects.
 
 Refreshing the browser during an unfinished upload is intentionally not recoverable in Phase 1.

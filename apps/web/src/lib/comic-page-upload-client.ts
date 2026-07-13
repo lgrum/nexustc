@@ -9,6 +9,7 @@ export function isRecoverableComicUploadSessionError(error: unknown) {
   const message = getClientErrorMessage(error);
   return (
     message === "Invalid comic upload session" ||
+    message === "Comic upload session already finalized" ||
     message.startsWith("Comic upload session expired")
   );
 }

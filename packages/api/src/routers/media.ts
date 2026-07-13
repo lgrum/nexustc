@@ -24,7 +24,10 @@ import {
 import z from "zod";
 
 import { permissionProcedure } from "../index";
-import { getComicUploadPrefix } from "../utils/comic-upload";
+import {
+  COMIC_UPLOAD_URL_TTL_SECONDS,
+  getComicUploadPrefix,
+} from "../utils/comic-upload";
 import { optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
 
@@ -236,7 +239,7 @@ export default {
                 IfNoneMatch: "*",
                 Key: objectKey,
               }),
-              { expiresIn: 3600 }
+              { expiresIn: COMIC_UPLOAD_URL_TTL_SECONDS }
             );
 
             return { objectKey, presignedUrl };

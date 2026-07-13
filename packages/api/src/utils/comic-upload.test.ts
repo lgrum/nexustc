@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getComicUploadPrefix,
+  getUnreferencedComicUploadKeys,
   isValidComicUploadObject,
   isWebpHeader,
   ownsComicUploadKeys,
@@ -24,6 +25,15 @@ describe("comic upload validation", () => {
         `${getComicUploadPrefix("comic-1", "session-2")}page-2.webp`,
       ])
     ).toBe(false);
+  });
+
+  it("keeps persisted pages while selecting upload-session orphans", () => {
+    expect(
+      getUnreferencedComicUploadKeys(
+        ["page-1.webp", "unused.webp", "page-2.webp"],
+        ["page-1.webp", "page-2.webp"]
+      )
+    ).toEqual(["unused.webp"]);
   });
 
   it("requires a non-empty WebP within the size limit", () => {

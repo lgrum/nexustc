@@ -13,6 +13,7 @@ import {
 import { getS3Client } from "./s3";
 
 export const COMIC_UPLOAD_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+export const COMIC_UPLOAD_URL_TTL_SECONDS = 60 * 60;
 const WEBP_HEADER_END_BYTE = 15;
 
 export type ComicUploadObjectMetadata = {
@@ -31,6 +32,16 @@ export function ownsComicUploadKeys(
 ) {
   const prefix = getComicUploadPrefix(comicId, sessionId);
   return objectKeys.every((objectKey) => objectKey.startsWith(prefix));
+}
+
+export function getUnreferencedComicUploadKeys(
+  uploadedObjectKeys: string[],
+  referencedObjectKeys: string[]
+) {
+  const referencedKeys = new Set(referencedObjectKeys);
+  return uploadedObjectKeys.filter(
+    (objectKey) => !referencedKeys.has(objectKey)
+  );
 }
 
 export function isValidComicUploadObject(object: ComicUploadObjectMetadata) {
