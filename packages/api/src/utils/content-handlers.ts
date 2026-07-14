@@ -17,6 +17,7 @@ import type { Context } from "../context";
 import {
   createOrCollapseContentUpdateNotification,
   deriveContentUpdateEvent,
+  hasVersionChanged,
 } from "../services/notification";
 import {
   deleteComicUploadObjects,
@@ -25,6 +26,11 @@ import {
   ownsComicUploadKeys,
   validateComicUploadObjects,
 } from "./comic-upload";
+import {
+  resolvePublishReleasedAt,
+  resolveReleasedAt,
+  resolveVersionUpdatedAt,
+} from "./content-timestamps";
 import type {
   ContentCreateInput,
   ContentEditInput,
@@ -45,7 +51,6 @@ type HandlerParams<T> = {
 type MediaSyncDb = Pick<Context["db"], "delete" | "insert" | "select">;
 type OrderedMediaRecord = PersistedMediaRecord;
 type ContentType = ContentCreateInput["type"];
-type ContentUpdateCandidate = ReturnType<typeof deriveContentUpdateEvent>;
 type SlugCheckDb = Pick<Context["db"], "select">;
 
 type ComicInput = Extract<
@@ -131,42 +136,6 @@ async function resolveComicUploadSession(params: {
   }
 
   return uploadSession;
-}
-
-function resolveReleasedAt(params: {
-  contentUpdateCandidate: ContentUpdateCandidate;
-  documentStatus: ContentEditInput["documentStatus"];
-  existingReleasedAt: Date | null;
-  previousStatus: ContentEditInput["documentStatus"];
-  requestedReleasedAt?: Date | null;
-}) {
-  if (params.documentStatus !== "publish") {
-    return params.existingReleasedAt;
-  }
-
-  if (
-    params.previousStatus !== "publish" ||
-    params.contentUpdateCandidate?.updateType === "game_version"
-  ) {
-    return params.requestedReleasedAt ?? new Date();
-  }
-
-  if (params.requestedReleasedAt === null) {
-    return params.existingReleasedAt === null ? null : new Date();
-  }
-
-  return params.requestedReleasedAt ?? params.existingReleasedAt;
-}
-
-function resolvePublishReleasedAt(input: {
-  documentStatus: ContentCreateInput["documentStatus"];
-  requestedReleasedAt?: Date | null;
-}) {
-  if (input.documentStatus !== "publish") {
-    return null;
-  }
-
-  return input.requestedReleasedAt ?? new Date();
 }
 
 function shouldRecomputeEarlyAccessStart(input: {
@@ -444,10 +413,12 @@ export async function createContent({
     onComplete: async ({ orderedSelections, tx }) => {
       const orderedMedia = orderedSelections[0] ?? [];
       const coverMedia = orderedSelections[1]?.[0] ?? null;
+      const now = new Date();
 
       logger?.info(`Starting transaction for ${contentType} creation`);
       const releasedAt = resolvePublishReleasedAt({
         documentStatus: input.documentStatus,
+        now,
         requestedReleasedAt: input.releasedAt,
       });
       const earlyAccessFields = resolveEarlyAccessStorageFields({
@@ -707,12 +678,24 @@ export async function editContent({
           version: existingPost.version,
         },
       });
+      const versionChanged = hasVersionChanged(
+        existingPost.version,
+        input.version
+      );
       const releasedAt = resolveReleasedAt({
-        contentUpdateCandidate,
         documentStatus: input.documentStatus,
         existingReleasedAt: existingPost.releasedAt,
+        now,
         previousStatus: existingPost.status,
         requestedReleasedAt: input.releasedAt,
+      });
+      const updatedAt = resolveVersionUpdatedAt({
+        documentStatus: input.documentStatus,
+        existingReleasedAt: existingPost.releasedAt,
+        nextReleasedAt: releasedAt,
+        now,
+        previousStatus: existingPost.status,
+        versionChanged,
       });
       const earlyAccessFields = resolveEarlyAccessStorageFields({
         documentStatus: input.documentStatus,
@@ -767,6 +750,7 @@ export async function editContent({
           slug: slugFields.slug,
           status: input.documentStatus,
           title: input.title,
+          ...(updatedAt === undefined ? {} : { updatedAt }),
           version:
             input.type === "post" ? input.version : (input.version ?? ""),
         })

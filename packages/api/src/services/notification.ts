@@ -104,9 +104,18 @@ type ManualNewsDuplicateSignatureInput = {
   title: string;
 };
 
-function normalizeVersion(value: string | null | undefined): string | null {
+export function normalizeVersion(
+  value: string | null | undefined
+): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
+}
+
+export function hasVersionChanged(
+  previous: string | null | undefined,
+  next: string | null | undefined
+): boolean {
+  return normalizeVersion(previous) !== normalizeVersion(next);
 }
 
 function normalizeManualNewsDuplicateValue(

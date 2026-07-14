@@ -398,7 +398,10 @@ export const post = pgTable(
       .default(48),
     version: text("version"),
     views: integer("views").notNull().default(0),
-    ...timestamps,
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (table) => [
     index("post_cover_media_id_idx").on(table.coverMediaId),

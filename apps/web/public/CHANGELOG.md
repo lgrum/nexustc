@@ -2,6 +2,11 @@
 
 Todos los cambios notables serán documentados en este archivo.
 
+## [Unreleased]
+
+- `released_at` ahora representa exclusivamente la fecha efectiva de publicacion y es el criterio principal para ordenar juegos y comics.
+- `updated_at` ahora se registra solamente cuando cambia la version del contenido.
+
 ## [0.2.4] - 2026-05-06
 
 - Agregado nuevo campo `released_at` a posts, actualizado solo en primera publicación o en cambios de versión.

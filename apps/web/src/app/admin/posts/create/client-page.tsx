@@ -358,7 +358,7 @@ export function ClientPage({
                   .filter((term) => term !== undefined),
                 translatorId: null,
                 translator: null,
-                updatedAt: new Date(),
+                updatedAt: null,
                 views: 0,
               }}
             />

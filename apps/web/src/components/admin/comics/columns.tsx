@@ -73,10 +73,12 @@ export const columns: ColumnDef<Comic>[] = [
     header: "Vistas",
   },
   {
-    accessorKey: "createdAt",
+    accessorKey: "releasedAt",
     cell: (info) =>
-      new Date(info.row.original.createdAt).toLocaleDateString("es-ES"),
-    header: "Creado",
+      info.row.original.releasedAt
+        ? new Date(info.row.original.releasedAt).toLocaleDateString("es-ES")
+        : "-",
+    header: "Publicado",
   },
   {
     cell: function Cell(info) {
