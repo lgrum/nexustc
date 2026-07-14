@@ -29,7 +29,7 @@ explicitly waived deployed-environment inventory and disposable PostgreSQL
 migration verification. No database was contacted or modified.
 
 - The migration directory has not changed since the planned SHA. Commit
-  `057ad01` made LF the repository checkout baseline, revealing that the
+  `d7184df` made LF the repository checkout baseline, revealing that the
   originally documented hashes described CRLF working-tree bytes. The
   canonical LF hashes are:
   - `0014_outstanding_the_leader.sql` is
