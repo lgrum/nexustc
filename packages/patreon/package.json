@@ -9,11 +9,16 @@
       "default": "./src/*.ts"
     }
   },
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
   "dependencies": {
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@repo/config": "workspace:*"
+    "@repo/config": "workspace:*",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "typescript": "^5"

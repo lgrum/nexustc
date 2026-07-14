@@ -26,7 +26,7 @@ const { reconcilePatreonMemberships } =
 function createUpdateMock() {
   return {
     set: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue(),
+      where: vi.fn(() => Promise.resolve()),
     }),
   };
 }
