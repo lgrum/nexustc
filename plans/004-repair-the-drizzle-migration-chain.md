@@ -13,12 +13,48 @@
 
 ## Status
 
+- **State**: BLOCKED
 - **Priority**: P0
 - **Effort**: M
 - **Risk**: HIGH
 - **Depends on**: Plan 001
 - **Category**: database, reliability
 - **Planned at**: commit `5899131`, 2026-07-14
+
+### Blocked audit — 2026-07-14
+
+Execution stopped before any database connection or repository mutation:
+
+- The migration directory has not changed since the planned SHA. Commit
+  `057ad01` made LF the repository checkout baseline, revealing that the
+  originally documented hashes described CRLF working-tree bytes. The
+  canonical LF hashes are:
+  - `0014_outstanding_the_leader.sql` is
+    `9C3BC0E74D1FE1578B1CF9C803B9868F2B05101C5BD7DCD28705F643ABDE2921`.
+  - `0015_plain_darkstar.sql` is
+    `3BB0EABAFC952CBA10811BBD90030A2FE639BD96BA8DB4A5CA994CCDA8D3FCE9`.
+  Converting those same bytes to CRLF in memory reproduces the old documented
+  hashes exactly, so this is not migration-content drift.
+- The journal still has 51 entries, entry 15 still names
+  `0015_dazzling_wild_pack` at `1773087161486`, and the directory still has
+  51 SQL files with only `0015_plain_darkstar.sql` present.
+- No `DATABASE_URL` is present in the executor environment, and no tracked
+  environment or deployment configuration identifies production, staging,
+  preview, or long-lived developer databases. None of the mandatory read-only
+  ledger/schema queries were run because environment identity was unavailable.
+- Docker client 29.1.3 is installed, but `docker version` and `docker info`
+  both exit 1 because the Docker daemon pipe is unavailable.
+
+Resume only after all of these preconditions are met:
+
+1. Provide a named inventory and read-only connection for every production,
+   staging, preview, and long-lived developer database, including operations
+   confirmation for any intentionally `db:push`-managed environment.
+2. Run and record all three read-only queries for every identified environment
+   and satisfy the ledger, hash, and schema-object gates below.
+3. Make an isolated disposable PostgreSQL service available. For the documented
+   procedure, Docker must be running and local port 55432 plus the generated
+   container name must be unused.
 
 ## Why this matters
 
@@ -42,9 +78,15 @@ migration to be replayed.
   left the journal with the generated `dazzling` name.
 - Current SHA-256 values:
   - `0014_outstanding_the_leader.sql`:
-    `50D75D94BDD4C481127224F5D473582FA8082219CD6C8DA22327BA0F6AD2F1B2`
+    `9C3BC0E74D1FE1578B1CF9C803B9868F2B05101C5BD7DCD28705F643ABDE2921`
   - `0015_plain_darkstar.sql`:
-    `4225EF4CED1E9261915786062A44AE7A81BF39D513236B8BE47D86C7FE81BCD4`
+    `3BB0EABAFC952CBA10811BBD90030A2FE639BD96BA8DB4A5CA994CCDA8D3FCE9`
+- The former values
+  `50D75D94BDD4C481127224F5D473582FA8082219CD6C8DA22327BA0F6AD2F1B2`
+  and `4225EF4CED1E9261915786062A44AE7A81BF39D513236B8BE47D86C7FE81BCD4`
+  are the SHA-256 hashes of equivalent CRLF working-tree bytes before the LF
+  checkout baseline; they are retained only to reconcile historical deployment
+  records.
 - The intended profile DDL introduces `profile_settings` and
   `user.avatar_fallback_color`; engagement DDL introduces
   `engagement_question`.
@@ -123,8 +165,11 @@ Proceed only when each migration-managed environment has a latest ledger row
 at or newer than `1773087161486`, the expected objects exist, and relevant
 hashes agree with the canonical files after normalizing both hexadecimal
 strings to lowercase. (`Get-FileHash` prints uppercase while Drizzle stores
-lowercase.) Timestamp equality is safe only when entry 15's normalized hash is
-the canonical 0015 hash and all expected objects exist. An
+lowercase.) For historical ledger comparison only, either the canonical LF
+hash or the exact CRLF-equivalent hash documented above proves the same SQL
+content; any other hash is a STOP condition. Timestamp equality is safe only
+when entry 15's normalized hash is one of those two reconciled 0015 hashes and
+all expected objects exist. An
 older profile row timestamp can be historical evidence only when a later
 migration row proves that the database has already passed entry 15.
 
@@ -155,7 +200,7 @@ git mv packages/db/src/migrations/0015_plain_darkstar.sql packages/db/src/migrat
 ```
 
 Re-hash the destination and confirm it remains
-`4225EF4CED1E9261915786062A44AE7A81BF39D513236B8BE47D86C7FE81BCD4`.
+`3BB0EABAFC952CBA10811BBD90030A2FE639BD96BA8DB4A5CA994CCDA8D3FCE9`.
 `git diff --find-renames` must show a 100% rename with no content diff.
 
 Do not edit the journal to match `plain_darkstar`; the journal is the
@@ -325,6 +370,8 @@ and 51 SQL names, and the only historical SQL change is the 100% rename.
   ledger.
 - An environment has an unexplained mixture of `db:push` and migrations.
 - The source hashes or journal entry differ from this plan after drift check.
+- Production, staging, preview, or long-lived developer databases cannot all
+  be identified by environment name and inspected with read-only credentials.
 - A fresh disposable PostgreSQL database is unavailable.
 - Docker is unavailable, the fixed local port/container name is occupied, or
   an alternative disposable service has not been explicitly approved and
