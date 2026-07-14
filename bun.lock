@@ -173,6 +173,7 @@
         "@repo/env": "workspace:*",
         "@repo/shared": "workspace:*",
         "drizzle-kit": "^0.31.8",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "typescript": "^5",

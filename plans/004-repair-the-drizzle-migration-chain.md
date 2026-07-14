@@ -13,7 +13,7 @@
 
 ## Status
 
-- **State**: BLOCKED
+- **State**: DONE
 - **Priority**: P0
 - **Effort**: M
 - **Risk**: HIGH
@@ -21,9 +21,12 @@
 - **Category**: database, reliability
 - **Planned at**: commit `5899131`, 2026-07-14
 
-### Blocked audit — 2026-07-14
+### Repository-only completion — 2026-07-14
 
-Execution stopped before any database connection or repository mutation:
+The operator confirmed that no environment uses Drizzle migrations and that
+the only database is an unimportant local development instance. The operator
+explicitly waived deployed-environment inventory and disposable PostgreSQL
+migration verification. No database was contacted or modified.
 
 - The migration directory has not changed since the planned SHA. Commit
   `057ad01` made LF the repository checkout baseline, revealing that the
@@ -33,28 +36,13 @@ Execution stopped before any database connection or repository mutation:
     `9C3BC0E74D1FE1578B1CF9C803B9868F2B05101C5BD7DCD28705F643ABDE2921`.
   - `0015_plain_darkstar.sql` is
     `3BB0EABAFC952CBA10811BBD90030A2FE639BD96BA8DB4A5CA994CCDA8D3FCE9`.
-  Converting those same bytes to CRLF in memory reproduces the old documented
-  hashes exactly, so this is not migration-content drift.
-- The journal still has 51 entries, entry 15 still names
-  `0015_dazzling_wild_pack` at `1773087161486`, and the directory still has
-  51 SQL files with only `0015_plain_darkstar.sql` present.
-- No `DATABASE_URL` is present in the executor environment, and no tracked
-  environment or deployment configuration identifies production, staging,
-  preview, or long-lived developer databases. None of the mandatory read-only
-  ledger/schema queries were run because environment identity was unavailable.
-- Docker client 29.1.3 is installed, but `docker version` and `docker info`
-  both exit 1 because the Docker daemon pipe is unavailable.
-
-Resume only after all of these preconditions are met:
-
-1. Provide a named inventory and read-only connection for every production,
-   staging, preview, and long-lived developer database, including operations
-   confirmation for any intentionally `db:push`-managed environment.
-2. Run and record all three read-only queries for every identified environment
-   and satisfy the ledger, hash, and schema-object gates below.
-3. Make an isolated disposable PostgreSQL service available. For the documented
-   procedure, Docker must be running and local port 55432 plus the generated
-   container name must be unused.
+    Converting those same bytes to CRLF in memory reproduces the old documented
+    hashes exactly, so this is not migration-content drift.
+- The 0015 file was renamed to the journal tag with identical LF bytes and hash.
+- The repository mapping test observes exact equality between all 51 journal
+  tags and all 51 top-level SQL basenames.
+- Focused and root tests, root type checks, repository check, and diff checks
+  pass. Repository verification did not connect to a database.
 
 ## Why this matters
 
@@ -350,15 +338,15 @@ and 51 SQL names, and the only historical SQL change is the 100% rename.
 
 ## Done criteria
 
-- [ ] Every deployed environment has a recorded read-only ledger/schema
-      classification and passes the applicable gate.
-- [ ] The 0015 change is a 100% rename and its hash is unchanged.
-- [ ] The new test proves journal tag names and SQL basenames are exactly equal.
-- [ ] A unique disposable PostgreSQL instance migrates to 51 ledger rows; the
-      second migrate remains at 51 and all expected objects exist.
-- [ ] Focused/root tests, type-check, check, and `git diff --check` exit 0.
-- [ ] Only the four in-scope paths plus `plans/README.md` changed.
-- [ ] The Plan 004 index row is updated.
+- [x] Deployed-environment inventory was explicitly waived by the operator
+      because no environment uses Drizzle migrations.
+- [x] The 0015 change is a 100% rename and its hash is unchanged.
+- [x] The new test proves journal tag names and SQL basenames are exactly equal.
+- [x] Disposable PostgreSQL verification was explicitly waived by the operator;
+      no database was contacted.
+- [x] Focused/root tests, type-check, check, and `git diff --check` exit 0.
+- [x] Only the four in-scope paths plus `plans/README.md` changed.
+- [x] The Plan 004 index row is updated.
 
 ## STOP conditions
 

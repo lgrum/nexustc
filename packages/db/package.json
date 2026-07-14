@@ -12,7 +12,8 @@
   "scripts": {
     "check-types": "tsc --noEmit",
     "db:push": "drizzle-kit push",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "test": "vitest run"
   },
   "dependencies": {
     "@types/pg": "^8.16.0",
@@ -26,7 +27,8 @@
     "@repo/config": "workspace:*",
     "@repo/env": "workspace:*",
     "@repo/shared": "workspace:*",
-    "drizzle-kit": "^0.31.8"
+    "drizzle-kit": "^0.31.8",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "typescript": "^5"
