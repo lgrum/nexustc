@@ -29,6 +29,7 @@ import {
 import {
   resolvePublishReleasedAt,
   resolveReleasedAt,
+  resolveVersionUpdatedAt,
 } from "./content-timestamps";
 import type {
   ContentCreateInput,
@@ -688,6 +689,14 @@ export async function editContent({
         previousStatus: existingPost.status,
         requestedReleasedAt: input.releasedAt,
       });
+      const updatedAt = resolveVersionUpdatedAt({
+        documentStatus: input.documentStatus,
+        existingReleasedAt: existingPost.releasedAt,
+        nextReleasedAt: releasedAt,
+        now,
+        previousStatus: existingPost.status,
+        versionChanged,
+      });
       const earlyAccessFields = resolveEarlyAccessStorageFields({
         documentStatus: input.documentStatus,
         enabled: input.earlyAccessEnabled,
@@ -741,7 +750,7 @@ export async function editContent({
           slug: slugFields.slug,
           status: input.documentStatus,
           title: input.title,
-          ...(versionChanged ? { updatedAt: now } : {}),
+          ...(updatedAt === undefined ? {} : { updatedAt }),
           version:
             input.type === "post" ? input.version : (input.version ?? ""),
         })

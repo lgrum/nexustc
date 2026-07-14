@@ -581,20 +581,27 @@ function getFilteredAndSortedData<TData extends AdminContent>(
   const directionMultiplier = sortDirection === "asc" ? 1 : -1;
 
   return filtered.toSorted((left, right) => {
+    const primaryResult =
+      sortKey === "releasedAt"
+        ? comparePublicationTime(
+            left.releasedAt,
+            right.releasedAt,
+            directionMultiplier
+          )
+        : compareSortValue(left, right, sortKey) * directionMultiplier;
+
+    if (primaryResult !== 0) {
+      return primaryResult;
+    }
+
     const publicationResult = comparePublicationTime(
       left.releasedAt,
       right.releasedAt,
-      sortKey === "releasedAt" ? directionMultiplier : -1
+      -1
     );
 
     if (publicationResult !== 0) {
       return publicationResult;
-    }
-
-    const result = compareSortValue(left, right, sortKey);
-
-    if (result !== 0) {
-      return result * directionMultiplier;
     }
 
     return TEXT_COLLATOR.compare(left.id, right.id);

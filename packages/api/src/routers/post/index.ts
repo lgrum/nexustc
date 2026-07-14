@@ -328,9 +328,9 @@ export default {
           )
         )
         .orderBy(
-          releasedAtDescending,
           sql`CASE WHEN ${post.isWeekly} THEN 0 ELSE 1 END`,
           sql`${trendingScore} DESC`,
+          releasedAtDescending,
           desc(post.id)
         )
         .limit(WEEKLY_POST_LIMIT);
@@ -454,9 +454,9 @@ export default {
           and(eq(post.status, "publish"), publicCatalogVisibilityCondition())
         )
         .orderBy(
-          releasedAtDescending,
           sql`CASE WHEN ${featuredPost.position} = 'main' THEN 0 ELSE 1 END`,
           featuredPost.order,
+          releasedAtDescending,
           desc(post.id)
         );
 
@@ -660,35 +660,35 @@ export default {
 
       const getOrderClause = () => {
         const hasQuery = input.query && input.query.trim() !== "";
-        const similaritySuffix = hasQuery ? sql`, similarity DESC` : sql``;
+        const similarityPrefix = hasQuery ? sql`similarity DESC, ` : sql``;
 
         switch (input.orderBy) {
           case "newest": {
-            return sql`${releasedAtDescending}${similaritySuffix}, ${post.id} DESC`;
+            return sql`${similarityPrefix}${releasedAtDescending}, ${post.id} DESC`;
           }
           case "oldest": {
-            return sql`${releasedAtAscending}${similaritySuffix}, ${post.id} ASC`;
+            return sql`${similarityPrefix}${releasedAtAscending}, ${post.id} ASC`;
           }
           case "title_asc": {
-            return sql`${releasedAtDescending}${similaritySuffix}, ${post.title} ASC, ${post.id} DESC`;
+            return sql`${similarityPrefix}${post.title} ASC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "title_desc": {
-            return sql`${releasedAtDescending}${similaritySuffix}, ${post.title} DESC, ${post.id} DESC`;
+            return sql`${similarityPrefix}${post.title} DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "views": {
-            return sql`${releasedAtDescending}${similaritySuffix}, ${post.views} DESC, ${post.id} DESC`;
+            return sql`${similarityPrefix}${post.views} DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "rating_avg": {
-            return sql`${releasedAtDescending}${similaritySuffix}, COALESCE(${ratingsAgg.averageRating}, 0) DESC, ${post.id} DESC`;
+            return sql`${similarityPrefix}COALESCE(${ratingsAgg.averageRating}, 0) DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "rating_count": {
-            return sql`${releasedAtDescending}${similaritySuffix}, COALESCE(${ratingsAgg.ratingCount}, 0) DESC, ${post.id} DESC`;
+            return sql`${similarityPrefix}COALESCE(${ratingsAgg.ratingCount}, 0) DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "likes": {
-            return sql`${releasedAtDescending}${similaritySuffix}, COALESCE(${likesAgg.count}, 0) DESC, ${post.id} DESC`;
+            return sql`${similarityPrefix}COALESCE(${likesAgg.count}, 0) DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           default: {
-            return sql`${releasedAtDescending}${similaritySuffix}, ${post.id} DESC`;
+            return sql`${similarityPrefix}${releasedAtDescending}, ${post.id} DESC`;
           }
         }
       };
@@ -799,8 +799,8 @@ export default {
         .from(post)
         .where(where)
         .orderBy(
-          releasedAtDescending,
           desc(post.earlyAccessStartedAt),
+          releasedAtDescending,
           desc(post.id)
         )
         .limit(VIP_FEED_PAGE_SIZE)
@@ -1125,11 +1125,7 @@ export default {
                   publicCatalogVisibilityCondition()
                 )
               )
-              .orderBy(
-                releasedAtDescending,
-                asc(post.seriesOrder),
-                asc(post.id)
-              )
+              .orderBy(asc(post.seriesOrder), releasedAtAscending, asc(post.id))
           : [];
 
       return {
@@ -2111,7 +2107,7 @@ export default {
             publicCatalogVisibilityCondition()
           )
         )
-        .orderBy(releasedAtDescending, sql`score DESC`, desc(post.id))
+        .orderBy(sql`score DESC`, releasedAtDescending, desc(post.id))
         .limit(RECOMMENDATION_LIMIT);
 
       const data = results

@@ -43,3 +43,29 @@ export function resolvePublishReleasedAt(input: {
     ? input.requestedReleasedAt
     : input.now;
 }
+
+export function resolveVersionUpdatedAt(params: {
+  documentStatus: DocumentStatus;
+  existingReleasedAt: Date | null;
+  nextReleasedAt: Date | null;
+  now: Date;
+  previousStatus: DocumentStatus;
+  versionChanged: boolean;
+}): Date | null | undefined {
+  const wasPublished =
+    params.previousStatus === "publish" &&
+    params.existingReleasedAt !== null &&
+    params.existingReleasedAt <= params.now;
+  const isPublished =
+    params.documentStatus === "publish" &&
+    params.nextReleasedAt !== null &&
+    params.nextReleasedAt <= params.now;
+
+  if (!wasPublished && params.documentStatus === "publish") {
+    return null;
+  }
+
+  return params.versionChanged && wasPublished && isPublished
+    ? params.now
+    : undefined;
+}

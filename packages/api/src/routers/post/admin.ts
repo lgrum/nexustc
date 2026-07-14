@@ -177,9 +177,9 @@ export default {
       .from(featuredPost)
       .innerJoin(post, eq(post.id, featuredPost.postId))
       .orderBy(
-        sql`${post.releasedAt} DESC NULLS LAST`,
         sql`CASE WHEN ${featuredPost.position} = 'main' THEN 0 ELSE 1 END`,
         featuredPost.order,
+        sql`${post.releasedAt} DESC NULLS LAST`,
         sql`${post.id} DESC`
       );
   }),
@@ -214,7 +214,7 @@ export default {
         .where(and(...conditions))
         .orderBy(
           input.search && input.search.trim() !== ""
-            ? sql`${post.releasedAt} DESC NULLS LAST, similarity(${post.title}, ${input.search.trim()}) DESC, ${post.id} DESC`
+            ? sql`similarity(${post.title}, ${input.search.trim()}) DESC, ${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
             : sql`${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
         )
         .limit(50);
@@ -276,7 +276,7 @@ export default {
         .where(and(...conditions))
         .orderBy(
           input.search && input.search.trim() !== ""
-            ? sql`${post.releasedAt} DESC NULLS LAST, similarity DESC, ${post.id} DESC`
+            ? sql`similarity DESC, ${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
             : sql`${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
         );
 

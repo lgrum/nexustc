@@ -1,6 +1,7 @@
 import {
   resolvePublishReleasedAt,
   resolveReleasedAt,
+  resolveVersionUpdatedAt,
 } from "./content-timestamps";
 
 const NOW = new Date("2026-07-14T12:00:00.000Z");
@@ -94,5 +95,50 @@ describe(resolveReleasedAt, () => {
         previousStatus: "publish",
       })
     ).toBe(PAST);
+  });
+});
+
+describe(resolveVersionUpdatedAt, () => {
+  it("tracks version changes only after effective publication", () => {
+    expect(
+      resolveVersionUpdatedAt({
+        documentStatus: "draft",
+        existingReleasedAt: null,
+        nextReleasedAt: null,
+        now: NOW,
+        previousStatus: "draft",
+        versionChanged: true,
+      })
+    ).toBeUndefined();
+    expect(
+      resolveVersionUpdatedAt({
+        documentStatus: "publish",
+        existingReleasedAt: null,
+        nextReleasedAt: NOW,
+        now: NOW,
+        previousStatus: "draft",
+        versionChanged: true,
+      })
+    ).toBeNull();
+    expect(
+      resolveVersionUpdatedAt({
+        documentStatus: "publish",
+        existingReleasedAt: PAST,
+        nextReleasedAt: PAST,
+        now: NOW,
+        previousStatus: "publish",
+        versionChanged: true,
+      })
+    ).toBe(NOW);
+    expect(
+      resolveVersionUpdatedAt({
+        documentStatus: "publish",
+        existingReleasedAt: FUTURE,
+        nextReleasedAt: FUTURE,
+        now: NOW,
+        previousStatus: "publish",
+        versionChanged: true,
+      })
+    ).toBeNull();
   });
 });
