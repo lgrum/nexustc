@@ -1,12 +1,17 @@
 "use client";
 
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import { CheckCircle2Icon, CopyIcon, ShieldCheckIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  CopyIcon,
+  ShieldCheckIcon,
+  SmartphoneIcon,
+} from "lucide-react";
 import { useState } from "react";
-import QRCode from "react-qr-code";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { QRCode } from "@/components/qr-code";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -25,6 +30,7 @@ import {
 } from "@/components/ui/input-otp";
 import { Label } from "@/components/ui/label";
 import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
+import { getTotpSecret } from "@/lib/two-factor";
 
 type Flow = "backup" | "disable" | "enable";
 type Step = "codes" | "password" | "scan";
@@ -50,6 +56,7 @@ export function TwoFactorSettings({
   const passwordFormId = `two-factor-${flow}-password-form`;
   const passwordInputId = `password-input-${flow}`;
   const emailInputId = `two-factor-${flow}-email`;
+  const totpSecret = getTotpSecret(totpUri);
 
   const open = (nextFlow: Flow) => {
     setBackupCodes([]);
@@ -176,6 +183,20 @@ export function TwoFactorSettings({
     }
   };
 
+  const copyTotpSecret = async () => {
+    if (!totpSecret) {
+      toast.error("No se pudo obtener la clave de configuración");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(totpSecret);
+      toast.success("Clave de configuración copiada");
+    } catch {
+      toast.error("No se pudo copiar la clave de configuración");
+    }
+  };
+
   return (
     <div className="rounded-4xl border border-border bg-card p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -292,14 +313,34 @@ export function TwoFactorSettings({
               }}
             >
               <DialogHeader>
-                <DialogTitle>Escanea el código QR</DialogTitle>
+                <DialogTitle>Configura tu autenticador</DialogTitle>
                 <DialogDescription>
                   Usa Google Authenticator, Authy, 1Password u otra aplicación
                   compatible y confirma el código generado.
                 </DialogDescription>
               </DialogHeader>
-              <div className="mx-auto rounded-2xl bg-white p-4">
-                <QRCode size={200} value={totpUri} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <a className={buttonVariants()} href={totpUri}>
+                  <SmartphoneIcon className="size-4" />
+                  Abrir en autenticador
+                </a>
+                <Button
+                  disabled={!totpSecret}
+                  onClick={copyTotpSecret}
+                  type="button"
+                  variant="outline"
+                >
+                  <CopyIcon className="size-4" />
+                  Copiar clave manual
+                </Button>
+              </div>
+              <div className="flex items-center gap-3 text-muted-foreground text-xs">
+                <span className="h-px flex-1 bg-border" />
+                <span>o escanea el código desde otro dispositivo</span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              <div className="mx-auto rounded-2xl p-4">
+                <QRCode size={200} value={totpUri} errorCorrectionLevel="L" />
               </div>
               <div className="flex flex-col items-center gap-2">
                 <Label className="sr-only" htmlFor="totp-code">

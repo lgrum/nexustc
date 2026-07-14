@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canUseBackupCode,
   getInitialTwoFactorMethod,
+  getTotpSecret,
   getTwoFactorMethods,
 } from "./two-factor";
 import {
@@ -33,6 +34,13 @@ describe("getInitialTwoFactorMethod", () => {
     expect(canUseBackupCode(["otp"])).toBe(false);
     expect(canUseBackupCode(["totp", "otp"])).toBe(true);
     expect(canUseBackupCode(["backup"])).toBe(true);
+  });
+
+  it("extracts a manual setup key only from an otpauth URI", () => {
+    expect(
+      getTotpSecret("otpauth://totp/NeXusTC:user?secret=ABC123&issuer=NeXusTC")
+    ).toBe("ABC123");
+    expect(getTotpSecret("https://example.com/?secret=ABC123")).toBeUndefined();
   });
 
   it("keeps concurrent pending challenges isolated by scope", () => {

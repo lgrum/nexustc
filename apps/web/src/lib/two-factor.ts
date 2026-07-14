@@ -6,6 +6,17 @@ export const getInitialTwoFactorMethod = (methods: string[]): TwoFactorMethod =>
 export const canUseBackupCode = (methods: string[]) =>
   methods.includes("backup") || methods.includes("totp");
 
+export const getTotpSecret = (uri: string): string | undefined => {
+  try {
+    const parsedUri = new URL(uri);
+    return parsedUri.protocol === "otpauth:"
+      ? (parsedUri.searchParams.get("secret") ?? undefined)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 export const getTwoFactorMethods = (data: unknown): string[] | undefined => {
   if (
     !data ||

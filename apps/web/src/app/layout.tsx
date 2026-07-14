@@ -43,6 +43,14 @@ export default function RootLayout({
       lang="es"
       suppressHydrationWarning
     >
+      <head>
+        <Script
+          src="//unpkg.com/react-scan/dist/auto.global.js"
+          crossOrigin="anonymous"
+          strategy="beforeInteractive"
+        />
+      </head>
+
       <body className="min-h-full bg-background text-foreground antialiased">
         <Suspense fallback={null}>
           <Providers>{children}</Providers>
