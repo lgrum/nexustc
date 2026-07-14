@@ -185,7 +185,8 @@ export default {
             eq(post.status, "publish"),
             eq(postBookmark.userId, session.user.id)
           )
-        );
+        )
+        .orderBy(sql`${post.releasedAt} DESC NULLS LAST`, sql`${post.id} DESC`);
 
       logger?.debug(
         `Fetched ${result.length} posts for user ${session.user.id} bookmarks`
@@ -621,6 +622,7 @@ export default {
           thumbnailImageCount: post.thumbnailImageCount,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           ratingCount: sql<number>`COALESCE(${ratingsAgg.ratingCount}, 0)`,
+          releasedAt: post.releasedAt,
 
           terms: sql<
             {
@@ -652,6 +654,7 @@ export default {
             sql`${user.banned} IS DISTINCT FROM true`
           )
         )
+        .orderBy(sql`${post.releasedAt} DESC NULLS LAST`, sql`${post.id} DESC`)
         .limit(input.limit)
         .offset(input.offset);
 

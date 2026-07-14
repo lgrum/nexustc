@@ -248,7 +248,9 @@ export function PostHero() {
             )}
             <Badge className="gap-1.5" variant="secondary">
               <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
-              {format(post.createdAt, "d 'de' MMMM, yyyy", { locale: es })}
+              {post.releasedAt
+                ? format(post.releasedAt, "d 'de' MMMM, yyyy", { locale: es })
+                : "Sin fecha de publicacion"}
             </Badge>
           </div>
         </div>
@@ -289,8 +291,12 @@ export function PostStatsBar() {
     router.push(`/post/${result.slug}`);
   };
 
-  const createdAt = format(post.createdAt, "PP", { locale: es });
-  const updatedAt = format(post.updatedAt, "PP", { locale: es });
+  const publishedAt = post.releasedAt
+    ? format(post.releasedAt, "PP", { locale: es })
+    : "Sin fecha";
+  const updatedAt = post.updatedAt
+    ? format(post.updatedAt, "PP", { locale: es })
+    : null;
   const showRating =
     !post.earlyAccess.isActive &&
     post.ratingCount !== undefined &&
@@ -329,8 +335,8 @@ export function PostStatsBar() {
             <StatDivider />
             <StatCell
               icon={Clock01Icon}
-              label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
-              value={updatedAt}
+              label={updatedAt ? "Actualizado" : "Publicado"}
+              value={updatedAt ?? publishedAt}
             />
           </div>
 

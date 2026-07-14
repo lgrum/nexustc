@@ -396,7 +396,11 @@ function ComicHero({
             )}
             <HeroStat
               icon={Calendar03Icon}
-              value={format(comic.createdAt, "d MMM yyyy", { locale: es })}
+              value={
+                comic.releasedAt
+                  ? format(comic.releasedAt, "d MMM yyyy", { locale: es })
+                  : "Sin fecha"
+              }
             />
           </div>
 

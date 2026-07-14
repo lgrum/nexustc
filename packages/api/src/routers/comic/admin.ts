@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, eq, inArray, lt } from "@repo/db";
+import { and, eq, inArray, lt, sql } from "@repo/db";
 import { comicUploadSession, media, post } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import z from "zod";
@@ -215,6 +215,7 @@ export default {
         createdAt: true,
         creatorName: true,
         id: true,
+        releasedAt: true,
         slug: true,
         status: true,
         title: true,
@@ -222,7 +223,10 @@ export default {
         version: true,
         views: true,
       },
-      orderBy: (p, { desc }) => [desc(p.createdAt)],
+      orderBy: (p, { desc }) => [
+        sql`${p.releasedAt} DESC NULLS LAST`,
+        desc(p.id),
+      ],
       where: (p, { eq: equals }) => equals(p.type, "comic"),
       with: {
         terms: {

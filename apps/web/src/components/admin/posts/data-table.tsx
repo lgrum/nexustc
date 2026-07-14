@@ -34,9 +34,9 @@ type SearchField = "creatorName" | "id" | "terms" | "title" | "version";
 type SortKey =
   | "comicLastUpdateAt"
   | "comicPageCount"
-  | "createdAt"
   | "creatorName"
   | "isWeekly"
+  | "releasedAt"
   | "status"
   | "title"
   | "updatedAt"
@@ -62,11 +62,12 @@ export type AdminContent = {
   creatorName: string;
   id: string;
   isWeekly?: boolean;
+  releasedAt: Date | string | null;
   slug: string;
   status: string;
   terms: ContentTerm[];
   title: string;
-  updatedAt: Date | string;
+  updatedAt: Date | string | null;
   version: string | null;
   views: number;
 };
@@ -91,8 +92,8 @@ const searchFieldOptions: { label: string; value: SearchField }[] = [
 ];
 
 const commonSortOptions: { label: string; value: SortOption }[] = [
-  { label: "Mas recientes", value: "createdAt:desc" },
-  { label: "Mas antiguos", value: "createdAt:asc" },
+  { label: "Publicados recientemente", value: "releasedAt:desc" },
+  { label: "Publicados primero", value: "releasedAt:asc" },
   { label: "Actualizados recientemente", value: "updatedAt:desc" },
   { label: "Titulo A-Z", value: "title:asc" },
   { label: "Titulo Z-A", value: "title:desc" },
@@ -140,7 +141,7 @@ export function DataTable<TData extends AdminContent, TValue>({
   const [searchInput, setSearchInput] = useState("");
   const [searchField, setSearchField] = useState<SearchField>("title");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [sortOption, setSortOption] = useState<SortOption>("createdAt:desc");
+  const [sortOption, setSortOption] = useState<SortOption>("releasedAt:desc");
   const [termFilters, setTermFilters] = useState<
     Partial<Record<Taxonomy, string>>
   >({});
@@ -580,14 +581,42 @@ function getFilteredAndSortedData<TData extends AdminContent>(
   const directionMultiplier = sortDirection === "asc" ? 1 : -1;
 
   return filtered.toSorted((left, right) => {
+    const publicationResult = comparePublicationTime(
+      left.releasedAt,
+      right.releasedAt,
+      sortKey === "releasedAt" ? directionMultiplier : -1
+    );
+
+    if (publicationResult !== 0) {
+      return publicationResult;
+    }
+
     const result = compareSortValue(left, right, sortKey);
 
     if (result !== 0) {
       return result * directionMultiplier;
     }
 
-    return TEXT_COLLATOR.compare(left.title, right.title);
+    return TEXT_COLLATOR.compare(left.id, right.id);
   });
+}
+
+function comparePublicationTime(
+  left: Date | string | null,
+  right: Date | string | null,
+  directionMultiplier: number
+) {
+  if (left === null) {
+    return right === null ? 0 : 1;
+  }
+
+  if (right === null) {
+    return -1;
+  }
+
+  return (
+    (new Date(left).getTime() - new Date(right).getTime()) * directionMultiplier
+  );
 }
 
 function matchesSearchField(
@@ -646,14 +675,14 @@ function getSortValue(row: AdminContent, sortKey: SortKey) {
     case "comicPageCount": {
       return row.comicPageCount ?? 0;
     }
-    case "createdAt": {
-      return getDateTime(row.createdAt);
-    }
     case "creatorName": {
       return row.creatorName;
     }
     case "isWeekly": {
       return row.isWeekly ? 1 : 0;
+    }
+    case "releasedAt": {
+      return getDateTime(row.releasedAt);
     }
     case "status": {
       return (

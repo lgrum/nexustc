@@ -1,7 +1,17 @@
 import {
   buildManualNewsDuplicateSignature,
   deriveContentUpdateEvent,
+  hasVersionChanged,
 } from "./notification";
+
+describe(hasVersionChanged, () => {
+  it("only treats normalized version changes as updates", () => {
+    expect(hasVersionChanged(null, "")).toBe(false);
+    expect(hasVersionChanged(" 1.0 ", "1.0")).toBe(false);
+    expect(hasVersionChanged("1.0", "1.1")).toBe(true);
+    expect(hasVersionChanged("1.0", null)).toBe(true);
+  });
+});
 
 describe(deriveContentUpdateEvent, () => {
   it("creates a game update event only when the version changes on a published post", () => {
