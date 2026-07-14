@@ -19,7 +19,7 @@
 - **Category**: tests, dx
 - **Planned at**: commit `5899131`, 2026-07-14
 - **Result**: DONE on `codex/plan-001-verification-baseline`
-- **Commits**: `057ad01` (LF baseline), `10020f9` (Plan 001)
+- **Commits**: `d7184df` (LF baseline), `0bd9bb6` (Plan 001)
 
 ## Why this matters
 
@@ -50,7 +50,7 @@ compiler policy.
   `mockResolvedValue()` fails TypeScript 5.9 while an explicit `undefined`
   violates Oxlint.
 - Execution on 2026-07-14 traced the apparent 541-file formatting failure to
-  Windows `core.autocrlf=true` in new worktrees. Commit `057ad01` adds
+  Windows `core.autocrlf=true` in new worktrees. Commit `d7184df` adds
   `* text=auto eol=lf` to `.gitattributes`; no mass content rewrite was needed.
 - Manifest convention: scripts use direct tool commands (`vitest run`,
   `tsc --noEmit`) and shared versions use the Bun workspace catalog.

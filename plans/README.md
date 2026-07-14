@@ -11,7 +11,7 @@ live branch. A plan remains **TODO** until an executor starts it; it reaches
 
 | Order | Plan                                                                                                                 | Priority | Effort |  Risk   | Depends on | Status                      |
 | ----: | -------------------------------------------------------------------------------------------------------------------- | :------: | :----: | :-----: | ---------- | --------------------------- |
-|     1 | [001 - Make root verification cover every TypeScript workspace](001-make-root-verification-cover-every-workspace.md) |    P1    |   M    |   LOW   | -          | DONE - `057ad01`, `10020f9` |
+|     1 | [001 - Make root verification cover every TypeScript workspace](001-make-root-verification-cover-every-workspace.md) |    P1    |   M    |   LOW   | -          | DONE - `d7184df`, `0bd9bb6` |
 |     2 | [004 - Repair the Drizzle migration chain safely](004-repair-the-drizzle-migration-chain.md)                         |    P0    |   M    |  HIGH   | 001        | TODO                        |
 |     3 | [002 - Harden the RPC HTTP boundary](002-harden-the-rpc-http-boundary.md)                                            |    P1    |   S    |   MED   | 001        | TODO                        |
 |     4 | [003 - Keep news hidden until linked content is public](003-enforce-public-visibility-on-news.md)                    |    P1    |  S-M   |   MED   | 001        | TODO                        |
