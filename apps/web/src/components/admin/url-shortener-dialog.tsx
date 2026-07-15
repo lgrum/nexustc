@@ -25,11 +25,9 @@ import { trackEvent } from "@/lib/analytics";
 import { orpc } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
 
-const SHORTENER_COUNT_OPTIONS = [1, 2, 3] as const;
+type ShortenerCount = 1 | 2 | 3;
 
-function getShortenerPipelineLabel(
-  shortenerCount: (typeof SHORTENER_COUNT_OPTIONS)[number]
-) {
+function getShortenerPipelineLabel(shortenerCount: ShortenerCount) {
   switch (shortenerCount) {
     case 1: {
       return "`exe.io`";
@@ -47,7 +45,7 @@ export function URLShortenerDialog({
   shortenerCount = 3,
   triggerClassName,
 }: {
-  shortenerCount?: (typeof SHORTENER_COUNT_OPTIONS)[number];
+  shortenerCount?: ShortenerCount;
   triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);

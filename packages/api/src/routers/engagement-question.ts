@@ -115,7 +115,6 @@ export default {
             isActive: input.isActive,
             isGlobal: input.isGlobal,
             locale: input.locale,
-            tagTermId: tagTermIds[0] ?? null,
             text: input.text,
           })
           .returning({ id: engagementQuestion.id });
@@ -180,7 +179,6 @@ export default {
             isActive: input.isActive,
             isGlobal: input.isGlobal,
             locale: input.locale,
-            tagTermId: tagTermIds[0] ?? null,
             text: input.text,
           })
           .where(eq(engagementQuestion.id, input.id))

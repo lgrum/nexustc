@@ -24,6 +24,7 @@ export type PatreonReconciliationReason =
   | "missing_linked_account"
   | "missing_access_token"
   | "missing_refresh_token"
+  | "refresh_required"
   | "invalid_access_token"
   | "invalid_refresh_token"
   | "patreon_api_error"
@@ -78,6 +79,10 @@ function isInvalidTokenError(error: unknown): boolean {
     message.includes("unauthorized") ||
     message.includes("401")
   );
+}
+
+function isInvalidRefreshTokenError(error: unknown): boolean {
+  return getErrorMessage(error).toLowerCase().includes("invalid_grant");
 }
 
 async function deactivatePatron({
@@ -184,22 +189,24 @@ async function getFreshAccessToken({
     return null;
   }
 
+  if (dryRun) {
+    throw new Error("PATREON_REFRESH_REQUIRED");
+  }
+
   const newTokens = await dependencies.refreshToken(
     patreonAccount.refreshToken
   );
 
-  if (!dryRun) {
-    await database
-      .update(account)
-      .set({
-        accessToken: newTokens.accessToken,
-        accessTokenExpiresAt: new Date(
-          now.getTime() + newTokens.expiresIn * 1000
-        ),
-        refreshToken: newTokens.refreshToken,
-      })
-      .where(eq(account.id, patreonAccount.id));
-  }
+  await database
+    .update(account)
+    .set({
+      accessToken: newTokens.accessToken,
+      accessTokenExpiresAt: new Date(
+        now.getTime() + newTokens.expiresIn * 1000
+      ),
+      refreshToken: newTokens.refreshToken,
+    })
+    .where(eq(account.id, patreonAccount.id));
 
   return newTokens.accessToken;
 }
@@ -313,6 +320,27 @@ export async function reconcilePatreonMemberships({
         patreonAccount,
       });
     } catch (error) {
+      if (dryRun && getErrorMessage(error) === "PATREON_REFRESH_REQUIRED") {
+        results.push({
+          ...baseResult,
+          action: "failed",
+          nextTier: patronRecord.tier,
+          reason: "refresh_required",
+        });
+        continue;
+      }
+
+      if (!isInvalidRefreshTokenError(error)) {
+        results.push({
+          ...baseResult,
+          action: "failed",
+          error: getErrorMessage(error),
+          nextTier: patronRecord.tier,
+          reason: "patreon_api_error",
+        });
+        continue;
+      }
+
       await deactivatePatron({
         database: db,
         dryRun,

@@ -79,6 +79,7 @@ export default {
         cursor: input.cursor,
         limit: input.limit,
         readOnly: input.readOnly,
+        role: session.user.role,
         unreadOnly: input.unreadOnly,
         userId: session.user.id,
       })
@@ -102,6 +103,7 @@ export default {
     .handler(({ context: { db, session }, input }) =>
       getFollowingOverview(db, {
         limit: input.limit,
+        role: session.user.role,
         userId: session.user.id,
       })
     ),

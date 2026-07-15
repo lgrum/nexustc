@@ -4,6 +4,7 @@ import {
   adminClient,
   genericOAuthClient,
   inferAdditionalFields,
+  twoFactorClient,
 } from "better-auth/client/plugins";
 import type { AccessControl } from "better-auth/plugins/access";
 import { createAuthClient } from "better-auth/react";
@@ -11,6 +12,7 @@ import { createAuthClient } from "better-auth/react";
 export const authClient = createAuthClient({
   plugins: [
     inferAdditionalFields<typeof auth>(),
+    twoFactorClient(),
     genericOAuthClient(),
     adminClient({
       ac: ac as AccessControl,
@@ -24,6 +26,8 @@ type ErrorTypes = Partial<
 >;
 
 const errorCodes = {
+  ACCOUNT_TEMPORARILY_LOCKED:
+    "Demasiados intentos. Inténtalo nuevamente más tarde",
   ACCOUNT_NOT_FOUND: "Cuenta no encontrada",
   CREDENTIAL_ACCOUNT_NOT_FOUND: "",
   EMAIL_CAN_NOT_BE_UPDATED: "",
@@ -37,8 +41,14 @@ const errorCodes = {
   ID_TOKEN_NOT_SUPPORTED: "Token de identificación no soportado",
   INVALID_EMAIL: "Email inválido",
   INVALID_EMAIL_OR_PASSWORD: "Email o contraseña inválidos",
+  INVALID_BACKUP_CODE: "Código de respaldo inválido",
+  INVALID_CODE: "Código inválido",
   INVALID_PASSWORD: "Contraseña inválida",
   INVALID_TOKEN: "Token inválido",
+  INVALID_TWO_FACTOR_COOKIE: "La verificación expiró. Inicia sesión nuevamente",
+  OTP_HAS_EXPIRED: "El código expiró. Solicita uno nuevo",
+  TOO_MANY_ATTEMPTS_REQUEST_NEW_CODE:
+    "Demasiados intentos. Solicita un código nuevo",
   PASSWORD_TOO_LONG: "Contraseña demasiado larga",
   PASSWORD_TOO_SHORT: "Contraseña demasiado corta",
   PROVIDER_NOT_FOUND: "Proveedor no encontrado",

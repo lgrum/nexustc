@@ -44,14 +44,14 @@ export function NotificationCenter() {
   const unreadOnly = filter === "unread";
 
   const isAuthed = Boolean(auth?.session);
-  const unreadCountQuery = useQuery({
+  const { data: unreadCountData, isLoading: isUnreadCountLoading } = useQuery({
     ...orpc.notification.getUnreadCount.queryOptions(),
     enabled: isAuthed,
     refetchInterval: 60_000,
     staleTime: 15_000,
   });
 
-  const unreadCount = unreadCountQuery.data ?? 0;
+  const unreadCount = unreadCountData ?? 0;
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -65,7 +65,15 @@ export function NotificationCenter() {
     }
   };
 
-  const notificationsQuery = useInfiniteQuery({
+  const {
+    data: notificationsData,
+    fetchNextPage,
+    hasNextPage,
+    isError: notificationsError,
+    isFetchingNextPage,
+    isLoading: notificationsLoading,
+    isPending: notificationsPending,
+  } = useInfiniteQuery({
     // The feed uses cursor pagination so we keep the page param as an ISO string.
     enabled: isAuthed && open,
     getNextPageParam: (lastPage: NotificationFeedResponse) =>
@@ -102,10 +110,10 @@ export function NotificationCenter() {
 
   const items = useMemo(
     () =>
-      notificationsQuery.data?.pages.flatMap(
+      notificationsData?.pages.flatMap(
         (page: NotificationFeedResponse) => page.items
       ) ?? [],
-    [notificationsQuery.data]
+    [notificationsData]
   );
 
   if (!isAuthed) {
@@ -114,7 +122,7 @@ export function NotificationCenter() {
 
   const trigger = (
     <NotificationTriggerButton
-      isLoading={unreadCountQuery.isLoading}
+      isLoading={isUnreadCountLoading}
       open={open}
       unreadCount={unreadCount}
     />
@@ -124,12 +132,10 @@ export function NotificationCenter() {
     <NotificationPanel
       canMarkAllRead={unreadCount > 0}
       filter={filter}
-      hasMore={Boolean(notificationsQuery.hasNextPage)}
-      isFetchingMore={notificationsQuery.isFetchingNextPage}
+      hasMore={Boolean(hasNextPage)}
+      isFetchingMore={isFetchingNextPage}
       isLoading={
-        notificationsQuery.isLoading ||
-        notificationsQuery.isPending ||
-        unreadCountQuery.isLoading
+        notificationsLoading || notificationsPending || isUnreadCountLoading
       }
       items={items}
       onFilterChange={(nextFilter) => {
@@ -142,7 +148,7 @@ export function NotificationCenter() {
         trackEvent("notification_load_more_clicked", {
           filter,
         });
-        notificationsQuery.fetchNextPage();
+        fetchNextPage();
       }}
       onMarkAllRead={() => {
         trackEvent("notification_mark_all_read_clicked", {
@@ -161,7 +167,7 @@ export function NotificationCenter() {
         markReadMutation.isPending || markAllReadMutation.isPending
       }
       unreadCount={unreadCount}
-      wasError={notificationsQuery.isError}
+      wasError={notificationsError}
     />
   );
 
@@ -170,7 +176,7 @@ export function NotificationCenter() {
       <>
         <div>
           <NotificationTriggerButton
-            isLoading={unreadCountQuery.isLoading}
+            isLoading={isUnreadCountLoading}
             onClick={() => setOpen(true)}
             open={open}
             unreadCount={unreadCount}
@@ -179,7 +185,7 @@ export function NotificationCenter() {
         <Drawer onOpenChange={handleOpenChange} open={open}>
           <DrawerContent className="isolate max-h-[82vh] rounded-t-[2rem] border-border/70 bg-background/96 shadow-[0_-24px_90px_-40px_hsl(var(--foreground)/0.8)] supports-backdrop-filter:bg-background/80 supports-backdrop-filter:backdrop-blur-2xl supports-backdrop-filter:backdrop-saturate-150">
             <DrawerHeader className="border-border/60 border-b px-4 pb-4 text-left">
-              <DrawerTitle className="font-[Lexend] text-xl">
+              <DrawerTitle className="font-lexend text-xl">
                 Notificaciones
               </DrawerTitle>
               <DrawerDescription>

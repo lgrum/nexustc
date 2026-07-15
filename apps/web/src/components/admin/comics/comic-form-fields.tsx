@@ -2,6 +2,7 @@ import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
 import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
+import { COMIC_MEDIA_MAX_ITEMS } from "@repo/shared/media";
 import { useStore } from "@tanstack/react-form";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -196,7 +197,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
                 VIP Early Access
               </div>
               <div className="space-y-1">
-                <h2 className="font-[Lexend] font-bold text-white text-xl">
+                <h2 className="font-lexend font-bold text-white text-xl">
                   Estreno escalonado
                 </h2>
                 <p className="max-w-2xl text-amber-50/80 text-sm leading-relaxed">
@@ -277,7 +278,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
               <div className="font-medium text-[11px] text-amber-200 uppercase tracking-[0.22em]">
                 Salida pública
               </div>
-              <div className="mt-2 font-[Lexend] font-bold text-3xl text-white">
+              <div className="mt-2 font-lexend font-bold text-3xl text-white">
                 {totalEarlyAccessHours}h
               </div>
               <p className="mt-2 max-w-48 text-amber-50/75 text-sm leading-relaxed">
@@ -288,12 +289,12 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         </div>
       </section>
 
-      <div className="col-span-2 flex flex-row gap-4">
-        <div className="flex-1 space-y-4">
+      <div className="col-span-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-4">
+        <div className="min-w-0 space-y-4">
           <form.AppField name="adsLinks">
             {(field) => (
               <field.TextareaField
-                className="h-40 resize-none"
+                className="h-40 min-w-0 resize-none"
                 label="Links con Anuncios"
               />
             )}
@@ -322,11 +323,11 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
           </Tooltip>
           <div className="w-px flex-1 bg-border" />
         </div>
-        <div className="flex flex-1 flex-col gap-4">
+        <div className="flex min-w-0 flex-col gap-4">
           <form.AppField name="premiumLinks">
             {(field) => (
               <field.TextareaField
-                className="h-40 resize-none"
+                className="h-40 min-w-0 resize-none"
                 label="Links Premium"
               />
             )}
@@ -334,11 +335,11 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         </div>
       </div>
 
-      <div className="col-span-2 flex flex-row gap-4">
-        <div className="flex-1 space-y-4 rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
+      <div className="col-span-2 grid grid-cols-2 gap-4">
+        <div className="min-w-0 space-y-4 break-words rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
           <Markdown>{adsLinks}</Markdown>
         </div>
-        <div className="flex-1 space-y-4 rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
+        <div className="min-w-0 space-y-4 break-words rounded-xl border border-border/70 bg-muted/35 p-4 shadow-xs">
           <Markdown>{premiumLinks}</Markdown>
         </div>
       </div>
@@ -364,6 +365,7 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
           <field.SelectField
             label="Estado"
             options={mapTermOptions(groupedTerms.status)}
+            required
           />
         )}
       </form.AppField>
@@ -449,7 +451,9 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
         {(field) => (
           <field.MediaField
             description="Selecciona y ordena las paginas del comic desde la biblioteca central."
+            directUpload
             label="Media"
+            maxItems={COMIC_MEDIA_MAX_ITEMS}
             ownerKind="Comic"
           />
         )}

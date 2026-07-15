@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Logo } from "../logo";
@@ -67,7 +67,7 @@ export function Footer() {
             <Link
               className="text-muted-foreground text-sm transition-colors hover:text-primary"
               key={link.href}
-              to={link.href}
+              href={link.href}
             >
               {link.label}
             </Link>
@@ -94,7 +94,7 @@ export function Footer() {
             <Link
               className="text-muted-foreground text-sm transition-colors hover:text-primary"
               key={link.href}
-              to={link.href}
+              href={link.href}
             >
               {link.label}
             </Link>

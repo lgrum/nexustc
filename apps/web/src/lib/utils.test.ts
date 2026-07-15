@@ -1,11 +1,35 @@
-import { getDeterministicHue, getPixelCropRegion } from "./utils";
-
-vi.mock(import("@repo/env/client"), () => ({
+vi.mock("@repo/env", () => ({
   env: {
-    VITE_ASSETS_BUCKET_URL: "https://assets.example.com",
-    VITE_TURNSTILE_SITE_KEY: "test-site-key",
+    NEXT_PUBLIC_ASSETS_BUCKET_URL: "https://assets.example.com",
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: "test-site-key",
   },
 }));
+
+const { getDeterministicHue, getPixelCropRegion, uploadBlobWithProgress } =
+  await import("./utils");
+
+it("sends upload precondition headers", async () => {
+  const setRequestHeader = vi.spyOn(
+    XMLHttpRequest.prototype,
+    "setRequestHeader"
+  );
+  vi.spyOn(XMLHttpRequest.prototype, "send").mockImplementation(
+    function send() {
+      Object.defineProperty(this, "status", { value: 200 });
+      this.dispatchEvent(new Event("load"));
+    }
+  );
+
+  await uploadBlobWithProgress(
+    new Blob(["page"], { type: "image/webp" }),
+    "https://uploads.test/page.webp",
+    undefined,
+    { "If-None-Match": "*" }
+  );
+
+  expect(setRequestHeader).toHaveBeenCalledWith("If-None-Match", "*");
+  vi.restoreAllMocks();
+});
 
 describe(getPixelCropRegion, () => {
   it("converts percent crop values into pixel bounds", () => {

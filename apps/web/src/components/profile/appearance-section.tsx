@@ -17,7 +17,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { trackEvent } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
-import { convertImage, cropImage, uploadBlobWithProgress } from "@/lib/utils";
+import { uploadProfileMedia } from "@/lib/profile-media-upload";
+import { convertImage, cropImage } from "@/lib/utils";
 import type { ImagePercentCrop } from "@/lib/utils";
 
 const MediaCropDialog = lazy(
@@ -185,7 +186,7 @@ function AppearanceSectionContent({
             | "image/webp",
           slot,
         });
-      await uploadBlobWithProgress(file, presignedUrl, setUploadProgress);
+      await uploadProfileMedia(file, presignedUrl, setUploadProgress);
       return orpcClient.profile.finalizeUpload({
         contentLength: file.size,
         contentType: file.type as

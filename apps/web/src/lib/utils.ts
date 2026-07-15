@@ -1,4 +1,4 @@
-import { env } from "@repo/env/client";
+import { env } from "@repo/env";
 import { clsx } from "clsx";
 import type { ClassValue } from "clsx";
 import type { FacehashProps } from "facehash";
@@ -38,7 +38,8 @@ export function cn(...inputs: ClassValue[]) {
 export function uploadBlobWithProgress(
   blob: Blob,
   url: string,
-  onProgress?: (percent: number) => void
+  onProgress?: (percent: number) => void,
+  headers: Record<string, string> = {}
 ) {
   return new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -65,6 +66,9 @@ export function uploadBlobWithProgress(
       "Content-Type",
       blob.type || "application/octet-stream"
     );
+    for (const [name, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(name, value);
+    }
     xhr.send(blob);
   });
 }
@@ -222,7 +226,7 @@ export function getBucketUrl(object: string) {
     return object;
   }
 
-  return `${env.VITE_ASSETS_BUCKET_URL}/${object}`;
+  return `${env.NEXT_PUBLIC_ASSETS_BUCKET_URL}/${object}`;
 }
 
 const TIER_BREAKPOINTS = {

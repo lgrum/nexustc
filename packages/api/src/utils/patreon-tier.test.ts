@@ -1,4 +1,5 @@
 import {
+  getAdPolicy,
   getHighestPatronTierFromIds,
   isActiveEntitledPatron,
   resolvePermanentPatronTierStatus,
@@ -22,6 +23,16 @@ describe("patreon tier helpers", () => {
 
   it("does not treat former Patreon members with entitled tiers as active patrons", () => {
     expect(isActiveEntitledPatron("declined_patron", "level12")).toBe(false);
+  });
+
+  it.each([
+    [{ role: "user", tier: "none" }, "all"],
+    [{ role: "user", tier: "level1" }, "some"],
+    [{ role: "user", tier: "level3" }, "some"],
+    [{ role: "user", tier: "level5" }, "none"],
+    [{ role: "admin", tier: "none" }, "none"],
+  ] as const)("resolves ad policy for %j", (user, policy) => {
+    expect(getAdPolicy(user)).toBe(policy);
   });
 
   it.each(["level69", "level100"] as const)(

@@ -1,4 +1,4 @@
-import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { and, eq, inArray, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
@@ -22,6 +22,7 @@ import type { PatronTier } from "@repo/shared/constants";
 import { PROFILE_DEFAULTS } from "@repo/shared/profile";
 import type { ProfileMediaSlot } from "@repo/shared/profile";
 import sharp from "sharp";
+import type { Metadata } from "sharp";
 
 import { getS3Client } from "../utils/s3";
 
@@ -104,6 +105,8 @@ export type ProfileMediaValidation = {
   isAnimated: boolean;
   fileSizeBytes: number;
 };
+
+export const PROFILE_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
 
 const PROFILE_ENTITLEMENT_RULES = {
   animatedAvatarRequiredTier: "level3",
@@ -295,7 +298,7 @@ export function getObjectExtension(contentType: string) {
   return extension;
 }
 
-export function inferAnimationDurationMs(metadata: sharp.Metadata) {
+export function inferAnimationDurationMs(metadata: Metadata) {
   if (!metadata.delay) {
     return null;
   }
@@ -312,6 +315,7 @@ async function readAssetBuffer(objectKey: string) {
     new GetObjectCommand({
       Bucket: env.R2_ASSETS_BUCKET_NAME,
       Key: objectKey,
+      Range: `bytes=0-${PROFILE_MEDIA_MAX_BYTES}`,
     })
   );
 
@@ -320,10 +324,37 @@ async function readAssetBuffer(objectKey: string) {
   }
 
   const body = await output.Body.transformToByteArray();
-  return Buffer.from(body);
+  const buffer = Buffer.from(body);
+  if (buffer.length > PROFILE_MEDIA_MAX_BYTES) {
+    throw new Error("FILE_TOO_LARGE");
+  }
+  return buffer;
 }
 
-export async function inspectProfileMediaAsset(objectKey: string) {
+export async function inspectProfileMediaAsset(
+  objectKey: string,
+  expected?: { contentLength: number; contentType: string }
+) {
+  const object = await getS3Client().send(
+    new HeadObjectCommand({
+      Bucket: env.R2_ASSETS_BUCKET_NAME,
+      Key: objectKey,
+    })
+  );
+  const contentLength = object.ContentLength ?? 0;
+
+  if (contentLength <= 0 || contentLength > PROFILE_MEDIA_MAX_BYTES) {
+    throw new Error("FILE_TOO_LARGE");
+  }
+
+  if (
+    expected &&
+    (contentLength !== expected.contentLength ||
+      object.ContentType !== expected.contentType)
+  ) {
+    throw new Error("UPLOAD_METADATA_MISMATCH");
+  }
+
   const buffer = await readAssetBuffer(objectKey);
   const metadata = await sharp(buffer, { animated: true }).metadata();
   const width = metadata.width ?? 0;

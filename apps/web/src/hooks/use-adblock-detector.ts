@@ -1,16 +1,27 @@
 import { useEffect, useState } from "react";
 
+import { AD_PROVIDER_SCRIPT_SOURCES } from "@/components/ads/ad-config";
+
 type AdblockDetectorState = {
   detected: boolean;
   checked: boolean;
 };
+
+type DetectionResult = "blocked" | "clear" | "inconclusive";
+type Detector = "asset" | "css" | "dom" | "provider" | "script";
+type DetectionRound = {
+  blockedSignals: Detector[];
+  result: DetectionResult;
+};
+type ResourceProbe = "ok" | "rejected" | "timeout" | "unavailable";
 
 declare global {
   type WindowWithAd = Window & { adLoaded?: boolean };
 }
 
 const DETECTION_THRESHOLD = 1;
-const SESSION_CACHE_KEY = "nexustc:adblock-detected";
+const DETECTION_TIMEOUT_MS = 3000;
+const RETRY_DELAY_MS = 1000;
 
 function checkDomBait(): Promise<boolean> {
   return new Promise((resolve) => {
@@ -41,41 +52,65 @@ function checkDomBait(): Promise<boolean> {
   });
 }
 
-function checkBaitScript(): Promise<boolean> {
+function checkBaitScript(): Promise<DetectionResult> {
   return new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(true), 3000);
-
+    let settled = false;
+    let markerCheck: ReturnType<typeof setTimeout> | undefined;
+    const win = window as WindowWithAd;
+    win.adLoaded = false;
+    document.querySelector("#ml23f9jo38asl34")?.remove();
     const script = document.createElement("script");
     script.src = "/oncc-adbanner.js";
-    script.addEventListener("error", () => {
+    const finish = (result: DetectionResult) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
       clearTimeout(timeout);
-      // oxlint-disable-next-line promise/no-multiple-resolved: it's meant to timeout, or get cleared if the script errors or loads
-      resolve(true);
-    });
-    script.addEventListener("load", () => {
-      clearTimeout(timeout);
-      // oxlint-disable-next-line promise/no-multiple-resolved: see above
-      setTimeout(() => {
-        const markerExists = document.querySelector("#ml23f9jo38asl34");
-        const win = window as WindowWithAd;
-        const adLoadedSuccessfully =
-          win.adLoaded === true && markerExists !== null;
-        resolve(!adLoadedSuccessfully);
-      }, 100);
-    });
+      clearTimeout(markerCheck);
+      script.remove();
+      resolve(result);
+    };
+    const timeout = setTimeout(
+      () => finish("inconclusive"),
+      DETECTION_TIMEOUT_MS
+    );
+
+    script.addEventListener("error", () => finish("blocked"), { once: true });
+    script.addEventListener(
+      "load",
+      () => {
+        markerCheck = setTimeout(() => {
+          const markerExists = document.querySelector("#ml23f9jo38asl34");
+          finish(
+            win.adLoaded === true && markerExists !== null ? "clear" : "blocked"
+          );
+        }, 100);
+      },
+      { once: true }
+    );
     document.body.append(script);
   });
 }
 
-async function checkFetchBlocking(): Promise<boolean> {
+async function probeResource(
+  url: string,
+  mode?: RequestMode
+): Promise<ResourceProbe> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DETECTION_TIMEOUT_MS);
+
   try {
-    const response = await fetch("/ads/banner.gif", {
+    const response = await fetch(url, {
       cache: "no-store",
-      method: "HEAD",
+      mode,
+      signal: controller.signal,
     });
-    return !response.ok;
+    return response.ok || response.type === "opaque" ? "ok" : "unavailable";
   } catch {
-    return true;
+    return controller.signal.aborted ? "timeout" : "rejected";
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -112,39 +147,122 @@ function withTimeout<T>(
   ]);
 }
 
-export function useAdblockDetector() {
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+function classifyResourceProbe(
+  control: ResourceProbe,
+  resource: ResourceProbe
+): DetectionResult {
+  if (control !== "ok") {
+    return "inconclusive";
+  }
+  if (resource === "ok") {
+    return "clear";
+  }
+  return resource === "rejected" ? "blocked" : "inconclusive";
+}
+
+async function runDetectionRound(): Promise<DetectionRound> {
+  const [
+    dom,
+    scriptExecution,
+    control,
+    scriptProbe,
+    assetProbe,
+    providerProbes,
+    css,
+  ] = await Promise.all([
+    withTimeout(checkDomBait(), DETECTION_TIMEOUT_MS, null),
+    checkBaitScript(),
+    probeResource("/api/health"),
+    probeResource("/oncc-adbanner.js"),
+    probeResource("/ads/banner.gif"),
+    Promise.all(
+      AD_PROVIDER_SCRIPT_SOURCES.map((source) =>
+        probeResource(source, "no-cors")
+      )
+    ),
+    withTimeout(checkCssInjection(), DETECTION_TIMEOUT_MS, null),
+  ]);
+  const scriptRequest = classifyResourceProbe(control, scriptProbe);
+  const assetRequest = classifyResourceProbe(control, assetProbe);
+  const providerRequests = providerProbes.map((probe) =>
+    classifyResourceProbe(control, probe)
+  );
+  let script: DetectionResult = "inconclusive";
+  if (scriptExecution === "clear") {
+    script = "clear";
+  } else if (
+    scriptRequest === "blocked" ||
+    (scriptExecution === "blocked" && scriptRequest === "clear")
+  ) {
+    script = "blocked";
+  }
+  const blockedSignals = [
+    ...(dom === true ? (["dom"] as const) : []),
+    ...(script === "blocked" ? (["script"] as const) : []),
+    ...(assetRequest === "blocked" ? (["asset"] as const) : []),
+    ...(providerRequests.some((result) => result === "blocked")
+      ? (["provider"] as const)
+      : []),
+    ...(css === true ? (["css"] as const) : []),
+  ];
+
+  if (blockedSignals.length >= DETECTION_THRESHOLD) {
+    return { blockedSignals, result: "blocked" };
+  }
+
+  return {
+    blockedSignals,
+    result:
+      script === "clear" || assetRequest === "clear" ? "clear" : "inconclusive",
+  };
+}
+
+export function hasRepeatedBlockedSignal(
+  first: DetectionRound,
+  second: DetectionRound
+): boolean {
+  return (
+    first.result === "blocked" &&
+    second.result === "blocked" &&
+    first.blockedSignals.some((signal) =>
+      second.blockedSignals.includes(signal)
+    )
+  );
+}
+
+export function useAdblockDetector(enabled = true) {
   const [state, setState] = useState<AdblockDetectorState>({
     checked: false,
     detected: false,
   });
 
   useEffect(() => {
+    if (!enabled) {
+      setState({ checked: true, detected: false });
+      return;
+    }
+
     let mounted = true;
 
     const runDetection = async () => {
-      const cached = sessionStorage.getItem(SESSION_CACHE_KEY);
-      if (cached !== null) {
-        setState({ checked: true, detected: cached === "true" });
-        return;
+      const first = await runDetectionRound();
+      let second = first;
+      if (first.result !== "clear") {
+        await wait(RETRY_DELAY_MS);
+        second = await runDetectionRound();
       }
-
-      const results = await Promise.all([
-        withTimeout(checkDomBait(), 3000, false),
-        withTimeout(checkBaitScript(), 5000, false),
-        withTimeout(checkFetchBlocking(), 3000, false),
-        withTimeout(checkCssInjection(), 3000, false),
-      ]);
 
       if (!mounted) {
         return;
       }
 
-      const positiveCount = results.filter(Boolean).length;
-      const detected = positiveCount >= DETECTION_THRESHOLD;
-
-      sessionStorage.setItem(SESSION_CACHE_KEY, String(detected));
-
-      setState({ checked: true, detected });
+      setState({
+        checked: true,
+        detected: hasRepeatedBlockedSignal(first, second),
+      });
     };
 
     runDetection();
@@ -152,7 +270,7 @@ export function useAdblockDetector() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [enabled]);
 
   return state;
 }

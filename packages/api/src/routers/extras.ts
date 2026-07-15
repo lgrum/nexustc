@@ -4,7 +4,6 @@ import type { tutorials as TutorialTable } from "@repo/db/schema/app";
 import { tutorials } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { webUrlSchema } from "@repo/shared/schemas";
-import { customAlphabet } from "nanoid/non-secure";
 import z from "zod";
 
 import {
@@ -12,21 +11,10 @@ import {
   permissionProcedure,
   publicProcedure,
 } from "../index";
-
-const nanoid = customAlphabet(
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-  9
-);
+import { getAliasFromUrl } from "../utils/shortener-alias";
 
 type Tutorial = typeof TutorialTable.$inferSelect;
 
-const HTML_TITLE_REGEX = /<title[^>]*>([\s\S]*?)<\/title>/i;
-const META_TITLE_REGEXES = [
-  /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-  /<meta[^>]+name=["']title["'][^>]+content=["']([^"']+)["'][^>]*>/i,
-  /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["'][^>]*>/i,
-  /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']title["'][^>]*>/i,
-] as const;
 const shortenerResponseSchema = z.object({
   shortenedUrl: webUrlSchema,
   status: z.string(),
@@ -54,66 +42,6 @@ const shortenerCountSchema = z.union([
   z.literal(2),
   z.literal(3),
 ]);
-
-const decodeHtmlEntities = (value: string): string =>
-  value
-    .replaceAll("&amp;", "&")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&nbsp;", " ");
-
-const normalizeAlias = (value: string | null): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-
-  const normalized = value
-    .normalize("NFKD")
-    .replaceAll(/[\u0300-\u036F]/g, "")
-    .replaceAll(/[^a-zA-Z0-9\s-]/g, " ")
-    .trim()
-    .replaceAll(/\s+/g, "-")
-    .replaceAll(/-+/g, "-")
-    .toLowerCase()
-    .slice(0, 20);
-
-  return normalized.length > 0 ? normalized : undefined;
-};
-
-const getTitleMatch = (html: string): string | null => {
-  for (const regex of META_TITLE_REGEXES) {
-    const match = html.match(regex)?.[1];
-
-    if (match) {
-      return decodeHtmlEntities(match).trim();
-    }
-  }
-
-  const titleMatch = html.match(HTML_TITLE_REGEX)?.[1];
-  return titleMatch ? decodeHtmlEntities(titleMatch).trim() : null;
-};
-
-const getAliasFromUrl = async (url: string): Promise<string | undefined> => {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (compatible; NeXusTC URLShortener/1.0; +https://nexustc18.com)",
-      },
-    });
-
-    if (!response.ok) {
-      return undefined;
-    }
-
-    const html = await response.text();
-    return `${normalizeAlias(getTitleMatch(html))}-${nanoid()}`;
-  } catch {
-    return undefined;
-  }
-};
 
 const shortenWithProvider = async ({
   alias,

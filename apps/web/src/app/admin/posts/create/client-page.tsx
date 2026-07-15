@@ -1,0 +1,388 @@
+"use client";
+
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import type {
+  DOCUMENT_STATUSES,
+  PremiumLinkAccessLevel,
+  TAXONOMIES,
+} from "@repo/shared/constants";
+import {
+  buildEarlyAccessSchedule,
+  EARLY_ACCESS_DEFAULTS,
+  getEarlyAccessView,
+} from "@repo/shared/early-access";
+import { useStore } from "@tanstack/react-form";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+
+import { PostFormFields } from "@/components/admin/posts/post-form-fields";
+import type { PostProps } from "@/components/posts/post-components";
+import { PostPage } from "@/components/posts/post-components";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createEmptyDeferredMediaSelection,
+  getDeferredMediaPreviewSources,
+  postAdminFormSchema,
+} from "@/lib/deferred-media";
+import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
+import { parseTemplate } from "@/lib/post-template";
+
+const appendUniqueValues = (
+  currentValues: string[],
+  valuesToAppend: string[]
+) => [...new Set([...currentValues, ...valuesToAppend])];
+
+type TermTaxonomy = (typeof TAXONOMIES)[number];
+
+type DefaultTerm = {
+  taxonomy: TermTaxonomy;
+  name: string;
+};
+
+type DefaultTermList = {
+  taxonomy: TermTaxonomy;
+  names: string[];
+};
+
+type FormDefaultTerm = {
+  color: string;
+  id: string;
+  name: string;
+  taxonomy: TermTaxonomy;
+};
+
+const DEFAULT_CENSORSHIP_TERM: DefaultTerm = {
+  name: "Ninguna",
+  taxonomy: "censorship",
+};
+const DEFAULT_ENGINE_TERM: DefaultTerm = {
+  name: "Ren'Py",
+  taxonomy: "engine",
+};
+const DEFAULT_PLATFORM_TERMS: DefaultTermList = {
+  names: ["Android", "PC"],
+  taxonomy: "platform",
+};
+const DEFAULT_LANGUAGE_TERMS: DefaultTermList = {
+  names: ["Español", "Ingles"],
+  taxonomy: "language",
+};
+
+const normalizeTermName = (name: string) =>
+  name
+    .trim()
+    .toLocaleLowerCase("es")
+    .normalize("NFD")
+    .replaceAll(/[\u0300-\u036F]/g, "");
+
+const findDefaultTermId = (
+  terms: FormDefaultTerm[],
+  defaultTerm: DefaultTerm
+) =>
+  terms.find(
+    (term) =>
+      term.taxonomy === defaultTerm.taxonomy &&
+      normalizeTermName(term.name) === normalizeTermName(defaultTerm.name)
+  )?.id ?? "";
+
+const findDefaultTermIds = (
+  terms: FormDefaultTerm[],
+  defaultTermList: DefaultTermList
+) => {
+  const termIds: string[] = [];
+
+  for (const defaultTermName of defaultTermList.names) {
+    const normalizedDefaultTermName = normalizeTermName(defaultTermName);
+    const foundTerm = terms.find(
+      (term) =>
+        term.taxonomy === defaultTermList.taxonomy &&
+        normalizeTermName(term.name) === normalizedDefaultTermName
+    );
+
+    if (foundTerm) {
+      termIds.push(foundTerm.id);
+    }
+  }
+
+  return termIds;
+};
+
+type Prerequisites = Awaited<
+  ReturnType<typeof orpcClient.post.admin.createPostPrerequisites>
+>;
+
+export function ClientPage({
+  prerequisites,
+}: {
+  prerequisites: Prerequisites;
+}) {
+  const { series } = prerequisites;
+  const terms = prerequisites.terms as unknown as FormDefaultTerm[];
+  const confirm = useConfirm();
+  const router = useRouter();
+  const { data: mediaLibrary } = useSuspenseQuery(
+    orpc.media.admin.list.queryOptions()
+  );
+  const { data: creators } = useSuspenseQuery(
+    orpc.creator.admin.list.queryOptions()
+  );
+
+  const form = useAppForm({
+    defaultValues: {
+      adsLinks: "",
+      censorship: findDefaultTermId(terms, DEFAULT_CENSORSHIP_TERM),
+      changelog: "",
+      content: "",
+      coverImageSelection: createEmptyDeferredMediaSelection(),
+      creatorId: null as string | null,
+      creatorLink: "",
+      creatorName: "",
+      documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
+      earlyAccessEnabled: Boolean(EARLY_ACCESS_DEFAULTS.enabled),
+      engine: findDefaultTermId(terms, DEFAULT_ENGINE_TERM),
+      graphics: "",
+      languages: findDefaultTermIds(terms, DEFAULT_LANGUAGE_TERMS),
+      manualEngagementQuestions: [] as string[],
+      mediaSelection: createEmptyDeferredMediaSelection(),
+      platforms: findDefaultTermIds(terms, DEFAULT_PLATFORM_TERMS),
+      premiumLinksAccessLevel: "auto" as PremiumLinkAccessLevel,
+      premiumLinks: "",
+      releasedAt: null as Date | null,
+      seriesId: null as string | null,
+      seriesOrder: 0,
+      seriesTitle: "",
+      status: "",
+      tags: [] as string[],
+      thumbnailImageCount: 4 as 1 | 4,
+      title: "",
+      type: "post" as const,
+      vip12EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip12Hours),
+      vip8EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip8Hours),
+      version: "",
+    },
+    onSubmit: async (formData) => {
+      try {
+        const slugCheck = await orpcClient.post.admin.checkSlug({
+          title: formData.value.title,
+        });
+
+        if (slugCheck.duplicate) {
+          const isConfirmed = await confirm({
+            cancelText: "Cancelar",
+            confirmText: "Usar slug alternativo",
+            description: `Ya existe "${slugCheck.existingTitle}" con el slug "${slugCheck.baseSlug}". Si continuas, se publicara como "${slugCheck.slug}".`,
+            title: "Slug duplicado",
+          });
+
+          if (!isConfirmed) {
+            return;
+          }
+        }
+
+        await toast
+          .promise(
+            orpcClient.post.admin.create({
+              ...formData.value,
+              acceptSlugDeduplication: slugCheck.duplicate || undefined,
+            }),
+            {
+              error: (error) => ({
+                message: `Error al crear post: ${getClientErrorMessage(error)}`,
+              }),
+              loading: "Creando post...",
+              success: "Post creado!",
+            }
+          )
+          .unwrap();
+
+        form.reset();
+        router.replace("/admin/posts/create");
+        router.refresh();
+      } catch (error) {
+        toast.error(`Error al crear post: ${getClientErrorMessage(error)}`, {
+          dismissible: true,
+          duration: 10_000,
+        });
+      } finally {
+        toast.dismiss("creating");
+      }
+    },
+    validators: {
+      onSubmit: ({ value }) => {
+        const result = postAdminFormSchema.safeParse(value);
+        return result.success ? undefined : result.error;
+      },
+    },
+  });
+
+  const post = useStore(form.store, (state) => state.values);
+  const previewReleasedAt =
+    post.documentStatus === "publish" ? (post.releasedAt ?? new Date()) : null;
+  const mediaMap = new Map(mediaLibrary.map((item) => [item.id, item]));
+  const selectedMediaKeys = getDeferredMediaPreviewSources(
+    post.mediaSelection,
+    mediaMap
+  );
+  const selectedCoverImageKey =
+    getDeferredMediaPreviewSources(post.coverImageSelection, mediaMap)[0] ??
+    null;
+  const previewEarlyAccess = getEarlyAccessView({
+    role: "admin",
+    schedule: buildEarlyAccessSchedule({
+      enabled: post.earlyAccessEnabled,
+      startedAt: previewReleasedAt,
+      vip12Hours: post.vip12EarlyAccessHours,
+      vip8Hours: post.vip8EarlyAccessHours,
+    }),
+    viewerTier: "level69",
+  });
+  const selectedCreator =
+    creators.find((item) => item.id === post.creatorId) ?? null;
+
+  const extractTemplate = async () => {
+    try {
+      const template = await navigator.clipboard.readText();
+      const { content, creatorName, creatorUrl, premiumLinks, tags } =
+        parseTemplate(template);
+
+      const tagIds: string[] = [];
+      for (const tagName of tags) {
+        const foundTag = terms.find(
+          (term) =>
+            term.taxonomy === "tag" &&
+            term.name.toLowerCase() === tagName.toLowerCase()
+        );
+        if (foundTag) {
+          tagIds.push(foundTag.id);
+        }
+      }
+
+      const values = {
+        content: form.getFieldValue("content"),
+        creatorId: form.getFieldValue("creatorId"),
+        creatorLink: form.getFieldValue("creatorLink"),
+        creatorName: form.getFieldValue("creatorName"),
+        premiumLinks: form.getFieldValue("premiumLinks"),
+        tags: form.getFieldValue("tags"),
+      };
+
+      const matchingCreator =
+        creators.find((creator) => creator.url === creatorUrl) ??
+        creators.find(
+          (creator) =>
+            creator.name.toLowerCase() === (creatorName ?? "").toLowerCase()
+        ) ??
+        null;
+
+      form.setFieldValue("creatorId", matchingCreator?.id ?? values.creatorId);
+      form.setFieldValue(
+        "creatorName",
+        matchingCreator?.name || creatorName || values.creatorName
+      );
+      form.setFieldValue(
+        "creatorLink",
+        matchingCreator?.url || creatorUrl || values.creatorLink
+      );
+
+      form.setFieldValue("content", content || values.content);
+      form.setFieldValue("premiumLinks", premiumLinks || values.premiumLinks);
+      form.setFieldValue(
+        "tags",
+        tagIds.length > 0
+          ? appendUniqueValues(values.tags, tagIds)
+          : values.tags
+      );
+    } catch (error) {
+      toast.error(`No se pudo leer el portapapeles: ${error}`);
+    }
+  };
+
+  return (
+    <form
+      className="relative flex flex-col gap-4"
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        form.handleSubmit();
+      }}
+    >
+      <div className="flex items-center justify-between gap-4">
+        <h1 className="font-semibold text-2xl">Crear Post</h1>
+        <Button onClick={extractTemplate} type="button" variant="outline">
+          Extraer desde plantilla
+        </Button>
+      </div>
+      <div className="space-y-4">
+        <form.AppForm>
+          <PostFormFields series={series} terms={terms} />
+          <div className="flex flex-row gap-4">
+            <form.SubmitButton className="flex-1">Crear</form.SubmitButton>
+            <Preview
+              post={{
+                ...post,
+                comicCreatorId: null,
+                createdAt: new Date(),
+                creatorAvatarObjectKey:
+                  selectedCreator?.media?.objectKey ?? null,
+                earlyAccess: previewEarlyAccess,
+                engagementPrompts: post.manualEngagementQuestions.map(
+                  (text, index) => ({
+                    id: `preview-${index}`,
+                    source: "manual" as const,
+                    tagTermId: null,
+                    text,
+                  })
+                ),
+                id: "0",
+                slug: "preview",
+                coverImageObjectKey: selectedCoverImageKey,
+                imageObjectKeys: selectedMediaKeys,
+                likes: 0,
+                premiumLinksAccess: { status: "no_premium_links" as const },
+                releasedAt: previewReleasedAt,
+                series: null,
+                seriesParts: [],
+                terms: [
+                  ...post.platforms,
+                  ...post.tags,
+                  ...post.languages,
+                  post.censorship,
+                  post.engine,
+                  post.status,
+                  post.graphics,
+                ]
+                  .map((term) => terms.find((item) => item.id === term))
+                  .filter((term) => term !== undefined),
+                translatorId: null,
+                translator: null,
+                updatedAt: null,
+                views: 0,
+              }}
+            />
+          </div>
+        </form.AppForm>
+      </div>
+    </form>
+  );
+}
+
+function Preview({ post }: { post: PostProps }) {
+  return (
+    <DialogPrimitive.Root>
+      <DialogPrimitive.Trigger
+        render={<Button className="flex-1" type="button" variant="secondary" />}
+      >
+        Vista Previa
+      </DialogPrimitive.Trigger>
+      <DialogPrimitive.Backdrop className="data-open:fade-in-0 data-closed:fade-out-0 fixed inset-0 isolate z-50 bg-black/10 duration-100 data-closed:animate-out data-open:animate-in supports-backdrop-filter:backdrop-blur-xs" />
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Popup className="data-open:fade-in-0 data-open:zoom-in-95 data-closed:fade-out-0 data-closed:zoom-out-95 fixed top-1/2 left-1/2 z-50 grid max-h-[90dvh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-scroll rounded-xl bg-background p-4 text-sm outline-none ring-1 ring-foreground/10 duration-100 data-closed:animate-out data-open:animate-in sm:max-w-300">
+          <PostPage post={post} />
+        </DialogPrimitive.Popup>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  );
+}

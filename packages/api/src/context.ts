@@ -12,24 +12,36 @@ export type Context = {
 
 const logger = pino({
   level: process.env.LOG_LEVEL || "error",
-  transport: {
-    options: {
-      colorize: true,
-      depth: null,
-    },
-    target: "pino-pretty",
-  },
+  transport:
+    process.env.NODE_ENV === "development"
+      ? {
+          options: {
+            colorize: true,
+            depth: null,
+          },
+          target: "pino-pretty",
+        }
+      : undefined,
+});
+
+const createBaseContext = (
+  headers: Headers,
+  session: Context["session"]
+): Context => ({
+  headers,
+  session,
+  db,
+  [CONTEXT_LOGGER_SYMBOL]: logger,
 });
 
 export async function createContext(headers: Headers): Promise<Context> {
   const session = await auth.api.getSession({
     headers,
+    query: { disableCookieCache: true },
   });
 
-  return {
-    headers,
-    session,
-    db,
-    [CONTEXT_LOGGER_SYMBOL]: logger,
-  };
+  return createBaseContext(headers, session);
 }
+
+export const createPublicContext = (): Context =>
+  createBaseContext(new Headers(), null);

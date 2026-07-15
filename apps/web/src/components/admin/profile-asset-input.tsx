@@ -4,11 +4,8 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { orpcClient } from "@/lib/orpc";
-import {
-  convertImage,
-  getBucketUrl,
-  uploadBlobWithProgress,
-} from "@/lib/utils";
+import { uploadProfileMedia } from "@/lib/profile-media-upload";
+import { convertImage, getBucketUrl } from "@/lib/utils";
 
 export function ProfileAssetInput({
   slot,
@@ -42,7 +39,7 @@ export function ProfileAssetInput({
           slot,
         });
 
-      await uploadBlobWithProgress(uploadFile, presignedUrl);
+      await uploadProfileMedia(uploadFile, presignedUrl);
       return orpcClient.profileAdmin.media.finalizeUpload({
         contentLength: uploadFile.size,
         contentType: uploadFile.type as

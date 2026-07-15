@@ -6,7 +6,7 @@ import {
   ReloadIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { useEffect } from "react";
 
 import { trackEvent } from "@/lib/analytics";
@@ -136,7 +136,7 @@ export function AdblockBlockerDialog({ open }: AdblockBlockerDialogProps) {
                   source: "adblock_dialog",
                 })
               }
-              to="/vip"
+              href="/vip"
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
                 <HugeiconsIcon

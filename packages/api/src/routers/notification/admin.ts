@@ -9,6 +9,7 @@ import { permissionProcedure } from "../../index";
 import {
   archiveNotification,
   createGlobalAnnouncement,
+  NEWS_ARTICLE_TARGET_NOT_PUBLIC,
   publishContentNewsArticle,
 } from "../../services/notification";
 import {
@@ -53,9 +54,9 @@ export default {
     newsArticles: ["create"],
   })
     .input(newsArticleCreateInputSchema)
-    .handler(
-      async ({ context: { db, session }, input }) =>
-        await withDeferredMediaSelection({
+    .handler(async ({ context: { db, session }, errors, input }) => {
+      try {
+        return await withDeferredMediaSelection({
           db,
           onComplete: async ({ orderedMedia, tx }) =>
             await publishContentNewsArticle(tx, {
@@ -72,8 +73,20 @@ export default {
           ownerKind: "Articulo",
           resourceName: input.title,
           selection: input.bannerImageSelection,
-        })
-    ),
+        });
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          error.message === NEWS_ARTICLE_TARGET_NOT_PUBLIC
+        ) {
+          throw errors.BAD_REQUEST({
+            message: "El contenido no sera publico en esa fecha.",
+          });
+        }
+
+        throw error;
+      }
+    }),
 
   listGlobalAnnouncements: permissionProcedure({
     notifications: ["list"],

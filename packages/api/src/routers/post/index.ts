@@ -62,6 +62,7 @@ import {
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
+  redactEarlyAccessMedia,
 } from "../../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
@@ -99,7 +100,8 @@ type RelatedPostResult = {
   version: string | null;
   views: number;
 };
-const releasedAtSort = sql<Date>`COALESCE(${post.releasedAt}, ${post.createdAt})`;
+const releasedAtAscending = sql`${post.releasedAt} ASC NULLS LAST`;
+const releasedAtDescending = sql`${post.releasedAt} DESC NULLS LAST`;
 
 export default {
   // Future improvement: add caching here because this endpoint is heavily used.
@@ -169,6 +171,7 @@ export default {
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           content: post.content,
           createdAt: post.createdAt,
+          releasedAt: post.releasedAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
           slug: post.slug,
@@ -204,7 +207,7 @@ export default {
             publicCatalogVisibilityCondition()
           )
         )
-        .orderBy(desc(releasedAtSort), desc(post.createdAt))
+        .orderBy(releasedAtDescending, desc(post.id))
         .limit(input.limit);
 
       logger?.debug(`Successfully fetched ${posts.length} recent posts`);
@@ -277,7 +280,7 @@ export default {
         (LN(COALESCE(${post.views}, 0) + 1) + 1)
         * EXP(
           -GREATEST(
-            EXTRACT(EPOCH FROM (NOW() - ${releasedAtSort})) / 86400,
+            EXTRACT(EPOCH FROM (NOW() - ${post.releasedAt})) / 86400,
             0
           ) / 14
         )
@@ -288,6 +291,7 @@ export default {
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
           content: post.content,
           createdAt: post.createdAt,
+          releasedAt: post.releasedAt,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
           id: post.id,
           slug: post.slug,
@@ -326,8 +330,8 @@ export default {
         .orderBy(
           sql`CASE WHEN ${post.isWeekly} THEN 0 ELSE 1 END`,
           sql`${trendingScore} DESC`,
-          desc(releasedAtSort),
-          desc(post.createdAt)
+          releasedAtDescending,
+          desc(post.id)
         )
         .limit(WEEKLY_POST_LIMIT);
 
@@ -405,6 +409,7 @@ export default {
           changelog: post.changelog,
           content: post.content,
           createdAt: post.createdAt,
+          releasedAt: post.releasedAt,
           creatorLink: post.creatorLink,
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
@@ -413,6 +418,12 @@ export default {
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
+          featuredThumbnailImageObjectKey: sql<string | null>`(
+            SELECT ${media.objectKey}
+            FROM ${media}
+            WHERE ${media.id} = ${featuredPost.thumbnailMediaId}
+            LIMIT 1
+          )`,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
           order: featuredPost.order,
           position: featuredPost.position,
@@ -444,7 +455,9 @@ export default {
         )
         .orderBy(
           sql`CASE WHEN ${featuredPost.position} = 'main' THEN 0 ELSE 1 END`,
-          featuredPost.order
+          featuredPost.order,
+          releasedAtDescending,
+          desc(post.id)
         );
 
       logger?.debug(`Successfully fetched ${posts.length} featured posts`);
@@ -608,6 +621,7 @@ export default {
           changelog: post.changelog,
           content: post.content,
           createdAt: post.createdAt,
+          releasedAt: post.releasedAt,
           creatorLink: post.creatorLink,
           creatorName: post.creatorName,
           favorites: sql<number>`COALESCE(${favoritesAgg.count}, 0)`,
@@ -644,39 +658,37 @@ export default {
         .leftJoin(ratingsAgg, eq(ratingsAgg.postId, post.id))
         .where(and(...conditions));
 
-      // Build the order clause based on input.orderBy
       const getOrderClause = () => {
-        // When searching, similarity should be the primary sort
         const hasQuery = input.query && input.query.trim() !== "";
         const similarityPrefix = hasQuery ? sql`similarity DESC, ` : sql``;
 
         switch (input.orderBy) {
           case "newest": {
-            return sql`${similarityPrefix}${releasedAtSort} DESC, ${post.createdAt} DESC`;
+            return sql`${similarityPrefix}${releasedAtDescending}, ${post.id} DESC`;
           }
           case "oldest": {
-            return sql`${similarityPrefix}${releasedAtSort} ASC, ${post.createdAt} ASC`;
+            return sql`${similarityPrefix}${releasedAtAscending}, ${post.id} ASC`;
           }
           case "title_asc": {
-            return sql`${similarityPrefix}${post.title} ASC`;
+            return sql`${similarityPrefix}${post.title} ASC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "title_desc": {
-            return sql`${similarityPrefix}${post.title} DESC`;
+            return sql`${similarityPrefix}${post.title} DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "views": {
-            return sql`${similarityPrefix}${post.views} DESC`;
+            return sql`${similarityPrefix}${post.views} DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "rating_avg": {
-            return sql`${similarityPrefix}COALESCE(${ratingsAgg.averageRating}, 0) DESC`;
+            return sql`${similarityPrefix}COALESCE(${ratingsAgg.averageRating}, 0) DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "rating_count": {
-            return sql`${similarityPrefix}COALESCE(${ratingsAgg.ratingCount}, 0) DESC`;
+            return sql`${similarityPrefix}COALESCE(${ratingsAgg.ratingCount}, 0) DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           case "likes": {
-            return sql`${similarityPrefix}COALESCE(${likesAgg.count}, 0) DESC`;
+            return sql`${similarityPrefix}COALESCE(${likesAgg.count}, 0) DESC, ${releasedAtDescending}, ${post.id} DESC`;
           }
           default: {
-            return sql`${similarityPrefix}${releasedAtSort} DESC, ${post.createdAt} DESC`;
+            return sql`${similarityPrefix}${releasedAtDescending}, ${post.id} DESC`;
           }
         }
       };
@@ -768,6 +780,7 @@ export default {
         .select({
           content: post.content,
           createdAt: post.createdAt,
+          releasedAt: post.releasedAt,
           earlyAccessEnabled: post.earlyAccessEnabled,
           earlyAccessPublicAt: post.earlyAccessPublicAt,
           earlyAccessStartedAt: post.earlyAccessStartedAt,
@@ -785,7 +798,11 @@ export default {
         })
         .from(post)
         .where(where)
-        .orderBy(desc(post.earlyAccessStartedAt), desc(post.createdAt))
+        .orderBy(
+          desc(post.earlyAccessStartedAt),
+          releasedAtDescending,
+          desc(post.id)
+        )
         .limit(VIP_FEED_PAGE_SIZE)
         .offset(offset);
 
@@ -804,13 +821,18 @@ export default {
           }
         );
 
+        const visibleItem = redactEarlyAccessMedia(
+          item,
+          earlyAccess.isRestrictedView
+        );
+
         return {
-          content: item.content,
-          coverImageObjectKey: item.coverImageObjectKey,
+          content: visibleItem.content,
+          coverImageObjectKey: visibleItem.coverImageObjectKey,
           createdAt: item.createdAt,
           earlyAccess,
           id: item.id,
-          imageObjectKeys: item.imageObjectKeys,
+          imageObjectKeys: visibleItem.imageObjectKeys,
           slug: earlyAccess.isRestrictedView ? item.id : item.slug,
           title: earlyAccess.isRestrictedView
             ? getMaskedPostLabel(item.id)
@@ -1025,6 +1047,10 @@ export default {
         vip8EarlyAccessHours: _vip8EarlyAccessHours,
         ...postData
       } = result[0]!;
+      const visiblePostData = redactEarlyAccessMedia(
+        postData,
+        earlyAccess.isRestrictedView
+      );
 
       const engagementPrompts = await getResolvedEngagementPromptsForPost(
         db,
@@ -1099,11 +1125,11 @@ export default {
                   publicCatalogVisibilityCondition()
                 )
               )
-              .orderBy(asc(post.seriesOrder), asc(post.createdAt), asc(post.id))
+              .orderBy(asc(post.seriesOrder), releasedAtAscending, asc(post.id))
           : [];
 
       return {
-        ...postData,
+        ...visiblePostData,
         adsLinks: earlyAccess.isRestrictedView ? "" : postData.adsLinks,
         changelog: earlyAccess.isRestrictedView ? "" : postData.changelog,
         creatorAvatarObjectKey: earlyAccess.hideCreatorSupport
@@ -1116,15 +1142,20 @@ export default {
           ? []
           : engagementPrompts,
         premiumLinksAccess,
-        series: postData.seriesId
-          ? {
-              id: postData.seriesId,
-              title: postData.seriesTitle ?? "",
-              type: postData.type,
-            }
-          : null,
+        series:
+          postData.seriesId && !earlyAccess.isRestrictedView
+            ? {
+                id: postData.seriesId,
+                title: postData.seriesTitle ?? "",
+                type: postData.type,
+              }
+            : null,
         seriesParts,
-        terms: postData.terms,
+        slug: earlyAccess.isRestrictedView ? postData.id : postData.slug,
+        terms: earlyAccess.isRestrictedView ? [] : postData.terms,
+        thumbnailImageCount: earlyAccess.isRestrictedView
+          ? 0
+          : postData.thumbnailImageCount,
         title: earlyAccess.isRestrictedView
           ? getMaskedPostLabel(postData.id)
           : postData.title,
@@ -2076,7 +2107,7 @@ export default {
             publicCatalogVisibilityCondition()
           )
         )
-        .orderBy(sql`score DESC`)
+        .orderBy(sql`score DESC`, releasedAtDescending, desc(post.id))
         .limit(RECOMMENDATION_LIMIT);
 
       const data = results

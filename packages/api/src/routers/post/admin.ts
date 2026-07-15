@@ -13,6 +13,8 @@ import {
 import {
   postCreateInputSchema,
   postEditInputSchema,
+  optionalSingleDeferredMediaSelectionInputSchema,
+  withDeferredMediaSelections,
 } from "../../utils/deferred-media";
 import {
   createPostCoverImageObjectKeySelect,
@@ -97,6 +99,7 @@ export default {
         creatorName: true,
         id: true,
         isWeekly: true,
+        releasedAt: true,
         slug: true,
         status: true,
         title: true,
@@ -104,7 +107,10 @@ export default {
         version: true,
         views: true,
       },
-      orderBy: (p, { desc }) => [desc(p.createdAt)],
+      orderBy: (p, { desc }) => [
+        sql`${p.releasedAt} DESC NULLS LAST`,
+        desc(p.id),
+      ],
       where: (p, { eq: equals }) => equals(p.type, "post"),
       with: {
         terms: {
@@ -163,6 +169,8 @@ export default {
         order: featuredPost.order,
         position: featuredPost.position,
         postId: featuredPost.postId,
+        releasedAt: post.releasedAt,
+        thumbnailMediaId: featuredPost.thumbnailMediaId,
         title: post.title,
         version: post.version,
       })
@@ -170,7 +178,9 @@ export default {
       .innerJoin(post, eq(post.id, featuredPost.postId))
       .orderBy(
         sql`CASE WHEN ${featuredPost.position} = 'main' THEN 0 ELSE 1 END`,
-        featuredPost.order
+        featuredPost.order,
+        sql`${post.releasedAt} DESC NULLS LAST`,
+        sql`${post.id} DESC`
       );
   }),
 
@@ -195,6 +205,7 @@ export default {
           id: post.id,
           coverImageObjectKey: createPostCoverImageObjectKeySelect(),
           imageObjectKeys: post.imageObjectKeys,
+          releasedAt: post.releasedAt,
           thumbnailImageCount: post.thumbnailImageCount,
           title: post.title,
           version: post.version,
@@ -203,8 +214,8 @@ export default {
         .where(and(...conditions))
         .orderBy(
           input.search && input.search.trim() !== ""
-            ? sql`similarity(${post.title}, ${input.search.trim()}) DESC, ${post.createdAt} DESC`
-            : sql`${post.createdAt} DESC`
+            ? sql`similarity(${post.title}, ${input.search.trim()}) DESC, ${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
+            : sql`${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
         )
         .limit(50);
 
@@ -222,12 +233,14 @@ export default {
         id: post.id,
         coverImageObjectKey: createPostCoverImageObjectKeySelect(),
         imageObjectKeys: post.imageObjectKeys,
+        releasedAt: post.releasedAt,
         thumbnailImageCount: post.thumbnailImageCount,
         title: post.title,
         version: post.version,
       })
       .from(post)
-      .where(and(eq(post.type, "post"), eq(post.isWeekly, true)));
+      .where(and(eq(post.type, "post"), eq(post.isWeekly, true)))
+      .orderBy(sql`${post.releasedAt} DESC NULLS LAST`, sql`${post.id} DESC`);
   }),
 
   getWeeklySelectionPosts: permissionProcedure({
@@ -254,6 +267,7 @@ export default {
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
           isWeekly: post.isWeekly,
+          releasedAt: post.releasedAt,
           similarity: sql<number>`similarity(${post.title}, ${input.search?.trim() || ""})`,
           title: post.title,
           version: post.version,
@@ -262,8 +276,8 @@ export default {
         .where(and(...conditions))
         .orderBy(
           input.search && input.search.trim() !== ""
-            ? sql`similarity DESC, ${post.createdAt} DESC`
-            : sql`${post.createdAt} DESC`
+            ? sql`similarity DESC, ${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
+            : sql`${post.releasedAt} DESC NULLS LAST, ${post.id} DESC`
         );
 
       const result = posts.map(({ similarity: _, ...postData }) => postData);
@@ -277,7 +291,13 @@ export default {
     .input(
       z.object({
         mainPostId: z.string(),
+        mainThumbnailSelection:
+          optionalSingleDeferredMediaSelectionInputSchema.default([]),
         secondaryPostIds: z.array(z.string()).length(2),
+        secondaryThumbnailSelections: z
+          .array(optionalSingleDeferredMediaSelectionInputSchema)
+          .length(2)
+          .default([[], []]),
       })
     )
     .handler(async ({ context: { db, ...ctx }, input, errors }) => {
@@ -307,28 +327,52 @@ export default {
         throw errors.FORBIDDEN();
       }
 
-      await db.transaction(async (tx) => {
-        await tx.delete(featuredPost);
-        logger?.debug("Cleared previous featured posts");
+      return await withDeferredMediaSelections({
+        db,
+        onComplete: async ({ orderedSelections, tx }) => {
+          const mainThumbnailMediaId = orderedSelections[0]?.[0]?.id ?? null;
+          const secondaryThumbnailMediaIds = [
+            orderedSelections[1]?.[0]?.id ?? null,
+            orderedSelections[2]?.[0]?.id ?? null,
+          ];
 
-        await tx.insert(featuredPost).values([
-          {
-            order: 0,
-            position: "main",
-            postId: input.mainPostId,
-          },
-          {
-            order: 1,
-            position: "secondary",
-            postId: input.secondaryPostIds[0]!,
-          },
-          {
-            order: 2,
-            position: "secondary",
-            postId: input.secondaryPostIds[1]!,
-          },
-        ]);
-        logger?.info("Successfully set 3 new featured posts");
+          await tx.delete(featuredPost);
+          logger?.debug("Cleared previous featured posts");
+
+          await tx.insert(featuredPost).values([
+            {
+              order: 0,
+              position: "main",
+              postId: input.mainPostId,
+              thumbnailMediaId: mainThumbnailMediaId,
+            },
+            {
+              order: 1,
+              position: "secondary",
+              postId: input.secondaryPostIds[0]!,
+              thumbnailMediaId: secondaryThumbnailMediaIds[0],
+            },
+            {
+              order: 2,
+              position: "secondary",
+              postId: input.secondaryPostIds[1]!,
+              thumbnailMediaId: secondaryThumbnailMediaIds[1],
+            },
+          ]);
+          logger?.info("Successfully set 3 new featured posts");
+
+          return {
+            mainThumbnailMediaId,
+            secondaryThumbnailMediaIds,
+          };
+        },
+        ownerKind: "Juego",
+        resourceName: "Posts destacados",
+        selections: [
+          input.mainThumbnailSelection,
+          input.secondaryThumbnailSelections[0] ?? [],
+          input.secondaryThumbnailSelections[1] ?? [],
+        ],
       });
     }),
 

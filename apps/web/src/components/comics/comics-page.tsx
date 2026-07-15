@@ -15,12 +15,20 @@ import {
 import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import Autoplay from "embla-carousel-autoplay";
-import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
+import {
+  AD_ACTION_CLASS_NAME,
+  AD_CATALOG_CLASS_NAME,
+  AD_CATALOG_INTERVAL,
+  AD_CATALOG_MOBILE_ZONE_ID,
+  AD_CATALOG_ZONE_ID,
+} from "@/components/ads/ad-config";
+import { AdSlot } from "@/components/ads/ad-slot";
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
 import {
@@ -71,6 +79,8 @@ type ComicsPageProps = {
   params: ComicSearchParams;
   filteredPosts: PostProps[];
   pagination: SearchPaginationState;
+  popularPosts: PostProps[];
+  trendingPosts: PostProps[];
   onPageChange: (page: number) => void;
   onSearchChange: (params: ComicSearchParams) => void;
   onRandomSelect: (slug: string) => void;
@@ -80,32 +90,12 @@ export function ComicsPage({
   params,
   filteredPosts,
   pagination,
+  popularPosts,
+  trendingPosts,
   onPageChange,
   onSearchChange,
   onRandomSelect,
 }: ComicsPageProps) {
-  const popularQuery = useQuery({
-    queryFn: () =>
-      orpcClient.post.search({
-        orderBy: "views",
-        pageSize: TOP_RANK_LIMIT,
-        type: "comic",
-      }),
-    queryKey: ["comics", "popular"],
-    staleTime: 1000 * 60 * 10,
-  });
-
-  const trendingQuery = useQuery({
-    queryFn: () =>
-      orpcClient.post.search({
-        orderBy: "likes",
-        pageSize: TRENDING_LIMIT,
-        type: "comic",
-      }),
-    queryKey: ["comics", "trending"],
-    staleTime: 1000 * 60 * 10,
-  });
-
   const handleRandomComic = async () => {
     const result = await orpcClient.post.getRandom({ type: "comic" });
     if (result) {
@@ -113,23 +103,20 @@ export function ComicsPage({
     }
   };
 
-  const popular = popularQuery.data?.items ?? [];
-  const trending = trendingQuery.data?.items ?? [];
-
   return (
     <main className="flex w-full flex-col">
       <ComicsHero
-        loading={popularQuery.isPending}
-        posts={popular}
+        loading={false}
+        posts={popularPosts}
         onRandom={handleRandomComic}
       />
 
       <div className="mt-10 px-1 md:px-3">
-        <ComicsTopRanks loading={popularQuery.isPending} posts={popular} />
+        <ComicsTopRanks loading={false} posts={popularPosts} />
       </div>
 
       <div className="mt-12 px-1 md:px-3">
-        <ComicsTrending loading={trendingQuery.isPending} posts={trending} />
+        <ComicsTrending loading={false} posts={trendingPosts} />
       </div>
 
       <div className="mt-10 px-1 md:px-3">
@@ -197,11 +184,13 @@ function ComicsHero({
       {/* Backdrop: blurred + saturated cover */}
       <div className="pointer-events-none absolute inset-0">
         {cover ? (
-          <img
+          <Image
             alt=""
             aria-hidden
-            className="h-full w-full object-cover saturate-[1.4] blur-2xl scale-110 opacity-50 transition-opacity duration-700"
+            className="object-cover saturate-[1.4] blur-2xl scale-110 opacity-50 transition-opacity duration-700"
+            fill
             key={featured.id}
+            sizes="100vw"
             src={cover}
           />
         ) : (
@@ -246,10 +235,8 @@ function ComicsHero({
                 <Link
                   className="contents"
                   key={tag.id}
-                  preload={false}
-                  resetScroll={false}
-                  search={{ tag: [tag.id] }}
-                  to="/comics"
+                  href={{ pathname: "/comics", query: { tag: tag.id } }}
+                  prefetch={false}
                 >
                   <TermBadge tag={tag} />
                 </Link>
@@ -257,7 +244,7 @@ function ComicsHero({
             </div>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-[Lexend] text-sm tabular-nums text-muted-foreground">
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-lexend text-sm tabular-nums text-muted-foreground">
             <Stat icon={ViewIcon} value={formatCount(featured.views)} />
             <Stat
               icon={FavouriteIcon}
@@ -275,10 +262,12 @@ function ComicsHero({
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
-              className="h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
-              render={
-                <Link params={{ slug: featured.slug }} to="/comic/$slug" />
-              }
+              className={cn(
+                AD_ACTION_CLASS_NAME,
+                "h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              )}
+              nativeButton={false}
+              render={<Link href={`/comic/${featured.slug}`} />}
             >
               <HugeiconsIcon className="size-4" icon={Book02Icon} />
               Leer ahora
@@ -335,18 +324,20 @@ function HeroPoster({ post }: { post: PostProps }) {
   return (
     <Link
       className="group relative mx-auto block aspect-3/4 w-[min(360px,75%)] md:w-[min(420px,100%)]"
-      params={{ slug: post.slug }}
-      preload={false}
-      to="/comic/$slug"
+      href={`/comic/${post.slug}`}
+      prefetch={false}
     >
       {/* Aura behind the poster */}
       <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
 
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/15 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:-rotate-1 group-hover:scale-[1.02]">
         {cover ? (
-          <img
+          <Image
             alt={post.title}
-            className="h-full w-full object-cover"
+            className="object-cover"
+            fill
+            priority
+            sizes="(min-width: 768px) 420px, 75vw"
             src={cover}
           />
         ) : (
@@ -358,7 +349,7 @@ function HeroPoster({ post }: { post: PostProps }) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/60 to-transparent" />
 
         {/* Corner rank */}
-        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-black/55 px-2 py-1 font-[Lexend] text-[10px] font-bold uppercase tracking-[0.18em] text-primary backdrop-blur-md">
+        <div className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-primary/40 bg-black/55 px-2 py-1 font-lexend text-[10px] font-bold uppercase tracking-[0.18em] text-primary backdrop-blur-md">
           <HugeiconsIcon className="size-3" icon={Crown02Icon} />
           #1
         </div>
@@ -466,16 +457,17 @@ function RankItem({ post, rank }: { post: PostProps; rank: number }) {
     <li>
       <Link
         className="group block h-full"
-        params={{ slug: post.slug }}
-        preload={false}
-        to="/comic/$slug"
+        href={`/comic/${post.slug}`}
+        prefetch={false}
       >
         <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
           <div className="relative aspect-3/4 overflow-hidden">
             {cover ? (
-              <img
+              <Image
                 alt={post.title}
-                className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+                className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+                fill
+                sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
                 src={cover}
               />
             ) : (
@@ -577,12 +569,16 @@ function ComicsTrending({
   const [snaps, setSnaps] = useState<number[]>([]);
   const [selected, setSelected] = useState(0);
 
+  const handleApiChange = (nextApi: CarouselApi) => {
+    setApi(nextApi);
+    setSnaps(nextApi?.scrollSnapList() ?? []);
+    setSelected(nextApi?.selectedScrollSnap() ?? 0);
+  };
+
   useEffect(() => {
     if (!api) {
       return;
     }
-    setSnaps(api.scrollSnapList());
-    setSelected(api.selectedScrollSnap());
     const onSelect = () => setSelected(api.selectedScrollSnap());
     const onReInit = () => {
       setSnaps(api.scrollSnapList());
@@ -629,7 +625,7 @@ function ComicsTrending({
                 stopOnInteraction: false,
               }),
             ]}
-            setApi={setApi}
+            setApi={handleApiChange}
           >
             <CarouselContent className="-ml-3">
               {trending.map((post, index) => (
@@ -674,16 +670,17 @@ function TrendingCard({ post, rank }: { post: PostProps; rank: number }) {
   return (
     <Link
       className="group block h-full"
-      params={{ slug: post.slug }}
-      preload={false}
-      to="/comic/$slug"
+      href={`/comic/${post.slug}`}
+      prefetch={false}
     >
       <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-white/10 bg-card shadow-lg">
         <div className="relative aspect-3/4 overflow-hidden">
           {cover ? (
-            <img
+            <Image
               alt={post.title}
-              className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+              className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
+              fill
+              sizes="(min-width: 1024px) 20vw, (min-width: 768px) 33vw, 50vw"
               src={cover}
             />
           ) : (
@@ -794,10 +791,8 @@ function ComicsGenreStrip() {
           <Link
             className="contents"
             key={tag.id}
-            preload={false}
-            resetScroll={false}
-            search={{ tag: [tag.id] }}
-            to="/comics"
+            href={{ pathname: "/comics", query: { tag: tag.id } }}
+            prefetch={false}
           >
             <TermBadge tag={tag} />
           </Link>
@@ -858,6 +853,12 @@ function ComicsLibrary({
         onSearchChange={onSearchChange}
         params={params}
       />
+      <AdSlot className="eas6a97888e20" zoneId={AD_CATALOG_ZONE_ID} />
+      <AdSlot
+        className="eas6a97888e10"
+        media="mobile"
+        zoneId={AD_CATALOG_MOBILE_ZONE_ID}
+      />
 
       <div className="glow-line" />
 
@@ -870,8 +871,17 @@ function ComicsLibrary({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-            {posts.map((post) => (
-              <PostCard key={post.id} post={post} />
+            {posts.map((post, index) => (
+              <Fragment key={post.id}>
+                <PostCard post={post} />
+                {(index + 1) % AD_CATALOG_INTERVAL === 0 &&
+                  index !== posts.length - 1 && (
+                    <AdSlot
+                      className={AD_CATALOG_CLASS_NAME}
+                      zoneId={AD_CATALOG_ZONE_ID}
+                    />
+                  )}
+              </Fragment>
             ))}
           </div>
           <LibraryPagination
@@ -1140,7 +1150,7 @@ function PageCountRangePopover({
           <div className="absolute right-0 z-40 mt-2 w-[min(340px,90vw)] rounded-2xl border border-white/10 bg-popover/95 p-4 shadow-2xl backdrop-blur-md">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-[Lexend] font-bold text-sm">Páginas</p>
+                <p className="font-lexend font-bold text-sm">Páginas</p>
                 <p className="text-muted-foreground text-xs">
                   Filtra por cantidad de páginas.
                 </p>

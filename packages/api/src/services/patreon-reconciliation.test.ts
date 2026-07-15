@@ -26,7 +26,7 @@ const { reconcilePatreonMemberships } =
 function createUpdateMock() {
   return {
     set: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue(),
+      where: vi.fn(() => Promise.resolve()),
     }),
   };
 }
@@ -121,11 +121,38 @@ describe(reconcilePatreonMemberships, () => {
       db: database as never,
       dependencies: {
         fetchMembership: vi.fn().mockResolvedValue(null),
+        now: () => new Date("2026-05-29T12:00:00.000Z"),
       },
     });
 
     expect(summary.dryRun).toBe(true);
     expect(summary.deactivated).toBe(1);
+    expect(database.update).not.toHaveBeenCalled();
+  });
+
+  it("does not rotate expired refresh tokens during dry runs", async () => {
+    const refreshToken = vi.fn();
+    const database = createDatabase({
+      accountRecord: {
+        ...linkedAccount,
+        accessTokenExpiresAt: new Date("2026-05-28T00:00:00.000Z"),
+      },
+      patronRecords: [activePatron],
+    });
+    const summary = await reconcilePatreonMemberships({
+      db: database as never,
+      dependencies: {
+        now: () => new Date("2026-05-29T12:00:00.000Z"),
+        refreshToken,
+      },
+    });
+
+    expect(summary.results[0]).toMatchObject({
+      action: "failed",
+      nextTier: "level12",
+      reason: "refresh_required",
+    });
+    expect(refreshToken).not.toHaveBeenCalled();
     expect(database.update).not.toHaveBeenCalled();
   });
 
@@ -153,6 +180,32 @@ describe(reconcilePatreonMemberships, () => {
     });
   });
 
+  it("does not deactivate patrons on transient token refresh failures", async () => {
+    const database = createDatabase({
+      accountRecord: {
+        ...linkedAccount,
+        accessTokenExpiresAt: new Date("2026-05-28T00:00:00.000Z"),
+      },
+      patronRecords: [activePatron],
+    });
+    const summary = await reconcilePatreonMemberships({
+      db: database as never,
+      dependencies: {
+        now: () => new Date("2026-05-29T12:00:00.000Z"),
+        refreshToken: vi.fn().mockRejectedValue(new Error("gateway timeout")),
+      },
+      dryRun: false,
+    });
+
+    expect(summary.failed).toBe(1);
+    expect(summary.results[0]).toMatchObject({
+      action: "failed",
+      nextTier: "level12",
+      reason: "patreon_api_error",
+    });
+    expect(database.update).not.toHaveBeenCalled();
+  });
+
   it("does not deactivate patrons on transient Patreon API failures", async () => {
     const database = createDatabase({
       accountRecord: linkedAccount,
@@ -164,6 +217,7 @@ describe(reconcilePatreonMemberships, () => {
         fetchMembership: vi
           .fn()
           .mockRejectedValue(new Error("gateway timeout")),
+        now: () => new Date("2026-05-29T12:00:00.000Z"),
       },
       dryRun: false,
     });

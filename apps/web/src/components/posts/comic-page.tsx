@@ -21,12 +21,20 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, Navigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TouchEvent } from "react";
 
+import {
+  AD_ACTION_CLASS_NAME,
+  AD_INTERSTITIAL_SCRIPT_SRC,
+  AD_POPUNDER_DESKTOP_SCRIPT_SRC,
+  AD_POPUNDER_MOBILE_SCRIPT_SRC,
+} from "@/components/ads/ad-config";
+import { AdSlot, PopunderAdScript } from "@/components/ads/ad-slot";
 import { formatCount, SectionHeader } from "@/components/search/library-shared";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
@@ -114,11 +122,11 @@ export function ComicPage({
     orpc.comicProgress.getByComicId.queryOptions({
       input: { comicId: comic.id },
     });
-  const comicProgressQuery = useQuery({
+  const { data: comicProgressData } = useQuery({
     ...comicProgressQueryOptions,
     enabled: isAuthed,
   });
-  const comicProgress = (comicProgressQuery.data ?? null) as ComicProgressData;
+  const comicProgress = (comicProgressData ?? null) as ComicProgressData;
 
   const setPage = useMemo(
     () => (newPage: number) => {
@@ -126,10 +134,6 @@ export function ComicPage({
     },
     [setComicPage]
   );
-
-  if (!comic) {
-    return <Navigate to="/" />;
-  }
 
   return (
     <PostProvider post={comic}>
@@ -177,6 +181,12 @@ function ComicInfoPage({
 
         <PostStatsBar />
 
+        {!comic.earlyAccess.isRestrictedView && (
+          <div className="px-4 pt-4">
+            <AdSlot className="eas6a97888e20" zoneId="5950174" />
+          </div>
+        )}
+
         <div className="flex flex-col gap-6 px-4 pt-6">
           {!comic.earlyAccess.isRestrictedView && (
             <div aria-hidden="true" className="h-px" ref={viewTargetRef} />
@@ -185,6 +195,30 @@ function ComicInfoPage({
           <PostContent />
           <PostInfo />
           <PostTagsSection />
+          <AdSlot
+            className="eas6a97888e33"
+            media="mobile"
+            providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
+            reduced
+            zoneId="5950220"
+          />
+          <AdSlot
+            className="eas6a97888e35"
+            media="desktop"
+            providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
+            reduced
+            zoneId="5950226"
+          />
+          <PopunderAdScript
+            media="mobile"
+            scriptId="nexustc-popunder-mobile"
+            src={AD_POPUNDER_MOBILE_SCRIPT_SRC}
+          />
+          <PopunderAdScript
+            media="desktop"
+            scriptId="nexustc-popunder-desktop"
+            src={AD_POPUNDER_DESKTOP_SCRIPT_SRC}
+          />
           <PostChangelog />
           <PostPartsSection />
 
@@ -270,10 +304,12 @@ function ComicHero({
       {/* Backdrop: blurred + saturated cover */}
       <div className="pointer-events-none absolute inset-0">
         {coverUrl ? (
-          <img
+          <Image
             alt=""
             aria-hidden
-            className="h-full w-full object-cover saturate-[1.4] blur-2xl scale-110 opacity-50"
+            className="object-cover saturate-[1.4] blur-2xl scale-110 opacity-50"
+            fill
+            sizes="100vw"
             src={coverUrl}
           />
         ) : (
@@ -335,10 +371,8 @@ function ComicHero({
               <Link
                 className="contents"
                 key={tag.id}
-                preload={false}
-                resetScroll={false}
-                search={{ tag: [tag.id] }}
-                to="/comics"
+                href={{ pathname: "/comics", query: { tag: tag.id } }}
+                prefetch={false}
               >
                 <TermBadge tag={tag} />
               </Link>
@@ -346,7 +380,7 @@ function ComicHero({
           </div>
 
           {/* Stats row */}
-          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-[Lexend] text-sm tabular-nums text-muted-foreground">
+          <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 font-lexend text-sm tabular-nums text-muted-foreground">
             <HeroStat icon={ViewIcon} value={formatCount(comic.views)} />
             <HeroStat
               icon={FavouriteIcon}
@@ -362,14 +396,21 @@ function ComicHero({
             )}
             <HeroStat
               icon={Calendar03Icon}
-              value={format(comic.createdAt, "d MMM yyyy", { locale: es })}
+              value={
+                comic.releasedAt
+                  ? format(comic.releasedAt, "d MMM yyyy", { locale: es })
+                  : "Sin fecha"
+              }
             />
           </div>
 
           {/* CTAs */}
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <Button
-              className="h-12 rounded-xl bg-primary px-5 font-semibold text-[15px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              className={cn(
+                AD_ACTION_CLASS_NAME,
+                "h-12 rounded-xl bg-primary px-5 font-semibold text-[15px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+              )}
               onClick={() => setPage(0)}
               type="button"
             >
@@ -379,7 +420,10 @@ function ComicHero({
             </Button>
             {showResumePrompt && (
               <Button
-                className="h-12 rounded-xl border-primary/40 bg-background/40 px-4 font-semibold text-[14px] text-primary backdrop-blur-md hover:bg-background/70"
+                className={cn(
+                  AD_ACTION_CLASS_NAME,
+                  "h-12 rounded-xl border-primary/40 bg-background/40 px-4 font-semibold text-[14px] text-primary backdrop-blur-md hover:bg-background/70"
+                )}
                 onClick={() => setPage(resumePage - 1)}
                 type="button"
                 variant="outline"
@@ -412,9 +456,12 @@ function ComicHeroPoster({
       <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90" />
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/15 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:-rotate-1 group-hover:scale-[1.02]">
         {coverUrl ? (
-          <img
+          <Image
             alt={`Portada de ${title}`}
-            className="h-full w-full object-cover"
+            className="object-cover"
+            fill
+            priority
+            sizes="(min-width: 768px) 420px, 75vw"
             src={coverUrl}
           />
         ) : (
@@ -544,14 +591,18 @@ function PagePreviewButton({
 }) {
   return (
     <button
-      className="group relative aspect-3/4 overflow-hidden rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-[0_18px_40px_-22px_oklch(0.795_0.184_86.047/0.6)]"
+      className={cn(
+        AD_ACTION_CLASS_NAME,
+        "group relative aspect-3/4 overflow-hidden rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-[0_18px_40px_-22px_oklch(0.795_0.184_86.047/0.6)]"
+      )}
       onClick={() => onSelect(index)}
       type="button"
     >
-      <img
+      <Image
         alt={`Página ${index + 1}`}
-        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
-        loading="lazy"
+        className="object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+        fill
+        sizes="(min-width: 1024px) 12vw, (min-width: 768px) 18vw, 40vw"
         src={getBucketUrl(image)}
       />
       {/* Top-left rank chip */}
@@ -724,7 +775,6 @@ export function ComicReader({
     let cancelled = false;
 
     if (!isAuthed) {
-      setReadingSessionId(null);
       return;
     }
 
@@ -1288,6 +1338,7 @@ export function ComicReader({
 
         {/* Main Image */}
         {currentImage && (
+          // eslint-disable-next-line @next/next/no-img-element -- interactive zoom relies on intrinsic dimensions and a direct image ref
           <img
             alt={`Página ${page + 1}`}
             className={cn(
@@ -1452,6 +1503,7 @@ export function ComicCascadeReader({
   isAuthed,
   onChangeMode,
   onExit,
+  page,
   progressQueryKey,
 }: {
   comic: PostType;
@@ -1459,9 +1511,10 @@ export function ComicCascadeReader({
   isAuthed: boolean;
   onChangeMode: (page: number) => void;
   onExit: () => void;
+  page: number;
   progressQueryKey: readonly unknown[];
 }) {
-  const [currentPage, setCurrentPage] = useState(0);
+  const [currentPage, setCurrentPage] = useState(page);
   const [hudVisible, setHudVisible] = useState(true);
   const [showThumbnails, setShowThumbnails] = useState(false);
   const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
@@ -1506,7 +1559,6 @@ export function ComicCascadeReader({
     let cancelled = false;
 
     if (!isAuthed) {
-      setReadingSessionId(null);
       return;
     }
 
@@ -1613,13 +1665,20 @@ export function ComicCascadeReader({
     onExit();
   };
 
-  const scrollToPage = (pageIndex: number) => {
-    pageRefs.current[pageIndex]?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-    setCurrentPage(pageIndex);
-  };
+  const scrollToPage = useCallback(
+    (pageIndex: number, behavior: ScrollBehavior = "smooth") => {
+      pageRefs.current[pageIndex]?.scrollIntoView({
+        behavior,
+        block: "center",
+      });
+      setCurrentPage(pageIndex);
+    },
+    []
+  );
+
+  useEffect(() => {
+    scrollToPage(page, "auto");
+  }, [page, scrollToPage]);
 
   const toggleHud = () => {
     setHudVisible((visible) => {
@@ -1727,17 +1786,25 @@ export function ComicCascadeReader({
         )}
       >
         {images.map((image, index) => (
-          <img
-            alt={`Página ${index + 1}`}
-            className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
-            data-page-index={index}
+          <button
+            aria-label={`Ir a la página ${index + 1}`}
+            className="block w-full cursor-pointer border-0 bg-transparent p-0"
             key={image}
-            loading={index < 2 ? "eager" : "lazy"}
-            ref={(element) => {
-              pageRefs.current[index] = element;
-            }}
-            src={getBucketUrl(image)}
-          />
+            onClick={() => scrollToPage(index)}
+            type="button"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- continuous reader preserves each source image's unknown intrinsic aspect ratio */}
+            <img
+              alt={`Página ${index + 1}`}
+              className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
+              data-page-index={index}
+              loading={index < 2 ? "eager" : "lazy"}
+              ref={(element) => {
+                pageRefs.current[index] = element;
+              }}
+              src={getBucketUrl(image)}
+            />
+          </button>
         ))}
       </div>
 
@@ -1774,7 +1841,7 @@ export function ComicCascadeReader({
 }
 
 /* ============================================================================
-   Thumbnail Panel - Slide-up panel for page selection
+   Thumbnail Panel - Full-screen page selection
    ============================================================================ */
 
 function ThumbnailPanel({
@@ -1809,11 +1876,11 @@ function ThumbnailPanel({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className="data-closed:fade-out-0 data-open:fade-in-0 fixed isolate inset-0 z-50 bg-black/60 backdrop-blur-sm duration-200 data-closed:animate-out data-open:animate-in" />
         <DialogPrimitive.Popup
-          className="data-closed:slide-out-to-bottom data-open:slide-in-from-bottom fixed inset-x-0 bottom-0 z-50 flex max-h-[60vh] flex-col overflow-hidden rounded-t-3xl bg-zinc-900/95 backdrop-blur-xl duration-300 data-closed:animate-out data-open:animate-in"
+          className="data-closed:slide-out-to-bottom data-open:slide-in-from-bottom fixed inset-0 z-50 flex flex-col overflow-hidden bg-zinc-900/95 backdrop-blur-xl duration-300 data-closed:animate-out data-open:animate-in"
           ref={panelRef}
         >
           {/* Header */}
-          <div className="z-10 flex shrink-0 items-center justify-between border-white/10 border-b bg-zinc-900/80 p-4 backdrop-blur-sm">
+          <div className="z-10 flex shrink-0 items-center justify-between border-white/10 border-b bg-zinc-900/80 p-4 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm">
             <h3 className="font-semibold text-lg text-white">
               Todas las páginas
             </h3>
@@ -1831,8 +1898,8 @@ function ThumbnailPanel({
           </div>
 
           {/* Thumbnail Grid */}
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 [scrollbar-color:oklch(0.795_0.184_86.047/0.35)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
-            <div className="grid grid-cols-4 gap-3 md:grid-cols-6 lg:grid-cols-8">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 [scrollbar-color:oklch(0.795_0.184_86.047/0.35)_transparent] scrollbar-thin [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
+            <div className="grid grid-cols-4 gap-3 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-12">
               {images.map((image, index) => (
                 <button
                   className={cn(
@@ -1846,10 +1913,11 @@ function ThumbnailPanel({
                   ref={currentPage === index ? selectedRef : null}
                   type="button"
                 >
-                  <img
+                  <Image
                     alt={`Página ${index + 1}`}
-                    className="h-full w-full object-cover"
-                    loading="lazy"
+                    className="object-cover"
+                    fill
+                    sizes="(min-width: 1024px) 10vw, (min-width: 768px) 15vw, 25vw"
                     src={getBucketUrl(image)}
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent p-1">

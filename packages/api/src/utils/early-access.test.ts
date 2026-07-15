@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canViewPost,
   getPostEarlyAccessView,
+  redactEarlyAccessMedia,
   resolveEarlyAccessStorageFields,
 } from "./early-access";
 
@@ -109,5 +111,49 @@ describe("early access helpers", () => {
 
     expect(view.currentState).toBe("VIP12_ONLY");
     expect(view.isRestrictedView).toBe(true);
+  });
+
+  it("allows only published, released posts visible to the viewer", () => {
+    const now = new Date("2026-04-04T00:00:00.000Z");
+    const post = {
+      earlyAccessEnabled: true,
+      earlyAccessStartedAt: new Date("2026-04-03T12:00:00.000Z"),
+      releasedAt: new Date("2026-04-03T12:00:00.000Z"),
+      status: "publish" as const,
+      type: "post" as const,
+      vip12EarlyAccessHours: 24,
+      vip8EarlyAccessHours: 48,
+    };
+
+    expect(canViewPost(post, { role: "user", tier: "none" }, now)).toBe(false);
+    expect(canViewPost(post, { role: "user", tier: "level12" }, now)).toBe(
+      true
+    );
+    expect(
+      canViewPost(
+        { ...post, releasedAt: new Date("2026-04-05T00:00:00.000Z") },
+        { role: "owner", tier: "level12" },
+        now
+      )
+    ).toBe(false);
+  });
+
+  it("removes restricted content and media keys", () => {
+    const restricted = redactEarlyAccessMedia(
+      {
+        content: "paid content",
+        coverImageObjectKey: "cover.webp",
+        id: "post-id",
+        imageObjectKeys: ["page-1.webp", "page-2.webp"],
+      },
+      true
+    );
+
+    expect(restricted).toEqual({
+      content: "",
+      coverImageObjectKey: null,
+      id: "post-id",
+      imageObjectKeys: [],
+    });
   });
 });

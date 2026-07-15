@@ -17,14 +17,23 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import type { PremiumLinksDescriptor } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import AutoScroll from "embla-carousel-auto-scroll";
 import Autoplay from "embla-carousel-autoplay";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+  AD_ACTION_CLASS_NAME,
+  AD_INTERSTITIAL_SCRIPT_SRC,
+  AD_POPUNDER_DESKTOP_SCRIPT_SRC,
+  AD_POPUNDER_MOBILE_SCRIPT_SRC,
+} from "@/components/ads/ad-config";
+import { AdSlot, PopunderAdScript } from "@/components/ads/ad-slot";
 import { TermBadge } from "@/components/term-badge";
 import { usePostViewTracker } from "@/hooks/use-post-view-tracker";
 import { trackEvent } from "@/lib/analytics";
@@ -123,6 +132,32 @@ export function PostPage({ post }: { post: PostProps }) {
             <PostInfo />
             <PostContent />
             <PostTagsSection />
+            <AdSlot className="eas6a97888e20" zoneId="5950190" />
+            <AdSlot className="eas6a97888e10" media="mobile" zoneId="5950210" />
+            <AdSlot
+              className="eas6a97888e33"
+              media="mobile"
+              providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
+              reduced
+              zoneId="5950220"
+            />
+            <AdSlot
+              className="eas6a97888e35"
+              media="desktop"
+              providerSrc={AD_INTERSTITIAL_SCRIPT_SRC}
+              reduced
+              zoneId="5950226"
+            />
+            <PopunderAdScript
+              media="mobile"
+              scriptId="nexustc-popunder-mobile"
+              src={AD_POPUNDER_MOBILE_SCRIPT_SRC}
+            />
+            <PopunderAdScript
+              media="desktop"
+              scriptId="nexustc-popunder-desktop"
+              src={AD_POPUNDER_DESKTOP_SCRIPT_SRC}
+            />
             {!showRestrictedView && <PostChangelog />}
             {!showRestrictedView && <PostPartsSection />}
             {showCreatorSupport && (
@@ -181,14 +216,18 @@ export function PostHero() {
     <div className="relative">
       {mainImage ? (
         <div className="relative overflow-hidden rounded-xl bg-muted">
-          <img
+          <Image
             alt={`Portada de ${post.title}`}
             className="block h-auto w-full"
+            height={900}
+            priority
+            sizes="(min-width: 1024px) 800px, 100vw"
             src={getBucketUrl(mainImage)}
+            width={1600}
           />
           <div className="absolute inset-0 bg-linear-to-t from-background via-background/20 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-4 md:p-10">
-            <h1 className="mb-2 font-[Lexend] font-bold text-white text-xl drop-shadow-lg md:text-4xl">
+            <h1 className="mb-2 font-lexend font-bold text-white text-xl drop-shadow-lg md:text-4xl">
               {post.title}
             </h1>
             <div className="py-2 text-sm">
@@ -200,7 +239,7 @@ export function PostHero() {
         </div>
       ) : (
         <div className="flex flex-col gap-4 bg-linear-to-br from-primary/20 via-primary/10 to-transparent p-8 md:p-12">
-          <h1 className="font-[Lexend] font-bold text-3xl md:text-5xl">
+          <h1 className="font-lexend font-bold text-3xl md:text-5xl">
             {post.title}
           </h1>
           <div className="flex flex-wrap items-center gap-4">
@@ -209,7 +248,9 @@ export function PostHero() {
             )}
             <Badge className="gap-1.5" variant="secondary">
               <HugeiconsIcon className="size-3.5" icon={Calendar03Icon} />
-              {format(post.createdAt, "d 'de' MMMM, yyyy", { locale: es })}
+              {post.releasedAt
+                ? format(post.releasedAt, "d 'de' MMMM, yyyy", { locale: es })
+                : "Sin fecha de publicacion"}
             </Badge>
           </div>
         </div>
@@ -220,7 +261,7 @@ export function PostHero() {
 
 export function PostStatsBar() {
   const post = usePost();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleShare = async () => {
     try {
@@ -243,15 +284,19 @@ export function PostStatsBar() {
     }
 
     if (post.type === "comic") {
-      navigate({ params: { slug: result.slug }, to: "/comic/$slug" });
+      router.push(`/comic/${result.slug}`);
       return;
     }
 
-    navigate({ params: { id: result.slug }, to: "/post/$id" });
+    router.push(`/post/${result.slug}`);
   };
 
-  const createdAt = format(post.createdAt, "PP", { locale: es });
-  const updatedAt = format(post.updatedAt, "PP", { locale: es });
+  const publishedAt = post.releasedAt
+    ? format(post.releasedAt, "PP", { locale: es })
+    : "Sin fecha";
+  const updatedAt = post.updatedAt
+    ? format(post.updatedAt, "PP", { locale: es })
+    : null;
   const showRating =
     !post.earlyAccess.isActive &&
     post.ratingCount !== undefined &&
@@ -290,16 +335,15 @@ export function PostStatsBar() {
             <StatDivider />
             <StatCell
               icon={Clock01Icon}
-              label={createdAt === updatedAt ? "Publicado" : "Actualizado"}
-              value={updatedAt}
+              label={updatedAt ? "Actualizado" : "Publicado"}
+              value={updatedAt ?? publishedAt}
             />
           </div>
 
           {!post.earlyAccess.isActive && (
             <Link
               className="group relative flex items-center gap-3 rounded-xl border border-amber-400/40 bg-linear-to-r from-amber-400/10 via-amber-400/6 to-transparent px-4 py-3 shadow-glow-amber-400/10 transition-[background-color,border-color,box-shadow] duration-200 hover:border-amber-400/65 hover:bg-amber-400/15 hover:shadow-glow-amber-400/35 md:shrink-0"
-              params={{ id: post.id }}
-              to="/post/reviews/$id"
+              href={`/post/reviews/${post.id}`}
             >
               <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-amber-400/55 bg-amber-400/15">
                 <HugeiconsIcon
@@ -444,7 +488,7 @@ export function PostActionBar() {
           <Button
             className="border-yellow-600 bg-yellow-600/30 text-white"
             nativeButton={false}
-            render={<Link params={{ id: post.id }} to="/post/reviews/$id" />}
+            render={<Link href={`/post/reviews/${post.id}`} />}
           >
             <RatingDisplay
               averageRating={post.averageRating ?? 0}
@@ -661,9 +705,9 @@ function EarlyAccessDownloadGate() {
 
   const tierLabel = post.earlyAccess.requiredTierLabel ?? "VIP";
   const upgradeLink = session?.session ? (
-    <Link to="/profile" />
+    <Link href="/profile" />
   ) : (
-    <Link to="/auth" />
+    <Link href="/auth" />
   );
 
   return (
@@ -678,7 +722,7 @@ function EarlyAccessDownloadGate() {
         </div>
 
         <div className="flex max-w-lg flex-col items-center gap-2 text-center">
-          <h3 className="font-[Lexend] font-bold text-amber-50 text-xl md:text-2xl">
+          <h3 className="font-lexend font-bold text-amber-50 text-xl md:text-2xl">
             Descarga reservada a {tierLabel}
           </h3>
           <p className="text-amber-100/80 text-sm leading-relaxed">
@@ -724,6 +768,7 @@ export function PostTagsSection() {
   const post = usePost();
   const groupedTerms = Object.groupBy(post.terms, (term) => term.taxonomy);
   const hasTags = post.terms.length > 0;
+  const tagsPathname = post.type === "comic" ? "/comics" : "/juegos";
 
   return (
     hasTags && (
@@ -747,7 +792,14 @@ export function PostTagsSection() {
             <div className="glow-line" />
             <div className="flex flex-wrap gap-2">
               {groupedTerms.tag.map((term) => (
-                <TermBadge key={term.id} tag={term} />
+                <Link
+                  className="contents"
+                  href={{ pathname: tagsPathname, query: { tag: term.id } }}
+                  key={term.id}
+                  prefetch={false}
+                >
+                  <TermBadge tag={term} />
+                </Link>
               ))}
             </div>
           </>
@@ -759,7 +811,14 @@ export function PostTagsSection() {
 
 export function PostSidebarContent() {
   const post = usePost();
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+
+  useEffect(() => {
+    setRelatedEnabled(true);
+  }, []);
+
   const { data: related, isLoading } = useQuery({
+    enabled: relatedEnabled,
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
     queryKey: ["related", post.id],
@@ -769,6 +828,7 @@ export function PostSidebarContent() {
     <div className="flex flex-col gap-4">
       <CreatorSupportCard />
       <TranslatorSupportCard />
+      <AdSlot className="eas6a97888e2" media="desktop" zoneId="5950218" />
 
       <div className="flex flex-col gap-3">
         <div className="section-title">Recomendados</div>
@@ -777,7 +837,7 @@ export function PostSidebarContent() {
             Array.from({ length: 5 }, (_, i) => (
               <Skeleton className="h-28 w-full" key={i} />
             ))}
-          {!isLoading && related?.length === 0 && (
+          {relatedEnabled && !isLoading && related?.length === 0 && (
             <p className="text-center text-muted-foreground text-sm">
               Sin recomendaciones disponibles
             </p>
@@ -793,7 +853,14 @@ export function PostSidebarContent() {
 
 export function RelatedGamesSection() {
   const post = usePost();
+  const [relatedEnabled, setRelatedEnabled] = useState(false);
+
+  useEffect(() => {
+    setRelatedEnabled(true);
+  }, []);
+
   const { data: related, isLoading } = useQuery({
+    enabled: relatedEnabled,
     queryFn: () =>
       orpcClient.post.getRelated({ postId: post.id, type: post.type }),
     queryKey: ["related", post.id],
@@ -816,7 +883,7 @@ export function RelatedGamesSection() {
           ))}
         </div>
       )}
-      {!isLoading && (!related || related.length === 0) && (
+      {relatedEnabled && !isLoading && (!related || related.length === 0) && (
         <p className="text-center text-muted-foreground text-sm">
           Sin recomendaciones disponibles
         </p>
@@ -864,16 +931,18 @@ export function PostCarousel() {
               {allImages.map((image, index) => (
                 <CarouselItem className="basis-2/3 md:basis-1/3" key={image}>
                   <button
-                    className="group aspect-video w-full cursor-pointer overflow-hidden border border-border bg-card transition-all"
+                    className="group relative aspect-video w-full cursor-pointer overflow-hidden border border-border bg-card transition-all"
                     onClick={() => {
                       setSelectedImageIndex(index);
                       setGalleryOpen(true);
                     }}
                     type="button"
                   >
-                    <img
+                    <Image
                       alt={`Miniatura ${index + 1}`}
-                      className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                      className="object-cover transition-transform group-hover:scale-110"
+                      fill
+                      sizes="(min-width: 768px) 33vw, 67vw"
                       src={getBucketUrl(image)}
                     />
                   </button>
@@ -972,7 +1041,9 @@ export function PostContent() {
           <CardContent className="px-6">
             {hasDownloadLinks && (
               <TabsContent value="downloads">
-                <Markdown>{post.adsLinks ?? ""}</Markdown>
+                <Markdown externalLinkClassName={AD_ACTION_CLASS_NAME}>
+                  {post.adsLinks ?? ""}
+                </Markdown>
               </TabsContent>
             )}
             {hasPremium && (
@@ -1123,7 +1194,7 @@ function PremiumLinksContent({
       </section>
       <PostActionButton
         tone="amber"
-        render={<Link to="/memberships" />}
+        render={<Link href="/memberships" />}
         className="w-auto pl-7"
       >
         Comparar Rangos
@@ -1137,7 +1208,7 @@ function PremiumLinksContent({
 }
 
 export function TutorialsSection() {
-  const tutorials = useQuery(orpc.extras.getTutorials.queryOptions());
+  const { data: tutorials } = useQuery(orpc.extras.getTutorials.queryOptions());
   const [api, setApi] = useState<CarouselApi>();
 
   return (
@@ -1176,7 +1247,7 @@ export function TutorialsSection() {
         setApi={setApi}
       >
         <CarouselContent>
-          {tutorials.data?.map((tutorial) => (
+          {tutorials?.map((tutorial) => (
             <CarouselItem
               className="basis-4/5 p-1 pl-3 md:basis-1/3"
               key={tutorial.id}
@@ -1213,7 +1284,7 @@ export function DiscordSection() {
           />
         }
       >
-        <div className="inline-flex items-center gap-4 text-center font-[Lexend] font-bold text-2xl text-white uppercase">
+        <div className="inline-flex items-center gap-4 text-center font-lexend font-bold text-2xl text-white uppercase">
           <DiscordLogo className="size-8" /> Únete a nuestro Discord
         </div>
       </ShinyButton>
@@ -1235,9 +1306,8 @@ export function CreatorSupportCard() {
   if (post.type === "comic" && post.creatorId) {
     return (
       <Link
-        className="group relative block animate-scale-pulse overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 hover:shadow-glow-secondary/50"
-        params={{ id: post.creatorId }}
-        to="/comic-creator/$id"
+        className="group relative block overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:shadow-glow-secondary/50"
+        href={`/comic-creator/${post.creatorId}`}
       >
         <CreatorSupportContent />
       </Link>
@@ -1247,7 +1317,7 @@ export function CreatorSupportCard() {
   const Comp = post.creatorLink ? "a" : "div";
   return (
     <Comp
-      className="group relative block overflow-hidden animate-scale-pulse ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:scale-105 rounded-full bg-linear-to-br from-secondary/30 to-transparent hover:shadow-glow-secondary/50"
+      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-secondary/30 to-transparent ring-1 ring-secondary shadow-glow-secondary/30 transition-all hover:shadow-glow-secondary/50"
       href={post.creatorLink}
       rel="noopener"
       target="_blank"
@@ -1264,10 +1334,13 @@ function CreatorSupportContent() {
   return (
     <div className="relative flex items-center gap-4">
       {post.creatorAvatarObjectKey ? (
-        <img
+        <Image
           alt={post.creatorName || "Avatar del creador"}
           className="aspect-square size-16 shrink-0"
+          height={64}
+          sizes="64px"
           src={getBucketUrl(post.creatorAvatarObjectKey)}
+          width={64}
         />
       ) : (
         <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-secondary/20 to-accent/20">
@@ -1278,7 +1351,7 @@ function CreatorSupportContent() {
         </div>
       )}
       <div className="flex flex-col gap-0.5">
-        <span className="font-[Lexend] font-bold uppercase">{label}</span>
+        <span className="font-lexend font-bold uppercase">{label}</span>
         {post.creatorName && (
           <span className="text-primary">{post.creatorName}</span>
         )}
@@ -1297,17 +1370,17 @@ export function TranslatorSupportCard() {
 
   return (
     <a
-      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-primary/25 to-transparent ring-1 ring-primary/60 transition-all hover:scale-105 hover:shadow-glow-primary/30"
+      className="group relative block overflow-hidden rounded-full bg-linear-to-br from-primary/25 to-transparent ring-1 ring-primary/60 transition-all hover:shadow-glow-primary/30"
       href={translator.url}
       rel="noopener"
       target="_blank"
     >
       <div className="relative flex items-center gap-4">
-        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-accent/20 to-secondary/20 font-[Lexend] font-bold text-primary">
+        <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-primary/20 via-accent/20 to-secondary/20 font-lexend font-bold text-primary">
           TR
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="font-[Lexend] font-bold uppercase">Traduccion</span>
+          <span className="font-lexend font-bold uppercase">Traduccion</span>
           <span className="text-primary">{translator.name}</span>
         </div>
       </div>

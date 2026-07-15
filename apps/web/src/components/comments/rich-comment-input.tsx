@@ -18,22 +18,54 @@ type RichCommentInputProps = {
   stickerMap: Map<string, AssetData>;
 };
 
+function isLineBlock(node: Node) {
+  return (
+    node instanceof HTMLElement &&
+    (node.tagName === "DIV" || node.tagName === "P")
+  );
+}
+
+function serializeNode(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent ?? "";
+  }
+
+  if (!(node instanceof HTMLElement)) {
+    return "";
+  }
+
+  if (node.tagName === "IMG" && node.dataset.token) {
+    return node.dataset.token;
+  }
+
+  if (node.tagName === "BR") {
+    return "\n";
+  }
+
+  let result = "";
+  for (const child of node.childNodes) {
+    result += serializeNode(child);
+  }
+
+  if (node.tagName === "DIV" || node.tagName === "P") {
+    if (result === "\n") {
+      return result;
+    }
+    result += "\n";
+  }
+
+  return result;
+}
+
 function serializeToTokens(editor: HTMLDivElement): string {
   let result = "";
   for (const node of editor.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent ?? "";
-    } else if (
-      node.nodeType === Node.ELEMENT_NODE &&
-      node instanceof HTMLElement
-    ) {
-      result +=
-        node.tagName === "IMG" && node.dataset.token
-          ? node.dataset.token
-          : (node.textContent ?? "");
+    if (result && !result.endsWith("\n") && isLineBlock(node)) {
+      result += "\n";
     }
+    result += serializeNode(node);
   }
-  return result;
+  return result.replace(/\n$/, "");
 }
 
 function createTokenImage(
@@ -121,7 +153,9 @@ export function RichCommentInput({
   useEffect(() => {
     if (isInternalChange.current) {
       isInternalChange.current = false;
-      return;
+      if (editorRef.current && serializeToTokens(editorRef.current) === value) {
+        return;
+      }
     }
 
     const editor = editorRef.current;
@@ -241,6 +275,7 @@ export function RichCommentInput({
       aria-placeholder={placeholder}
       className={cn(
         "flex-1 resize-none rounded-none border-0 bg-transparent px-3 py-2 text-sm shadow-none outline-none ring-0 focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent",
+        "whitespace-pre-wrap",
         "empty:before:pointer-events-none empty:before:text-muted-foreground empty:before:content-[attr(aria-placeholder)]",
         className
       )}
@@ -253,6 +288,7 @@ export function RichCommentInput({
       ref={editorRef}
       role="textbox"
       suppressContentEditableWarning
+      tabIndex={0}
     />
   );
 }

@@ -24,39 +24,62 @@ export type PatreonMembership = {
   entitledTierIds: string[];
 };
 
+const PATREON_REFRESH_ATTEMPTS = 3;
+const PATREON_REFRESH_RETRY_BASE_MS = 250;
+
+const wait = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
 /**
  * Refresh an expired Patreon access token using the refresh token.
  */
 export async function refreshPatreonToken(
   refreshToken: string
 ): Promise<PatreonTokenResponse> {
-  const response = await fetch("https://www.patreon.com/api/oauth2/token", {
-    body: new URLSearchParams({
-      client_id: env.PATREON_CLIENT_ID,
-      client_secret: env.PATREON_CLIENT_SECRET,
-      grant_type: "refresh_token",
-      refresh_token: refreshToken,
-    }),
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    method: "POST",
-  });
+  for (const attempt of [0, 1, 2]) {
+    let response: Response;
+    try {
+      response = await fetch("https://www.patreon.com/api/oauth2/token", {
+        body: new URLSearchParams({
+          client_id: env.PATREON_CLIENT_ID,
+          client_secret: env.PATREON_CLIENT_SECRET,
+          grant_type: "refresh_token",
+          refresh_token: refreshToken,
+        }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        method: "POST",
+      });
+    } catch (error) {
+      if (attempt === PATREON_REFRESH_ATTEMPTS - 1) {
+        throw error;
+      }
+      await wait(PATREON_REFRESH_RETRY_BASE_MS * 2 ** attempt);
+      continue;
+    }
 
-  if (!response.ok) {
+    if (response.ok) {
+      const data = (await response.json()) as {
+        access_token: string;
+        refresh_token: string;
+        expires_in: number;
+      };
+
+      return {
+        accessToken: data.access_token,
+        expiresIn: data.expires_in,
+        refreshToken: data.refresh_token,
+      };
+    }
+
     const error = await response.text();
-    throw new Error(`Failed to refresh Patreon token: ${error}`);
+    const retryable = response.status === 429 || response.status >= 500;
+    if (!(retryable && attempt < PATREON_REFRESH_ATTEMPTS - 1)) {
+      throw new Error(`Failed to refresh Patreon token: ${error}`);
+    }
+    await wait(PATREON_REFRESH_RETRY_BASE_MS * 2 ** attempt);
   }
 
-  const data = (await response.json()) as {
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
-  };
-
-  return {
-    accessToken: data.access_token,
-    expiresIn: data.expires_in,
-    refreshToken: data.refresh_token,
-  };
+  throw new Error("Failed to refresh Patreon token");
 }
 
 /**

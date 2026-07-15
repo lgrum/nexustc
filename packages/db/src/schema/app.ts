@@ -61,6 +61,7 @@ export const user = pgTable(
     name: varchar("name", { length: 16 }).notNull(),
     newsletterOptIn: boolean("newsletter_opt_in").default(false).notNull(),
     role: text("role").default("user").notNull(),
+    twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
     ...timestamps,
   },
   (table) => [
@@ -124,6 +125,27 @@ export const verification = pgTable(
     ...timestamps,
   },
   (table) => [index("verification_identifier_idx").on(table.identifier)]
+);
+
+export const twoFactor = pgTable(
+  "two_factor",
+  {
+    backupCodes: text("backup_codes").notNull(),
+    failedVerificationCount: integer("failed_verification_count")
+      .default(0)
+      .notNull(),
+    id: text("id").primaryKey(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    secret: text("secret").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    verified: boolean("verified").default(true).notNull(),
+  },
+  (table) => [
+    index("two_factor_secret_idx").on(table.secret),
+    index("two_factor_user_id_idx").on(table.userId),
+  ]
 );
 
 export const patron = pgTable(
@@ -194,6 +216,7 @@ export const userRelations = relations(user, ({ many, one }) => ({
   profileRoleAssignments: many(profileRoleAssignment),
   profileSettings: one(profileSettings),
   sessions: many(session),
+  twoFactors: many(twoFactor),
 }));
 
 export const patronRelations = relations(patron, ({ one }) => ({
@@ -213,6 +236,13 @@ export const sessionRelations = relations(session, ({ one }) => ({
 export const accountRelations = relations(account, ({ one }) => ({
   user: one(user, {
     fields: [account.userId],
+    references: [user.id],
+  }),
+}));
+
+export const twoFactorRelations = relations(twoFactor, ({ one }) => ({
+  user: one(user, {
+    fields: [twoFactor.userId],
     references: [user.id],
   }),
 }));
@@ -368,7 +398,10 @@ export const post = pgTable(
       .default(48),
     version: text("version"),
     views: integer("views").notNull().default(0),
-    ...timestamps,
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }),
   },
   (table) => [
     index("post_cover_media_id_idx").on(table.coverMediaId),
@@ -410,6 +443,28 @@ export const mediaFolder = pgTable(
     }).onDelete("set null"),
     index("media_folder_name_idx").on(table.name),
     index("media_folder_parent_id_idx").on(table.parentId),
+  ]
+);
+
+export const comicUploadSession = pgTable(
+  "comic_upload_session",
+  {
+    comicId: text("comic_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    finalizedAt: timestamp("finalized_at", { withTimezone: true }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    issuedObjectCount: integer("issued_object_count").default(0).notNull(),
+    title: text("title").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("comic_upload_session_expires_at_idx").on(table.expiresAt),
+    index("comic_upload_session_user_id_idx").on(table.userId),
   ]
 );
 
@@ -458,6 +513,9 @@ export const featuredPost = pgTable(
     id: text("id").primaryKey().$defaultFn(generateId),
     order: integer("order").notNull(),
     position: featuredPositionEnum("position").notNull(),
+    thumbnailMediaId: text("thumbnail_media_id").references(() => media.id, {
+      onDelete: "set null",
+    }),
     postId: text("post_id")
       .notNull()
       .references(() => post.id, { onDelete: "cascade" }),
@@ -466,6 +524,7 @@ export const featuredPost = pgTable(
   (table) => [
     index("featured_post_post_id_idx").on(table.postId),
     index("featured_post_position_idx").on(table.position),
+    index("featured_post_thumbnail_media_id_idx").on(table.thumbnailMediaId),
   ]
 );
 
@@ -546,7 +605,7 @@ export const engagementQuestion = pgTable(
     isGlobal: boolean("is_global").notNull().default(false),
     locale: text("locale").notNull().default("es"),
     tagTermId: text("tag_term_id").references(() => term.id, {
-      onDelete: "cascade",
+      onDelete: "set null",
     }),
     text: text("text").notNull(),
     ...timestamps,
@@ -1231,6 +1290,7 @@ export const postRelations = relations(post, ({ many, one }) => ({
 export const mediaRelations = relations(media, ({ many, one }) => ({
   coveredPosts: many(post),
   creators: many(creator),
+  featuredPosts: many(featuredPost),
   folder: one(mediaFolder, {
     fields: [media.folderId],
     references: [mediaFolder.id],
@@ -1267,6 +1327,10 @@ export const featuredPostRelations = relations(featuredPost, ({ one }) => ({
   post: one(post, {
     fields: [featuredPost.postId],
     references: [post.id],
+  }),
+  thumbnailMedia: one(media, {
+    fields: [featuredPost.thumbnailMediaId],
+    references: [media.id],
   }),
 }));
 

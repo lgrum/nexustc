@@ -39,4 +39,4 @@ WORKDIR /app/apps/web
 
 EXPOSE 3000
 
-CMD ["bun", "run", "server.ts"]
+CMD ["bun", "run", "start"]

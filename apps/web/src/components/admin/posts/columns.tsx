@@ -2,8 +2,8 @@ import { Delete02Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { DOCUMENT_STATUS_LABELS } from "@repo/shared/constants";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import type { AdminContent } from "@/components/admin/posts/data-table";
@@ -21,7 +21,7 @@ export const columns: ColumnDef<Post>[] = [
     accessorKey: "title",
     cell: (info) =>
       info.row.original.status === "publish" ? (
-        <Link params={{ id: info.row.original.slug }} to="/post/$id">
+        <Link href={`/post/${info.row.original.slug}`}>
           {info.row.original.title}
         </Link>
       ) : (
@@ -67,10 +67,12 @@ export const columns: ColumnDef<Post>[] = [
     header: "Semanal",
   },
   {
-    accessorKey: "createdAt",
+    accessorKey: "releasedAt",
     cell: (info) =>
-      new Date(info.row.original.createdAt).toLocaleDateString("es-ES"),
-    header: "Creado",
+      info.row.original.releasedAt
+        ? new Date(info.row.original.releasedAt).toLocaleDateString("es-ES")
+        : "-",
+    header: "Publicado",
   },
   {
     cell: function Cell(info) {
@@ -79,10 +81,7 @@ export const columns: ColumnDef<Post>[] = [
 
       return (
         <div className="flex items-center gap-2">
-          <Link
-            params={{ id: info.row.original.id }}
-            to="/admin/posts/edit/$id"
-          >
+          <Link href={`/admin/posts/edit/${info.row.original.id}`}>
             <Button variant="outline">Editar</Button>
           </Link>
           <Button

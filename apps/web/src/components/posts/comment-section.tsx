@@ -11,9 +11,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import type { Role } from "@repo/shared/permissions";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -162,7 +162,7 @@ export function CommentSection({
     },
   });
 
-  const commentsQuery = useQuery({
+  const { data: commentsData } = useQuery({
     enabled: visible,
     queryFn: async () => {
       const { comments, authors } = await orpcClient.post.getComments({
@@ -201,9 +201,9 @@ export function CommentSection({
     };
   }, []);
 
-  const comments = commentsQuery.data ?? [];
+  const comments = commentsData ?? [];
   const commentCount = comments.length;
-  const isLoadingComments = !commentsQuery.data;
+  const isLoadingComments = !commentsData;
   const commentsWithAuthors = comments.filter(
     (
       comment
@@ -241,7 +241,7 @@ export function CommentSection({
         className="group flex gap-4 border-border border-t p-4 first:border-t-0"
         key={comment.id}
       >
-        <Link params={{ id: comment.author.id }} to="/user/$id">
+        <Link href={`/user/${comment.author.id}`}>
           <ProfileAvatar
             className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105"
             user={comment.author}
@@ -249,7 +249,7 @@ export function CommentSection({
         </Link>
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Link params={{ id: comment.author.id }} to="/user/$id">
+            <Link href={`/user/${comment.author.id}`}>
               <ProfileNameplate
                 className="font-semibold transition-colors hover:text-primary"
                 user={comment.author}
@@ -474,7 +474,7 @@ export function CommentSection({
               <p className="text-muted-foreground">
                 Quieres dejar un comentario?
               </p>
-              <Link to="/auth">
+              <Link href="/auth">
                 <Button size="sm" variant="outline">
                   Iniciar sesion
                 </Button>
@@ -526,7 +526,7 @@ export function CommentSection({
                 <p className="text-muted-foreground">
                   Inicia sesion para responder esta pregunta y unirte al debate.
                 </p>
-                <Link className="mt-4 inline-flex" to="/auth">
+                <Link className="mt-4 inline-flex" href="/auth">
                   <Button variant="outline">Iniciar sesion</Button>
                 </Link>
               </div>
@@ -571,7 +571,7 @@ export function CommentSection({
                       className="group flex gap-4 border-border border-t p-4 first:border-t-0"
                       key={comment.id}
                     >
-                      <Link params={{ id: comment.author.id }} to="/user/$id">
+                      <Link href={`/user/${comment.author.id}`}>
                         <ProfileAvatar
                           className="size-10 rounded-full ring-2 ring-background transition-transform group-hover:scale-105"
                           user={comment.author}
@@ -579,10 +579,7 @@ export function CommentSection({
                       </Link>
                       <div className="flex min-w-0 flex-1 flex-col gap-2">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            params={{ id: comment.author.id }}
-                            to="/user/$id"
-                          >
+                          <Link href={`/user/${comment.author.id}`}>
                             <ProfileNameplate
                               className="font-semibold transition-colors hover:text-primary"
                               user={comment.author}

@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PATRON_TIERS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -103,11 +104,12 @@ export function StickerPicker({
                         />
                       }
                     >
-                      <img
+                      <Image
                         alt={s.displayName}
                         className="size-full object-contain"
-                        loading="lazy"
+                        height={160}
                         src={getBucketUrl(s.assetKey)}
+                        width={160}
                       />
                       <span className="absolute right-1 bottom-1 text-xs opacity-60">
                         🔒
@@ -129,11 +131,12 @@ export function StickerPicker({
                   onClick={() => handleSelect(s.name)}
                   type="button"
                 >
-                  <img
+                  <Image
                     alt={s.displayName}
                     className="size-full object-contain"
-                    loading="lazy"
+                    height={160}
                     src={getBucketUrl(s.assetKey)}
+                    width={160}
                   />
                 </button>
               );

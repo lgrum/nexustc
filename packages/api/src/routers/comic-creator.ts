@@ -23,7 +23,7 @@ const comicCreatorInputSchema = z.object({
   name: z.string().trim().min(1).max(255),
   url: z.union([webUrlSchema, z.literal("")]),
 });
-const releasedAtSort = sql<Date>`COALESCE(${post.releasedAt}, ${post.createdAt})`;
+const releasedAtDescending = sql`${post.releasedAt} DESC NULLS LAST`;
 
 export default {
   getById: publicProcedure
@@ -111,6 +111,7 @@ export default {
           imageObjectKeys: post.imageObjectKeys,
           thumbnailImageCount: post.thumbnailImageCount,
           likes: sql<number>`COALESCE(${likesAgg.count}, 0)`,
+          releasedAt: post.releasedAt,
           terms: sql<
             {
               id: string;
@@ -137,7 +138,7 @@ export default {
             publicCatalogVisibilityCondition()
           )
         )
-        .orderBy(desc(releasedAtSort), desc(post.createdAt), desc(post.id));
+        .orderBy(releasedAtDescending, desc(post.id));
 
       const items = await attachComicCatalogProgress(db, {
         items: comics,

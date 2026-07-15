@@ -1,11 +1,15 @@
 import { defineConfig } from "oxlint";
 import core from "ultracite/oxlint/core";
+import next from "ultracite/oxlint/next";
 import react from "ultracite/oxlint/react";
-import remix from "ultracite/oxlint/remix";
 
 export default defineConfig({
-  extends: [core, react, remix],
-  ignorePatterns: ["routeTree.gen.ts"],
+  extends: [core, react, next],
+  ignorePatterns: [
+    "routeTree.gen.ts",
+    "apps/web/public/ads/popunder-desktop.js",
+    "apps/web/public/ads/popunder-mobile.js",
+  ],
   rules: {
     "no-promise-executor-return": "off",
     "no-use-before-define": "off",

@@ -17,15 +17,21 @@ import {
   patron,
   post,
   sql,
+  user,
 } from "@repo/db";
 import { canFollow } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
 import type { Context } from "../context";
+import {
+  canViewPost,
+  publicCatalogVisibilityCondition,
+} from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const CONTENT_UPDATE_COOLDOWN_MS = 30 * 60 * 1000;
 const MIN_COMIC_PAGE_DELTA = 1;
+export const NEWS_ARTICLE_TARGET_NOT_PUBLIC = "NEWS_ARTICLE_TARGET_NOT_PUBLIC";
 
 type NotificationDb = Pick<
   Context["db"],
@@ -77,9 +83,22 @@ type FeedParams = {
   cursor?: Date;
   limit: number;
   readOnly?: boolean;
+  role?: string | null;
   unreadOnly?: boolean;
   userId: string;
 };
+
+async function getActivePatronTier(
+  db: NotificationDb,
+  userId: string
+): Promise<PatronTier> {
+  const patronRecord = await db.query.patron.findFirst({
+    columns: { isActivePatron: true, tier: true },
+    where: eq(patron.userId, userId),
+  });
+
+  return patronRecord?.isActivePatron ? patronRecord.tier : "none";
+}
 
 type ManualNewsDuplicateSignatureInput = {
   bannerImageObjectKey?: string | null;
@@ -89,9 +108,18 @@ type ManualNewsDuplicateSignatureInput = {
   title: string;
 };
 
-function normalizeVersion(value: string | null | undefined): string | null {
+export function normalizeVersion(
+  value: string | null | undefined
+): string | null {
   const trimmed = value?.trim();
   return trimmed || null;
+}
+
+export function hasVersionChanged(
+  previous: string | null | undefined,
+  next: string | null | undefined
+): boolean {
+  return normalizeVersion(previous) !== normalizeVersion(next);
 }
 
 function normalizeManualNewsDuplicateValue(
@@ -278,6 +306,10 @@ async function createNotificationRecord(
 
 async function fetchNotificationFeed(db: NotificationDb, params: FeedParams) {
   const now = new Date();
+  const viewer = {
+    role: params.role,
+    tier: await getActivePatronTier(db, params.userId),
+  };
   const accessibleTargets = db
     .select({
       audienceType: notificationTarget.audienceType,
@@ -324,17 +356,24 @@ async function fetchNotificationFeed(db: NotificationDb, params: FeedParams) {
   const rows = await db
     .select({
       audienceType: accessibleTargets.audienceType,
+      authorBanned: user.banned,
       contentType: post.type,
       description: notification.description,
+      earlyAccessEnabled: post.earlyAccessEnabled,
+      earlyAccessStartedAt: post.earlyAccessStartedAt,
       expirationAt: notification.expirationAt,
       id: notification.id,
       imageObjectKey: notification.imageObjectKey,
       isRead: sql<boolean>`${notificationRead.userId} IS NOT NULL`,
       metadata: notification.metadata,
       publishedAt: notification.publishedAt,
+      releasedAt: post.releasedAt,
+      status: post.status,
       targetContentId: notification.targetContentId,
       title: notification.title,
       type: notification.type,
+      vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+      vip8EarlyAccessHours: post.vip8EarlyAccessHours,
     })
     .from(notification)
     .innerJoin(
@@ -342,6 +381,7 @@ async function fetchNotificationFeed(db: NotificationDb, params: FeedParams) {
       eq(accessibleTargets.notificationId, notification.id)
     )
     .leftJoin(post, eq(post.id, notification.targetContentId))
+    .leftJoin(user, eq(user.id, post.authorId))
     .leftJoin(
       notificationRead,
       and(
@@ -362,8 +402,40 @@ async function fetchNotificationFeed(db: NotificationDb, params: FeedParams) {
     .orderBy(desc(notification.publishedAt))
     .limit(params.limit + 1);
 
-  const hasMore = rows.length > params.limit;
-  const items = hasMore ? rows.slice(0, params.limit) : rows;
+  const visibleRows = rows.flatMap((row) => {
+    const {
+      authorBanned,
+      earlyAccessEnabled,
+      earlyAccessStartedAt,
+      releasedAt,
+      status,
+      vip12EarlyAccessHours,
+      vip8EarlyAccessHours,
+      ...item
+    } = row;
+    const isRestrictedFollowerUpdate =
+      row.audienceType === "content_followers" &&
+      (authorBanned === true ||
+        !row.contentType ||
+        !status ||
+        !canViewPost(
+          {
+            earlyAccessEnabled: earlyAccessEnabled ?? false,
+            earlyAccessStartedAt: earlyAccessStartedAt ?? null,
+            releasedAt: releasedAt ?? null,
+            status,
+            type: row.contentType,
+            vip12EarlyAccessHours: vip12EarlyAccessHours ?? 0,
+            vip8EarlyAccessHours: vip8EarlyAccessHours ?? 0,
+          },
+          viewer,
+          now
+        ));
+
+    return isRestrictedFollowerUpdate ? [] : [item];
+  });
+  const hasMore = visibleRows.length > params.limit;
+  const items = hasMore ? visibleRows.slice(0, params.limit) : visibleRows;
   const nextCursor = hasMore ? (items.at(-1)?.publishedAt ?? null) : null;
 
   return {
@@ -433,6 +505,7 @@ export async function publishContentNewsArticle(
     title: string;
   }
 ) {
+  const publishedAt = params.publishedAt ?? new Date();
   const content = await db.query.post.findFirst({
     columns: {
       id: true,
@@ -448,11 +521,15 @@ export async function publishContentNewsArticle(
         },
       },
     },
-    where: eq(post.id, params.contentId),
+    where: and(
+      eq(post.id, params.contentId),
+      eq(post.status, "publish"),
+      publicCatalogVisibilityCondition(publishedAt)
+    ),
   });
 
-  if (!content || content.status !== "publish") {
-    throw new Error("NEWS_ARTICLE_TARGET_MUST_BE_PUBLISHED");
+  if (!content) {
+    throw new Error(NEWS_ARTICLE_TARGET_NOT_PUBLIC);
   }
 
   const duplicateSignature = buildManualNewsDuplicateSignature(params);
@@ -501,7 +578,7 @@ export async function publishContentNewsArticle(
       linkPath: getContentPath(params.contentId),
       ...params.metadata,
     },
-    publishedAt: params.publishedAt,
+    publishedAt,
     sourceUserId: params.authorUserId,
     targetContentId: params.contentId,
     title: params.title,
@@ -518,7 +595,7 @@ export async function publishContentNewsArticle(
       expirationAt: params.expirationAt,
       metadata: params.metadata ?? {},
       notificationId,
-      publishedAt: params.publishedAt ?? new Date(),
+      publishedAt,
       status: "published",
       summary: params.summary,
       title: params.title,
@@ -573,6 +650,7 @@ export async function getPublishedNewsArticleById(
         eq(newsArticle.id, articleId),
         eq(newsArticle.status, "published"),
         eq(post.status, "publish"),
+        publicCatalogVisibilityCondition(now),
         lte(newsArticle.publishedAt, now),
         or(isNull(newsArticle.expirationAt), gt(newsArticle.expirationAt, now))
       )
@@ -607,6 +685,7 @@ export function listPublishedNewsArticles(
       and(
         eq(newsArticle.status, "published"),
         eq(post.status, "publish"),
+        publicCatalogVisibilityCondition(now),
         lte(newsArticle.publishedAt, now),
         or(isNull(newsArticle.expirationAt), gt(newsArticle.expirationAt, now))
       )
@@ -792,34 +871,74 @@ export async function getFollowingOverview(
   db: NotificationDb,
   params: {
     limit: number;
+    role?: string | null;
     userId: string;
   }
 ) {
   const follows = await db
     .select({
+      authorBanned: user.banned,
       contentId: contentFollower.contentId,
       contentType: contentFollower.contentType,
       coverImageObjectKey: createPostCoverImageObjectKeySelect(),
+      earlyAccessEnabled: post.earlyAccessEnabled,
+      earlyAccessStartedAt: post.earlyAccessStartedAt,
       followedAt: contentFollower.createdAt,
       imageObjectKeys: post.imageObjectKeys,
+      releasedAt: post.releasedAt,
+      status: post.status,
       thumbnailImageCount: post.thumbnailImageCount,
       title: post.title,
       version: post.version,
+      vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+      vip8EarlyAccessHours: post.vip8EarlyAccessHours,
     })
     .from(contentFollower)
     .innerJoin(post, eq(post.id, contentFollower.contentId))
+    .innerJoin(user, eq(user.id, post.authorId))
     .where(eq(contentFollower.userId, params.userId))
     .orderBy(desc(contentFollower.createdAt))
     .limit(params.limit);
 
+  const viewer = {
+    role: params.role,
+    tier: await getActivePatronTier(db, params.userId),
+  };
+  const visibleFollows = follows.flatMap((follow) => {
+    if (
+      follow.authorBanned ||
+      !canViewPost({ ...follow, type: follow.contentType }, viewer)
+    ) {
+      return [];
+    }
+
+    const {
+      authorBanned: _authorBanned,
+      earlyAccessEnabled: _earlyAccessEnabled,
+      earlyAccessStartedAt: _earlyAccessStartedAt,
+      releasedAt: _releasedAt,
+      status: _status,
+      vip12EarlyAccessHours: _vip12EarlyAccessHours,
+      vip8EarlyAccessHours: _vip8EarlyAccessHours,
+      ...visibleFollow
+    } = follow;
+    return [
+      {
+        ...visibleFollow,
+        imageObjectKeys: visibleFollow.imageObjectKeys?.slice(0, 1) ?? null,
+      },
+    ];
+  });
+
   const updates = await fetchNotificationFeed(db, {
     allowedAudiences: ["content_followers"],
     limit: params.limit,
+    role: params.role,
     userId: params.userId,
   });
 
   return {
-    follows,
+    follows: visibleFollows,
     updates: updates.items,
   };
 }
@@ -894,19 +1013,38 @@ export async function followContent(
     userId: string;
   }
 ) {
-  const content = await db.query.post.findFirst({
-    columns: {
-      id: true,
-      status: true,
-      title: true,
-      type: true,
-    },
-    where: eq(post.id, params.contentId),
-  });
+  const [content] = await db
+    .select({
+      authorBanned: user.banned,
+      earlyAccessEnabled: post.earlyAccessEnabled,
+      earlyAccessStartedAt: post.earlyAccessStartedAt,
+      id: post.id,
+      releasedAt: post.releasedAt,
+      status: post.status,
+      title: post.title,
+      type: post.type,
+      vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+      vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+    })
+    .from(post)
+    .innerJoin(user, eq(user.id, post.authorId))
+    .where(eq(post.id, params.contentId))
+    .limit(1);
+  const tier = await getActivePatronTier(db, params.userId);
 
-  if (!content || content.status !== "publish") {
+  if (
+    !content ||
+    content.authorBanned ||
+    !canViewPost(content, { role: params.role, tier })
+  ) {
     throw new Error("FOLLOW_TARGET_NOT_FOUND");
   }
+  const visibleContent = {
+    id: content.id,
+    status: content.status,
+    title: content.title,
+    type: content.type,
+  };
 
   const existingFollow = await db.query.contentFollower.findFirst({
     columns: { contentId: true },
@@ -917,16 +1055,9 @@ export async function followContent(
   });
 
   if (existingFollow) {
-    return content;
+    return visibleContent;
   }
 
-  const patronRecord = await db.query.patron.findFirst({
-    columns: { isActivePatron: true, tier: true },
-    where: eq(patron.userId, params.userId),
-  });
-  const tier: PatronTier = patronRecord?.isActivePatron
-    ? patronRecord.tier
-    : "none";
   const follows = await db
     .select({ count: sql<number>`count(*)`.as("count") })
     .from(contentFollower)
@@ -946,7 +1077,7 @@ export async function followContent(
     })
     .onConflictDoNothing();
 
-  return content;
+  return visibleContent;
 }
 
 export async function unfollowContent(

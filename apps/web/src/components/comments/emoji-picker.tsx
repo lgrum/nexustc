@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PATRON_TIERS } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
 import { useMemo, useState } from "react";
 
 import { orpcClient } from "@/lib/orpc";
@@ -86,11 +87,12 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
                       />
                     }
                   >
-                    <img
+                    <Image
                       alt={e.displayName}
                       className="size-full"
-                      loading="lazy"
+                      height={64}
                       src={getBucketUrl(e.assetKey)}
+                      width={64}
                     />
                     <span className="absolute right-0 bottom-0 z-1 text-[8px]">
                       🔒
@@ -111,11 +113,12 @@ export function EmojiPicker({ onSelect }: EmojiPickerProps) {
                   }}
                   type="button"
                 >
-                  <img
+                  <Image
                     alt={e.displayName}
                     className="size-full"
-                    loading="lazy"
+                    height={64}
                     src={getBucketUrl(e.assetKey)}
+                    width={64}
                   />
                 </button>
               )
