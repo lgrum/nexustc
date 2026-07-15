@@ -1,7 +1,11 @@
 import type { RedisClientType } from "redis";
 
 import {
+  consumeProfileMediaUploadIntent,
+  createProfileMediaUploadIntent,
+  deleteProfileMediaUploadIntent,
   getProfileMediaUploadCooldownKey,
+  getProfileMediaUploadIntentKey,
   getProfileMediaUploadRetryAfter,
   PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
   reserveProfileMediaUploadCooldown,
@@ -9,13 +13,25 @@ import {
 
 function createMockCache() {
   return {
+    del: vi.fn(),
+    getDel: vi.fn(),
     set: vi.fn(),
     ttl: vi.fn(),
   } as unknown as RedisClientType & {
+    del: ReturnType<typeof vi.fn>;
+    getDel: ReturnType<typeof vi.fn>;
     set: ReturnType<typeof vi.fn>;
     ttl: ReturnType<typeof vi.fn>;
   };
 }
+
+const intent = {
+  contentLength: 123,
+  contentType: "image/webp",
+  issuedToUserId: "user_123",
+  objectKey: "profiles/avatar/user_123/file.webp",
+  slot: "avatar" as const,
+};
 
 describe(getProfileMediaUploadCooldownKey, () => {
   it("scopes cooldowns by media slot and user", () => {
@@ -24,6 +40,72 @@ describe(getProfileMediaUploadCooldownKey, () => {
     );
     expect(getProfileMediaUploadCooldownKey("user_123", "banner")).toBe(
       "profile:media-upload:banner:user_123"
+    );
+  });
+});
+
+describe("profile media upload intents", () => {
+  it("uses the exact object key and reserves without overwriting", async () => {
+    const cache = createMockCache();
+    cache.set.mockResolvedValueOnce("OK").mockResolvedValueOnce(null);
+
+    expect(getProfileMediaUploadIntentKey(intent.objectKey)).toBe(
+      `profile:media-upload-intent:${intent.objectKey}`
+    );
+    await expect(createProfileMediaUploadIntent(cache, intent)).resolves.toBe(
+      true
+    );
+    await expect(createProfileMediaUploadIntent(cache, intent)).resolves.toBe(
+      false
+    );
+    expect(cache.set).toHaveBeenCalledWith(
+      getProfileMediaUploadIntentKey(intent.objectKey),
+      JSON.stringify(intent),
+      { EX: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS, NX: true }
+    );
+  });
+
+  it("atomically consumes a valid intent only once", async () => {
+    const cache = createMockCache();
+    cache.getDel
+      .mockResolvedValueOnce(JSON.stringify(intent))
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      consumeProfileMediaUploadIntent(cache, intent.objectKey)
+    ).resolves.toStrictEqual(intent);
+    await expect(
+      consumeProfileMediaUploadIntent(cache, intent.objectKey)
+    ).resolves.toBeNull();
+    expect(cache.getDel).toHaveBeenCalledTimes(2);
+    expect(cache.getDel).toHaveBeenCalledWith(
+      getProfileMediaUploadIntentKey(intent.objectKey)
+    );
+  });
+
+  it.each(["not-json", JSON.stringify({ ...intent, contentLength: -1 })])(
+    "rejects malformed stored data safely",
+    async (storedValue) => {
+      const cache = createMockCache();
+      cache.getDel.mockResolvedValue(storedValue);
+
+      await expect(
+        consumeProfileMediaUploadIntent(cache, intent.objectKey)
+      ).resolves.toBeNull();
+    }
+  );
+
+  it("deletes only the unique intent key", async () => {
+    const cache = createMockCache();
+    cache.del.mockResolvedValue(1);
+
+    await deleteProfileMediaUploadIntent(cache, intent.objectKey);
+
+    expect(cache.del).toHaveBeenCalledWith(
+      getProfileMediaUploadIntentKey(intent.objectKey)
+    );
+    expect(cache.del).not.toHaveBeenCalledWith(
+      getProfileMediaUploadCooldownKey(intent.issuedToUserId, intent.slot)
     );
   });
 });
@@ -93,5 +175,6 @@ describe(reserveProfileMediaUploadCooldown, () => {
       reserved: false,
       retryAfter: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
     });
+    expect(cache.del).not.toHaveBeenCalled();
   });
 });

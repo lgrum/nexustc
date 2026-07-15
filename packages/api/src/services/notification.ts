@@ -23,11 +23,15 @@ import { canFollow } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
 import type { Context } from "../context";
-import { canViewPost } from "../utils/early-access";
+import {
+  canViewPost,
+  publicCatalogVisibilityCondition,
+} from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 
 const CONTENT_UPDATE_COOLDOWN_MS = 30 * 60 * 1000;
 const MIN_COMIC_PAGE_DELTA = 1;
+export const NEWS_ARTICLE_TARGET_NOT_PUBLIC = "NEWS_ARTICLE_TARGET_NOT_PUBLIC";
 
 type NotificationDb = Pick<
   Context["db"],
@@ -501,6 +505,7 @@ export async function publishContentNewsArticle(
     title: string;
   }
 ) {
+  const publishedAt = params.publishedAt ?? new Date();
   const content = await db.query.post.findFirst({
     columns: {
       id: true,
@@ -516,11 +521,15 @@ export async function publishContentNewsArticle(
         },
       },
     },
-    where: eq(post.id, params.contentId),
+    where: and(
+      eq(post.id, params.contentId),
+      eq(post.status, "publish"),
+      publicCatalogVisibilityCondition(publishedAt)
+    ),
   });
 
-  if (!content || content.status !== "publish") {
-    throw new Error("NEWS_ARTICLE_TARGET_MUST_BE_PUBLISHED");
+  if (!content) {
+    throw new Error(NEWS_ARTICLE_TARGET_NOT_PUBLIC);
   }
 
   const duplicateSignature = buildManualNewsDuplicateSignature(params);
@@ -569,7 +578,7 @@ export async function publishContentNewsArticle(
       linkPath: getContentPath(params.contentId),
       ...params.metadata,
     },
-    publishedAt: params.publishedAt,
+    publishedAt,
     sourceUserId: params.authorUserId,
     targetContentId: params.contentId,
     title: params.title,
@@ -586,7 +595,7 @@ export async function publishContentNewsArticle(
       expirationAt: params.expirationAt,
       metadata: params.metadata ?? {},
       notificationId,
-      publishedAt: params.publishedAt ?? new Date(),
+      publishedAt,
       status: "published",
       summary: params.summary,
       title: params.title,
@@ -641,6 +650,7 @@ export async function getPublishedNewsArticleById(
         eq(newsArticle.id, articleId),
         eq(newsArticle.status, "published"),
         eq(post.status, "publish"),
+        publicCatalogVisibilityCondition(now),
         lte(newsArticle.publishedAt, now),
         or(isNull(newsArticle.expirationAt), gt(newsArticle.expirationAt, now))
       )
@@ -675,6 +685,7 @@ export function listPublishedNewsArticles(
       and(
         eq(newsArticle.status, "published"),
         eq(post.status, "publish"),
+        publicCatalogVisibilityCondition(now),
         lte(newsArticle.publishedAt, now),
         or(isNull(newsArticle.expirationAt), gt(newsArticle.expirationAt, now))
       )

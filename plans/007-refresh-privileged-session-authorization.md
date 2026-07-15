@@ -15,12 +15,15 @@
 
 ## Status
 
+- **State**: DONE
 - **Priority**: P1
 - **Effort**: S
 - **Risk**: LOW-MED
 - **Depends on**: Plan 001
 - **Category**: security, authorization
 - **Planned at**: commit `5899131`, 2026-07-14
+- **Result**: APPROVE on `codex/plan-007-authoritative-api-sessions`
+- **Commit**: `9033fe4`
 
 ## Why this matters
 

@@ -13,12 +13,15 @@
 
 ## Status
 
+- **State**: DONE
 - **Priority**: P1
 - **Effort**: S-M
 - **Risk**: MED
 - **Depends on**: Plan 001
 - **Category**: security, correctness
 - **Planned at**: commit `5899131`, 2026-07-14
+- **Result**: APPROVE on `codex/plan-003-public-news-visibility`
+- **Commit**: `fbfd1f6`
 
 ## Why this matters
 

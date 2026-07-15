@@ -13,12 +13,12 @@ live branch. A plan remains **TODO** until an executor starts it; it reaches
 | ----: | -------------------------------------------------------------------------------------------------------------------- | :------: | :----: | :-----: | ---------- | --------------------------- |
 |     1 | [001 - Make root verification cover every TypeScript workspace](001-make-root-verification-cover-every-workspace.md) |    P1    |   M    |   LOW   | -          | DONE - `d7184df`, `0bd9bb6` |
 |     2 | [004 - Repair the Drizzle migration chain safely](004-repair-the-drizzle-migration-chain.md)                         |    P0    |   M    |  HIGH   | 001        | DONE - operator DB waiver   |
-|     3 | [002 - Harden the RPC HTTP boundary](002-harden-the-rpc-http-boundary.md)                                            |    P1    |   S    |   MED   | 001        | TODO                        |
-|     4 | [003 - Keep news hidden until linked content is public](003-enforce-public-visibility-on-news.md)                    |    P1    |  S-M   |   MED   | 001        | TODO                        |
-|     5 | [007 - Make API session roles authoritative](007-refresh-privileged-session-authorization.md)                        |    P1    |   S    | LOW-MED | 001        | TODO                        |
-|     6 | [005 - Authenticate Patreon webhooks before persistence](005-authenticate-patreon-webhooks-before-persistence.md)    |    P1    |   M    |   MED   | 001, 004   | TODO                        |
+|     3 | [002 - Harden the RPC HTTP boundary](002-harden-the-rpc-http-boundary.md)                                            |    P1    |   S    |   MED   | 001        | DONE - `11adf30`            |
+|     4 | [003 - Keep news hidden until linked content is public](003-enforce-public-visibility-on-news.md)                    |    P1    |  S-M   |   MED   | 001        | DONE - `fbfd1f6`            |
+|     5 | [007 - Make API session roles authoritative](007-refresh-privileged-session-authorization.md)                        |    P1    |   S    | LOW-MED | 001        | DONE - `9033fe4`            |
+|     6 | [005 - Authenticate Patreon webhooks before persistence](005-authenticate-patreon-webhooks-before-persistence.md)    |    P1    |   M    |   MED   | 001, 004   | DONE - `871f2e2`            |
 |     7 | [006 - Bound admin image processing and uploads](006-bound-admin-image-processing.md)                                |    P1    |   M    |   MED   | 001, 002   | TODO                        |
-|     8 | [008 - Add one-time profile upload intents](008-add-one-time-profile-upload-intents.md)                              |    P1    |   M    |   MED   | 001, 007   | TODO                        |
+|     8 | [008 - Add one-time profile upload intents](008-add-one-time-profile-upload-intents.md)                              |    P1    |   M    |   MED   | 001, 007   | DONE - `f95d80a`            |
 
 Plan 004 is the highest-severity repository defect, but Plan 001 goes first so
 the migration mapping test and all later package tests actually participate in

@@ -1,6 +1,7 @@
 import { LoggingHandlerPlugin } from "@orpc/experimental-pino";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
+import { SimpleCsrfProtectionHandlerPlugin } from "@orpc/server/plugins";
 import { createContext } from "@repo/api/context";
 import { appRouter } from "@repo/api/routers/index";
 import { revalidateTag } from "next/cache";
@@ -13,7 +14,10 @@ const rpcHandler = new RPCHandler(appRouter, {
       console.error(error);
     }),
   ],
-  plugins: [new LoggingHandlerPlugin()],
+  plugins: [
+    new LoggingHandlerPlugin(),
+    new SimpleCsrfProtectionHandlerPlugin(),
+  ],
 });
 
 async function handle(request: Request) {
@@ -38,9 +42,4 @@ async function handle(request: Request) {
   return new Response("Not found", { status: 404 });
 }
 
-export const DELETE = handle;
-export const GET = handle;
-export const HEAD = handle;
-export const PATCH = handle;
 export const POST = handle;
-export const PUT = handle;

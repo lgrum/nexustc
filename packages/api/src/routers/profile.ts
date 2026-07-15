@@ -1,4 +1,4 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, getRedis } from "@repo/db";
@@ -20,8 +20,11 @@ import {
   validateProfileMediaUpload,
 } from "../services/profile";
 import {
+  consumeProfileMediaUploadIntent,
+  createProfileMediaUploadIntent,
+  deleteProfileMediaUploadIntent,
   getProfileMediaUploadCooldownKey,
-  getProfileMediaUploadRetryAfter,
+  PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
   reserveProfileMediaUploadCooldown,
 } from "../utils/profile-media-cooldown";
 import { getS3Client } from "../utils/s3";
@@ -65,17 +68,52 @@ export default {
         throw errors.FORBIDDEN({ message: "Asset inválido." });
       }
 
+      const deleteRejectedUpload = async () => {
+        try {
+          await getS3Client().send(
+            new DeleteObjectCommand({
+              Bucket: env.R2_ASSETS_BUCKET_NAME,
+              Key: input.objectKey,
+            })
+          );
+        } catch (cleanupError) {
+          logger?.warn(`Failed to delete rejected asset ${input.objectKey}`);
+          logger?.warn(cleanupError);
+        }
+      };
+
+      const cache = await getRedis();
+      const intent = await consumeProfileMediaUploadIntent(
+        cache,
+        input.objectKey
+      );
+      if (!intent) {
+        throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
+      }
+
+      if (
+        intent.issuedToUserId !== session.user.id ||
+        intent.slot !== input.slot ||
+        intent.objectKey !== input.objectKey ||
+        intent.contentType !== input.contentType ||
+        intent.contentLength !== input.contentLength
+      ) {
+        await deleteRejectedUpload();
+        throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
+      }
+
       const entitlements = await getProfileEntitlements(
         db,
         session.user.id,
         session.user.role
       );
-      const validation = await inspectProfileMediaAsset(input.objectKey, {
-        contentLength: input.contentLength,
-        contentType: input.contentType,
-      });
+      let validation: Awaited<ReturnType<typeof inspectProfileMediaAsset>>;
 
       try {
+        validation = await inspectProfileMediaAsset(input.objectKey, {
+          contentLength: input.contentLength,
+          contentType: input.contentType,
+        });
         validateProfileMediaUpload({
           contentType: input.contentType,
           entitlements,
@@ -83,29 +121,16 @@ export default {
           validation,
         });
       } catch (error) {
+        await deleteRejectedUpload();
         throw errors.BAD_REQUEST({
           message: error instanceof Error ? error.message : "Asset inválido.",
         });
       }
 
-      const cache = await getRedis();
-      const cooldownKey = getProfileMediaUploadCooldownKey(
-        session.user.id,
-        input.slot
-      );
-      const cooldown = await reserveProfileMediaUploadCooldown(
-        cache,
-        cooldownKey
-      );
-
-      if (!cooldown.reserved) {
-        throw errors.RATE_LIMITED({
-          data: { retryAfter: cooldown.retryAfter },
-        });
-      }
+      let asset: typeof profileMediaAsset.$inferSelect | undefined;
 
       try {
-        const [asset] = await db
+        [asset] = await db
           .insert(profileMediaAsset)
           .values({
             durationMs: validation.durationMs,
@@ -120,34 +145,29 @@ export default {
             width: validation.width,
           })
           .returning();
-
-        if (input.slot === "avatar") {
-          await db
-            .update(user)
-            .set({ image: input.objectKey })
-            .where(eq(user.id, session.user.id));
-        } else {
-          await getOrCreateProfileSettings(db, session.user.id);
-          await db
-            .update(profileSettings)
-            .set({ bannerAssetId: asset!.id, bannerMode: "image" })
-            .where(eq(profileSettings.userId, session.user.id));
-        }
-
-        return {
-          assetId: asset!.id,
-          isAnimated: asset!.isAnimated,
-          objectKey: asset!.objectKey,
-        };
       } catch (error) {
-        try {
-          await cache.del(cooldownKey);
-        } catch (cleanupError) {
-          logger?.warn("Failed to clear profile media upload cooldown");
-          logger?.warn(cleanupError);
-        }
+        await deleteRejectedUpload();
         throw error;
       }
+
+      if (input.slot === "avatar") {
+        await db
+          .update(user)
+          .set({ image: input.objectKey })
+          .where(eq(user.id, session.user.id));
+      } else {
+        await getOrCreateProfileSettings(db, session.user.id);
+        await db
+          .update(profileSettings)
+          .set({ bannerAssetId: asset!.id, bannerMode: "image" })
+          .where(eq(profileSettings.userId, session.user.id));
+      }
+
+      return {
+        assetId: asset!.id,
+        isAnimated: asset!.isAnimated,
+        objectKey: asset!.objectKey,
+      };
     }),
 
   getMySettings: protectedProcedure.handler(
@@ -238,14 +258,15 @@ export default {
         throw errors.FORBIDDEN({ message: "No puedes subir banners." });
       }
 
-      const retryAfter = await getProfileMediaUploadRetryAfter(
-        await getRedis(),
+      const cache = await getRedis();
+      const cooldown = await reserveProfileMediaUploadCooldown(
+        cache,
         getProfileMediaUploadCooldownKey(session.user.id, input.slot)
       );
 
-      if (retryAfter !== null) {
+      if (!cooldown.reserved) {
         throw errors.RATE_LIMITED({
-          data: { retryAfter },
+          data: { retryAfter: cooldown.retryAfter },
         });
       }
 
@@ -254,18 +275,40 @@ export default {
         session.user.id,
         input.contentType
       );
-      const presignedUrl = await getSignedUrl(
-        getS3Client(),
-        new PutObjectCommand({
-          Bucket: env.R2_ASSETS_BUCKET_NAME,
-          ContentLength: input.contentLength,
-          ContentType: input.contentType,
-          Key: objectKey,
-        }),
-        { expiresIn: 3600 }
-      );
+      const intentCreated = await createProfileMediaUploadIntent(cache, {
+        contentLength: input.contentLength,
+        contentType: input.contentType,
+        issuedToUserId: session.user.id,
+        objectKey,
+        slot: input.slot,
+      });
+      if (!intentCreated) {
+        throw errors.INTERNAL_SERVER_ERROR();
+      }
 
-      return { objectKey, presignedUrl };
+      try {
+        const presignedUrl = await getSignedUrl(
+          getS3Client(),
+          new PutObjectCommand({
+            Bucket: env.R2_ASSETS_BUCKET_NAME,
+            ContentLength: input.contentLength,
+            ContentType: input.contentType,
+            IfNoneMatch: "*",
+            Key: objectKey,
+          }),
+          { expiresIn: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS }
+        );
+
+        return { objectKey, presignedUrl };
+      } catch (error) {
+        try {
+          await deleteProfileMediaUploadIntent(cache, objectKey);
+        } catch (cleanupError) {
+          logger?.warn(`Failed to delete upload intent for ${objectKey}`);
+          logger?.warn(cleanupError);
+        }
+        throw error;
+      }
     }),
 
   removeAvatar: protectedProcedure.handler(

@@ -33,12 +33,72 @@ type PatreonWebhookProcessingStatus =
   | "invalid"
   | "failed";
 
+const MAX_PATREON_WEBHOOK_BODY_BYTES = 1024 * 1024;
+const STORED_REQUEST_HEADER_NAMES = [
+  "content-length",
+  "content-type",
+  "user-agent",
+] as const;
+
+type BoundedBodyResult = { body: string; ok: true } | { ok: false };
+
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown webhook error";
 }
 
 function getRequestHeaders(request: Request): Record<string, string> {
-  return Object.fromEntries(request.headers.entries());
+  const headers: Record<string, string> = {};
+
+  for (const name of STORED_REQUEST_HEADER_NAMES) {
+    const value = request.headers.get(name);
+    if (value !== null) {
+      headers[name] = value;
+    }
+  }
+
+  return headers;
+}
+
+async function readBoundedBody(request: Request): Promise<BoundedBodyResult> {
+  const declaredLength = request.headers.get("content-length");
+  if (
+    declaredLength !== null &&
+    /^\d+$/.test(declaredLength) &&
+    Number(declaredLength) > MAX_PATREON_WEBHOOK_BODY_BYTES
+  ) {
+    return { ok: false };
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return { body: "", ok: true };
+  }
+
+  const decoder = new TextDecoder();
+  let body = "";
+  let byteCount = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    byteCount += value.byteLength;
+    if (byteCount > MAX_PATREON_WEBHOOK_BODY_BYTES) {
+      try {
+        await reader.cancel();
+      } catch {
+        // Cancellation failure must not turn an oversized request into a 500.
+      }
+      return { ok: false };
+    }
+
+    body += decoder.decode(value, { stream: true });
+  }
+
+  body += decoder.decode();
+  return { body, ok: true };
 }
 
 async function storePatreonWebhookRequest({
@@ -47,10 +107,10 @@ async function storePatreonWebhookRequest({
   request,
   signature,
 }: {
-  event: string | null;
+  event: string;
   payload: string;
   request: Request;
-  signature: string | null;
+  signature: string;
 }) {
   const [storedRequest] = await db
     .insert(patreonWebhookRequest)
@@ -60,7 +120,7 @@ async function storePatreonWebhookRequest({
       headers: getRequestHeaders(request),
       method: request.method,
       signature,
-      url: request.url,
+      url: new URL(request.url).pathname,
     })
     .returning({ id: patreonWebhookRequest.id });
 
@@ -232,36 +292,31 @@ async function handleMemberDelete(
 }
 
 export async function handleWebhook(request: Request): Promise<Response> {
-  const payload = await request.text();
   const signature = request.headers.get("x-patreon-signature");
   const event = request.headers.get("x-patreon-event");
+
+  if (!(signature && event)) {
+    return new Response("Missing required headers", { status: 400 });
+  }
+
+  const bodyResult = await readBoundedBody(request);
+  if (!bodyResult.ok) {
+    return new Response("Payload too large", { status: 413 });
+  }
+
+  const payload = bodyResult.body;
+
+  if (!verifyWebhookSignature(payload, signature, env.PATREON_WEBHOOK_SECRET)) {
+    console.error("Invalid Patreon webhook signature");
+    return new Response("Invalid signature", { status: 401 });
+  }
+
   const storedWebhookRequestId = await storePatreonWebhookRequest({
     event,
     payload,
     request,
     signature,
   });
-
-  if (!(signature && event)) {
-    await updatePatreonWebhookRequestStatus({
-      error: "Missing required headers",
-      id: storedWebhookRequestId,
-      responseStatus: 400,
-      status: "invalid",
-    });
-    return new Response("Missing required headers", { status: 400 });
-  }
-
-  if (!verifyWebhookSignature(payload, signature, env.PATREON_WEBHOOK_SECRET)) {
-    console.error("Invalid Patreon webhook signature");
-    await updatePatreonWebhookRequestStatus({
-      error: "Invalid signature",
-      id: storedWebhookRequestId,
-      responseStatus: 401,
-      status: "invalid",
-    });
-    return new Response("Invalid signature", { status: 401 });
-  }
 
   let data: PatreonWebhookPayload;
   try {

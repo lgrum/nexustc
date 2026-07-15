@@ -1,7 +1,7 @@
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
-import { eq, inArray } from "@repo/db";
+import { eq, getRedis, inArray } from "@repo/db";
 import {
   media,
   profileEmblemAssignment,
@@ -28,6 +28,12 @@ import {
   optionalSingleDeferredMediaSelectionInputSchema,
   withDeferredMediaSelection,
 } from "../utils/deferred-media";
+import {
+  consumeProfileMediaUploadIntent,
+  createProfileMediaUploadIntent,
+  deleteProfileMediaUploadIntent,
+  PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
+} from "../utils/profile-media-cooldown";
 import { getS3Client } from "../utils/s3";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
@@ -409,6 +415,25 @@ export default {
           throw errors.FORBIDDEN({ message: "Asset inválido." });
         }
 
+        const intent = await consumeProfileMediaUploadIntent(
+          await getRedis(),
+          input.objectKey
+        );
+        if (!intent) {
+          throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
+        }
+
+        if (
+          intent.issuedToUserId !== session.user.id ||
+          intent.slot !== input.slot ||
+          intent.objectKey !== input.objectKey ||
+          intent.contentType !== input.contentType ||
+          intent.contentLength !== input.contentLength
+        ) {
+          await deleteRejectedUpload();
+          throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
+        }
+
         let validation: Awaited<ReturnType<typeof inspectProfileMediaAsset>>;
 
         try {
@@ -473,7 +498,7 @@ export default {
           slot: ownerSlotsSchema,
         })
       )
-      .handler(async ({ context: { session, ...ctx }, input }) => {
+      .handler(async ({ context: { session, ...ctx }, input, errors }) => {
         const logger = getLogger(ctx);
         logger?.info(`Generating owner upload policy for ${input.slot}`);
         const objectKey = getOwnerUploadObjectKey(
@@ -481,18 +506,41 @@ export default {
           session.user.id,
           input.contentType
         );
-        const presignedUrl = await getSignedUrl(
-          getS3Client(),
-          new PutObjectCommand({
-            Bucket: env.R2_ASSETS_BUCKET_NAME,
-            ContentLength: input.contentLength,
-            ContentType: input.contentType,
-            Key: objectKey,
-          }),
-          { expiresIn: 3600 }
-        );
+        const cache = await getRedis();
+        const intentCreated = await createProfileMediaUploadIntent(cache, {
+          contentLength: input.contentLength,
+          contentType: input.contentType,
+          issuedToUserId: session.user.id,
+          objectKey,
+          slot: input.slot,
+        });
+        if (!intentCreated) {
+          throw errors.INTERNAL_SERVER_ERROR();
+        }
 
-        return { objectKey, presignedUrl };
+        try {
+          const presignedUrl = await getSignedUrl(
+            getS3Client(),
+            new PutObjectCommand({
+              Bucket: env.R2_ASSETS_BUCKET_NAME,
+              ContentLength: input.contentLength,
+              ContentType: input.contentType,
+              IfNoneMatch: "*",
+              Key: objectKey,
+            }),
+            { expiresIn: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS }
+          );
+
+          return { objectKey, presignedUrl };
+        } catch (error) {
+          try {
+            await deleteProfileMediaUploadIntent(cache, objectKey);
+          } catch (cleanupError) {
+            logger?.warn(`Failed to delete upload intent for ${objectKey}`);
+            logger?.warn(cleanupError);
+          }
+          throw error;
+        }
       }),
   },
 

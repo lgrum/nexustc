@@ -18,6 +18,8 @@
 - **Depends on**: Plan 001
 - **Category**: security, API
 - **Planned at**: commit `5899131`, 2026-07-14
+- **Result**: DONE on `codex/plan-002-rpc-transport`
+- **Commit**: `11adf30`
 
 ## Why this matters
 

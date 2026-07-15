@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getClientErrorMessage } from "./client-error";
-import { getBrowserORPCUrl } from "./orpc";
+import { getBrowserORPCUrl, orpcClient } from "./orpc";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("getClientErrorMessage", () => {
   it("uses explicit server error messages", () => {
@@ -38,5 +42,19 @@ describe("getClientErrorMessage", () => {
 describe("getBrowserORPCUrl", () => {
   it("uses the current origin for browser RPC calls", () => {
     expect(getBrowserORPCUrl()).toBe(`${window.location.origin}/api/rpc`);
+  });
+});
+
+describe("browser RPC transport", () => {
+  it("sends the CSRF header", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 500 }));
+
+    await expect(orpcClient.chronos.getCurrent()).rejects.toBeDefined();
+
+    const request = fetchSpy.mock.calls[0]?.[0];
+    expect(request).toBeInstanceOf(Request);
+    expect((request as Request).headers.get("x-csrf-token")).toBe("orpc");
   });
 });
