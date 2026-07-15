@@ -37,6 +37,7 @@ const createBaseContext = (
 export async function createContext(headers: Headers): Promise<Context> {
   const session = await auth.api.getSession({
     headers,
+    query: { disableCookieCache: true },
   });
 
   return createBaseContext(headers, session);
