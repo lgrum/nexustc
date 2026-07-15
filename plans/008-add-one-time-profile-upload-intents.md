@@ -13,12 +13,17 @@
 
 ## Status
 
+- **State**: DONE
 - **Priority**: P1
 - **Effort**: M
 - **Risk**: MED
 - **Depends on**: Plans 001 and 007
 - **Category**: security, storage, reliability
 - **Planned at**: commit `5899131`, 2026-07-14
+- **Result**: APPROVE on `codex/plan-008-profile-upload-intents`
+- **Commit**: `f95d80a`
+- **Capability note**: The operator confirmed production Redis 7.2 and supplied
+  a successful `COMMAND INFO GETDEL` response before implementation resumed.
 
 ## Why this matters
 

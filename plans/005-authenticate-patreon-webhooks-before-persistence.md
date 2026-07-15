@@ -13,12 +13,18 @@
 
 ## Status
 
+- **State**: DONE
 - **Priority**: P1
 - **Effort**: M
 - **Risk**: MED
 - **Depends on**: Plans 001 and 004
 - **Category**: security, privacy, reliability
 - **Planned at**: commit `5899131`, 2026-07-14
+- **Result**: APPROVE on `codex/plan-005-patreon-webhook-boundary`
+- **Commit**: `871f2e2`
+- **Verification note**: The operator explicitly waived disposable PostgreSQL
+  verification because no relevant deployed environment uses these Drizzle
+  migrations. No database was contacted during completion.
 
 ## Why this matters
 
