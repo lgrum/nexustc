@@ -61,14 +61,19 @@ const intent = {
   issuedToUserId: "user-1",
 };
 
-function createContext() {
-  const returning = vi.fn().mockResolvedValue([
-    {
-      id: "asset-1",
-      isAnimated: false,
-      objectKey: input.objectKey,
-    },
-  ]);
+function createContext({ insertError }: { insertError?: Error } = {}) {
+  const returning = vi.fn();
+  if (insertError) {
+    returning.mockRejectedValue(insertError);
+  } else {
+    returning.mockResolvedValue([
+      {
+        id: "asset-1",
+        isAnimated: false,
+        objectKey: input.objectKey,
+      },
+    ]);
+  }
   const db = {
     insert: vi.fn(() => ({
       values: vi.fn(() => ({ returning })),
@@ -205,6 +210,19 @@ describe("profile upload intents", () => {
         contentType: input.contentType,
       }
     );
+    expect(mocks.cache.del).not.toHaveBeenCalled();
+  });
+
+  it("deletes the uploaded object when asset persistence fails", async () => {
+    mocks.cache.getDel.mockResolvedValue(JSON.stringify(intent));
+
+    await expect(
+      call(profileRouter.finalizeUpload, input, {
+        context: createContext({ insertError: new Error("insert failed") }),
+      })
+    ).rejects.toThrow("insert failed");
+
+    expect(mocks.s3Send).toHaveBeenCalledTimes(1);
     expect(mocks.cache.del).not.toHaveBeenCalled();
   });
 });

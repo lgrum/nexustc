@@ -127,21 +127,28 @@ export default {
         });
       }
 
-      const [asset] = await db
-        .insert(profileMediaAsset)
-        .values({
-          durationMs: validation.durationMs,
-          fileSizeBytes: validation.fileSizeBytes,
-          height: validation.height,
-          isAnimated: validation.isAnimated,
-          mimeType: input.contentType,
-          objectKey: input.objectKey,
-          ownerUserId: session.user.id,
-          slot: input.slot,
-          validationStatus: "ready",
-          width: validation.width,
-        })
-        .returning();
+      let asset: typeof profileMediaAsset.$inferSelect | undefined;
+
+      try {
+        [asset] = await db
+          .insert(profileMediaAsset)
+          .values({
+            durationMs: validation.durationMs,
+            fileSizeBytes: validation.fileSizeBytes,
+            height: validation.height,
+            isAnimated: validation.isAnimated,
+            mimeType: input.contentType,
+            objectKey: input.objectKey,
+            ownerUserId: session.user.id,
+            slot: input.slot,
+            validationStatus: "ready",
+            width: validation.width,
+          })
+          .returning();
+      } catch (error) {
+        await deleteRejectedUpload();
+        throw error;
+      }
 
       if (input.slot === "avatar") {
         await db
