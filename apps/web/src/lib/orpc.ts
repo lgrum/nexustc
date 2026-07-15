@@ -1,5 +1,6 @@
 import { createORPCClient, createSafeClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
+import { SimpleCsrfProtectionLinkPlugin } from "@orpc/client/plugins";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { appRouter } from "@repo/api/routers/index";
@@ -73,6 +74,7 @@ function getORPCClient(): AppRouterClient {
         credentials: "include",
       });
     },
+    plugins: [new SimpleCsrfProtectionLinkPlugin()],
     url: () => {
       if (typeof window === "undefined") {
         throw new TypeError("RPCLink is not allowed on the server side.");
