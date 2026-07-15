@@ -1,7 +1,13 @@
 export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["comic/admin/create", ["catalog:comics", "content", "home", "vip-feed"]],
-  ["comic/admin/delete", ["catalog:comics", "content", "home", "vip-feed"]],
-  ["comic/admin/edit", ["catalog:comics", "content", "home", "vip-feed"]],
+  [
+    "comic/admin/delete",
+    ["catalog:comics", "content", "home", "news", "vip-feed"],
+  ],
+  [
+    "comic/admin/edit",
+    ["catalog:comics", "content", "home", "news", "vip-feed"],
+  ],
   ["chronos/update", ["chronos"]],
   ["engagementQuestion/create", ["content"]],
   ["engagementQuestion/delete", ["content"]],
@@ -11,8 +17,11 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["notification/admin/archive", ["news"]],
   ["notification/admin/createNewsArticle", ["news"]],
   ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
-  ["post/admin/delete", ["catalog:games", "content", "home", "vip-feed"]],
-  ["post/admin/edit", ["catalog:games", "content", "home", "vip-feed"]],
+  [
+    "post/admin/delete",
+    ["catalog:games", "content", "home", "news", "vip-feed"],
+  ],
+  ["post/admin/edit", ["catalog:games", "content", "home", "news", "vip-feed"]],
   ["post/admin/uploadFeaturedPosts", ["home"]],
   ["post/admin/uploadWeeklyPosts", ["home"]],
   ["profile/finalizeUpload", ["profiles"]],
