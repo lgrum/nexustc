@@ -12,6 +12,7 @@ import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
 
 import { Badge } from "../ui/badge";
 import { Card, CardFooter, CardHeader, CardTitle } from "../ui/card";
+import { HoverAnimatedImage } from "./hover-animated-image";
 
 export type PostProps = {
   comicProgressStatus?: "read" | "reading" | "unread" | "updated" | null;
@@ -35,6 +36,7 @@ export type PostProps = {
 };
 
 type PostCardProps = {
+  playAnimationOnHover?: boolean;
   post: PostProps;
 };
 
@@ -86,16 +88,29 @@ function getComicProgressBadge(
   }
 }
 
-export function PostCard({ post }: PostCardProps) {
+export function PostCard({ playAnimationOnHover, post }: PostCardProps) {
   if (post.type === "comic") {
-    return <PostCardContent href={`/comic/${post.slug}`} post={post} />;
+    return (
+      <PostCardContent
+        href={`/comic/${post.slug}`}
+        playAnimationOnHover={playAnimationOnHover}
+        post={post}
+      />
+    );
   }
 
-  return <PostCardContent href={`/post/${post.slug}`} post={post} />;
+  return (
+    <PostCardContent
+      href={`/post/${post.slug}`}
+      playAnimationOnHover={playAnimationOnHover}
+      post={post}
+    />
+  );
 }
 
 function PostCardContent({
   href,
+  playAnimationOnHover,
   post,
 }: PostCardProps & {
   href: string;
@@ -113,6 +128,7 @@ function PostCardContent({
     (term) => term.taxonomy === "status"
   )?.name;
   const versionBadgeClassName = getVersionBadgeClassName(statusName);
+  const ArtworkImage = playAnimationOnHover ? HoverAnimatedImage : Image;
 
   return (
     <Link
@@ -146,7 +162,7 @@ function PostCardContent({
             <div className="h-full w-full bg-linear-to-br from-muted to-card" />
           )}
           {post.type === "comic" && count > 0 && (
-            <Image
+            <ArtworkImage
               alt={post.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               height={800}
@@ -156,7 +172,7 @@ function PostCardContent({
             />
           )}
           {post.type === "post" && count === 1 && (
-            <Image
+            <ArtworkImage
               alt={post.title}
               className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
               height={720}
@@ -168,7 +184,7 @@ function PostCardContent({
           {post.type === "post" && count === 2 && (
             <div className="grid h-full w-full grid-cols-2 gap-px bg-border">
               {images.map((img) => (
-                <Image
+                <ArtworkImage
                   alt={post.title}
                   className="h-full w-full object-cover"
                   height={720}
@@ -183,7 +199,7 @@ function PostCardContent({
           {post.type === "post" && count === 3 && (
             <div className="grid h-full w-full grid-cols-2 gap-px bg-border">
               <div className="grid min-h-0 grid-rows-2 gap-px bg-border">
-                <Image
+                <ArtworkImage
                   alt={post.title}
                   className="h-full w-full object-cover"
                   height={360}
@@ -191,7 +207,7 @@ function PostCardContent({
                   src={images[0]}
                   width={640}
                 />
-                <Image
+                <ArtworkImage
                   alt={post.title}
                   className="h-full w-full object-cover"
                   height={360}
@@ -200,7 +216,7 @@ function PostCardContent({
                   width={640}
                 />
               </div>
-              <Image
+              <ArtworkImage
                 alt={post.title}
                 className="h-full w-full object-cover"
                 height={720}
@@ -213,7 +229,7 @@ function PostCardContent({
           {post.type === "post" && count >= 4 && (
             <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-px bg-border">
               {images.map((img) => (
-                <Image
+                <ArtworkImage
                   alt={post.title}
                   className="h-full w-full object-cover"
                   height={360}

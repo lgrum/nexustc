@@ -7,7 +7,6 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import Autoplay from "embla-carousel-autoplay";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -20,6 +19,7 @@ import type { CarouselApi } from "@/components/ui/carousel";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
 import { cn, getBucketUrl, getTierColor } from "@/lib/utils";
 
+import { HoverAnimatedImage } from "./hover-animated-image";
 import type { PostProps } from "./post-card";
 
 const ABANDONED_STATUS_NAME = "Abandonado";
@@ -65,7 +65,7 @@ function GameSpotlightCard({ post, rank }: { post: PostProps; rank: number }) {
       <article className="card-hover relative h-full overflow-hidden rounded-2xl border border-border/70 bg-card shadow-lg">
         <div className="relative aspect-16/10 overflow-hidden">
           {cover ? (
-            <Image
+            <HoverAnimatedImage
               alt={post.title}
               className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.06]"
               fill

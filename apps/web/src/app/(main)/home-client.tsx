@@ -17,7 +17,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
-import Image from "next/image";
 import Link from "next/link";
 import { createContext, use } from "react";
 
@@ -28,6 +27,7 @@ import {
   AuthDialogTrigger,
 } from "@/components/auth/auth-dialog";
 import { GamesCarousel } from "@/components/landing/games-carousel";
+import { HoverAnimatedImage } from "@/components/landing/hover-animated-image";
 import { PostCard } from "@/components/landing/post-card";
 import type { PostProps } from "@/components/landing/post-card";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
@@ -171,11 +171,11 @@ function HeroSection() {
         >
           {/* Image */}
           {mainImage && (
-            <Image
+            <HoverAnimatedImage
               alt={main.title}
               className="object-cover transition-transform duration-700 group-hover:scale-[1.04]"
               fill
-              priority
+              preload
               sizes="(min-width: 768px) 60vw, 100vw"
               src={getBucketUrl(mainImage)}
             />
@@ -300,7 +300,7 @@ function HeroSecondaryCard({ post }: { post: PostProps }) {
       prefetch={false}
     >
       {cover ? (
-        <Image
+        <HoverAnimatedImage
           alt={post.title}
           className="object-cover transition-transform duration-700 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.05]"
           fill
@@ -610,7 +610,7 @@ function RecentPostsSection() {
           <div className="relative">
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
               {recentPosts?.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard key={post.id} playAnimationOnHover post={post} />
               ))}
             </div>
             {/* Fade the last row into the funnel below */}
