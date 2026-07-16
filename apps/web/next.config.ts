@@ -10,6 +10,7 @@ const assetHost = new URL(assetsBucketUrl);
 const nextConfig: NextConfig = {
   cacheComponents: true,
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         hostname: assetHost.hostname,
