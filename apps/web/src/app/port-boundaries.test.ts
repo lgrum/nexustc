@@ -33,6 +33,14 @@ test("server oRPC client keeps cached calls public and live calls request-bound"
   expect(source).toContain(": await createContext(await headers())");
 });
 
+test("VIP feed stays request-bound", () => {
+  const source = read("src/app/(main)/vip/page.tsx");
+
+  expect(source).not.toContain('"use cache"');
+  expect(source).not.toContain("context: { cache: true }");
+  expect(source).toContain("await orpcClient.post.getVipFeed({ page })");
+});
+
 test("root layout keeps expected hydration mismatch suppression", () => {
   const source = read("src/app/layout.tsx");
 
