@@ -5,9 +5,8 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { createContentMetadata } from "@/app/seo";
 import { orpcClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
-import { getBucketUrl } from "@/lib/utils";
 
 import { PostClient } from "./post-client";
 
@@ -69,27 +68,18 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const post = await getPost(id);
-  const coverObjectKey = getCoverImageObjectKey(
-    post.imageObjectKeys,
-    post.coverImageObjectKey
-  );
-  const imageUrl = coverObjectKey ? getBucketUrl(coverObjectKey) : undefined;
   const title = post.earlyAccess.isRestrictedView
     ? "NeXusTC - VIP Early Access"
     : `NeXusTC - ${post.title}`;
 
-  return {
-    title,
-    openGraph: {
-      images: imageUrl ? [imageUrl] : undefined,
-      title,
-    },
-    twitter: {
-      card: imageUrl ? "summary_large_image" : "summary",
-      images: imageUrl ? [imageUrl] : undefined,
-      title,
-    },
-  };
+  return createContentMetadata({
+    canonicalPath: `/post/${encodeURIComponent(post.slug)}`,
+    contentTitle: post.title,
+    identifier: post.slug,
+    pageTitle: title,
+    type: "post",
+    updatedAt: post.updatedAt ?? post.createdAt,
+  });
 }
 
 export default async function Page({ params }: PageProps) {

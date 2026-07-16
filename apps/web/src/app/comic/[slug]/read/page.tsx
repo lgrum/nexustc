@@ -5,9 +5,8 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 
+import { createContentMetadata } from "@/app/seo";
 import { orpcClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
-import { getBucketUrl } from "@/lib/utils";
 
 import { ComicReadClient } from "./comic-read-client";
 
@@ -74,25 +73,16 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const comic = await getComic(slug);
-  const coverObjectKey = getCoverImageObjectKey(
-    comic.imageObjectKeys,
-    comic.coverImageObjectKey
-  );
-  const imageUrl = coverObjectKey ? getBucketUrl(coverObjectKey) : undefined;
   const title = `NeXusTC - Leer ${comic.title}`;
 
-  return {
-    title,
-    openGraph: {
-      images: imageUrl ? [imageUrl] : undefined,
-      title,
-    },
-    twitter: {
-      card: imageUrl ? "summary_large_image" : "summary",
-      images: imageUrl ? [imageUrl] : undefined,
-      title,
-    },
-  };
+  return createContentMetadata({
+    canonicalPath: `/comic/${encodeURIComponent(comic.slug)}/read`,
+    contentTitle: comic.title,
+    identifier: comic.slug,
+    pageTitle: title,
+    type: "comic",
+    updatedAt: comic.updatedAt ?? comic.createdAt,
+  });
 }
 
 export default async function Page({ params, searchParams }: PageProps) {
