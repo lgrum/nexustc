@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import type { orpcClient } from "@/lib/orpc";
-import { getThumbnailImageObjectKeys } from "@/lib/post-images";
+import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 export function VipClient({
@@ -291,9 +291,8 @@ function VipFeedCard({
     item.content.length > 220
       ? `${item.content.slice(0, 217).trimEnd()}...`
       : item.content;
-  const [heroImage] = getThumbnailImageObjectKeys(
+  const heroImage = getCoverImageObjectKey(
     item.imageObjectKeys,
-    1,
     item.coverImageObjectKey
   );
   const phaseLabel =
