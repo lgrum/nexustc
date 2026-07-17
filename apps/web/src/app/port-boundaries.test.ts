@@ -9,12 +9,13 @@ function read(path: string) {
   return readFileSync(resolve(root, path), "utf-8");
 }
 
-test("home data uses anonymous cache context inside cache scope", () => {
+test("home data keeps recent users request-bound", () => {
   const source = read("src/app/(main)/page.tsx");
 
   expect(source).toContain('"use cache"');
   expect(source).toContain('cacheTag("home")');
-  expect(source.match(/context: \{ cache: true \}/g)).toHaveLength(3);
+  expect(source.match(/context: \{ cache: true \}/g)).toHaveLength(2);
+  expect(source).toContain("await orpcClient.user.getRecentUsers()");
 });
 
 test("authenticated catalog fetches bypass anonymous cache context", () => {
