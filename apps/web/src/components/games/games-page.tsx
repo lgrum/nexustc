@@ -8,12 +8,10 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
-import { Fragment, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { z } from "zod";
 
 import {
-  AD_CATALOG_CLASS_NAME,
-  AD_CATALOG_INTERVAL,
   AD_CATALOG_MOBILE_ZONE_ID,
   AD_CATALOG_ZONE_ID,
 } from "@/components/ads/ad-config";
@@ -165,17 +163,8 @@ export function GamesPage({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
-            {filteredPosts.map((post, index) => (
-              <Fragment key={post.id}>
-                <PostCard post={post} />
-                {(index + 1) % AD_CATALOG_INTERVAL === 0 &&
-                  index !== filteredPosts.length - 1 && (
-                    <AdSlot
-                      className={AD_CATALOG_CLASS_NAME}
-                      zoneId={AD_CATALOG_ZONE_ID}
-                    />
-                  )}
-              </Fragment>
+            {filteredPosts.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
           <LibraryPagination

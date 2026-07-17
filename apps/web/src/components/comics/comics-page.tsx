@@ -18,13 +18,11 @@ import { useStore } from "@tanstack/react-form";
 import Autoplay from "embla-carousel-autoplay";
 import Image from "next/image";
 import Link from "next/link";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
 
 import {
   AD_ACTION_CLASS_NAME,
-  AD_CATALOG_CLASS_NAME,
-  AD_CATALOG_INTERVAL,
   AD_CATALOG_MOBILE_ZONE_ID,
   AD_CATALOG_ZONE_ID,
 } from "@/components/ads/ad-config";
@@ -871,17 +869,8 @@ function ComicsLibrary({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
-            {posts.map((post, index) => (
-              <Fragment key={post.id}>
-                <PostCard post={post} />
-                {(index + 1) % AD_CATALOG_INTERVAL === 0 &&
-                  index !== posts.length - 1 && (
-                    <AdSlot
-                      className={AD_CATALOG_CLASS_NAME}
-                      zoneId={AD_CATALOG_ZONE_ID}
-                    />
-                  )}
-              </Fragment>
+            {posts.map((post) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
           <LibraryPagination
