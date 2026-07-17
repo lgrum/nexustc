@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import type { orpcClient } from "@/lib/orpc";
-import { getCoverImageObjectKey } from "@/lib/post-images";
 import { getBucketUrl } from "@/lib/utils";
 
 export function VipClient({
@@ -291,10 +290,7 @@ function VipFeedCard({
     item.content.length > 220
       ? `${item.content.slice(0, 217).trimEnd()}...`
       : item.content;
-  const heroImage = getCoverImageObjectKey(
-    item.imageObjectKeys,
-    item.coverImageObjectKey
-  );
+  const heroImage = item.imageObjectKeys?.[0] ?? item.coverImageObjectKey;
   const phaseLabel =
     item.earlyAccess.currentState === "VIP12_ONLY"
       ? "Solo VIP 12"

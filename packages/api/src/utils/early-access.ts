@@ -142,13 +142,14 @@ export function redactEarlyAccessMedia<
 >(item: T, isRestrictedView: boolean): T {
   const coverImageObjectKey =
     item.coverImageObjectKey ?? item.imageObjectKeys?.[0] ?? null;
+  const firstImageObjectKey = item.imageObjectKeys?.[0];
 
   return isRestrictedView
     ? {
         ...item,
         content: "",
         coverImageObjectKey,
-        imageObjectKeys: [],
+        imageObjectKeys: firstImageObjectKey ? [firstImageObjectKey] : [],
       }
     : item;
 }

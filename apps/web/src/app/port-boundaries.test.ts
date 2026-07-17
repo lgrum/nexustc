@@ -41,7 +41,9 @@ test("VIP feed stays request-bound", () => {
   expect(source).not.toContain('"use cache"');
   expect(source).not.toContain("context: { cache: true }");
   expect(source).toContain("await orpcClient.post.getVipFeed({ page })");
-  expect(clientSource).toContain("getCoverImageObjectKey(");
+  expect(clientSource).toContain(
+    "item.imageObjectKeys?.[0] ?? item.coverImageObjectKey"
+  );
 });
 
 test("root layout keeps expected hydration mismatch suppression", () => {

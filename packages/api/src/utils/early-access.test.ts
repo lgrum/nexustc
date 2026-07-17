@@ -138,7 +138,7 @@ describe("early access helpers", () => {
     ).toBe(false);
   });
 
-  it("keeps one cover while removing restricted content and gallery keys", () => {
+  it("keeps the cover and first screenshot while removing restricted content", () => {
     const restrictedWithCover = redactEarlyAccessMedia(
       {
         content: "paid content",
@@ -162,13 +162,13 @@ describe("early access helpers", () => {
       content: "",
       coverImageObjectKey: "cover.webp",
       id: "post-id",
-      imageObjectKeys: [],
+      imageObjectKeys: ["page-1.webp"],
     });
     expect(restrictedWithoutCover).toEqual({
       content: "",
       coverImageObjectKey: "page-1.webp",
       id: "comic-id",
-      imageObjectKeys: [],
+      imageObjectKeys: ["page-1.webp"],
     });
   });
 });
