@@ -80,10 +80,9 @@ export function ClientPage({
       translatorId: oldComic.translatorId ?? null,
       type: "comic" as const,
       vip12EarlyAccessHours:
-        oldComic.vip12EarlyAccessHours ??
-        COMIC_EARLY_ACCESS_DEFAULTS.vip12Hours,
+        oldComic.vip12EarlyAccessHours ?? COMIC_EARLY_ACCESS_DEFAULTS.vip8Hours,
       vip8EarlyAccessHours:
-        oldComic.vip8EarlyAccessHours ?? COMIC_EARLY_ACCESS_DEFAULTS.vip8Hours,
+        oldComic.vip8EarlyAccessHours ?? COMIC_EARLY_ACCESS_DEFAULTS.vip5Hours,
     },
     onSubmit: async (formData) => {
       const slugCheck = await orpcClient.comic.admin.checkSlug({

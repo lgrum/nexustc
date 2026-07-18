@@ -64,8 +64,8 @@ export function ClientPage({
       title: "",
       translatorId: null as string | null,
       type: "comic" as const,
-      vip12EarlyAccessHours: Number(COMIC_EARLY_ACCESS_DEFAULTS.vip12Hours),
-      vip8EarlyAccessHours: Number(COMIC_EARLY_ACCESS_DEFAULTS.vip8Hours),
+      vip12EarlyAccessHours: Number(COMIC_EARLY_ACCESS_DEFAULTS.vip8Hours),
+      vip8EarlyAccessHours: Number(COMIC_EARLY_ACCESS_DEFAULTS.vip5Hours),
     },
     onSubmit: async (formData) => {
       let { comicUploadSessionId, mediaSelection } = formData.value;

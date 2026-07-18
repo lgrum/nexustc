@@ -9,6 +9,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { PatronTier } from "@repo/shared/constants";
+import { getEarlyAccessPolicy } from "@repo/shared/early-access";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -397,9 +398,9 @@ function VipFeedCard({
       ? `${item.content.slice(0, 217).trimEnd()}...`
       : item.content;
   const heroImage = item.imageObjectKeys?.[0] ?? item.coverImageObjectKey;
-  const firstPhaseState = item.type === "comic" ? "VIP8_ONLY" : "VIP12_ONLY";
+  const { firstPhaseTier } = getEarlyAccessPolicy(item.type);
   const phaseLabel = item.earlyAccess.requiredTierLabel
-    ? `${item.earlyAccess.currentState === firstPhaseState ? "Solo" : "Desde"} ${item.earlyAccess.requiredTierLabel}`
+    ? `${item.earlyAccess.requiredTier === firstPhaseTier ? "Solo" : "Desde"} ${item.earlyAccess.requiredTierLabel}`
     : "Acceso anticipado";
   const href =
     item.type === "comic" ? `/comic/${item.slug}` : `/post/${item.id}`;

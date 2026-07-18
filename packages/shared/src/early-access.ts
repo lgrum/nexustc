@@ -33,8 +33,8 @@ export const EARLY_ACCESS_DEFAULTS = {
 
 export const COMIC_EARLY_ACCESS_DEFAULTS = {
   enabled: EARLY_ACCESS_POLICIES.comic.enabled,
-  vip12Hours: EARLY_ACCESS_POLICIES.comic.firstPhaseHours,
-  vip8Hours: EARLY_ACCESS_POLICIES.comic.secondPhaseHours,
+  vip8Hours: EARLY_ACCESS_POLICIES.comic.firstPhaseHours,
+  vip5Hours: EARLY_ACCESS_POLICIES.comic.secondPhaseHours,
 } as const;
 
 export const EARLY_ACCESS_MAX_DURATION_HOURS = 24 * 30;
