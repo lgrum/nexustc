@@ -138,37 +138,41 @@ describe("early access helpers", () => {
     ).toBe(false);
   });
 
-  it("keeps the cover and first screenshot while removing restricted content", () => {
-    const restrictedWithCover = redactEarlyAccessMedia(
+  it("keeps game galleries while limiting comics to the first screenshot", () => {
+    const restrictedGame = redactEarlyAccessMedia(
       {
         content: "paid content",
         coverImageObjectKey: "cover.webp",
         id: "post-id",
         imageObjectKeys: ["page-1.webp", "page-2.webp"],
+        type: "post" as const,
       },
       true
     );
-    const restrictedWithoutCover = redactEarlyAccessMedia(
+    const restrictedComic = redactEarlyAccessMedia(
       {
         content: "paid comic pages",
         coverImageObjectKey: null,
         id: "comic-id",
         imageObjectKeys: ["page-1.webp", "page-2.webp"],
+        type: "comic" as const,
       },
       true
     );
 
-    expect(restrictedWithCover).toEqual({
+    expect(restrictedGame).toEqual({
       content: "",
       coverImageObjectKey: "cover.webp",
       id: "post-id",
-      imageObjectKeys: ["page-1.webp"],
+      imageObjectKeys: ["page-1.webp", "page-2.webp"],
+      type: "post",
     });
-    expect(restrictedWithoutCover).toEqual({
+    expect(restrictedComic).toEqual({
       content: "",
       coverImageObjectKey: "page-1.webp",
       id: "comic-id",
       imageObjectKeys: ["page-1.webp"],
+      type: "comic",
     });
   });
 });

@@ -138,6 +138,7 @@ export function redactEarlyAccessMedia<
     content: string;
     coverImageObjectKey: string | null;
     imageObjectKeys: string[] | null;
+    type: "comic" | "post";
   },
 >(item: T, isRestrictedView: boolean): T {
   const coverImageObjectKey =
@@ -149,7 +150,12 @@ export function redactEarlyAccessMedia<
         ...item,
         content: "",
         coverImageObjectKey,
-        imageObjectKeys: firstImageObjectKey ? [firstImageObjectKey] : [],
+        imageObjectKeys:
+          item.type === "comic"
+            ? firstImageObjectKey
+              ? [firstImageObjectKey]
+              : []
+            : item.imageObjectKeys,
       }
     : item;
 }
