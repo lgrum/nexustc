@@ -14,6 +14,7 @@ describe("early access helpers", () => {
       documentStatus: "publish",
       enabled: true,
       now,
+      type: "post",
       vip12Hours: 24,
       vip8Hours: 48,
     });
@@ -34,6 +35,7 @@ describe("early access helpers", () => {
       enabled: true,
       now: new Date("2026-05-30T12:00:00.000Z"),
       releasedAt,
+      type: "post",
       vip12Hours: 24,
       vip8Hours: 48,
     });
@@ -49,6 +51,7 @@ describe("early access helpers", () => {
       documentStatus: "draft",
       enabled: true,
       now: new Date("2026-04-03T12:00:00.000Z"),
+      type: "post",
       vip12Hours: 24,
       vip8Hours: 48,
     });
@@ -94,23 +97,42 @@ describe("early access helpers", () => {
     expect(vip8ViewDuringPhaseTwo.viewerCanAccess).toBe(true);
   });
 
-  it("applies early access to comics", () => {
+  it("gives VIP 8 a 48-hour comic lead and VIP 5 the final 24 hours", () => {
     const publishedComic = {
       earlyAccessEnabled: true,
       earlyAccessStartedAt: new Date("2026-04-03T12:00:00.000Z"),
       type: "comic" as const,
       vip12EarlyAccessHours: 24,
-      vip8EarlyAccessHours: 48,
+      vip8EarlyAccessHours: 24,
     };
 
-    const view = getPostEarlyAccessView(
+    const vip5DuringFirstPhase = getPostEarlyAccessView(
       publishedComic,
-      { role: "user", tier: "none" },
+      { role: "user", tier: "level5" },
       new Date("2026-04-04T00:00:00.000Z")
     );
+    const vip8DuringFirstPhase = getPostEarlyAccessView(
+      publishedComic,
+      { role: "user", tier: "level8" },
+      new Date("2026-04-04T00:00:00.000Z")
+    );
+    const vip5DuringSecondPhase = getPostEarlyAccessView(
+      publishedComic,
+      { role: "user", tier: "level5" },
+      new Date("2026-04-04T18:00:00.000Z")
+    );
+    const publicView = getPostEarlyAccessView(
+      publishedComic,
+      { role: "user", tier: "none" },
+      new Date("2026-04-05T12:00:00.000Z")
+    );
 
-    expect(view.currentState).toBe("VIP12_ONLY");
-    expect(view.isRestrictedView).toBe(true);
+    expect(vip5DuringFirstPhase.currentState).toBe("VIP8_ONLY");
+    expect(vip5DuringFirstPhase.isRestrictedView).toBe(true);
+    expect(vip8DuringFirstPhase.viewerCanAccess).toBe(true);
+    expect(vip5DuringSecondPhase.currentState).toBe("VIP5_ONLY");
+    expect(vip5DuringSecondPhase.viewerCanAccess).toBe(true);
+    expect(publicView.currentState).toBe("PUBLIC");
   });
 
   it("allows only published, released posts visible to the viewer", () => {

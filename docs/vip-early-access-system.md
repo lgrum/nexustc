@@ -11,10 +11,18 @@ The system is designed to monetize time, not permanence.
 
 ## Internal Lifecycle
 
-Each published game post can move through three effective states:
+Each published game or comic can move through three effective states.
+
+Games:
 
 1. `VIP12_ONLY`
 2. `VIP8_ONLY`
+3. `PUBLIC`
+
+Comics:
+
+1. `VIP8_ONLY`
+2. `VIP5_ONLY`
 3. `PUBLIC`
 
 The lifecycle is derived from server timestamps, never from the browser clock.
@@ -33,13 +41,30 @@ Default publishing behavior for game posts:
 - VIP 8 window: 48 hours
 - Public release after 72 hours total
 
+Default publishing behavior for comics:
+
+- Early Access enabled by default
+- VIP 8+ access begins 48 hours before publication
+- VIP 5+ access begins 24 hours before publication
+- Public release after 48 hours total
+
+The database's historical `vip12` and `vip8` duration columns act as the first
+and second phase slots. Comic policy maps those slots to VIP 8 and VIP 5
+without changing existing game timing.
+
 ## Admin Experience
 
-Post creation/editing now exposes:
+Game creation/editing exposes:
 
 - `Enable Early Access` switch, default ON
 - `VIP 12` duration override
 - `VIP 8` duration override
+
+Comic creation/editing exposes:
+
+- `Enable Early Access` switch, default ON
+- `VIP 8` duration override, default 24 hours
+- `VIP 5` duration override, default 24 hours
 
 Behavior:
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type { DOCUMENT_STATUSES } from "@repo/shared/constants";
-import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
+import { COMIC_EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
 import { toast } from "sonner";
@@ -49,7 +49,7 @@ export function ClientPage({
       creatorLink: "",
       creatorName: "",
       documentStatus: "draft" as (typeof DOCUMENT_STATUSES)[number],
-      earlyAccessEnabled: Boolean(EARLY_ACCESS_DEFAULTS.enabled),
+      earlyAccessEnabled: Boolean(COMIC_EARLY_ACCESS_DEFAULTS.enabled),
       manualEngagementQuestions: [] as string[],
       mediaSelection: createEmptyComicDeferredMediaSelection(),
       premiumLinks: "",
@@ -64,8 +64,8 @@ export function ClientPage({
       title: "",
       translatorId: null as string | null,
       type: "comic" as const,
-      vip12EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip12Hours),
-      vip8EarlyAccessHours: Number(EARLY_ACCESS_DEFAULTS.vip8Hours),
+      vip12EarlyAccessHours: Number(COMIC_EARLY_ACCESS_DEFAULTS.vip8Hours),
+      vip8EarlyAccessHours: Number(COMIC_EARLY_ACCESS_DEFAULTS.vip5Hours),
     },
     onSubmit: async (formData) => {
       let { comicUploadSessionId, mediaSelection } = formData.value;

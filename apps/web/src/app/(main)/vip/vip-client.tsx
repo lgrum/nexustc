@@ -2,11 +2,14 @@
 
 import {
   ArrowRight01Icon,
+  Book03Icon,
   Clock01Icon,
+  GameController03Icon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { PatronTier } from "@repo/shared/constants";
+import { getEarlyAccessPolicy } from "@repo/shared/early-access";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -18,11 +21,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { trackEvent } from "@/lib/analytics";
 import type { orpcClient } from "@/lib/orpc";
-import { getBucketUrl } from "@/lib/utils";
+import { cn, getBucketUrl } from "@/lib/utils";
+
+export type VipContentType = "comic" | "post";
 
 export function VipClient({
+  contentType,
   feed,
 }: {
+  contentType: VipContentType;
   feed: Awaited<ReturnType<typeof orpcClient.post.getVipFeed>>;
 }) {
   const router = useRouter();
@@ -30,20 +37,29 @@ export function VipClient({
 
   const handlePageChange = useCallback(
     (page: number) => {
-      router.push(page > 1 ? `/vip?page=${page}` : "/vip", { scroll: false });
+      const params = new URLSearchParams();
+      if (contentType === "comic") {
+        params.set("type", "comic");
+      }
+      if (page > 1) {
+        params.set("page", String(page));
+      }
+      const query = params.toString();
+      router.push(query ? `/vip?${query}` : "/vip", { scroll: false });
     },
-    [router]
+    [contentType, router]
   );
 
   useEffect(() => {
     trackEvent("vip_page_viewed", {
       earlyAccessItemCount: items.length,
     });
-  }, [items.length]);
+  }, [contentType, items.length]);
 
   return (
     <main className="flex flex-col gap-8 px-4 py-6">
-      <VipHero />
+      <VipContentSelector contentType={contentType} />
+      <VipHero contentType={contentType} />
 
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-4">
@@ -63,8 +79,9 @@ export function VipClient({
                   La vitrina VIP está vacía por ahora
                 </h2>
                 <p className="max-w-xl text-muted-foreground text-sm leading-relaxed">
-                  En cuanto entre una nueva publicación en la secuencia VIP 12 →
-                  VIP 8 → público, aparecerá aquí automáticamente.
+                  {contentType === "comic"
+                    ? "En cuanto un comic entre en la secuencia VIP 8 → VIP 5 → público, aparecerá aquí automáticamente."
+                    : "En cuanto un juego entre en la secuencia VIP 12 → VIP 8 → público, aparecerá aquí automáticamente."}
                 </p>
               </div>
             </CardContent>
@@ -87,7 +104,52 @@ export function VipClient({
   );
 }
 
-function VipHero() {
+const VIP_CONTENT_OPTIONS = [
+  {
+    href: "/vip",
+    icon: GameController03Icon,
+    label: "Juegos",
+    type: "post",
+  },
+  {
+    href: "/vip?type=comic",
+    icon: Book03Icon,
+    label: "Comics",
+    type: "comic",
+  },
+] as const;
+
+function VipContentSelector({ contentType }: { contentType: VipContentType }) {
+  return (
+    <nav
+      aria-label="Tipo de contenido en acceso anticipado"
+      className="mx-auto grid w-full max-w-md grid-cols-2 gap-1 rounded-2xl border border-border/70 bg-card/70 p-1.5 shadow-md backdrop-blur-sm"
+    >
+      {VIP_CONTENT_OPTIONS.map((option) => {
+        const isActive = option.type === contentType;
+        return (
+          <Link
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 font-semibold text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-amber-400/70",
+              isActive
+                ? "bg-amber-400/15 text-amber-100 shadow-sm ring-1 ring-amber-400/35"
+                : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+            )}
+            href={option.href}
+            key={option.type}
+          >
+            <HugeiconsIcon className="size-4" icon={option.icon} />
+            {option.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function VipHero({ contentType }: { contentType: VipContentType }) {
+  const content = VIP_CONTENT_CONFIG[contentType];
   return (
     <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-amber-400/15 via-amber-400/5 to-transparent p-6 ring-1 shadow-glow-amber-400/15 ring-amber-400/30 md:p-8">
       <span
@@ -106,60 +168,105 @@ function VipHero() {
                 className="size-3.5 fill-amber-300 text-amber-300"
                 icon={StarIcon}
               />
-              VIP Games
+              {content.eyebrow}
             </span>
           </div>
           <h1 className="display-heading max-w-2xl text-[34px] text-foreground sm:text-[42px] md:text-[46px]">
-            Juega antes.
+            {content.title}
             <br />
             <span className="bg-linear-to-r from-amber-200 via-amber-100 to-pink-200 bg-clip-text text-transparent">
-              Sin anuncios.
+              {content.highlight}
             </span>
           </h1>
           <p className="max-w-md text-balance text-muted-foreground text-sm leading-relaxed">
-            Cada lanzamiento avanza por tres fases — primero los VIP 12, luego
-            los VIP 8, y al final, todo el público.
+            {content.description}
           </p>
           <div className="glow-line mt-1 w-full max-w-sm" />
         </header>
 
-        <EarlyAccessProgression />
+        <EarlyAccessProgression phases={content.phases} />
       </div>
     </section>
   );
 }
 
-const PHASES: readonly {
+type VipPhase = {
   index: string;
   tier: PatronTier;
   name: string;
   hint: string;
   leadLabel: string;
-}[] = [
-  {
-    hint: "Adelanto exclusivo",
-    index: "01",
-    leadLabel: "72h antes",
-    name: "VIP 12",
-    tier: "level12",
-  },
-  {
-    hint: "Acceso intermedio",
-    index: "02",
-    leadLabel: "48h antes",
-    name: "VIP 8",
-    tier: "level8",
-  },
-  {
-    hint: "Para todos",
-    index: "03",
-    leadLabel: "Lanzamiento",
-    name: "Público",
-    tier: "none",
-  },
-];
+};
 
-function EarlyAccessProgression() {
+const PUBLIC_PHASE = {
+  hint: "Para todos",
+  index: "03",
+  leadLabel: "Lanzamiento",
+  name: "Público",
+  tier: "none",
+} as const satisfies VipPhase;
+
+const VIP_CONTENT_CONFIG = {
+  comic: {
+    description:
+      "VIP 8 accede 48 horas antes del estreno; VIP 5 se suma durante las 24 horas finales antes del lanzamiento público.",
+    eyebrow: "VIP Comics",
+    highlight: "Página a página.",
+    phases: [
+      {
+        hint: "24h en exclusiva",
+        index: "01",
+        leadLabel: "48h antes",
+        name: "VIP 8",
+        tier: "level8",
+      },
+      {
+        hint: "24h de adelanto",
+        index: "02",
+        leadLabel: "24h antes",
+        name: "VIP 5",
+        tier: "level5",
+      },
+      PUBLIC_PHASE,
+    ],
+    title: "Lee antes.",
+  },
+  post: {
+    description:
+      "Cada lanzamiento avanza por tres fases — primero los VIP 12, luego los VIP 8, y al final, todo el público.",
+    eyebrow: "VIP Juegos",
+    highlight: "Sin anuncios.",
+    phases: [
+      {
+        hint: "Adelanto exclusivo",
+        index: "01",
+        leadLabel: "72h antes",
+        name: "VIP 12",
+        tier: "level12",
+      },
+      {
+        hint: "Acceso intermedio",
+        index: "02",
+        leadLabel: "48h antes",
+        name: "VIP 8",
+        tier: "level8",
+      },
+      PUBLIC_PHASE,
+    ],
+    title: "Juega antes.",
+  },
+} as const satisfies Record<
+  VipContentType,
+  {
+    description: string;
+    eyebrow: string;
+    highlight: string;
+    phases: readonly VipPhase[];
+    title: string;
+  }
+>;
+
+function EarlyAccessProgression({ phases }: { phases: readonly VipPhase[] }) {
   return (
     <div className="relative">
       <div
@@ -170,7 +277,7 @@ function EarlyAccessProgression() {
       </div>
 
       <ol className="relative grid grid-cols-3 gap-2">
-        {PHASES.map((phase) => (
+        {phases.map((phase) => (
           <PhaseNode key={phase.index} phase={phase} />
         ))}
       </ol>
@@ -178,7 +285,7 @@ function EarlyAccessProgression() {
   );
 }
 
-function PhaseNode({ phase }: { phase: (typeof PHASES)[number] }) {
+function PhaseNode({ phase }: { phase: VipPhase }) {
   return (
     <li className="flex flex-col items-center gap-3 text-center">
       <div className="relative">
@@ -291,12 +398,10 @@ function VipFeedCard({
       ? `${item.content.slice(0, 217).trimEnd()}...`
       : item.content;
   const heroImage = item.imageObjectKeys?.[0] ?? item.coverImageObjectKey;
-  const phaseLabel =
-    item.earlyAccess.currentState === "VIP12_ONLY"
-      ? "Solo VIP 12"
-      : item.earlyAccess.currentState === "VIP8_ONLY"
-        ? "Desde VIP 8"
-        : "Acceso anticipado";
+  const { firstPhaseTier } = getEarlyAccessPolicy(item.type);
+  const phaseLabel = item.earlyAccess.requiredTierLabel
+    ? `${item.earlyAccess.requiredTier === firstPhaseTier ? "Solo" : "Desde"} ${item.earlyAccess.requiredTierLabel}`
+    : "Acceso anticipado";
   const href =
     item.type === "comic" ? `/comic/${item.slug}` : `/post/${item.id}`;
 
@@ -346,9 +451,11 @@ function VipFeedCard({
               <h2 className="font-lexend font-semibold text-foreground text-xl leading-tight">
                 {item.title}
               </h2>
-              <p className="text-muted-foreground text-sm leading-relaxed">
-                {teaser}
-              </p>
+              {teaser ? (
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {teaser}
+                </p>
+              ) : null}
             </div>
 
             <div className="grid gap-4 grid-cols-2">
@@ -363,7 +470,9 @@ function VipFeedCard({
             </div>
 
             <div className="mt-auto flex items-center justify-between gap-3 border-border/60 border-t pt-3 text-sm">
-              <span className="text-muted-foreground">Entrar al post VIP</span>
+              <span className="text-muted-foreground">
+                Entrar al {item.type === "comic" ? "comic" : "juego"} VIP
+              </span>
               <span className="inline-flex items-center gap-1 font-semibold text-amber-200 transition-transform duration-200 group-hover:translate-x-0.5">
                 Abrir
                 <HugeiconsIcon className="size-3.5" icon={ArrowRight01Icon} />

@@ -40,7 +40,10 @@ test("VIP feed stays request-bound", () => {
 
   expect(source).not.toContain('"use cache"');
   expect(source).not.toContain("context: { cache: true }");
-  expect(source).toContain("await orpcClient.post.getVipFeed({ page })");
+  expect(source).toContain(
+    "await orpcClient.post.getVipFeed({ page, type: contentType })"
+  );
+  expect(source).toContain('return type === "comic" ? "comic" : "post"');
   expect(clientSource).toContain(
     "item.imageObjectKeys?.[0] ?? item.coverImageObjectKey"
   );
