@@ -6,7 +6,7 @@ import {
 import { cacheLife, cacheTag } from "next/cache";
 import { Suspense } from "react";
 
-import { LoadingSpinner } from "@/components/loading-spinner";
+import { PageLoading } from "@/components/ui/spinning-dots";
 
 import { MainShell } from "./main-shell";
 
@@ -39,7 +39,7 @@ export default async function MainLayout({
   const marqueeItems = await getMarqueeItems();
 
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={<PageLoading />}>
       <MainShell marqueeItems={marqueeItems}>{children}</MainShell>
     </Suspense>
   );

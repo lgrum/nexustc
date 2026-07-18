@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 import { Suspense } from "react";
 
-import { LoadingSpinner } from "@/components/loading-spinner";
+import { PageLoading } from "@/components/ui/spinning-dots";
 import { orpcClient } from "@/lib/orpc";
 
 import { createPageMetadata } from "../seo";
@@ -56,7 +56,7 @@ async function HomePageContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<LoadingSpinner className="my-20" />}>
+    <Suspense fallback={<PageLoading />}>
       <HomePageContent />
     </Suspense>
   );

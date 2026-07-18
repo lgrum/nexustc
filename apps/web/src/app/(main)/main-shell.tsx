@@ -11,7 +11,7 @@ import { AdSlot, useViewerAdPolicy } from "@/components/ads/ad-slot";
 import { BottomNav } from "@/components/bottom-nav";
 import { Footer } from "@/components/landing/footer";
 import { Header } from "@/components/landing/header";
-import { LoadingSpinner } from "@/components/loading-spinner";
+import { PageLoading } from "@/components/ui/spinning-dots";
 import { useAdblockDetector } from "@/hooks/use-adblock-detector";
 
 const PUSH_NOTIFICATION_COOLDOWN_MS = 30 * 60 * 1000;
@@ -92,7 +92,7 @@ export function MainShell({
           <div className="relative flex w-full min-w-0 max-w-full flex-col items-center overflow-x-clip">
             <div className="container space-y-4">
               <Header />
-              <Suspense fallback={<LoadingSpinner />}>{children}</Suspense>
+              <Suspense fallback={<PageLoading />}>{children}</Suspense>
             </div>
           </div>
           <Footer />

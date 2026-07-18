@@ -1,5 +1,5 @@
-import { LoadingSpinner } from "@/components/loading-spinner";
+import { PageLoading } from "@/components/ui/spinning-dots";
 
 export default function Loading() {
-  return <LoadingSpinner />;
+  return <PageLoading />;
 }

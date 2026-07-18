@@ -1,9 +1,5 @@
-import { LoadingSpinner } from "@/components/loading-spinner";
+import { PageLoading } from "@/components/ui/spinning-dots";
 
 export default function Loading() {
-  return (
-    <div className="grid min-h-[40vh] place-content-center">
-      <LoadingSpinner className="size-8" />
-    </div>
-  );
+  return <PageLoading />;
 }
