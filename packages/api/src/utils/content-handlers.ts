@@ -425,6 +425,7 @@ export async function createContent({
         documentStatus: input.documentStatus,
         enabled: input.earlyAccessEnabled,
         releasedAt,
+        type: input.type,
         vip12Hours: input.vip12EarlyAccessHours,
         vip8Hours: input.vip8EarlyAccessHours,
       });
@@ -707,6 +708,7 @@ export async function editContent({
           ? null
           : existingPost.earlyAccessStartedAt,
         releasedAt,
+        type: input.type,
         vip12Hours: input.vip12EarlyAccessHours,
         vip8Hours: input.vip8EarlyAccessHours,
       });

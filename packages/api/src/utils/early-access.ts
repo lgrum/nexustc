@@ -3,6 +3,7 @@ import { patron, post } from "@repo/db/schema/app";
 import type { PatronTier } from "@repo/shared/constants";
 import {
   buildEarlyAccessSchedule,
+  getEarlyAccessPolicy,
   getEarlyAccessView,
 } from "@repo/shared/early-access";
 import type {
@@ -34,6 +35,7 @@ type EarlyAccessUpdateInput = {
   existingStartedAt?: Date | null;
   now?: Date;
   releasedAt?: Date | null;
+  type: "comic" | "post";
   vip12Hours: number;
   vip8Hours: number;
 };
@@ -73,8 +75,11 @@ export function resolveEarlyAccessStorageFields(
     ? (input.existingStartedAt ??
       (input.documentStatus === "publish" ? (input.releasedAt ?? now) : null))
     : null;
+  const policy = getEarlyAccessPolicy(input.type);
   const schedule = buildEarlyAccessSchedule({
     enabled: input.enabled,
+    firstPhaseTier: policy.firstPhaseTier,
+    secondPhaseTier: policy.secondPhaseTier,
     startedAt,
     vip12Hours: input.vip12Hours,
     vip8Hours: input.vip8Hours,
@@ -84,7 +89,7 @@ export function resolveEarlyAccessStorageFields(
     earlyAccessEnabled: input.enabled,
     earlyAccessPublicAt: schedule.publicReleaseAt,
     earlyAccessStartedAt: schedule.startedAt,
-    earlyAccessVip12EndsAt: schedule.vip12EndsAt,
+    earlyAccessVip12EndsAt: schedule.firstPhaseEndsAt,
     vip12EarlyAccessHours: schedule.vip12Hours,
     vip8EarlyAccessHours: schedule.vip8Hours,
   };
@@ -93,8 +98,11 @@ export function resolveEarlyAccessStorageFields(
 export function buildPostEarlyAccessSchedule(
   item: EarlyAccessPostRecord
 ): EarlyAccessSchedule {
+  const policy = getEarlyAccessPolicy(item.type);
   return buildEarlyAccessSchedule({
     enabled: item.earlyAccessEnabled,
+    firstPhaseTier: policy.firstPhaseTier,
+    secondPhaseTier: policy.secondPhaseTier,
     startedAt: item.earlyAccessStartedAt,
     vip12Hours: item.vip12EarlyAccessHours,
     vip8Hours: item.vip8EarlyAccessHours,

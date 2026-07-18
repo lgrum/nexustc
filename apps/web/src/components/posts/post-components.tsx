@@ -600,7 +600,11 @@ function formatPhaseLabel(post: PostProps): string {
   }
 
   if (post.earlyAccess.currentState === "VIP8_ONLY") {
-    return "Desde VIP 8";
+    return post.type === "comic" ? "Solo VIP 8" : "Desde VIP 8";
+  }
+
+  if (post.earlyAccess.currentState === "VIP5_ONLY") {
+    return "Desde VIP 5";
   }
 
   return "Acceso anticipado";
@@ -637,7 +641,7 @@ function EarlyAccessStatusBanner() {
             <p className="max-w-xl text-foreground/85 text-sm leading-relaxed">
               {post.earlyAccess.viewerCanAccess
                 ? "Tu nivel ya entra en esta fase. Disfrútalo antes que el resto."
-                : "Las cuentas VIP juegan primero. Al terminar la cuenta atrás, el post queda libre para todos."}
+                : "Los miembros VIP entran primero. Al terminar la cuenta atrás, el contenido queda libre para todos."}
             </p>
           </div>
           <div className="grid grid-cols-2 items-stretch gap-4 md:gap-6">

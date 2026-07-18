@@ -1,6 +1,6 @@
 "use client";
 
-import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
+import { COMIC_EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import type { ComponentProps } from "react";
@@ -60,7 +60,7 @@ export function ClientPage({
       creatorName: oldComic.creatorName,
       documentStatus: oldComic.status,
       earlyAccessEnabled:
-        oldComic.earlyAccessEnabled ?? EARLY_ACCESS_DEFAULTS.enabled,
+        oldComic.earlyAccessEnabled ?? COMIC_EARLY_ACCESS_DEFAULTS.enabled,
       id: oldComic.id,
       manualEngagementQuestions:
         oldComic.engagementOverrides?.map((item) => item.text) ?? [],
@@ -80,9 +80,10 @@ export function ClientPage({
       translatorId: oldComic.translatorId ?? null,
       type: "comic" as const,
       vip12EarlyAccessHours:
-        oldComic.vip12EarlyAccessHours ?? EARLY_ACCESS_DEFAULTS.vip12Hours,
+        oldComic.vip12EarlyAccessHours ??
+        COMIC_EARLY_ACCESS_DEFAULTS.vip12Hours,
       vip8EarlyAccessHours:
-        oldComic.vip8EarlyAccessHours ?? EARLY_ACCESS_DEFAULTS.vip8Hours,
+        oldComic.vip8EarlyAccessHours ?? COMIC_EARLY_ACCESS_DEFAULTS.vip8Hours,
     },
     onSubmit: async (formData) => {
       const slugCheck = await orpcClient.comic.admin.checkSlug({

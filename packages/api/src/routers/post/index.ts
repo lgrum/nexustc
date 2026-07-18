@@ -753,17 +753,21 @@ export default {
       z
         .object({
           page: z.number().int().min(1).default(1),
+          type: z.enum(["post", "comic"]).default("post"),
         })
-        .default({ page: 1 })
+        .default({ page: 1, type: "post" })
     )
     .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .handler(async ({ context: { db, ...context }, input }) => {
       const logger = getLogger(context);
-      logger?.info(`Fetching VIP early access feed page ${input.page}`);
+      logger?.info(
+        `Fetching VIP ${input.type} early access feed page ${input.page}`
+      );
 
       const viewerTier = await getViewerPatronTier(db, context.session);
       const where = and(
         eq(post.status, "publish"),
+        eq(post.type, input.type),
         activeVipCatalogCondition()
       );
       const [{ count: totalItems } = { count: 0 }] = await db

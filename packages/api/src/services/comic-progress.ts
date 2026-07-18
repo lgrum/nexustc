@@ -3,13 +3,10 @@ import { userComicProgress } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { getPatronTierRank } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
-import {
-  getEarlyAccessView,
-  buildEarlyAccessSchedule,
-} from "@repo/shared/early-access";
 import type { RedisClientType } from "redis";
 
 import type { Context } from "../context";
+import { getPostEarlyAccessView } from "../utils/early-access";
 import { getUserPatronTier } from "./profile";
 
 const COMIC_READING_SESSION_TTL_SECONDS = 60 * 60 * 6;
@@ -390,17 +387,17 @@ function canAccessComicMetadata(params: {
     return false;
   }
 
-  const earlyAccess = getEarlyAccessView({
-    now,
-    role: params.role ?? undefined,
-    schedule: buildEarlyAccessSchedule({
-      enabled: params.metadata.earlyAccessEnabled,
-      startedAt: params.metadata.earlyAccessStartedAt,
-      vip12Hours: params.metadata.vip12EarlyAccessHours,
-      vip8Hours: params.metadata.vip8EarlyAccessHours,
-    }),
-    viewerTier: params.tier,
-  });
+  const earlyAccess = getPostEarlyAccessView(
+    {
+      earlyAccessEnabled: params.metadata.earlyAccessEnabled,
+      earlyAccessStartedAt: params.metadata.earlyAccessStartedAt,
+      type: "comic",
+      vip12EarlyAccessHours: params.metadata.vip12EarlyAccessHours,
+      vip8EarlyAccessHours: params.metadata.vip8EarlyAccessHours,
+    },
+    { role: params.role ?? undefined, tier: params.tier },
+    now
+  );
 
   return earlyAccess.viewerCanAccess;
 }

@@ -1,7 +1,7 @@
 import { ArrowLeftDoubleIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { TAXONOMIES } from "@repo/shared/constants";
-import { EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
+import { COMIC_EARLY_ACCESS_DEFAULTS } from "@repo/shared/early-access";
 import { COMIC_MEDIA_MAX_ITEMS } from "@repo/shared/media";
 import { useStore } from "@tanstack/react-form";
 import { useState } from "react";
@@ -201,8 +201,8 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
                   Estreno escalonado
                 </h2>
                 <p className="max-w-2xl text-amber-50/80 text-sm leading-relaxed">
-                  El comic puede abrir primero para VIP 12, luego VIP 8 y
-                  finalmente quedar público.
+                  El comic abre primero para VIP 8, luego VIP 5 y finalmente
+                  quedar público.
                 </p>
               </div>
             </div>
@@ -215,7 +215,8 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
                       Enable Early Access
                     </span>
                     <span className="text-[11px] text-amber-100/70">
-                      {EARLY_ACCESS_DEFAULTS.enabled ? "ON" : "OFF"} por defecto
+                      {COMIC_EARLY_ACCESS_DEFAULTS.enabled ? "ON" : "OFF"} por
+                      defecto
                     </span>
                   </div>
                   <Switch
@@ -231,29 +232,6 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
             <form.AppField name="vip12EarlyAccessHours">
               {(field) => (
                 <div className="space-y-2">
-                  <Label htmlFor={field.name}>Ventana VIP 12 (horas)</Label>
-                  <Input
-                    disabled={!earlyAccessEnabled}
-                    id={field.name}
-                    min={0}
-                    onChange={(event) =>
-                      field.handleChange(Number(event.target.value) || 0)
-                    }
-                    step={1}
-                    type="number"
-                    value={String(field.state.value ?? 0)}
-                  />
-                  <FieldDescription>
-                    Solo VIP 12 puede entrar primero cuando el comic abre.
-                  </FieldDescription>
-                  <ErrorField field={field} />
-                </div>
-              )}
-            </form.AppField>
-
-            <form.AppField name="vip8EarlyAccessHours">
-              {(field) => (
-                <div className="space-y-2">
                   <Label htmlFor={field.name}>Ventana VIP 8 (horas)</Label>
                   <Input
                     disabled={!earlyAccessEnabled}
@@ -267,7 +245,31 @@ export function ComicFormFields({ series, terms }: ComicFormFieldsProps) {
                     value={String(field.state.value ?? 0)}
                   />
                   <FieldDescription>
-                    Después de VIP 12, el acceso se amplía a VIP 8.
+                    VIP 8 o superior entra primero durante 24 horas por defecto.
+                  </FieldDescription>
+                  <ErrorField field={field} />
+                </div>
+              )}
+            </form.AppField>
+
+            <form.AppField name="vip8EarlyAccessHours">
+              {(field) => (
+                <div className="space-y-2">
+                  <Label htmlFor={field.name}>Ventana VIP 5 (horas)</Label>
+                  <Input
+                    disabled={!earlyAccessEnabled}
+                    id={field.name}
+                    min={0}
+                    onChange={(event) =>
+                      field.handleChange(Number(event.target.value) || 0)
+                    }
+                    step={1}
+                    type="number"
+                    value={String(field.state.value ?? 0)}
+                  />
+                  <FieldDescription>
+                    Después, el acceso se amplía a VIP 5 durante 24 horas por
+                    defecto.
                   </FieldDescription>
                   <ErrorField field={field} />
                 </div>
