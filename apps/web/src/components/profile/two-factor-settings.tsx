@@ -1,12 +1,9 @@
 "use client";
 
+import { ShieldUserIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
-import {
-  CheckCircle2Icon,
-  CopyIcon,
-  ShieldCheckIcon,
-  SmartphoneIcon,
-} from "lucide-react";
+import { CheckCircle2Icon, CopyIcon, SmartphoneIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -198,15 +195,19 @@ export function TwoFactorSettings({
   };
 
   return (
-    <div className="rounded-4xl border border-border bg-card p-4">
+    <div className="rounded-[1.25rem] border border-border/70 bg-background/45 p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-            <ShieldCheckIcon className="size-5" />
+          <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <HugeiconsIcon
+              aria-hidden
+              className="size-5"
+              icon={ShieldUserIcon}
+            />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-semibold">Verificación en dos pasos</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="font-semibold">Estado de la verificación</h3>
               <span
                 className={
                   isEnabled

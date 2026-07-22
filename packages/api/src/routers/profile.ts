@@ -17,6 +17,7 @@ import {
   getPublicProfile,
   inspectProfileMediaAsset,
   PROFILE_MEDIA_MAX_BYTES,
+  resolveProfileVisibility,
   validateProfileMediaUpload,
 } from "../services/profile";
 import {
@@ -37,6 +38,16 @@ const uploadContentTypeSchema = z.enum([
   "image/png",
   "image/webp",
 ]);
+const visibilityUpdateSchema = z
+  .object({
+    favorites: z.boolean().optional(),
+    reviews: z.boolean().optional(),
+  })
+  .refine(
+    (visibility) =>
+      visibility.favorites !== undefined || visibility.reviews !== undefined,
+    { message: "Debes actualizar al menos una preferencia de privacidad." }
+  );
 
 function getUploadObjectKey(
   slot: "avatar" | "banner",
@@ -212,6 +223,7 @@ export default {
             : null,
           bannerColor: settings.bannerColor,
           bannerMode: settings.bannerMode,
+          visibility: resolveProfileVisibility(settings.visibilityConfig),
         },
         summary: summary ?? null,
       };
@@ -335,6 +347,25 @@ export default {
       return { success: true };
     }
   ),
+
+  updateVisibility: protectedProcedure
+    .input(visibilityUpdateSchema)
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+      const logger = getLogger(ctx);
+      logger?.info(`Updating visibility settings for user ${session.user.id}`);
+      const settings = await getOrCreateProfileSettings(db, session.user.id);
+      const visibility = {
+        ...resolveProfileVisibility(settings.visibilityConfig),
+        ...input,
+      };
+
+      await db
+        .update(profileSettings)
+        .set({ visibilityConfig: visibility })
+        .where(eq(profileSettings.userId, session.user.id));
+
+      return { visibility };
+    }),
 
   updateAppearance: protectedProcedure
     .input(

@@ -125,9 +125,17 @@ export function BookmarkButton({ postId }: { postId: string }) {
         return { previousBookmarks };
       },
 
-      onSettled: () => {
-        // Refetch to ensure consistency
-        queryClient.invalidateQueries(bookmarksQueryOptions);
+      onSettled: async () => {
+        // Refetch every bookmark surface to ensure private and public profiles stay current.
+        await Promise.all([
+          queryClient.invalidateQueries(bookmarksQueryOptions),
+          queryClient.invalidateQueries(
+            orpc.user.getBookmarksFull.queryOptions()
+          ),
+          queryClient.invalidateQueries({
+            queryKey: ["profile", "public-bookmarks"],
+          }),
+        ]);
       },
 
       onSuccess: (_data, variables) => {

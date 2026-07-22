@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 
+import { PublicProfileHero } from "./public-profile-hero";
 import { UserClient } from "./user-client";
 
 type PageProps = {
@@ -37,5 +38,14 @@ export default async function Page({ params }: PageProps) {
   const { id } = await params;
   const profile = await getProfile(id);
 
-  return <UserClient profile={profile} />;
+  return (
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-9 px-3 py-5 pb-12 sm:px-4 md:py-8">
+      <PublicProfileHero profile={profile} />
+      <UserClient
+        userId={profile.id}
+        userName={profile.name}
+        visibility={profile.visibility}
+      />
+    </main>
+  );
 }

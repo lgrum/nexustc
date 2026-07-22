@@ -11,10 +11,16 @@ test("invalidates home and catalog tags for post mutations", () => {
   ]);
 });
 
-test("invalidates profile tags for profile mutations", () => {
-  expect(getCacheTagsForProcedure("profile/updateAppearance")).toEqual([
-    "profiles",
-  ]);
+test.each([
+  "profile/updateAppearance",
+  "profile/updateVisibility",
+  "rating/create",
+  "rating/delete",
+  "rating/deleteAny",
+  "rating/update",
+  "user/toggleBookmark",
+])("invalidates profile tags for %s", (procedurePath) => {
+  expect(getCacheTagsForProcedure(procedurePath)).toEqual(["profiles"]);
 });
 
 test.each([

@@ -34,6 +34,7 @@ import {
   publicProcedure,
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
+import { canReadPublicProfileActivity } from "../services/profile";
 import {
   canViewPost,
   getViewerPatronTier,
@@ -553,6 +554,12 @@ export default {
     .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(`Fetching public bookmarks for user: ${input.userId}`);
+
+      if (
+        !(await canReadPublicProfileActivity(db, input.userId, "favorites"))
+      ) {
+        return [];
+      }
 
       const likesAgg = db
         .select({

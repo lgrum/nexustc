@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, desc, eq, isNull, not, sql } from "@repo/db";
+import { and, desc, eq, inArray, isNull, not, sql } from "@repo/db";
 import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
@@ -12,7 +12,10 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../index";
-import { buildProfileSummaries } from "../services/profile";
+import {
+  buildProfileSummaries,
+  canReadPublicProfileActivity,
+} from "../services/profile";
 import {
   getPostEarlyAccessView,
   getViewerPatronTier,
@@ -21,6 +24,11 @@ import {
 import { assertContentHasNoForbiddenTerms } from "../utils/forbidden-content";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { assertTextIsNotSpammy } from "../utils/spam-detection";
+
+const ratingsByUserPaginationSchema = z.object({
+  limit: z.number().min(1).max(30).default(10),
+  offset: z.number().min(0).default(0),
+});
 
 async function assertRatingsAreOpen(params: {
   db: Context["db"];
@@ -55,6 +63,61 @@ async function assertRatingsAreOpen(params: {
   if (earlyAccess.isActive) {
     throw params.errors.FORBIDDEN();
   }
+}
+
+async function getRatingsByUser({
+  db,
+  limit,
+  offset,
+  publicOnly,
+  userId,
+}: {
+  db: Context["db"];
+  limit: number;
+  offset: number;
+  publicOnly: boolean;
+  userId: string;
+}) {
+  const ratings = await db
+    .select({
+      createdAt: postRating.createdAt,
+      postId: postRating.postId,
+      rating: postRating.rating,
+      review: postRating.review,
+      updatedAt: postRating.updatedAt,
+    })
+    .from(postRating)
+    .innerJoin(user, eq(user.id, postRating.userId))
+    .innerJoin(post, eq(post.id, postRating.postId))
+    .where(
+      publicOnly
+        ? and(
+            eq(postRating.userId, userId),
+            eq(post.status, "publish"),
+            publicCatalogVisibilityCondition(),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        : eq(postRating.userId, userId)
+    )
+    .orderBy(desc(postRating.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const postIds = [...new Set(ratings.map((rating) => rating.postId))];
+  const posts =
+    postIds.length > 0
+      ? await db
+          .select({
+            id: post.id,
+            slug: post.slug,
+            title: post.title,
+            type: post.type,
+          })
+          .from(post)
+          .where(inArray(post.id, postIds))
+      : [];
+
+  return { posts, ratings };
 }
 
 export default {
@@ -497,65 +560,49 @@ export default {
     }),
 
   getByUserId: publicProcedure
-    .input(
-      z.object({
-        limit: z.number().min(1).max(30).default(10),
-        offset: z.number().min(0).default(0),
-        userId: z.string(),
-      })
-    )
+    .input(ratingsByUserPaginationSchema.extend({ userId: z.string() }))
     .handler(async ({ context: { db, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `Fetching ratings for user ${input.userId} with limit: ${input.limit}, offset: ${input.offset}`
       );
 
-      const ratings = await db
-        .select({
-          createdAt: postRating.createdAt,
-          postId: postRating.postId,
-          rating: postRating.rating,
-          review: postRating.review,
-          updatedAt: postRating.updatedAt,
-        })
-        .from(postRating)
-        .innerJoin(user, eq(user.id, postRating.userId))
-        .innerJoin(post, eq(post.id, postRating.postId))
-        .where(
-          and(
-            eq(postRating.userId, input.userId),
-            eq(post.status, "publish"),
-            publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`
-          )
-        )
-        .orderBy(desc(postRating.createdAt))
-        .limit(input.limit)
-        .offset(input.offset);
+      if (!(await canReadPublicProfileActivity(db, input.userId, "reviews"))) {
+        return { posts: [], ratings: [] };
+      }
 
-      const postIds = [...new Set(ratings.map((r) => r.postId))];
-
-      const posts =
-        postIds.length > 0
-          ? await db
-              .select({
-                id: post.id,
-                title: post.title,
-                type: post.type,
-              })
-              .from(post)
-              .where(
-                sql`${post.id} IN (${sql.join(
-                  postIds.map((id) => sql`${id}`),
-                  sql`, `
-                )})`
-              )
-          : [];
-
+      const result = await getRatingsByUser({
+        db,
+        limit: input.limit,
+        offset: input.offset,
+        publicOnly: true,
+        userId: input.userId,
+      });
       logger?.debug(
-        `Retrieved ${ratings.length} ratings with ${posts.length} posts for user ${input.userId}`
+        `Retrieved ${result.ratings.length} ratings with ${result.posts.length} posts for user ${input.userId}`
       );
-      return { posts, ratings };
+      return result;
+    }),
+
+  getMyReviews: protectedProcedure
+    .input(ratingsByUserPaginationSchema)
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+      const logger = getLogger(ctx);
+      logger?.info(
+        `Fetching private reviews for user ${session.user.id} with limit: ${input.limit}, offset: ${input.offset}`
+      );
+
+      const result = await getRatingsByUser({
+        db,
+        limit: input.limit,
+        offset: input.offset,
+        publicOnly: false,
+        userId: session.user.id,
+      });
+      logger?.debug(
+        `Retrieved ${result.ratings.length} private reviews with ${result.posts.length} posts for user ${session.user.id}`
+      );
+      return result;
     }),
 
   // Get current user's rating for a post

@@ -122,6 +122,10 @@ function RatingDialogContent({
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", "my-reviews"] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile", "public-reviews"],
+      });
       handleOpenChange(false);
     },
   });
@@ -136,6 +140,10 @@ function RatingDialogContent({
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", "my-reviews"] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile", "public-reviews"],
+      });
       handleOpenChange(false);
     },
   });

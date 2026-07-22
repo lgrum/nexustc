@@ -937,7 +937,9 @@ export const profileSettings = pgTable(
     visibilityConfig: jsonb("visibility_config")
       .$type<ProfileVisibilityConfig>()
       .notNull()
-      .default(sql`'{"reserved": {}}'::jsonb`),
+      .default(
+        sql`'{"favorites": true, "reviews": true, "reserved": {}}'::jsonb`
+      ),
     ...timestamps,
   },
   (table) => [

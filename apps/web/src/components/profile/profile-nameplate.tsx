@@ -149,12 +149,14 @@ function getCustomRoleIdentity(user: ProfileNameplateUser) {
 export function ProfileNameplate({
   user,
   className,
+  nameAs: NameTag = "p",
   nameClassName,
   showEmblems = false,
   showProfileRoles = false,
 }: {
   user: ProfileNameplateUser;
   className?: string;
+  nameAs?: "h1" | "h2" | "h3" | "p";
   nameClassName?: string;
   showEmblems?: boolean;
   showProfileRoles?: boolean;
@@ -180,7 +182,7 @@ export function ProfileNameplate({
   return (
     <div className={cn("flex min-w-0 flex-col gap-2", className)}>
       <div className="inline-flex min-w-0 items-center flex-row gap-2">
-        <p
+        <NameTag
           className={cn(
             "truncate font-semibold text-lg",
             nameClassName,
@@ -189,7 +191,7 @@ export function ProfileNameplate({
           style={nameGradient ? { backgroundImage: nameGradient } : undefined}
         >
           {user.name}
-        </p>
+        </NameTag>
         <ProfileRoleBadges roles={badges} />
       </div>
       {showEmblems ? (

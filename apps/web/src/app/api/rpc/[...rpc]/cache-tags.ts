@@ -28,6 +28,11 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["profile/removeAvatar", ["profiles"]],
   ["profile/removeBanner", ["profiles"]],
   ["profile/updateAppearance", ["profiles"]],
+  ["profile/updateVisibility", ["profiles"]],
+  ["rating/create", ["profiles"]],
+  ["rating/delete", ["profiles"]],
+  ["rating/deleteAny", ["profiles"]],
+  ["rating/update", ["profiles"]],
   ["profileAdmin/assignments/setUserAssignments", ["profiles"]],
   ["profileAdmin/emblems/create", ["profiles"]],
   ["profileAdmin/emblems/delete", ["profiles"]],
@@ -40,6 +45,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["term/create", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/delete", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/edit", ["catalog:comics", "catalog:games", "content", "home"]],
+  ["user/toggleBookmark", ["profiles"]],
 ]);
 
 export function getCacheTagsForProcedure(procedurePath: string) {

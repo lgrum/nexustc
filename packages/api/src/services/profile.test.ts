@@ -1,6 +1,15 @@
 import {
+  getProfileActivityVisibility,
+  isProfileActivityPublic,
+  normalizeProfileVisibilityConfig,
+  PROFILE_VISIBILITY_DEFAULTS,
+} from "@repo/shared/profile";
+
+import {
   getProfileEntitlements,
   getProfileEntitlementsForTier,
+  getPublicProfileActivityCounts,
+  resolveProfileVisibility,
   validateProfileMediaUpload,
 } from "./profile";
 import type { ProfileEntitlements } from "./profile";
@@ -19,6 +28,91 @@ const tierEntitlements: ProfileEntitlements = {
   ...getProfileEntitlementsForTier("level8"),
   overrideSource: "none",
 };
+
+function createCountQuery(rows: { count: number }[]) {
+  const query = {
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    where: vi.fn().mockResolvedValue(rows),
+  };
+  query.from.mockReturnValue(query);
+  query.innerJoin.mockReturnValue(query);
+  return query;
+}
+
+describe(normalizeProfileVisibilityConfig, () => {
+  it("keeps legacy profile rows public by default", () => {
+    expect(normalizeProfileVisibilityConfig({ reserved: {} })).toEqual(
+      PROFILE_VISIBILITY_DEFAULTS
+    );
+    expect(resolveProfileVisibility(null)).toEqual(PROFILE_VISIBILITY_DEFAULTS);
+  });
+
+  it("preserves explicit privacy choices and valid reserved flags", () => {
+    expect(
+      normalizeProfileVisibilityConfig({
+        favorites: false,
+        reserved: { futureFlag: true, invalid: "yes" },
+      })
+    ).toEqual({
+      favorites: false,
+      reserved: { futureFlag: true },
+      reviews: true,
+    });
+  });
+
+  it("exposes only resolved activity fields to public profile callers", () => {
+    const stored = {
+      favorites: true,
+      reserved: { futureFlag: false },
+      reviews: false,
+    };
+
+    expect(getProfileActivityVisibility(stored)).toEqual({
+      favorites: true,
+      reviews: false,
+    });
+    expect(isProfileActivityPublic(stored, "favorites")).toBe(true);
+    expect(isProfileActivityPublic(stored, "reviews")).toBe(false);
+  });
+});
+
+describe(getPublicProfileActivityCounts, () => {
+  it("does not calculate or expose counts for hidden collections", async () => {
+    const select = vi.fn();
+
+    await expect(
+      getPublicProfileActivityCounts({ select } as never, "user-1", {
+        favorites: false,
+        reviews: false,
+      })
+    ).resolves.toEqual({ favorites: null, reviews: null });
+    expect(select).not.toHaveBeenCalled();
+  });
+
+  it("returns only public-catalog counts for visible collections", async () => {
+    const favoriteQuery = createCountQuery([{ count: 3 }]);
+    const reviewQuery = createCountQuery([{ count: 2 }]);
+    const select = vi
+      .fn()
+      .mockReturnValueOnce(favoriteQuery)
+      .mockReturnValueOnce(reviewQuery);
+
+    await expect(
+      getPublicProfileActivityCounts(
+        { select } as never,
+        "user-1",
+        { favorites: true, reviews: true },
+        new Date("2026-07-19T00:00:00.000Z")
+      )
+    ).resolves.toEqual({ favorites: 3, reviews: 2 });
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(favoriteQuery.innerJoin).toHaveBeenCalledTimes(2);
+    expect(reviewQuery.innerJoin).toHaveBeenCalledTimes(2);
+    expect(favoriteQuery.where).toHaveBeenCalledOnce();
+    expect(reviewQuery.where).toHaveBeenCalledOnce();
+  });
+});
 
 describe(validateProfileMediaUpload, () => {
   it("rejects uploads when the server-measured size exceeds the slot limit", () => {
