@@ -63,22 +63,26 @@ describe(UserClient, () => {
   });
 
   it("loads both public activity collections independently", async () => {
-    vi.mocked(orpcClient.user.getUserBookmarks).mockResolvedValue([
-      {
-        averageRating: 0,
-        favorites: 1,
-        id: "post-1",
-        imageObjectKeys: [],
-        likes: 1,
-        slug: "post-one",
-        terms: [],
-        title: "Post one",
-        type: "post",
-        version: null,
-        views: 1,
-      },
-    ]);
+    vi.mocked(orpcClient.user.getUserBookmarks).mockResolvedValue({
+      items: [
+        {
+          averageRating: 0,
+          favorites: 1,
+          id: "post-1",
+          imageObjectKeys: [],
+          likes: 1,
+          slug: "post-one",
+          terms: [],
+          title: "Post one",
+          type: "post",
+          version: null,
+          views: 1,
+        },
+      ],
+      nextCursor: null,
+    });
     vi.mocked(orpcClient.rating.getByUserId).mockResolvedValue({
+      nextCursor: null,
       posts: [
         { id: "post-1", slug: "post-one", title: "Post one", type: "post" },
       ],
@@ -99,12 +103,10 @@ describe(UserClient, () => {
     expect(await screen.findByText("Reseñas cargadas: 1")).toBeTruthy();
     expect(orpcClient.user.getUserBookmarks).toHaveBeenCalledWith({
       limit: 12,
-      offset: 0,
       userId: "user-1",
     });
     expect(orpcClient.rating.getByUserId).toHaveBeenCalledWith({
       limit: 10,
-      offset: 0,
       userId: "user-1",
     });
   });

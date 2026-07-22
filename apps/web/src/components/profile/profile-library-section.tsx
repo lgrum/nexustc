@@ -49,6 +49,7 @@ const REVIEW_PAGE_SIZE = 10;
 type PrivateReviewsPage = Awaited<
   ReturnType<(typeof orpcClient.rating)["getMyReviews"]>
 >;
+type PrivateReviewsCursor = NonNullable<PrivateReviewsPage["nextCursor"]>;
 
 export function ProfileLibrarySection({
   visibility,
@@ -282,18 +283,13 @@ function PrivateReviews() {
   const queryClient = useQueryClient();
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const query = useInfiniteQuery({
-    getNextPageParam: (
-      lastPage: PrivateReviewsPage,
-      pages: PrivateReviewsPage[]
-    ) =>
-      lastPage.ratings.length === REVIEW_PAGE_SIZE
-        ? pages.reduce((count, page) => count + page.ratings.length, 0)
-        : undefined,
-    initialPageParam: 0,
-    queryFn: ({ pageParam }: { pageParam: number }) =>
+    getNextPageParam: (lastPage: PrivateReviewsPage) =>
+      lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as PrivateReviewsCursor | undefined,
+    queryFn: ({ pageParam }: { pageParam: PrivateReviewsCursor | undefined }) =>
       orpcClient.rating.getMyReviews({
+        ...(pageParam ? { cursor: pageParam } : {}),
         limit: REVIEW_PAGE_SIZE,
-        offset: pageParam,
       }),
     queryKey: ["profile", "my-reviews"],
   });
@@ -312,6 +308,14 @@ function PrivateReviews() {
         queryClient.invalidateQueries({
           queryKey: ["profile", "public-reviews"],
         }),
+        queryClient.invalidateQueries({
+          queryKey: ["rating", "user", postId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["ratings", postId] }),
+        queryClient.invalidateQueries({
+          queryKey: ["rating", "stats", postId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["posts"] }),
       ]);
       trackEvent("post_rating_deleted", {
         postId,

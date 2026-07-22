@@ -41,10 +41,10 @@ describe("public bookmark privacy", () => {
     await expect(
       call(
         userRouter.getUserBookmarks,
-        { limit: 12, offset: 0, userId: "user-1" },
+        { limit: 12, userId: "user-1" },
         { context }
       )
-    ).resolves.toEqual([]);
+    ).resolves.toEqual({ items: [], nextCursor: null });
 
     expect(mocks.canReadPublicProfileActivity).toHaveBeenCalledWith(
       context.db,

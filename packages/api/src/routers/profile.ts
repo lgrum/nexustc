@@ -1,7 +1,7 @@
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
-import { eq, getRedis } from "@repo/db";
+import { eq, getRedis, sql } from "@repo/db";
 import { profileMediaAsset, profileSettings, user } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
@@ -350,21 +350,32 @@ export default {
 
   updateVisibility: protectedProcedure
     .input(visibilityUpdateSchema)
-    .handler(async ({ context: { db, session, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
       const logger = getLogger(ctx);
       logger?.info(`Updating visibility settings for user ${session.user.id}`);
-      const settings = await getOrCreateProfileSettings(db, session.user.id);
-      const visibility = {
-        ...resolveProfileVisibility(settings.visibilityConfig),
-        ...input,
-      };
+      await getOrCreateProfileSettings(db, session.user.id);
 
-      await db
+      let visibilityConfig = sql`${profileSettings.visibilityConfig}`;
+      if (input.favorites !== undefined) {
+        visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{favorites}', ${JSON.stringify(input.favorites)}::jsonb, true)`;
+      }
+      if (input.reviews !== undefined) {
+        visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{reviews}', ${JSON.stringify(input.reviews)}::jsonb, true)`;
+      }
+
+      const [settings] = await db
         .update(profileSettings)
-        .set({ visibilityConfig: visibility })
-        .where(eq(profileSettings.userId, session.user.id));
+        .set({ visibilityConfig })
+        .where(eq(profileSettings.userId, session.user.id))
+        .returning({ visibilityConfig: profileSettings.visibilityConfig });
 
-      return { visibility };
+      if (!settings) {
+        throw errors.INTERNAL_SERVER_ERROR();
+      }
+
+      return {
+        visibility: resolveProfileVisibility(settings.visibilityConfig),
+      };
     }),
 
   updateAppearance: protectedProcedure

@@ -51,3 +51,9 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
 export function getCacheTagsForProcedure(procedurePath: string) {
   return cacheTagsByMutation.get(procedurePath) ?? [];
 }
+
+export function getCacheRevalidationProfile(procedurePath: string) {
+  return procedurePath === "profile/updateVisibility"
+    ? ({ expire: 0 } as const)
+    : "max";
+}

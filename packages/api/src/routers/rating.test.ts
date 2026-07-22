@@ -34,14 +34,12 @@ function createPaginatedQuery(rows: unknown[]) {
   const query = {
     from: vi.fn(),
     innerJoin: vi.fn(),
-    limit: vi.fn(),
-    offset: vi.fn().mockResolvedValue(rows),
+    limit: vi.fn().mockResolvedValue(rows),
     orderBy: vi.fn(),
     where: vi.fn(),
   };
   query.from.mockReturnValue(query);
   query.innerJoin.mockReturnValue(query);
-  query.limit.mockReturnValue(query);
   query.orderBy.mockReturnValue(query);
   query.where.mockReturnValue(query);
   return query;
@@ -77,10 +75,10 @@ describe("profile review privacy", () => {
     await expect(
       call(
         ratingRouter.getByUserId,
-        { limit: 10, offset: 0, userId: "user-1" },
+        { limit: 10, userId: "user-1" },
         { context }
       )
-    ).resolves.toEqual({ posts: [], ratings: [] });
+    ).resolves.toEqual({ nextCursor: null, posts: [], ratings: [] });
 
     expect(mocks.canReadPublicProfileActivity).toHaveBeenCalledWith(
       context.db,
@@ -116,10 +114,14 @@ describe("profile review privacy", () => {
     await expect(
       call(
         ratingRouter.getByUserId,
-        { limit: 10, offset: 0, userId: "user-1" },
+        { limit: 10, userId: "user-1" },
         { context }
       )
-    ).resolves.toEqual({ posts: [linkedPost], ratings: [rating] });
+    ).resolves.toEqual({
+      nextCursor: null,
+      posts: [linkedPost],
+      ratings: [rating],
+    });
 
     expect(mocks.publicCatalogVisibilityCondition).toHaveBeenCalledOnce();
     expect(select.mock.calls[1]?.[0]).toHaveProperty("slug");
@@ -149,12 +151,15 @@ describe("profile review privacy", () => {
     const context = createContext(select);
 
     await expect(
-      call(ratingRouter.getMyReviews, { limit: 7, offset: 14 }, { context })
-    ).resolves.toEqual({ posts: [linkedPost], ratings: [rating] });
+      call(ratingRouter.getMyReviews, { limit: 7 }, { context })
+    ).resolves.toEqual({
+      nextCursor: null,
+      posts: [linkedPost],
+      ratings: [rating],
+    });
 
     expect(mocks.canReadPublicProfileActivity).not.toHaveBeenCalled();
     expect(ratingsQuery.limit).toHaveBeenCalledWith(7);
-    expect(ratingsQuery.offset).toHaveBeenCalledWith(14);
     expect(select.mock.calls[1]?.[0]).toHaveProperty("slug");
   });
 });

@@ -1,5 +1,5 @@
 import { getLogger } from "@orpc/experimental-pino";
-import { and, desc, eq, inArray, isNull, not, sql } from "@repo/db";
+import { and, desc, eq, inArray, isNull, lt, not, or, sql } from "@repo/db";
 import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
@@ -26,8 +26,13 @@ import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { assertTextIsNotSpammy } from "../utils/spam-detection";
 
 const ratingsByUserPaginationSchema = z.object({
+  cursor: z
+    .object({
+      createdAt: z.string().datetime(),
+      postId: z.string(),
+    })
+    .optional(),
   limit: z.number().min(1).max(30).default(10),
-  offset: z.number().min(0).default(0),
 });
 
 async function assertRatingsAreOpen(params: {
@@ -67,17 +72,34 @@ async function assertRatingsAreOpen(params: {
 
 async function getRatingsByUser({
   db,
+  cursor,
   limit,
-  offset,
   publicOnly,
   userId,
 }: {
+  cursor?: { createdAt: string; postId: string };
   db: Context["db"];
   limit: number;
-  offset: number;
   publicOnly: boolean;
   userId: string;
 }) {
+  const visibilityCondition = publicOnly
+    ? and(
+        eq(postRating.userId, userId),
+        eq(post.status, "publish"),
+        publicCatalogVisibilityCondition(),
+        sql`${user.banned} IS DISTINCT FROM true`
+      )
+    : eq(postRating.userId, userId);
+  const cursorCondition = cursor
+    ? or(
+        lt(postRating.createdAt, new Date(cursor.createdAt)),
+        and(
+          eq(postRating.createdAt, new Date(cursor.createdAt)),
+          lt(postRating.postId, cursor.postId)
+        )
+      )
+    : undefined;
   const ratings = await db
     .select({
       createdAt: postRating.createdAt,
@@ -89,19 +111,9 @@ async function getRatingsByUser({
     .from(postRating)
     .innerJoin(user, eq(user.id, postRating.userId))
     .innerJoin(post, eq(post.id, postRating.postId))
-    .where(
-      publicOnly
-        ? and(
-            eq(postRating.userId, userId),
-            eq(post.status, "publish"),
-            publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`
-          )
-        : eq(postRating.userId, userId)
-    )
-    .orderBy(desc(postRating.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .where(and(visibilityCondition, cursorCondition))
+    .orderBy(desc(postRating.createdAt), desc(postRating.postId))
+    .limit(limit);
 
   const postIds = [...new Set(ratings.map((rating) => rating.postId))];
   const posts =
@@ -117,7 +129,18 @@ async function getRatingsByUser({
           .where(inArray(post.id, postIds))
       : [];
 
-  return { posts, ratings };
+  const lastRating = ratings.at(-1);
+  return {
+    nextCursor:
+      ratings.length === limit && lastRating
+        ? {
+            createdAt: lastRating.createdAt.toISOString(),
+            postId: lastRating.postId,
+          }
+        : null,
+    posts,
+    ratings,
+  };
 }
 
 export default {
@@ -564,17 +587,17 @@ export default {
     .handler(async ({ context: { db, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
-        `Fetching ratings for user ${input.userId} with limit: ${input.limit}, offset: ${input.offset}`
+        `Fetching ratings for user ${input.userId} with limit: ${input.limit}`
       );
 
       if (!(await canReadPublicProfileActivity(db, input.userId, "reviews"))) {
-        return { posts: [], ratings: [] };
+        return { nextCursor: null, posts: [], ratings: [] };
       }
 
       const result = await getRatingsByUser({
         db,
+        cursor: input.cursor,
         limit: input.limit,
-        offset: input.offset,
         publicOnly: true,
         userId: input.userId,
       });
@@ -589,13 +612,13 @@ export default {
     .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
-        `Fetching private reviews for user ${session.user.id} with limit: ${input.limit}, offset: ${input.offset}`
+        `Fetching private reviews for user ${session.user.id} with limit: ${input.limit}`
       );
 
       const result = await getRatingsByUser({
         db,
+        cursor: input.cursor,
         limit: input.limit,
-        offset: input.offset,
         publicOnly: false,
         userId: session.user.id,
       });

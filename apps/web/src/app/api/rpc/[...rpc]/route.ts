@@ -6,7 +6,10 @@ import { createContext } from "@repo/api/context";
 import { appRouter } from "@repo/api/routers/index";
 import { revalidateTag } from "next/cache";
 
-import { getCacheTagsForProcedure } from "./cache-tags";
+import {
+  getCacheRevalidationProfile,
+  getCacheTagsForProcedure,
+} from "./cache-tags";
 
 const rpcHandler = new RPCHandler(appRouter, {
   interceptors: [
@@ -32,7 +35,7 @@ async function handle(request: Request) {
         ""
       );
       for (const tag of getCacheTagsForProcedure(procedurePath)) {
-        revalidateTag(tag, "max");
+        revalidateTag(tag, getCacheRevalidationProfile(procedurePath));
       }
     }
 

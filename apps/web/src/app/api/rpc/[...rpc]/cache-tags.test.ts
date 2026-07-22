@@ -1,6 +1,9 @@
 import { expect, test } from "vitest";
 
-import { getCacheTagsForProcedure } from "./cache-tags";
+import {
+  getCacheRevalidationProfile,
+  getCacheTagsForProcedure,
+} from "./cache-tags";
 
 test("invalidates home and catalog tags for post mutations", () => {
   expect(getCacheTagsForProcedure("post/admin/create")).toEqual([
@@ -34,4 +37,11 @@ test.each([
 
 test("does not invalidate cache tags for unknown procedures", () => {
   expect(getCacheTagsForProcedure("post/getRecent")).toEqual([]);
+});
+
+test("expires privacy-sensitive profile data immediately", () => {
+  expect(getCacheRevalidationProfile("profile/updateVisibility")).toEqual({
+    expire: 0,
+  });
+  expect(getCacheRevalidationProfile("profile/updateAppearance")).toBe("max");
 });

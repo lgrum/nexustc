@@ -29,10 +29,14 @@ vi.mock("@repo/auth", () => ({ auth: { api: {} } }));
 vi.mock("@repo/db", () => ({
   eq: vi.fn(),
   getRedis: vi.fn(() => Promise.resolve(mocks.cache)),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    strings,
+    values,
+  }),
 }));
 vi.mock("@repo/db/schema/app", () => ({
   profileMediaAsset: { id: {} },
-  profileSettings: { userId: {} },
+  profileSettings: { userId: {}, visibilityConfig: {} },
   user: { id: {} },
 }));
 vi.mock("@repo/db/utils", () => ({ generateId: mocks.generateId }));
@@ -94,8 +98,16 @@ function createContext({ insertError }: { insertError?: Error } = {}) {
   } as unknown as Context;
 }
 
-function createSettingsContext() {
-  const where = vi.fn().mockResolvedValue(null);
+function createSettingsContext(visibilityConfig?: Record<string, unknown>) {
+  const storedVisibilityConfig = visibilityConfig ?? {
+    favorites: false,
+    reserved: { futureFlag: true },
+    reviews: false,
+  };
+  const returning = vi
+    .fn()
+    .mockResolvedValue([{ visibilityConfig: storedVisibilityConfig }]);
+  const where = vi.fn(() => ({ returning }));
   const set = vi.fn(() => ({ where }));
   const context = {
     db: {
@@ -114,7 +126,7 @@ function createSettingsContext() {
     },
   } as unknown as Context;
 
-  return { context, set, where };
+  return { context, returning, set, where };
 }
 
 beforeEach(() => {
@@ -182,7 +194,7 @@ describe("profile visibility settings", () => {
         reserved: { futureFlag: true },
       },
     });
-    const { context, set } = createSettingsContext();
+    const { context, returning, set } = createSettingsContext();
 
     await expect(
       call(profileRouter.updateVisibility, { reviews: false }, { context })
@@ -194,12 +206,9 @@ describe("profile visibility settings", () => {
       },
     });
     expect(set).toHaveBeenCalledWith({
-      visibilityConfig: {
-        favorites: false,
-        reserved: { futureFlag: true },
-        reviews: false,
-      },
+      visibilityConfig: expect.any(Object),
     });
+    expect(returning).toHaveBeenCalledWith({ visibilityConfig: {} });
   });
 
   it("requires authentication before changing visibility", async () => {

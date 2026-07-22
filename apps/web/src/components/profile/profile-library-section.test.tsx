@@ -76,7 +76,11 @@ describe(ProfileLibrarySection, () => {
     mocks.toggleBookmark.mockReset();
     mocks.updateVisibility.mockReset();
     mocks.getBookmarksFull.mockResolvedValue([]);
-    mocks.getMyReviews.mockResolvedValue({ posts: [], ratings: [] });
+    mocks.getMyReviews.mockResolvedValue({
+      nextCursor: null,
+      posts: [],
+      ratings: [],
+    });
     mocks.updateVisibility.mockResolvedValue({
       visibility: { favorites: false, reserved: {}, reviews: true },
     });

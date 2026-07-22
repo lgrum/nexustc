@@ -21,9 +21,11 @@ const REVIEW_PAGE_SIZE = 10;
 type PublicBookmarksPage = Awaited<
   ReturnType<(typeof orpcClient.user)["getUserBookmarks"]>
 >;
+type PublicBookmarksCursor = NonNullable<PublicBookmarksPage["nextCursor"]>;
 type PublicReviewsPage = Awaited<
   ReturnType<(typeof orpcClient.rating)["getByUserId"]>
 >;
+type PublicReviewsCursor = NonNullable<PublicReviewsPage["nextCursor"]>;
 
 export function UserClient({
   userId,
@@ -61,24 +63,23 @@ function PublicBookmarksSection({
 }) {
   const query = useInfiniteQuery({
     enabled: isPublic,
-    getNextPageParam: (
-      lastPage: PublicBookmarksPage,
-      pages: PublicBookmarksPage[]
-    ) =>
-      lastPage.length === BOOKMARK_PAGE_SIZE
-        ? pages.reduce((count, page) => count + page.length, 0)
-        : undefined,
-    initialPageParam: 0,
-    queryFn: ({ pageParam }: { pageParam: number }) =>
+    getNextPageParam: (lastPage: PublicBookmarksPage) =>
+      lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as PublicBookmarksCursor | undefined,
+    queryFn: ({
+      pageParam,
+    }: {
+      pageParam: PublicBookmarksCursor | undefined;
+    }) =>
       orpcClient.user.getUserBookmarks({
+        ...(pageParam ? { cursor: pageParam } : {}),
         limit: BOOKMARK_PAGE_SIZE,
-        offset: pageParam,
         userId,
       }),
     queryKey: ["profile", "public-bookmarks", userId],
   });
   const bookmarks = useMemo(
-    () => query.data?.pages.flat() ?? [],
+    () => query.data?.pages.flatMap((page) => page.items) ?? [],
     [query.data?.pages]
   );
 
@@ -149,18 +150,13 @@ function PublicReviewsSection({
 }) {
   const query = useInfiniteQuery({
     enabled: isPublic,
-    getNextPageParam: (
-      lastPage: PublicReviewsPage,
-      pages: PublicReviewsPage[]
-    ) =>
-      lastPage.ratings.length === REVIEW_PAGE_SIZE
-        ? pages.reduce((count, page) => count + page.ratings.length, 0)
-        : undefined,
-    initialPageParam: 0,
-    queryFn: ({ pageParam }: { pageParam: number }) =>
+    getNextPageParam: (lastPage: PublicReviewsPage) =>
+      lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as PublicReviewsCursor | undefined,
+    queryFn: ({ pageParam }: { pageParam: PublicReviewsCursor | undefined }) =>
       orpcClient.rating.getByUserId({
+        ...(pageParam ? { cursor: pageParam } : {}),
         limit: REVIEW_PAGE_SIZE,
-        offset: pageParam,
         userId,
       }),
     queryKey: ["profile", "public-reviews", userId],

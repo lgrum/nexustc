@@ -1,6 +1,6 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { auth } from "@repo/auth";
-import { and, eq, sql } from "@repo/db";
+import { and, eq, isNull as isNullColumn, lt, or, sql } from "@repo/db";
 import {
   patron,
   post,
@@ -546,8 +546,13 @@ export default {
   getUserBookmarks: publicProcedure
     .input(
       z.object({
+        cursor: z
+          .object({
+            id: z.string(),
+            releasedAt: z.string().datetime().nullable(),
+          })
+          .optional(),
         limit: z.number().min(1).max(30).default(12),
-        offset: z.number().min(0).default(0),
         userId: z.string(),
       })
     )
@@ -558,7 +563,7 @@ export default {
       if (
         !(await canReadPublicProfileActivity(db, input.userId, "favorites"))
       ) {
-        return [];
+        return { items: [], nextCursor: null };
       }
 
       const likesAgg = db
@@ -617,6 +622,18 @@ export default {
         .groupBy(postRating.postId)
         .as("ratings_agg");
 
+      const cursorCondition = input.cursor
+        ? input.cursor.releasedAt
+          ? or(
+              lt(post.releasedAt, new Date(input.cursor.releasedAt)),
+              and(
+                eq(post.releasedAt, new Date(input.cursor.releasedAt)),
+                lt(post.id, input.cursor.id)
+              ),
+              isNullColumn(post.releasedAt)
+            )
+          : and(isNullColumn(post.releasedAt), lt(post.id, input.cursor.id))
+        : undefined;
       const result = await db
         .select({
           averageRating: sql<number>`COALESCE(${ratingsAgg.averageRating}, 0)`,
@@ -658,21 +675,32 @@ export default {
             eq(post.status, "publish"),
             eq(postBookmark.userId, input.userId),
             publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`
+            sql`${user.banned} IS DISTINCT FROM true`,
+            cursorCondition
           )
         )
         .orderBy(sql`${post.releasedAt} DESC NULLS LAST`, sql`${post.id} DESC`)
-        .limit(input.limit)
-        .offset(input.offset);
+        .limit(input.limit);
 
       logger?.debug(
         `Fetched ${result.length} public bookmarks for user ${input.userId}`
       );
 
-      return attachComicCatalogProgress(db, {
+      const items = await attachComicCatalogProgress(db, {
         items: result,
         userId: session?.user.id,
       });
+      const lastItem = result.at(-1);
+      return {
+        items,
+        nextCursor:
+          result.length === input.limit && lastItem
+            ? {
+                id: lastItem.id,
+                releasedAt: lastItem.releasedAt?.toISOString() ?? null,
+              }
+            : null,
+      };
     }),
 
   getDashboardList: permissionProcedure({
