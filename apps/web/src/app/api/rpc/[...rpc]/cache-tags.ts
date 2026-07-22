@@ -16,6 +16,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["extras/deleteTutorial", ["tutorials"]],
   ["notification/admin/archive", ["news"]],
   ["notification/admin/createNewsArticle", ["news"]],
+  ["patreon/syncMembership", ["profiles"]],
   ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
   [
     "post/admin/delete",

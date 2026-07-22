@@ -177,9 +177,12 @@ function PatreonStatusSection() {
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries(
-        orpc.patreon.getStatus.queryOptions()
-      );
+      await Promise.all([
+        queryClient.invalidateQueries(orpc.patreon.getStatus.queryOptions()),
+        queryClient.invalidateQueries(
+          orpc.profile.getMySettings.queryOptions()
+        ),
+      ]);
       trackEvent("patreon_sync_completed", { result: "success" });
       toast.success("Estado de Patreon sincronizado");
     },

@@ -15,6 +15,7 @@ test("invalidates home and catalog tags for post mutations", () => {
 });
 
 test.each([
+  "patreon/syncMembership",
   "profile/updateAppearance",
   "profile/updateVisibility",
   "rating/create",
