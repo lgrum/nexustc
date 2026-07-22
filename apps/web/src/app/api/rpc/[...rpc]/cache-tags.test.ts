@@ -32,8 +32,10 @@ test.each([
   "comic/admin/edit",
   "post/admin/delete",
   "post/admin/edit",
-])("invalidates news for %s", (procedurePath) => {
-  expect(getCacheTagsForProcedure(procedurePath)).toContain("news");
+])("invalidates news and profiles for %s", (procedurePath) => {
+  expect(getCacheTagsForProcedure(procedurePath)).toEqual(
+    expect.arrayContaining(["news", "profiles"])
+  );
 });
 
 test("does not invalidate cache tags for unknown procedures", () => {
