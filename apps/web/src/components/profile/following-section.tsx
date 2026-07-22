@@ -1,5 +1,4 @@
 import { Book02Icon, Notification03Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
@@ -7,6 +6,10 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { NotificationFeedList } from "@/components/notifications/notification-feed";
+import {
+  ProfilePanel,
+  ProfileSectionHeader,
+} from "@/components/profile/profile-section";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -54,11 +57,11 @@ export function FollowingSection() {
 
   if (!following) {
     return (
-      <div className="rounded-[2rem] border border-border bg-card p-6">
+      <ProfilePanel className="p-6">
         <p className="text-muted-foreground text-sm">
           No pudimos cargar tu actividad seguida.
         </p>
-      </div>
+      </ProfilePanel>
     );
   }
 
@@ -68,63 +71,62 @@ export function FollowingSection() {
   );
 
   return (
-    <div className="flex flex-col gap-4 rounded-[2rem] border border-border bg-card p-4">
-      <div className="flex flex-col gap-2 rounded-[1.5rem] border border-primary/15 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.16),transparent_58%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--background)))] p-4">
-        <div className="flex items-center gap-2 text-primary">
-          <HugeiconsIcon className="size-5" icon={Notification03Icon} />
-          <span className="font-semibold text-sm uppercase tracking-[0.24em]">
-            Siguiendo
-          </span>
-        </div>
-        <h2 className="font-lexend font-bold text-2xl">
-          Tu radar de juegos y comics
-        </h2>
-        <p className="max-w-2xl text-muted-foreground text-sm leading-6">
-          Desde aquí ves qué títulos estás siguiendo y las últimas noticias o
-          updates que llegaron a tu bandeja.
-        </p>
-      </div>
-
-      <Tabs className="w-full" defaultValue="games">
-        <TabsList className="w-full">
-          <TabsTrigger value="games">Juegos ({games.length})</TabsTrigger>
-          <TabsTrigger value="comics">Comics ({comics.length})</TabsTrigger>
-        </TabsList>
-        <TabsContent value="games">
-          <FollowedContentGrid
-            emptyCopy="Cuando sigas un juego aparecerá aquí con su acceso rápido."
-            items={games}
-          />
-        </TabsContent>
-        <TabsContent value="comics">
-          <FollowedContentGrid
-            emptyCopy="Cuando sigas un comic aparecerá aquí con su acceso rápido."
-            items={comics}
-          />
-        </TabsContent>
-      </Tabs>
-
-      <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <HugeiconsIcon className="size-4 text-primary" icon={Book02Icon} />
-          <h3 className="font-semibold text-base">
-            Últimas novedades seguidas
-          </h3>
-        </div>
-        <NotificationFeedList
-          emptyCopy="En cuanto uno de tus títulos seguidos reciba páginas nuevas, noticias del staff o versiones nuevas, lo verás aquí."
-          emptyTitle="Aún no hay novedades"
-          isMarking={markReadMutation.isPending}
-          items={following.updates}
-          onMarkRead={(notificationId) => {
-            trackEvent("notification_mark_read_clicked", {
-              notificationId,
-              source: "following_section",
-            });
-            markReadMutation.mutate({ notificationIds: [notificationId] });
-          }}
+    <div className="space-y-5">
+      <ProfilePanel className="p-5 sm:p-6">
+        <ProfileSectionHeader
+          description="Mantén a mano los juegos y comics que sigues para volver rápidamente a su contenido."
+          eyebrow="Siguiendo"
+          icon={Notification03Icon}
+          title="Tu radar de contenido"
         />
-      </div>
+
+        <Tabs className="mt-6 w-full gap-5" defaultValue="games">
+          <TabsList className="w-full" variant="line">
+            <TabsTrigger className="min-w-28 px-4" value="games">
+              Juegos ({games.length})
+            </TabsTrigger>
+            <TabsTrigger className="min-w-28 px-4" value="comics">
+              Comics ({comics.length})
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="games">
+            <FollowedContentGrid
+              emptyCopy="Cuando sigas un juego aparecerá aquí con su acceso rápido."
+              items={games}
+            />
+          </TabsContent>
+          <TabsContent value="comics">
+            <FollowedContentGrid
+              emptyCopy="Cuando sigas un comic aparecerá aquí con su acceso rápido."
+              items={comics}
+            />
+          </TabsContent>
+        </Tabs>
+      </ProfilePanel>
+
+      <ProfilePanel className="p-5 sm:p-6">
+        <ProfileSectionHeader
+          description="Noticias, nuevas páginas y versiones publicadas para el contenido que elegiste seguir."
+          eyebrow="Actividad"
+          icon={Book02Icon}
+          title="Últimas novedades"
+        />
+        <div className="mt-6">
+          <NotificationFeedList
+            emptyCopy="En cuanto uno de tus títulos seguidos reciba páginas nuevas, noticias del staff o versiones nuevas, lo verás aquí."
+            emptyTitle="Aún no hay novedades"
+            isMarking={markReadMutation.isPending}
+            items={following.updates}
+            onMarkRead={(notificationId) => {
+              trackEvent("notification_mark_read_clicked", {
+                notificationId,
+                source: "following_section",
+              });
+              markReadMutation.mutate({ notificationIds: [notificationId] });
+            }}
+          />
+        </div>
+      </ProfilePanel>
     </div>
   );
 }

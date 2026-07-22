@@ -1,439 +1,234 @@
 "use client";
 
 import {
-  Cancel01Icon,
-  HelpCircleIcon,
-  RefreshIcon,
+  Bookmark02Icon,
+  Home01Icon,
+  Image01Icon,
+  LogoutSquare01Icon,
+  Notification03Icon,
+  ShieldUserIcon,
+  UserIcon,
+  ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
-import {
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-} from "@tanstack/react-query";
-import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import type { IconSvgElement } from "@hugeicons/react";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import z from "zod";
 
-import { DiscordLogo } from "@/components/icons/discord";
-import { PatreonLogo } from "@/components/icons/patreon";
+import { AccountSection } from "@/components/profile/account-section";
 import { AppearanceSection } from "@/components/profile/appearance-section";
 import { FollowingSection } from "@/components/profile/following-section";
-import { TwoFactorSettings } from "@/components/profile/two-factor-settings";
-import { Badge } from "@/components/ui/badge";
+import { ProfileIdentity } from "@/components/profile/profile-identity";
+import { ProfileLibrarySection } from "@/components/profile/profile-library-section";
+import { ProfileOverviewSection } from "@/components/profile/profile-overview-section";
+import { SecuritySection } from "@/components/profile/security-section";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAppForm } from "@/hooks/use-app-form";
 import { trackEvent } from "@/lib/analytics";
-import { authClient, getAuthErrorMessage } from "@/lib/auth-client";
-import { orpc } from "@/lib/orpc";
+import { authClient } from "@/lib/auth-client";
+import { orpc, queryClient } from "@/lib/orpc";
+import { cn } from "@/lib/utils";
 
-export function ProfileClient() {
-  const auth = authClient.useSession();
-  const queryClient = useQueryClient();
-  const router = useRouter();
+import type { ProfileSection } from "./page";
 
-  useEffect(() => {
-    if (!auth.isPending && !auth.data?.user) {
-      router.replace("/");
-    }
-  }, [auth.data?.user, auth.isPending, router]);
-
-  if (auth.isPending) {
-    return <Spinner />;
-  }
-
-  if (!auth.data?.user) {
-    return null;
-  }
-
-  return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-4 pb-8">
-      <header className="flex items-center justify-between rounded-4xl border border-border bg-card px-5 py-4">
-        <div>
-          <h1 className="font-black text-2xl">Perfil</h1>
-          <p className="text-muted-foreground text-sm">
-            Administra tu apariencia, cuentas y seguridad.
-          </p>
-        </div>
-        <Button
-          onClick={async () => {
-            trackEvent("logout_clicked", {
-              source: "profile",
-            });
-            authClient.signOut();
-            await queryClient.invalidateQueries({ queryKey: ["session"] });
-          }}
-          variant="destructive"
-        >
-          Cerrar sesión
-        </Button>
-      </header>
-
-      <Tabs
-        className="w-full"
-        defaultValue="appearance"
-        onValueChange={(tab) =>
-          trackEvent("profile_tab_changed", {
-            tab,
-          })
-        }
-      >
-        <TabsList className="w-full justify-start overflow-x-auto overflow-y-hidden sm:justify-center">
-          <TabsTrigger value="appearance">Apariencia</TabsTrigger>
-          <TabsTrigger value="following">Siguiendo</TabsTrigger>
-          <TabsTrigger value="account">Cuenta</TabsTrigger>
-          <TabsTrigger value="security">Seguridad</TabsTrigger>
-          <TabsTrigger value="password">Contraseña</TabsTrigger>
-        </TabsList>
-        <TabsContent value="appearance">
-          <AppearanceSection />
-        </TabsContent>
-        <TabsContent value="following">
-          <FollowingSection />
-        </TabsContent>
-        <TabsContent value="account">
-          <AccountsSection />
-        </TabsContent>
-        <TabsContent value="security">
-          <TwoFactorSettings
-            email={auth.data.user.email}
-            enabled={Boolean(auth.data.user.twoFactorEnabled)}
-          />
-        </TabsContent>
-        <TabsContent value="password">
-          <div className="rounded-4xl border border-border bg-card p-4">
-            <div className="section-title">Cambiar Contraseña</div>
-            <div className="mt-4">
-              <ChangePasswordForm email={auth.data.user.email} />
-            </div>
-          </div>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-function AccountsSection() {
-  const { data: accounts } = useSuspenseQuery({
-    queryFn: async () => {
-      const accs = await authClient.listAccounts();
-      return accs.data;
-    },
-    queryKey: ["accounts"],
-    staleTime: 1000 * 60,
-  });
-  const queryClient = useQueryClient();
-
-  const providers: Record<string, string | null> = {
-    patreon: null,
-  } as const;
-
-  for (const account of accounts ?? []) {
-    if (providers[account.providerId] !== undefined) {
-      providers[account.providerId] = account.accountId;
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-4 rounded-4xl border border-border bg-card p-4">
-      <div className="section-title">Cuentas Vinculadas</div>
-
-      {accounts?.length === 1 && (
-        <p className="text-muted-foreground text-sm">
-          No tienes cuentas vinculadas.
-        </p>
-      )}
-
-      {Object.entries(providers).map(([provider, accountId]) => {
-        const providerData = matchProvider(provider);
-
-        if (!accountId) {
-          return (
-            <Button
-              key={provider}
-              onClick={() => {
-                trackEvent("social_account_link_started", {
-                  provider,
-                });
-                authClient.linkSocial({ callbackURL: "/profile", provider });
-              }}
-            >
-              {providerData.Icon}
-              Vincular {providerData.label}
-            </Button>
-          );
-        }
-
-        return (
-          <div
-            className="flex w-full items-center justify-between rounded-2xl border border-border bg-background px-4 py-3"
-            key={provider}
-          >
-            <div className="flex items-center gap-3">
-              {providerData.Icon}
-              <span className="font-medium text-sm">{providerData.label}</span>
-            </div>
-            <Button
-              onClick={async () => {
-                await authClient.unlinkAccount({
-                  accountId,
-                  providerId: provider,
-                });
-                trackEvent("social_account_unlinked", {
-                  provider,
-                });
-                queryClient.invalidateQueries({ queryKey: ["accounts"] });
-              }}
-              size="icon"
-              variant="destructive"
-            >
-              <HugeiconsIcon icon={Cancel01Icon} />
-            </Button>
-          </div>
-        );
-      })}
-
-      <PatreonStatusSection />
-    </div>
-  );
-}
-
-function ChangePasswordForm({ email }: { email: string }) {
-  const form = useAppForm({
-    defaultValues: {
-      confirmNewPassword: "",
-      currentPassword: "",
-      email,
-      newPassword: "",
-    },
-    onSubmit: async () => {
-      const { values } = form.state;
-
-      try {
-        const { error } = await authClient.changePassword({
-          currentPassword: values.currentPassword,
-          newPassword: values.newPassword,
-          revokeOtherSessions: true,
-        });
-
-        if (error) {
-          trackEvent("password_changed", {
-            reason: error.code ?? "auth_error",
-            result: "failed",
-          });
-          toast.error(
-            error.code ? getAuthErrorMessage(error.code) : error.message
-          );
-          return;
-        }
-
-        toast.success("Contraseña cambiada exitosamente!");
-        trackEvent("password_changed", {
-          result: "success",
-        });
-        form.reset();
-      } catch (error) {
-        trackEvent("password_changed", {
-          reason: "exception",
-          result: "failed",
-        });
-        console.error(error);
-      }
-    },
-    validators: {
-      onSubmit: z.object({
-        confirmNewPassword: z
-          .string()
-          .min(8, "Debe tener al menos 8 caracteres")
-          .max(64, "Debe tener como máximo 64 caracteres"),
-        currentPassword: z.string().min(1, "Requerido"),
-        email: z.string(),
-        newPassword: z
-          .string()
-          .min(8, "Debe tener al menos 8 caracteres")
-          .max(64, "Debe tener como máximo 64 caracteres"),
-      }),
-    },
-  });
-
-  return (
-    <form
-      className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        form.handleSubmit();
-      }}
-    >
-      <form.AppField name="email">
-        {(field) => (
-          <field.TextField
-            autoComplete="email"
-            className="hidden"
-            label="Correo Electrónico"
-            type="email"
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="currentPassword">
-        {(field) => (
-          <field.TextField
-            autoComplete="current-password"
-            label="Contraseña Actual"
-            type="password"
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="newPassword">
-        {(field) => (
-          <field.TextField
-            autoComplete="new-password"
-            label="Nueva Contraseña"
-            type="password"
-          />
-        )}
-      </form.AppField>
-      <form.AppField name="confirmNewPassword">
-        {(field) => (
-          <field.TextField
-            autoComplete="new-password"
-            label="Confirmar Nueva Contraseña"
-            type="password"
-          />
-        )}
-      </form.AppField>
-      <form.AppForm>
-        <form.SubmitButton>Cambiar Contraseña</form.SubmitButton>
-      </form.AppForm>
-    </form>
-  );
-}
-
-function matchProvider(provider: string) {
-  const defaultProps = {
-    className: "size-6",
-  };
-
-  switch (provider) {
-    case "discord": {
-      return { Icon: <DiscordLogo {...defaultProps} />, label: "Discord" };
-    }
-    case "patreon": {
-      return { Icon: <PatreonLogo {...defaultProps} />, label: "Patreon" };
-    }
-    default: {
-      return {
-        Icon: <HugeiconsIcon icon={HelpCircleIcon} {...defaultProps} />,
-        label: provider,
-      };
-    }
-  }
-}
-
-const TIER_STYLES: Record<string, string> = {
-  tier1: "bg-amber-100 text-amber-800 border-amber-200",
-  tier2: "bg-purple-100 text-purple-800 border-purple-200",
-  tier3:
-    "bg-gradient-to-r from-amber-400 to-amber-600 text-white border-amber-500",
+type NavigationItem = {
+  icon: IconSvgElement;
+  label: string;
+  value: ProfileSection;
 };
 
-function PatreonStatusSection() {
-  const { data: status } = useSuspenseQuery(
-    orpc.patreon.getStatus.queryOptions()
-  );
-  const syncMutation = useMutation(
-    orpc.patreon.syncMembership.mutationOptions()
-  );
-  const queryClient = useQueryClient();
+const NAVIGATION: NavigationItem[] = [
+  { icon: Home01Icon, label: "Resumen", value: "overview" },
+  { icon: Image01Icon, label: "Apariencia", value: "appearance" },
+  { icon: Bookmark02Icon, label: "Biblioteca", value: "library" },
+  { icon: Notification03Icon, label: "Siguiendo", value: "following" },
+  { icon: UserIcon, label: "Cuenta", value: "account" },
+  { icon: ShieldUserIcon, label: "Seguridad", value: "security" },
+];
 
-  const handleSync = async () => {
+export function ProfileClient({
+  activeSection,
+  user,
+}: {
+  activeSection: ProfileSection;
+  user: (typeof authClient.$Infer.Session)["user"];
+}) {
+  return <AuthenticatedProfile activeSection={activeSection} user={user} />;
+}
+
+function AuthenticatedProfile({
+  activeSection,
+  user,
+}: {
+  activeSection: ProfileSection;
+  user: (typeof authClient.$Infer.Session)["user"];
+}) {
+  const { data } = useSuspenseQuery(orpc.profile.getMySettings.queryOptions());
+  const router = useRouter();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const identity =
+    data.summary ??
+    ({
+      avatar: null,
+      avatarFallbackColor: user.avatarFallbackColor,
+      image: user.image,
+      name: user.name,
+      profileEmblems: [],
+      profileRoles: [],
+    } as const);
+
+  const handleSignOut = async () => {
+    if (isSigningOut) {
+      return;
+    }
+
+    setIsSigningOut(true);
+    trackEvent("logout_clicked", { source: "profile" });
+
     try {
-      await syncMutation.mutateAsync({});
-      await queryClient.invalidateQueries({
-        queryKey: orpc.patreon.getStatus.queryKey(),
-      });
-      trackEvent("patreon_sync_completed", {
-        result: "success",
-      });
-      toast.success("Estado de Patreon sincronizado");
+      const result = await authClient.signOut();
+      if (result.error) {
+        toast.error(result.error.message);
+        setIsSigningOut(false);
+        return;
+      }
+
+      queryClient.clear();
+      router.replace("/");
+      router.refresh();
     } catch (error) {
-      trackEvent("patreon_sync_completed", {
-        result: "failed",
-      });
       toast.error(
-        error instanceof Error ? error.message : "Error al sincronizar"
+        error instanceof Error ? error.message : "No pudimos cerrar la sesión."
       );
+      setIsSigningOut(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-4">
-      <div className="flex items-center gap-2 font-semibold text-sm">
-        <PatreonLogo className="size-5" />
-        Estado de Patreon
-      </div>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-3 py-5 pb-12 sm:px-4 md:py-8">
+      <header className="relative overflow-hidden rounded-[2rem] border border-primary/15 bg-card/80 p-5 shadow-lg shadow-black/10 sm:p-6">
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,oklch(0.795_0.184_86.047/0.16),transparent_38%)]"
+        />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <ProfileIdentity nameAs="h1" user={identity}>
+            <p className="text-sm leading-5">
+              Administra tu identidad, biblioteca, conexiones y seguridad desde
+              un solo lugar.
+            </p>
+          </ProfileIdentity>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              nativeButton={false}
+              render={<Link href={`/user/${user.id}`} />}
+              variant="outline"
+            >
+              <HugeiconsIcon aria-hidden className="size-4" icon={ViewIcon} />
+              Ver perfil público
+            </Button>
+            <Button
+              disabled={isSigningOut}
+              onClick={handleSignOut}
+              variant="ghost"
+            >
+              <HugeiconsIcon
+                aria-hidden
+                className="size-4"
+                icon={LogoutSquare01Icon}
+              />
+              Salir
+            </Button>
+          </div>
+        </div>
+      </header>
 
-      {status.isPatron ? (
-        <>
-          <div className="flex items-center gap-2">
-            <Badge className={TIER_STYLES[status.tier] ?? ""}>
-              {status.benefits.badge}
-            </Badge>
-            {status.patronSince && (
-              <span className="text-muted-foreground text-xs">
-                Desde {format(status.patronSince, "PPP", { locale: es })}
-              </span>
-            )}
-          </div>
-          <div className="text-sm">
-            <p className="mb-2 font-medium">Beneficios:</p>
-            <ul className="list-inside list-disc space-y-1 text-muted-foreground">
-              {status.benefits.badge && <li>Badge: {status.benefits.badge}</li>}
-              {status.benefits.adFree && <li>Sin anuncios</li>}
-              {status.benefits.premiumLinks.type !== "none" && (
-                <li>Enlaces premium</li>
-              )}
-            </ul>
-          </div>
-        </>
-      ) : (
-        <p className="text-muted-foreground text-sm">
-          No eres Patron activo. Vincula tu cuenta de Patreon y sincroniza para
-          ver tus beneficios.
-        </p>
+      <nav
+        aria-label="Secciones del perfil"
+        className="flex gap-2 overflow-x-auto rounded-[1.25rem] border border-border/70 bg-card/65 p-2 lg:hidden"
+      >
+        {NAVIGATION.map((item) => (
+          <ProfileNavigationLink
+            active={activeSection === item.value}
+            item={item}
+            key={item.value}
+          />
+        ))}
+      </nav>
+
+      <div className="grid items-start gap-5 lg:grid-cols-[13.5rem_minmax(0,1fr)]">
+        <aside className="sticky top-4 hidden rounded-[1.5rem] border border-border/70 bg-card/65 p-2 lg:block">
+          <nav
+            aria-label="Secciones del perfil"
+            className="flex flex-col gap-1"
+          >
+            {NAVIGATION.map((item) => (
+              <ProfileNavigationLink
+                active={activeSection === item.value}
+                item={item}
+                key={item.value}
+              />
+            ))}
+          </nav>
+        </aside>
+
+        <div className="min-w-0">
+          {activeSection === "overview" ? (
+            <ProfileOverviewSection
+              bookmarksPublic={data.settings.visibility.favorites}
+              reviewsPublic={data.settings.visibility.reviews}
+              twoFactorEnabled={Boolean(user.twoFactorEnabled)}
+            />
+          ) : null}
+          {activeSection === "appearance" ? <AppearanceSection /> : null}
+          {activeSection === "library" ? (
+            <ProfileLibrarySection visibility={data.settings.visibility} />
+          ) : null}
+          {activeSection === "following" ? <FollowingSection /> : null}
+          {activeSection === "account" ? (
+            <AccountSection userId={user.id} />
+          ) : null}
+          {activeSection === "security" ? (
+            <SecuritySection
+              email={user.email}
+              isSigningOut={isSigningOut}
+              onSignOut={handleSignOut}
+              twoFactorEnabled={Boolean(user.twoFactorEnabled)}
+            />
+          ) : null}
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function ProfileNavigationLink({
+  active,
+  item,
+}: {
+  active: boolean;
+  item: NavigationItem;
+}) {
+  return (
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-h-11 shrink-0 items-center gap-3 rounded-xl px-3 py-2 font-medium text-sm outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 lg:w-full",
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
       )}
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          disabled={syncMutation.isPending}
-          onClick={handleSync}
-          size="sm"
-          variant="outline"
-        >
-          {syncMutation.isPending ? (
-            <Spinner className="size-4" />
-          ) : (
-            <HugeiconsIcon className="size-4" icon={RefreshIcon} />
-          )}
-          Sincronizar
-        </Button>
-        {status.lastSyncAt && (
-          <p className="text-muted-foreground text-xs">
-            {new Date(status.lastSyncAt).toLocaleString("es", {
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              month: "short",
-              year: "numeric",
-            })}
-          </p>
-        )}
-      </div>
-    </div>
+      href={`/profile?section=${item.value}`}
+      onClick={() =>
+        trackEvent("profile_tab_changed", {
+          tab: item.value,
+        })
+      }
+    >
+      <HugeiconsIcon aria-hidden className="size-4 shrink-0" icon={item.icon} />
+      {item.label}
+    </Link>
   );
 }

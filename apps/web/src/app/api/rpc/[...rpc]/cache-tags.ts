@@ -2,11 +2,11 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["comic/admin/create", ["catalog:comics", "content", "home", "vip-feed"]],
   [
     "comic/admin/delete",
-    ["catalog:comics", "content", "home", "news", "vip-feed"],
+    ["catalog:comics", "content", "home", "news", "profiles", "vip-feed"],
   ],
   [
     "comic/admin/edit",
-    ["catalog:comics", "content", "home", "news", "vip-feed"],
+    ["catalog:comics", "content", "home", "news", "profiles", "vip-feed"],
   ],
   ["chronos/update", ["chronos"]],
   ["engagementQuestion/create", ["content"]],
@@ -16,18 +16,27 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["extras/deleteTutorial", ["tutorials"]],
   ["notification/admin/archive", ["news"]],
   ["notification/admin/createNewsArticle", ["news"]],
+  ["patreon/syncMembership", ["profiles"]],
   ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
   [
     "post/admin/delete",
-    ["catalog:games", "content", "home", "news", "vip-feed"],
+    ["catalog:games", "content", "home", "news", "profiles", "vip-feed"],
   ],
-  ["post/admin/edit", ["catalog:games", "content", "home", "news", "vip-feed"]],
+  [
+    "post/admin/edit",
+    ["catalog:games", "content", "home", "news", "profiles", "vip-feed"],
+  ],
   ["post/admin/uploadFeaturedPosts", ["home"]],
   ["post/admin/uploadWeeklyPosts", ["home"]],
   ["profile/finalizeUpload", ["profiles"]],
   ["profile/removeAvatar", ["profiles"]],
   ["profile/removeBanner", ["profiles"]],
   ["profile/updateAppearance", ["profiles"]],
+  ["profile/updateVisibility", ["profiles"]],
+  ["rating/create", ["profiles"]],
+  ["rating/delete", ["profiles"]],
+  ["rating/deleteAny", ["profiles"]],
+  ["rating/update", ["profiles"]],
   ["profileAdmin/assignments/setUserAssignments", ["profiles"]],
   ["profileAdmin/emblems/create", ["profiles"]],
   ["profileAdmin/emblems/delete", ["profiles"]],
@@ -40,8 +49,15 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["term/create", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/delete", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/edit", ["catalog:comics", "catalog:games", "content", "home"]],
+  ["user/toggleBookmark", ["profiles"]],
 ]);
 
 export function getCacheTagsForProcedure(procedurePath: string) {
   return cacheTagsByMutation.get(procedurePath) ?? [];
+}
+
+export function getCacheRevalidationProfile(procedurePath: string) {
+  return procedurePath === "profile/updateVisibility"
+    ? ({ expire: 0 } as const)
+    : "max";
 }

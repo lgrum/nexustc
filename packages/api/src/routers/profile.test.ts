@@ -10,10 +10,13 @@ const mocks = vi.hoisted(() => ({
     set: vi.fn(),
     ttl: vi.fn(),
   },
+  buildProfileSummaries: vi.fn(),
   generateId: vi.fn(() => "upload-1"),
+  getOrCreateProfileSettings: vi.fn(),
   getProfileEntitlements: vi.fn(),
   getSignedUrl: vi.fn(),
   inspectProfileMediaAsset: vi.fn(),
+  resolveProfileVisibility: vi.fn(),
   s3Send: vi.fn(),
   validateProfileMediaUpload: vi.fn(),
 }));
@@ -26,10 +29,14 @@ vi.mock("@repo/auth", () => ({ auth: { api: {} } }));
 vi.mock("@repo/db", () => ({
   eq: vi.fn(),
   getRedis: vi.fn(() => Promise.resolve(mocks.cache)),
+  sql: (strings: TemplateStringsArray, ...values: unknown[]) => ({
+    strings,
+    values,
+  }),
 }));
 vi.mock("@repo/db/schema/app", () => ({
-  profileMediaAsset: {},
-  profileSettings: { userId: {} },
+  profileMediaAsset: { id: {} },
+  profileSettings: { userId: {}, visibilityConfig: {} },
   user: { id: {} },
 }));
 vi.mock("@repo/db/utils", () => ({ generateId: mocks.generateId }));
@@ -38,12 +45,13 @@ vi.mock("@repo/env", () => ({
 }));
 vi.mock("../services/profile", () => ({
   PROFILE_MEDIA_MAX_BYTES: 5_000_000,
-  buildProfileSummaries: vi.fn(),
+  buildProfileSummaries: mocks.buildProfileSummaries,
   getObjectExtension: () => "webp",
-  getOrCreateProfileSettings: vi.fn(),
+  getOrCreateProfileSettings: mocks.getOrCreateProfileSettings,
   getProfileEntitlements: mocks.getProfileEntitlements,
   getPublicProfile: vi.fn(),
   inspectProfileMediaAsset: mocks.inspectProfileMediaAsset,
+  resolveProfileVisibility: mocks.resolveProfileVisibility,
   validateProfileMediaUpload: mocks.validateProfileMediaUpload,
 }));
 vi.mock("../utils/s3", () => ({
@@ -90,11 +98,67 @@ function createContext({ insertError }: { insertError?: Error } = {}) {
   } as unknown as Context;
 }
 
+function createSettingsContext(visibilityConfig?: Record<string, unknown>) {
+  const storedVisibilityConfig = visibilityConfig ?? {
+    favorites: false,
+    reserved: { futureFlag: true },
+    reviews: false,
+  };
+  const returning = vi
+    .fn()
+    .mockResolvedValue([{ visibilityConfig: storedVisibilityConfig }]);
+  const where = vi.fn(() => ({ returning }));
+  const set = vi.fn(() => ({ where }));
+  const context = {
+    db: {
+      query: {
+        profileMediaAsset: { findFirst: vi.fn().mockResolvedValue(null) },
+      },
+      update: vi.fn(() => ({ set })),
+    },
+    headers: new Headers(),
+    session: {
+      user: {
+        avatarFallbackColor: "#f59e0b",
+        id: "user-1",
+        role: "user",
+      },
+    },
+  } as unknown as Context;
+
+  return { context, returning, set, where };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.cache.set.mockResolvedValue("OK");
+  mocks.buildProfileSummaries.mockResolvedValue([]);
+  mocks.getOrCreateProfileSettings.mockResolvedValue({
+    bannerAssetId: null,
+    bannerColor: "#111827",
+    bannerMode: "color",
+    visibilityConfig: { reserved: {} },
+  });
   mocks.getProfileEntitlements.mockResolvedValue({
+    animatedAvatarRequiredTier: "level3",
+    animatedBannerRequiredTier: "level8",
     canUseUploadedBanner: true,
+    uploadedBannerRequiredTier: "level5",
+  });
+  mocks.resolveProfileVisibility.mockImplementation((value: unknown) => {
+    const config =
+      typeof value === "object" && value !== null
+        ? (value as Record<string, unknown>)
+        : {};
+    return {
+      favorites:
+        typeof config.favorites === "boolean" ? config.favorites : true,
+      reserved:
+        typeof config.reserved === "object" && config.reserved !== null
+          ? config.reserved
+          : {},
+      reviews: typeof config.reviews === "boolean" ? config.reviews : true,
+    };
   });
   mocks.getSignedUrl.mockResolvedValue("https://uploads.test/object");
   mocks.inspectProfileMediaAsset.mockResolvedValue({
@@ -103,6 +167,64 @@ beforeEach(() => {
     height: 512,
     isAnimated: false,
     width: 512,
+  });
+});
+
+describe("profile visibility settings", () => {
+  it("returns public defaults for legacy settings rows", async () => {
+    const { context } = createSettingsContext();
+
+    await expect(
+      call(profileRouter.getMySettings, undefined, { context })
+    ).resolves.toMatchObject({
+      settings: {
+        visibility: {
+          favorites: true,
+          reserved: {},
+          reviews: true,
+        },
+      },
+    });
+  });
+
+  it("updates only visibility while preserving omitted and reserved values", async () => {
+    mocks.getOrCreateProfileSettings.mockResolvedValueOnce({
+      visibilityConfig: {
+        favorites: false,
+        reserved: { futureFlag: true },
+      },
+    });
+    const { context, returning, set } = createSettingsContext();
+
+    await expect(
+      call(profileRouter.updateVisibility, { reviews: false }, { context })
+    ).resolves.toEqual({
+      visibility: {
+        favorites: false,
+        reserved: { futureFlag: true },
+        reviews: false,
+      },
+    });
+    expect(set).toHaveBeenCalledWith({
+      visibilityConfig: expect.any(Object),
+    });
+    expect(returning).toHaveBeenCalledWith({ visibilityConfig: {} });
+  });
+
+  it("requires authentication before changing visibility", async () => {
+    const { context } = createSettingsContext();
+    const anonymousContext = {
+      ...context,
+      session: null,
+    } as unknown as Context;
+
+    await expect(
+      call(
+        profileRouter.updateVisibility,
+        { favorites: false },
+        { context: anonymousContext }
+      )
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 });
 

@@ -73,6 +73,10 @@ export function RatingList({ postId }: RatingListProps) {
       queryClient.invalidateQueries({ queryKey: ["rating", "user", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", "my-reviews"] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile", "public-reviews"],
+      });
     },
   });
 
@@ -88,6 +92,10 @@ export function RatingList({ postId }: RatingListProps) {
       queryClient.invalidateQueries({ queryKey: ["ratings", postId] });
       queryClient.invalidateQueries({ queryKey: ["rating", "stats", postId] });
       queryClient.invalidateQueries({ queryKey: ["posts"] });
+      queryClient.invalidateQueries({ queryKey: ["profile", "my-reviews"] });
+      queryClient.invalidateQueries({
+        queryKey: ["profile", "public-reviews"],
+      });
     },
   });
 

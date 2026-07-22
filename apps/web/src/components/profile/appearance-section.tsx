@@ -1,3 +1,4 @@
+import { Image01Icon, UserIcon } from "@hugeicons/core-free-icons";
 import { PROFILE_DEFAULTS } from "@repo/shared/profile";
 import {
   useMutation,
@@ -10,6 +11,10 @@ import { toast } from "sonner";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { ProfileBanner } from "@/components/profile/profile-banner";
 import { ProfileNameplate } from "@/components/profile/profile-nameplate";
+import {
+  ProfilePanel,
+  ProfileSectionHeader,
+} from "@/components/profile/profile-section";
 import { Button } from "@/components/ui/button";
 import { ColorPickerField } from "@/components/ui/color-picker-field";
 import { Input } from "@/components/ui/input";
@@ -269,8 +274,16 @@ function AppearanceSectionContent({
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      <section className="overflow-hidden rounded-4xl border border-border bg-card">
+    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)]">
+      <ProfilePanel className="overflow-hidden lg:sticky lg:top-4">
+        <div className="border-border/60 border-b px-5 py-4">
+          <p className="font-semibold text-[11px] text-primary uppercase tracking-[0.26em]">
+            Vista previa pública
+          </p>
+          <p className="mt-1 text-muted-foreground text-sm">
+            Así se verá tu identidad principal para otros usuarios.
+          </p>
+        </div>
         <ProfileBanner
           banner={{
             asset:
@@ -284,126 +297,173 @@ function AppearanceSectionContent({
           }}
           className="rounded-none border-0"
         />
-        <div className="-mt-14 flex flex-col gap-4 px-4 pb-5 sm:px-6">
+        <div className="-mt-14 flex flex-col gap-4 px-5 pb-6 sm:px-6">
           <ProfileAvatar
             className="size-24 border-4 border-card shadow-lg"
             user={previewUser}
           />
           <ProfileNameplate
-            nameClassName="text-2xl font-black"
+            nameClassName="font-lexend text-2xl font-black"
             showEmblems
             showProfileRoles
             user={previewUser}
           />
         </div>
-      </section>
+      </ProfilePanel>
 
-      <section className="grid gap-4 rounded-4xl border border-border bg-card p-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-3">
-          <div>
-            <h3 className="font-semibold">Avatar</h3>
-            <p className="text-muted-foreground text-sm">
-              {data.entitlements.canUseAnimatedAvatar
-                ? "Puedes usar avatar estático o animado."
-                : `Los avatares animados requieren ${data.labels.animatedAvatarRequiredTier}.`}
-            </p>
+      <div className="space-y-5">
+        <ProfilePanel className="p-5 sm:p-6">
+          <ProfileSectionHeader
+            description={
+              data.entitlements.canUseAnimatedAvatar
+                ? "Puedes usar una imagen estática o animada y elegir el color de respaldo."
+                : `Las imágenes animadas requieren ${data.labels.animatedAvatarRequiredTier}.`
+            }
+            eyebrow="Identidad"
+            icon={UserIcon}
+            title="Avatar"
+          />
+          <div className="mt-5 space-y-4">
+            <div className="space-y-2">
+              <label
+                className="font-medium text-sm"
+                htmlFor="profile-avatar-file"
+              >
+                Archivo de avatar
+              </label>
+              <Input
+                accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                id="profile-avatar-file"
+                onChange={handleAvatarInputChange}
+                type="file"
+              />
+            </div>
+            <ColorPickerField
+              id="profile-avatar-fallback-color"
+              label="Color de respaldo"
+              onChange={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  avatarFallbackColor: value,
+                }))
+              }
+              value={
+                draft.avatarFallbackColor ??
+                PROFILE_DEFAULTS.avatarFallbackColor
+              }
+            />
+            <Button
+              disabled={removeAvatarMutation.isPending}
+              onClick={() => removeAvatarMutation.mutate()}
+              variant="outline"
+            >
+              Quitar avatar
+            </Button>
           </div>
-          <Input
-            accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
-            onChange={handleAvatarInputChange}
-            type="file"
-          />
-          <ColorPickerField
-            id="profile-avatar-fallback-color"
-            label="Color de fallback"
-            onChange={(value) =>
-              setDraft((current) => ({
-                ...current,
-                avatarFallbackColor: value,
-              }))
-            }
-            value={
-              draft.avatarFallbackColor ?? PROFILE_DEFAULTS.avatarFallbackColor
-            }
-          />
-          <Button
-            onClick={() => removeAvatarMutation.mutate()}
-            variant="outline"
-          >
-            Quitar avatar
-          </Button>
-        </div>
+        </ProfilePanel>
 
-        <div className="flex flex-col gap-3">
-          <div>
-            <h3 className="font-semibold">Banner</h3>
-            <p className="text-muted-foreground text-sm">
-              {data.entitlements.canUseUploadedBanner
+        <ProfilePanel className="p-5 sm:p-6">
+          <ProfileSectionHeader
+            description={
+              data.entitlements.canUseUploadedBanner
                 ? data.entitlements.canUseAnimatedBanner
-                  ? "Puedes usar banner estático o animado."
-                  : `Los banners animados requieren ${data.labels.animatedBannerRequiredTier}.`
-                : `Los banners subidos requieren ${data.labels.uploadedBannerRequiredTier}.`}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() =>
-                setDraft((current) => ({ ...current, bannerMode: "color" }))
-              }
-              type="button"
-              variant={draft.bannerMode === "color" ? "default" : "outline"}
-            >
-              Color
-            </Button>
-            <Button
-              disabled={!data.entitlements.canUseUploadedBanner}
-              onClick={() =>
-                setDraft((current) => ({ ...current, bannerMode: "image" }))
-              }
-              type="button"
-              variant={draft.bannerMode === "image" ? "default" : "outline"}
-            >
-              Imagen
-            </Button>
-          </div>
-          <ColorPickerField
-            id="profile-banner-color"
-            label="Color del banner"
-            onChange={(value) =>
-              setDraft((current) => ({
-                ...current,
-                bannerColor: value,
-              }))
+                  ? "Puedes usar un color, una imagen estática o una animación."
+                  : `Las animaciones requieren ${data.labels.animatedBannerRequiredTier}.`
+                : `Las imágenes de banner requieren ${data.labels.uploadedBannerRequiredTier}.`
             }
-            value={draft.bannerColor ?? PROFILE_DEFAULTS.bannerColor}
+            eyebrow="Atmósfera"
+            icon={Image01Icon}
+            title="Banner"
           />
-          <Input
-            accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
-            disabled={!data.entitlements.canUseUploadedBanner}
-            onChange={handleBannerInputChange}
-            type="file"
-          />
+          <div className="mt-5 space-y-4">
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Tipo de banner"
+            >
+              <Button
+                onClick={() =>
+                  setDraft((current) => ({ ...current, bannerMode: "color" }))
+                }
+                type="button"
+                variant={draft.bannerMode === "color" ? "default" : "outline"}
+              >
+                Color
+              </Button>
+              <Button
+                disabled={!data.entitlements.canUseUploadedBanner}
+                onClick={() =>
+                  setDraft((current) => ({ ...current, bannerMode: "image" }))
+                }
+                type="button"
+                variant={draft.bannerMode === "image" ? "default" : "outline"}
+              >
+                Imagen
+              </Button>
+            </div>
+            <ColorPickerField
+              id="profile-banner-color"
+              label="Color del banner"
+              onChange={(value) =>
+                setDraft((current) => ({
+                  ...current,
+                  bannerColor: value,
+                }))
+              }
+              value={draft.bannerColor ?? PROFILE_DEFAULTS.bannerColor}
+            />
+            <div className="space-y-2">
+              <label
+                className="font-medium text-sm"
+                htmlFor="profile-banner-file"
+              >
+                Archivo de banner
+              </label>
+              <Input
+                accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                disabled={!data.entitlements.canUseUploadedBanner}
+                id="profile-banner-file"
+                onChange={handleBannerInputChange}
+                type="file"
+              />
+            </div>
+            <Button
+              disabled={removeBannerMutation.isPending}
+              onClick={() => removeBannerMutation.mutate()}
+              variant="outline"
+            >
+              Restaurar banner de color
+            </Button>
+          </div>
+        </ProfilePanel>
+
+        <div className="flex flex-col gap-3 rounded-[1.5rem] border border-primary/15 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-muted-foreground text-sm leading-5">
+            Guarda los colores y el modo del banner cuando la vista previa esté
+            lista.
+          </p>
           <Button
-            onClick={() => removeBannerMutation.mutate()}
-            variant="outline"
+            className="shrink-0"
+            disabled={updateAppearanceMutation.isPending}
+            onClick={() => updateAppearanceMutation.mutate()}
           >
-            Quitar banner
+            {updateAppearanceMutation.isPending ? (
+              <Spinner className="size-4" />
+            ) : null}
+            Guardar apariencia
           </Button>
         </div>
-      </section>
 
-      <Button
-        disabled={updateAppearanceMutation.isPending}
-        onClick={() => updateAppearanceMutation.mutate()}
-      >
-        Guardar apariencia
-      </Button>
-
-      {uploadMediaMutation.isPending && uploadProgress > 0 ? (
-        <p className="text-muted-foreground text-sm">
-          Subiendo: {uploadProgress}%
-        </p>
-      ) : null}
+        {uploadMediaMutation.isPending && uploadProgress > 0 ? (
+          <p
+            aria-live="polite"
+            className="text-muted-foreground text-sm"
+            role="status"
+          >
+            Subiendo archivo: {uploadProgress}%
+          </p>
+        ) : null}
+      </div>
 
       {pendingUpload ? (
         <Suspense fallback={<Spinner />}>

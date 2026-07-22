@@ -1,0 +1,1 @@
+ALTER TABLE "profile_settings" ALTER COLUMN "visibility_config" SET DEFAULT '{"favorites": true, "reviews": true, "reserved": {}}'::jsonb;

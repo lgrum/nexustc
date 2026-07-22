@@ -27,9 +27,70 @@ export type ProfileMediaValidationStatus =
 export type ProfileAssignmentSourceType =
   (typeof PROFILE_ASSIGNMENT_SOURCE_TYPES)[number];
 
+export const PROFILE_ACTIVITY_COLLECTIONS = ["favorites", "reviews"] as const;
+
+export type ProfileActivityCollection =
+  (typeof PROFILE_ACTIVITY_COLLECTIONS)[number];
+
 export type ProfileVisibilityConfig = {
+  favorites: boolean;
+  reviews: boolean;
   reserved: Record<string, boolean>;
 };
+
+export type ProfileActivityVisibility = Pick<
+  ProfileVisibilityConfig,
+  ProfileActivityCollection
+>;
+
+export const PROFILE_VISIBILITY_DEFAULTS = {
+  favorites: true,
+  reviews: true,
+  reserved: {},
+} as const satisfies ProfileVisibilityConfig;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+export function normalizeProfileVisibilityConfig(
+  value: unknown
+): ProfileVisibilityConfig {
+  const config = isRecord(value) ? value : {};
+  const reserved = isRecord(config.reserved)
+    ? Object.fromEntries(
+        Object.entries(config.reserved).filter(
+          (entry): entry is [string, boolean] => typeof entry[1] === "boolean"
+        )
+      )
+    : {};
+
+  return {
+    favorites:
+      typeof config.favorites === "boolean"
+        ? config.favorites
+        : PROFILE_VISIBILITY_DEFAULTS.favorites,
+    reviews:
+      typeof config.reviews === "boolean"
+        ? config.reviews
+        : PROFILE_VISIBILITY_DEFAULTS.reviews,
+    reserved,
+  };
+}
+
+export function getProfileActivityVisibility(
+  value: unknown
+): ProfileActivityVisibility {
+  const config = normalizeProfileVisibilityConfig(value);
+  return { favorites: config.favorites, reviews: config.reviews };
+}
+
+export function isProfileActivityPublic(
+  value: unknown,
+  collection: ProfileActivityCollection
+) {
+  return normalizeProfileVisibilityConfig(value)[collection];
+}
 
 export type ProfileRoleVisualConfig = {
   baseColor: string;

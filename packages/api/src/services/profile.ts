@@ -3,6 +3,9 @@ import { and, eq, inArray, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   patron,
+  post,
+  postBookmark,
+  postRating,
   profileEmblemAssignment,
   profileEmblemDefinition,
   profileMediaAsset,
@@ -19,11 +22,22 @@ import {
   userMeetsTierLevel,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
-import { PROFILE_DEFAULTS } from "@repo/shared/profile";
-import type { ProfileMediaSlot } from "@repo/shared/profile";
+import {
+  getProfileActivityVisibility,
+  normalizeProfileVisibilityConfig,
+  PROFILE_DEFAULTS,
+  PROFILE_VISIBILITY_DEFAULTS,
+} from "@repo/shared/profile";
+import type {
+  ProfileActivityCollection,
+  ProfileActivityVisibility,
+  ProfileMediaSlot,
+  ProfileVisibilityConfig,
+} from "@repo/shared/profile";
 import sharp from "sharp";
 import type { Metadata } from "sharp";
 
+import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { getS3Client } from "../utils/s3";
 
 type Database = typeof database;
@@ -85,6 +99,7 @@ export type ProfileSummary = {
 };
 
 export type PublicProfile = ProfileSummary & {
+  activityCounts: Record<ProfileActivityCollection, number | null>;
   createdAt: Date;
   banner: {
     mode: "color" | "image";
@@ -96,6 +111,7 @@ export type PublicProfile = ProfileSummary & {
     } | null;
   };
   maxVisibleEmblems: number;
+  visibility: ProfileActivityVisibility;
 };
 
 export type ProfileMediaValidation = {
@@ -246,6 +262,82 @@ export async function getProfileEntitlements(
   };
 }
 
+export function resolveProfileVisibility(
+  value: unknown
+): ProfileVisibilityConfig {
+  return normalizeProfileVisibilityConfig(value);
+}
+
+export async function getResolvedProfileVisibility(
+  db: Database,
+  userId: string
+): Promise<ProfileVisibilityConfig> {
+  const settings = await db.query.profileSettings.findFirst({
+    columns: { visibilityConfig: true },
+    where: eq(profileSettings.userId, userId),
+  });
+
+  return resolveProfileVisibility(settings?.visibilityConfig);
+}
+
+export async function canReadPublicProfileActivity(
+  db: Database,
+  userId: string,
+  collection: ProfileActivityCollection
+) {
+  const visibility = await getResolvedProfileVisibility(db, userId);
+  return visibility[collection];
+}
+
+export async function getPublicProfileActivityCounts(
+  db: Database,
+  userId: string,
+  visibility: ProfileActivityVisibility,
+  now = new Date()
+): Promise<Record<ProfileActivityCollection, number | null>> {
+  const favoriteCountPromise = visibility.favorites
+    ? db
+        .select({ count: sql<number>`COUNT(*)::integer` })
+        .from(postBookmark)
+        .innerJoin(user, eq(user.id, postBookmark.userId))
+        .innerJoin(post, eq(post.id, postBookmark.postId))
+        .where(
+          and(
+            eq(postBookmark.userId, userId),
+            eq(post.status, "publish"),
+            publicCatalogVisibilityCondition(now),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
+    : null;
+  const reviewCountPromise = visibility.reviews
+    ? db
+        .select({ count: sql<number>`COUNT(*)::integer` })
+        .from(postRating)
+        .innerJoin(user, eq(user.id, postRating.userId))
+        .innerJoin(post, eq(post.id, postRating.postId))
+        .where(
+          and(
+            eq(postRating.userId, userId),
+            eq(post.status, "publish"),
+            publicCatalogVisibilityCondition(now),
+            sql`${user.banned} IS DISTINCT FROM true`
+          )
+        )
+    : null;
+  const [favoriteCountRows, reviewCountRows] = await Promise.all([
+    favoriteCountPromise,
+    reviewCountPromise,
+  ]);
+
+  return {
+    favorites: visibility.favorites
+      ? (favoriteCountRows?.[0]?.count ?? 0)
+      : null,
+    reviews: visibility.reviews ? (reviewCountRows?.[0]?.count ?? 0) : null,
+  };
+}
+
 export async function getOrCreateProfileSettings(db: Database, userId: string) {
   const existing = await db.query.profileSettings.findFirst({
     where: eq(profileSettings.userId, userId),
@@ -261,7 +353,10 @@ export async function getOrCreateProfileSettings(db: Database, userId: string) {
       bannerColor: PROFILE_DEFAULTS.bannerColor,
       bannerMode: "color",
       userId,
-      visibilityConfig: { reserved: {} },
+      visibilityConfig: {
+        ...PROFILE_VISIBILITY_DEFAULTS,
+        reserved: {},
+      },
     })
     .returning();
 
@@ -765,14 +860,19 @@ export async function getPublicProfile(db: Database, userId: string) {
     return null;
   }
 
-  const bannerAsset = settings.bannerAssetId
-    ? await db.query.profileMediaAsset.findFirst({
-        where: eq(profileMediaAsset.id, settings.bannerAssetId),
-      })
-    : null;
+  const visibility = getProfileActivityVisibility(settings.visibilityConfig);
+  const [bannerAsset, activityCounts] = await Promise.all([
+    settings.bannerAssetId
+      ? db.query.profileMediaAsset.findFirst({
+          where: eq(profileMediaAsset.id, settings.bannerAssetId),
+        })
+      : null,
+    getPublicProfileActivityCounts(db, userId, visibility),
+  ]);
 
   return {
     ...summary,
+    activityCounts,
     banner: {
       asset: bannerAsset
         ? {
@@ -786,5 +886,6 @@ export async function getPublicProfile(db: Database, userId: string) {
     },
     createdAt: currentUser.createdAt,
     maxVisibleEmblems: systemConfig.maxVisibleEmblems,
+    visibility,
   } satisfies PublicProfile;
 }
