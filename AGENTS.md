@@ -317,3 +317,17 @@ Use this verification order:
 If a required environment or external service blocks a gate, report the exact
 blocked command. Do not substitute a destructive database operation or weaken
 validation to manufacture a passing result.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked as local Markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five default canonical labels. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This repo uses a single-context domain-doc layout. See `docs/agents/domain.md`.
