@@ -3,12 +3,11 @@ import { getLogger } from "@orpc/experimental-pino";
 import { chronosPage, eq } from "@repo/db";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
-import { MEDIA_IMAGE_MIME_TYPES } from "@repo/shared/media";
 import { chronosUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
 
 import { permissionProcedure, publicProcedure } from "../index";
-import { optimizeFile } from "../utils/images";
+import { adminImageFilesSchema, optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
 
 export default {
@@ -75,7 +74,7 @@ export default {
   uploadImages: permissionProcedure({ chronos: ["update"] })
     .input(
       z.object({
-        files: z.array(z.file().mime([...MEDIA_IMAGE_MIME_TYPES])).min(1),
+        files: adminImageFilesSchema,
         type: z.enum(["sticky", "header", "carousel", "markdown"]),
       })
     )
@@ -85,28 +84,26 @@ export default {
         `Uploading ${input.files.length} optimized chronos ${input.type} images`
       );
 
-      const objectKeys = await Promise.all(
-        input.files.map(async (file, index) => {
-          logger?.debug(
-            `Optimizing chronos image ${index + 1}/${input.files.length}: ${file.name}`
-          );
+      const objectKeys: string[] = [];
+      for (const [index, file] of input.files.entries()) {
+        logger?.debug(
+          `Optimizing chronos image ${index + 1}/${input.files.length}: ${file.name}`
+        );
 
-          const optimizedFile = await optimizeFile(file);
-          const objectKey = `images/chronos/${input.type}/${generateId()}.${optimizedFile.extension}`;
+        const optimizedFile = await optimizeFile(file);
+        const objectKey = `images/chronos/${input.type}/${generateId()}.${optimizedFile.extension}`;
 
-          await getS3Client().send(
-            new PutObjectCommand({
-              Body: optimizedFile.buffer,
-              Bucket: env.R2_ASSETS_BUCKET_NAME,
-              ContentLength: optimizedFile.buffer.byteLength,
-              ContentType: optimizedFile.mimeType,
-              Key: objectKey,
-            })
-          );
-
-          return objectKey;
-        })
-      );
+        await getS3Client().send(
+          new PutObjectCommand({
+            Body: optimizedFile.buffer,
+            Bucket: env.R2_ASSETS_BUCKET_NAME,
+            ContentLength: optimizedFile.buffer.byteLength,
+            ContentType: optimizedFile.mimeType,
+            Key: objectKey,
+          })
+        );
+        objectKeys.push(objectKey);
+      }
 
       logger?.info(
         `Successfully uploaded ${objectKeys.length} optimized chronos ${input.type} images`

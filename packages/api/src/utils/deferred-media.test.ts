@@ -1,4 +1,7 @@
-import { COMIC_MEDIA_MAX_ITEMS } from "@repo/shared/media";
+import {
+  ADMIN_IMAGE_MAX_FILE_BYTES,
+  COMIC_MEDIA_MAX_ITEMS,
+} from "@repo/shared/media";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -44,6 +47,58 @@ describe("comic media input", () => {
       comicMediaSelectionInputSchema.safeParse([
         { file: page, kind: "pending" },
       ]).success
+    ).toBe(false);
+  });
+});
+
+describe("deferred media input", () => {
+  it("bounds pending files without changing existing-media selection limits", () => {
+    const pending = Array.from({ length: 4 }, (_, index) => {
+      const file = new File(["image"], `image-${index}.png`, {
+        type: "image/png",
+      });
+      Object.defineProperty(file, "size", {
+        value: ADMIN_IMAGE_MAX_FILE_BYTES,
+      });
+      return { file, kind: "pending" as const };
+    });
+    const existing = Array.from({ length: 96 }, (_, index) => ({
+      kind: "existing" as const,
+      mediaId: `media-${index}`,
+    }));
+
+    expect(
+      deferredMediaSelectionInputSchema.safeParse([...existing, ...pending])
+        .success
+    ).toBe(true);
+    expect(
+      [pending, pending].every(
+        (selection) =>
+          deferredMediaSelectionInputSchema.safeParse(selection).success
+      )
+    ).toBe(true);
+
+    const oversizedFile = new File(["image"], "oversized.png", {
+      type: "image/png",
+    });
+    Object.defineProperty(oversizedFile, "size", {
+      value: ADMIN_IMAGE_MAX_FILE_BYTES + 1,
+    });
+    expect(
+      deferredMediaSelectionInputSchema.safeParse([
+        { file: oversizedFile, kind: "pending" },
+      ]).success
+    ).toBe(false);
+
+    const aggregateOverflow = Array.from({ length: 5 }, (_, index) => {
+      const file = new File(["image"], `overflow-${index}.png`, {
+        type: "image/png",
+      });
+      Object.defineProperty(file, "size", { value: 9 * 1024 * 1024 });
+      return { file, kind: "pending" as const };
+    });
+    expect(
+      deferredMediaSelectionInputSchema.safeParse(aggregateOverflow).success
     ).toBe(false);
   });
 });

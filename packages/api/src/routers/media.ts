@@ -19,7 +19,6 @@ import {
   COMIC_MEDIA_MAX_ITEMS,
   COMIC_UPLOAD_BATCH_SIZE,
   COMIC_UPLOAD_MAX_BYTES,
-  MEDIA_IMAGE_MIME_TYPES,
 } from "@repo/shared/media";
 import z from "zod";
 
@@ -30,7 +29,7 @@ import {
   isIssuedComicUploadObjectKey,
   listComicUploadObjects,
 } from "../utils/comic-upload";
-import { optimizeFile } from "../utils/images";
+import { adminImageFilesSchema, optimizeFile } from "../utils/images";
 import { getS3Client } from "../utils/s3";
 
 const comicUploadObjectsSchema = z
@@ -45,10 +44,7 @@ const comicUploadObjectsSchema = z
 
 const mediaUploadSchema = z.object({
   folderId: z.string().nullable().optional(),
-  files: z
-    .array(z.file().mime([...MEDIA_IMAGE_MIME_TYPES]))
-    .min(1)
-    .max(12),
+  files: adminImageFilesSchema,
 });
 
 const mediaBrowseSchema = z.object({
@@ -518,66 +514,51 @@ export default {
           throw errors.NOT_FOUND();
         }
 
-        const optimizedFiles = await Promise.all(
-          input.files.map(async (file) => {
-            const { buffer, extension, mimeType } = await optimizeFile(file);
-
-            return {
-              buffer,
-              extension,
-              mimeType,
-              originalName: file.name,
-            };
-          })
-        );
-
         const uploadedKeys: string[] = [];
 
         try {
-          const uploadedMedia = await db.transaction(async (tx) => {
-            const createdRows = [];
+          for (const file of input.files) {
+            const { buffer, extension, mimeType } = await optimizeFile(file);
+            const objectKey = `media/${generateId()}.${extension}`;
 
-            for (const optimizedFile of optimizedFiles) {
-              const objectKey = `media/${generateId()}.${optimizedFile.extension}`;
+            await getS3Client().send(
+              new PutObjectCommand({
+                Body: buffer,
+                Bucket: env.R2_ASSETS_BUCKET_NAME,
+                ContentLength: buffer.byteLength,
+                ContentType: mimeType,
+                Key: objectKey,
+              })
+            );
 
-              await getS3Client().send(
-                new PutObjectCommand({
-                  Body: optimizedFile.buffer,
-                  Bucket: env.R2_ASSETS_BUCKET_NAME,
-                  ContentLength: optimizedFile.buffer.byteLength,
-                  ContentType: optimizedFile.mimeType,
-                  Key: objectKey,
-                })
-              );
+            uploadedKeys.push(objectKey);
+          }
 
-              uploadedKeys.push(objectKey);
+          const createdRows = await db
+            .insert(media)
+            .values(
+              uploadedKeys.map((objectKey) => ({
+                folderId: targetFolder?.id ?? null,
+                objectKey,
+              }))
+            )
+            .returning({
+              createdAt: media.createdAt,
+              folderId: media.folderId,
+              id: media.id,
+              objectKey: media.objectKey,
+            });
+          const createdRowsByKey = new Map(
+            createdRows.map((row) => [row.objectKey, row])
+          );
 
-              const [createdMedia] = await tx
-                .insert(media)
-                .values({
-                  folderId: targetFolder?.id ?? null,
-                  objectKey,
-                })
-                .returning({
-                  createdAt: media.createdAt,
-                  folderId: media.folderId,
-                  id: media.id,
-                  objectKey: media.objectKey,
-                });
-
-              if (!createdMedia) {
-                throw new Error(
-                  `Failed to create media row for ${optimizedFile.originalName}`
-                );
-              }
-
-              createdRows.push(createdMedia);
+          return uploadedKeys.map((objectKey) => {
+            const row = createdRowsByKey.get(objectKey);
+            if (!row) {
+              throw new Error(`Failed to create media row for ${objectKey}`);
             }
-
-            return createdRows;
+            return row;
           });
-
-          return uploadedMedia;
         } catch (error) {
           logger?.error("Failed to upload admin media");
           logger?.error(error);

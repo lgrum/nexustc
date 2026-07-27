@@ -1,9 +1,10 @@
 import { LoggingHandlerPlugin } from "@orpc/experimental-pino";
 import { onError } from "@orpc/server";
-import { RPCHandler } from "@orpc/server/fetch";
+import { BodyLimitPlugin, RPCHandler } from "@orpc/server/fetch";
 import { SimpleCsrfProtectionHandlerPlugin } from "@orpc/server/plugins";
 import { createContext } from "@repo/api/context";
 import { appRouter } from "@repo/api/routers/index";
+import { ADMIN_RPC_BODY_MAX_BYTES } from "@repo/shared/media";
 import { revalidateTag } from "next/cache";
 
 import {
@@ -20,6 +21,7 @@ const rpcHandler = new RPCHandler(appRouter, {
   plugins: [
     new LoggingHandlerPlugin(),
     new SimpleCsrfProtectionHandlerPlugin(),
+    new BodyLimitPlugin({ maxBodySize: ADMIN_RPC_BODY_MAX_BYTES }),
   ],
 });
 

@@ -1,6 +1,9 @@
+// @vitest-environment node
+
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { os } from "@orpc/server";
+import { ADMIN_RPC_BODY_MAX_BYTES } from "@repo/shared/media";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as route from "./route";
@@ -37,6 +40,10 @@ describe("RPC route", () => {
     expect(Object.keys(route)).toEqual(["POST"]);
   });
 
+  it("configures the agreed 96 MiB production ceiling", () => {
+    expect(ADMIN_RPC_BODY_MAX_BYTES).toBe(96 * 1024 * 1024);
+  });
+
   it("rejects requests without the CSRF header", async () => {
     await expect(createClient().ping()).rejects.toMatchObject({ status: 403 });
     expect(procedure).not.toHaveBeenCalled();
@@ -47,5 +54,46 @@ describe("RPC route", () => {
       "ok"
     );
     expect(procedure).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a declared body above the gross-body limit", async () => {
+    const response = await route.POST(
+      new Request("http://localhost/api/rpc/ping", {
+        body: "{}",
+        headers: {
+          "content-length": String(ADMIN_RPC_BODY_MAX_BYTES + 1),
+          "content-type": "application/json",
+          "x-csrf-token": "orpc",
+        },
+        method: "POST",
+      })
+    );
+
+    expect(response.status).toBe(413);
+    expect(procedure).not.toHaveBeenCalled();
+  });
+
+  it("rejects a streamed body above the gross-body limit", async () => {
+    const chunk = new Uint8Array(ADMIN_RPC_BODY_MAX_BYTES + 1);
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(chunk);
+        controller.close();
+      },
+    });
+    const response = await route.POST(
+      new Request("http://localhost/api/rpc/ping", {
+        body,
+        duplex: "half",
+        headers: {
+          "content-type": "application/json",
+          "x-csrf-token": "orpc",
+        },
+        method: "POST",
+      } as RequestInit & { duplex: "half" })
+    );
+
+    expect(response.status).toBe(413);
+    expect(procedure).not.toHaveBeenCalled();
   });
 });

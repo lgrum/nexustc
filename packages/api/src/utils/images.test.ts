@@ -1,7 +1,17 @@
+import {
+  ADMIN_IMAGE_MAX_FILES,
+  ADMIN_IMAGE_MAX_FILE_BYTES,
+  ADMIN_IMAGE_MAX_SELECTION_BYTES,
+} from "@repo/shared/media";
 import sharp from "sharp";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { optimizeFile, optimizeImageBuffer } from "./images";
+import {
+  adminImageFileSchema,
+  adminImageFilesSchema,
+  optimizeFile,
+  optimizeImageBuffer,
+} from "./images";
 
 const STATIC_FORMATS = [
   ["image/avif", "avif"],
@@ -57,6 +67,12 @@ async function createAnimatedGif({
   })
     .gif({ delay: Array.from({ length: frameCount }, () => 120), loop: 3 })
     .toBuffer();
+}
+
+function createFileWithSize(size: number, type = "image/png") {
+  const file = new File(["image"], "image.png", { type });
+  Object.defineProperty(file, "size", { value: size });
+  return file;
 }
 
 describe("image optimizer", () => {
@@ -154,16 +170,16 @@ describe("image optimizer", () => {
   });
 
   it("rejects oversized files before reading their bytes", async () => {
-    const file = new File(["xx"], "image.png", { type: "image/png" });
+    const file = createFileWithSize(ADMIN_IMAGE_MAX_FILE_BYTES + 1);
+    const arrayBuffer = vi.fn();
     Object.defineProperty(file, "arrayBuffer", {
-      value: () => {
-        throw new Error("should not read source");
-      },
+      value: arrayBuffer,
     });
 
-    await expect(optimizeFile(file, { maxSourceBytes: 1 })).rejects.toThrow(
+    await expect(optimizeFile(file)).rejects.toThrow(
       "Image source exceeds byte limit"
     );
+    expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
   it("rejects oversized frame dimensions", async () => {
@@ -196,5 +212,53 @@ describe("image optimizer", () => {
     await expect(optimizeImageBuffer(source, "image/gif")).rejects.toThrow(
       "Image decoded pixels exceed limit"
     );
+  });
+});
+
+describe("admin image input", () => {
+  it("enforces the shared MIME and per-file byte limits", () => {
+    expect(
+      adminImageFileSchema.safeParse(
+        createFileWithSize(ADMIN_IMAGE_MAX_FILE_BYTES)
+      ).success
+    ).toBe(true);
+    expect(
+      adminImageFileSchema.safeParse(
+        createFileWithSize(ADMIN_IMAGE_MAX_FILE_BYTES + 1)
+      ).success
+    ).toBe(false);
+    expect(
+      adminImageFileSchema.safeParse(createFileWithSize(1, "image/svg+xml"))
+        .success
+    ).toBe(false);
+  });
+
+  it("enforces file-count and aggregate-selection byte limits", () => {
+    const maximumSelection = Array.from(
+      { length: ADMIN_IMAGE_MAX_FILES },
+      (_, index) =>
+        createFileWithSize(
+          index < 4 ? ADMIN_IMAGE_MAX_FILE_BYTES : 0,
+          "image/png"
+        )
+    );
+
+    expect(maximumSelection.reduce((total, file) => total + file.size, 0)).toBe(
+      ADMIN_IMAGE_MAX_SELECTION_BYTES
+    );
+    expect(adminImageFilesSchema.safeParse(maximumSelection).success).toBe(
+      true
+    );
+    expect(
+      adminImageFilesSchema.safeParse([
+        ...maximumSelection,
+        createFileWithSize(0),
+      ]).success
+    ).toBe(false);
+    expect(
+      adminImageFilesSchema.safeParse(
+        Array.from({ length: 5 }, () => createFileWithSize(9 * 1024 * 1024))
+      ).success
+    ).toBe(false);
   });
 });

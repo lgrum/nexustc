@@ -4,8 +4,8 @@ import { media, mediaFolder } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import {
+  ADMIN_IMAGE_MAX_SELECTION_BYTES,
   COMIC_MEDIA_MAX_ITEMS,
-  MEDIA_IMAGE_MIME_TYPES,
 } from "@repo/shared/media";
 import type { MediaOwnerKind } from "@repo/shared/media";
 import {
@@ -20,7 +20,7 @@ import {
 import z from "zod";
 
 import type { Context } from "../context";
-import { optimizeFile } from "./images";
+import { adminImageFileSchema, optimizeFile } from "./images";
 import { getOrderedMediaRecords } from "./post-media";
 import { getS3Client } from "./s3";
 
@@ -33,7 +33,7 @@ const deferredExistingMediaItemSchema = z.object({
 });
 
 const deferredPendingMediaItemSchema = z.object({
-  file: z.file().mime([...MEDIA_IMAGE_MIME_TYPES]),
+  file: adminImageFileSchema,
   kind: z.literal("pending"),
 });
 
@@ -55,7 +55,14 @@ const comicMediaItemInputSchema = z.discriminatedUnion("kind", [
 
 export const deferredMediaSelectionInputSchema = z
   .array(deferredMediaItemInputSchema)
-  .max(100);
+  .max(100)
+  .refine(
+    (selection) =>
+      selection.reduce(
+        (total, item) => total + (item.kind === "pending" ? item.file.size : 0),
+        0
+      ) <= ADMIN_IMAGE_MAX_SELECTION_BYTES
+  );
 
 export const comicMediaSelectionInputSchema = z
   .array(comicMediaItemInputSchema)
