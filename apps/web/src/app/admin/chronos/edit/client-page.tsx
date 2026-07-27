@@ -233,7 +233,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
         { duration: 2000 }
       );
     } catch {
-      toast.error("Error al subir imÃ¡genes", { duration: 3000 });
+      toast.error("Error al subir imágenes", { duration: 3000 });
     } finally {
       setUploadingHelperImages(false);
       event.target.value = "";
@@ -267,7 +267,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
     },
     onError: (error) => {
       toast.error(
-        `Error al actualizar pÃ¡gina de Chronos: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        `Error al actualizar página de Chronos: ${error instanceof Error ? error.message : "Error desconocido"}`,
         { duration: 5000 }
       );
     },
@@ -295,7 +295,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
         },
       });
 
-      toast.success("PÃ¡gina de Chronos actualizada correctamente", {
+      toast.success("Página de Chronos actualizada correctamente", {
         duration: 3000,
       });
     },
@@ -326,7 +326,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
 
   return (
     <main className="flex flex-col gap-6">
-      <h1 className="font-bold text-2xl">Editar PÃ¡gina Chronos</h1>
+      <h1 className="font-bold text-2xl">Editar Página Chronos</h1>
 
       <div className="flex flex-row items-center gap-4">
         <Button
@@ -344,16 +344,14 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
           Descartar Cambios
         </Button>
         {hasChanges && <Badge variant="outline">Cambios sin guardar</Badge>}
-        {isUploading && (
-          <Badge variant="secondary">Subiendo imÃ¡genesâ€¦</Badge>
-        )}
+        {isUploading && <Badge variant="secondary">Subiendo imágenes…</Badge>}
       </div>
 
       {/* Sticky Image Section */}
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <h2 className="font-semibold text-lg">Imagen Lateral Izquierda</h2>
         <p className="text-muted-foreground text-sm">
-          Imagen estÃ¡tica que aparece en el lado izquierdo de la pÃ¡gina
+          Imagen estática que aparece en el lado izquierdo de la página
         </p>
 
         {(stickyImagePreview || currentData.stickyImageKey) && (
@@ -435,7 +433,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <h2 className="font-semibold text-lg">Carrusel Derecho</h2>
         <p className="text-muted-foreground text-sm">
-          ImÃ¡genes que se desplazarÃ¡n verticalmente en el lado derecho
+          Imágenes que se desplazarán verticalmente en el lado derecho
         </p>
 
         {/* Existing carousel images */}
@@ -454,7 +452,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
                   size="sm"
                   variant="destructive"
                 >
-                  Ã—
+                  ×
                 </Button>
               </div>
             ))}
@@ -464,7 +462,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
         {/* New carousel images */}
         {carousel.selectedFiles.length > 0 && (
           <div>
-            <h3 className="mb-2 font-medium text-sm">Nuevas imÃ¡genes</h3>
+            <h3 className="mb-2 font-medium text-sm">Nuevas imágenes</h3>
             <SortableGrid
               className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
               getItemId={(file) => file.name}
@@ -499,7 +497,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
                     size="sm"
                     variant="destructive"
                   >
-                    Ã—
+                    ×
                   </Button>
                 </div>
               )}
@@ -513,7 +511,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
             icon={Upload01Icon}
           />
           <p className="text-muted-foreground text-sm">
-            Arrastra imÃ¡genes aquÃ­ o haz clic para seleccionar
+            Arrastra imágenes aquí o haz clic para seleccionar
           </p>
           <Input
             accept="image/*"
@@ -534,7 +532,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
             type="button"
             variant="outline"
           >
-            Seleccionar ImÃ¡genes
+            Seleccionar Imágenes
           </Button>
         </div>
       </section>
@@ -543,8 +541,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <h2 className="font-semibold text-lg">Contenido Central</h2>
         <p className="text-muted-foreground text-sm">
-          Contenido en formato Markdown que aparecerÃ¡ en el centro de la
-          pÃ¡gina
+          Contenido en formato Markdown que aparecerá en el centro de la página
         </p>
 
         <div data-color-mode="dark">
@@ -564,9 +561,9 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
 
       {/* Helper Images Section */}
       <section className="flex flex-col gap-4 rounded-lg border p-4">
-        <h2 className="font-semibold text-lg">ImÃ¡genes para Markdown</h2>
+        <h2 className="font-semibold text-lg">Imágenes para Markdown</h2>
         <p className="text-muted-foreground text-sm">
-          Sube imÃ¡genes para usarlas en el contenido Markdown. Haz clic en una
+          Sube imágenes para usarlas en el contenido Markdown. Haz clic en una
           imagen para copiar su URL.
         </p>
 
@@ -581,7 +578,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
             type="file"
           />
           {uploadingHelperImages && (
-            <Badge variant="secondary">Subiendoâ€¦</Badge>
+            <Badge variant="secondary">Subiendo…</Badge>
           )}
         </div>
 
@@ -611,7 +608,7 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
 
         {helperImages.length === 0 && (
           <p className="text-muted-foreground text-sm italic">
-            Las imÃ¡genes subidas aparecerÃ¡n aquÃ­
+            Las imágenes subidas aparecerán aquí
           </p>
         )}
       </section>
@@ -627,10 +624,10 @@ export function ClientPage({ initialData }: { initialData: ChronosData }) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Â¿Descartar cambios?</AlertDialogTitle>
+            <AlertDialogTitle>¿Descartar cambios?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tienes cambios sin guardar. Â¿EstÃ¡s seguro de que quieres salir
-              sin guardar?
+              Tienes cambios sin guardar. ¿Estás seguro de que quieres salir sin
+              guardar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

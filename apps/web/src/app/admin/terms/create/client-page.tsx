@@ -114,7 +114,7 @@ export function ClientPage() {
     >
       <Card className="w-full max-w-xl">
         <CardHeader>
-          <CardTitle>Crear TÃ©rmino</CardTitle>
+          <CardTitle>Crear Término</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Name Field */}
@@ -128,7 +128,7 @@ export function ClientPage() {
           <form.AppField name="taxonomy">
             {(field) => (
               <field.SelectField
-                label="TaxonomÃ­a"
+                label="Taxonomía"
                 options={Object.entries(TAXONOMY_DATA).map(([key, value]) => ({
                   label: value.label,
                   value: key,

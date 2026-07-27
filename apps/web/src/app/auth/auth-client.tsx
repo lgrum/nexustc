@@ -32,27 +32,27 @@ import { defaultFacehashProps } from "@/lib/utils";
 const AUTH_PAGE_TWO_FACTOR_SCOPE = "auth-page";
 
 const loginSchema = z.object({
-  email: z.email("Email invÃ¡lido"),
+  email: z.email("Email inválido"),
   password: z
     .string()
     .min(8, "Debe tener al menos 8 caracteres")
-    .max(64, "Debe tener como mÃ¡ximo 64 caracteres"),
+    .max(64, "Debe tener como máximo 64 caracteres"),
   turnstileToken: z.string().nonempty("Por favor completa el CAPTCHA"),
 });
 
 const registerSchema = z
   .object({
     confirmPassword: z.string(),
-    email: z.email("Email invÃ¡lido"),
+    email: z.email("Email inválido"),
     name: z.string(),
     password: z
       .string()
       .min(8, "Debe tener al menos 8 caracteres")
-      .max(64, "Debe tener como mÃ¡ximo 64 caracteres"),
+      .max(64, "Debe tener como máximo 64 caracteres"),
     turnstileToken: z.string().nonempty("Por favor completa el CAPTCHA"),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    error: "Las contraseÃ±as no coinciden",
+    error: "Las contraseñas no coinciden",
     path: ["confirmPassword"],
   });
 
@@ -67,7 +67,7 @@ const getErrorMessage = (err: { message?: string; code?: string }): string => {
     return err.message;
   }
 
-  return "Ha ocurrido un error. IntÃ©ntalo nuevamente.";
+  return "Ha ocurrido un error. Inténtalo nuevamente.";
 };
 
 export function AuthClient() {
@@ -100,7 +100,7 @@ export function AuthClient() {
           reason: "validation",
           source: "auth_page",
         });
-        setFormError("Email o contraseÃ±a invÃ¡lidos");
+        setFormError("Email o contraseña inválidos");
         return;
       }
 
@@ -122,7 +122,7 @@ export function AuthClient() {
               }
             ),
             {
-              loading: "Iniciando sesiÃ³n...",
+              loading: "Iniciando sesión...",
             }
           )
           .unwrap();
@@ -135,7 +135,7 @@ export function AuthClient() {
               source: "auth_page",
             });
             toast.error(
-              "Por favor verifica tu direcciÃ³n de correo electrÃ³nico antes de iniciar sesiÃ³n. Se te ha enviado un nuevo correo de verificaciÃ³n."
+              "Por favor verifica tu dirección de correo electrónico antes de iniciar sesión. Se te ha enviado un nuevo correo de verificación."
             );
             return;
           }
@@ -219,7 +219,7 @@ export function AuthClient() {
           source: "auth_page",
         });
         toast.success(
-          "Se ha enviado un correo a su cuenta de correo electrÃ³nico. Por favor verifique su correo antes de iniciar sesiÃ³n."
+          "Se ha enviado un correo a su cuenta de correo electrónico. Por favor verifique su correo antes de iniciar sesión."
         );
         setShowVerificationDialog(true);
         setTab("login");
@@ -310,7 +310,7 @@ export function AuthClient() {
               value={tab}
             >
               <TabsList className="mb-4 w-full">
-                <TabsTrigger value="login">Iniciar SesiÃ³n</TabsTrigger>
+                <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
                 <TabsTrigger value="register">Registrarse</TabsTrigger>
               </TabsList>
 
@@ -328,12 +328,12 @@ export function AuthClient() {
                   </loginForm.AppField>
                   <loginForm.AppField name="password">
                     {(field) => (
-                      <field.TextField label="ContraseÃ±a" type="password" />
+                      <field.TextField label="Contraseña" type="password" />
                     )}
                   </loginForm.AppField>
                   <Link href="/forgot-password">
                     <Button className="p-0" type="button" variant="link">
-                      Â¿Olvidaste tu contraseÃ±a?
+                      ¿Olvidaste tu contraseña?
                     </Button>
                   </Link>
                   <loginForm.AppField name="turnstileToken">
@@ -352,7 +352,7 @@ export function AuthClient() {
                   )}
                   <loginForm.AppForm>
                     <loginForm.SubmitButton>
-                      Iniciar SesiÃ³n
+                      Iniciar Sesión
                     </loginForm.SubmitButton>
                   </loginForm.AppForm>
                   {!!showVerificationDialog && (
@@ -360,8 +360,7 @@ export function AuthClient() {
                       <AlertTitle>Verifica tu correo</AlertTitle>
                       <AlertDescription>
                         <span>
-                          Se ha enviado una verificaciÃ³n a su casilla de
-                          correo.
+                          Se ha enviado una verificación a su casilla de correo.
                           <br />
                           Por favor, verifiquela para poder acceder al sitio,
                         </span>
@@ -401,13 +400,13 @@ export function AuthClient() {
                   </registerForm.AppField>
                   <registerForm.AppField name="password">
                     {(field) => (
-                      <field.TextField label="ContraseÃ±a" type="password" />
+                      <field.TextField label="Contraseña" type="password" />
                     )}
                   </registerForm.AppField>
                   <registerForm.AppField name="confirmPassword">
                     {(field) => (
                       <field.TextField
-                        label="Confirmar ContraseÃ±a"
+                        label="Confirmar Contraseña"
                         type="password"
                       />
                     )}

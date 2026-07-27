@@ -74,7 +74,7 @@ export function ClientPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="font-bold text-3xl">TÃ©rminos</h1>
+      <h1 className="font-bold text-3xl">Términos</h1>
       {Object.entries(groupedTerms).map(([taxonomy, terms]) => {
         const taxonomyData =
           TAXONOMY_DATA[taxonomy as keyof typeof TAXONOMY_DATA];
@@ -84,9 +84,7 @@ export function ClientPage() {
               <CardTitle>
                 {taxonomyData.label}
                 <span className="text-muted-foreground text-sm">
-                  {taxonomyData.mode === "single"
-                    ? " (Ãšnico)"
-                    : " (MÃºltiple)"}
+                  {taxonomyData.mode === "single" ? " (Único)" : " (Múltiple)"}
                 </span>
               </CardTitle>
             </CardHeader>
@@ -225,7 +223,7 @@ function EditDialog({
     <Dialog onOpenChange={setOpen} open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar TÃ©rmino</DialogTitle>
+          <DialogTitle>Editar Término</DialogTitle>
         </DialogHeader>
         <form
           className="flex flex-col gap-4"
@@ -364,10 +362,10 @@ function DeleteDialog({
     <AlertDialog onOpenChange={setOpen} open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Â¿EstÃ¡s absolutamente seguro?</AlertDialogTitle>
+          <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
           <AlertDialogDescription>
-            Esta acciÃ³n no se puede deshacer. Ten en cuenta que un tÃ©rmino que
-            aÃºn tenga posts asociados no se puede eliminar hasta que se remueva
+            Esta acción no se puede deshacer. Ten en cuenta que un término que
+            aún tenga posts asociados no se puede eliminar hasta que se remueva
             manualmente de cada uno.
           </AlertDialogDescription>
         </AlertDialogHeader>

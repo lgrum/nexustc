@@ -13,7 +13,7 @@ export function ClientPage() {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      <h1 className="font-bold text-3xl">CÃ³mics</h1>
+      <h1 className="font-bold text-3xl">Cómics</h1>
       <DataTable columns={columns} contentType="comics" data={data} />
     </div>
   );

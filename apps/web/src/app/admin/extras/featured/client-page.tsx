@@ -385,7 +385,7 @@ export function ClientPage({
         ) : null}
         {!isValid && selectedPosts.mainPostId !== null ? (
           <Badge variant="destructive">
-            Debe seleccionar exactamente 3 posts Ãºnicos
+            Debe seleccionar exactamente 3 posts únicos
           </Badge>
         ) : null}
       </div>
@@ -595,10 +595,10 @@ export function ClientPage({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Â¿Descartar cambios?</AlertDialogTitle>
+            <AlertDialogTitle>¿Descartar cambios?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tienes cambios sin guardar. Â¿EstÃ¡s seguro de que quieres salir
-              sin guardar?
+              Tienes cambios sin guardar. ¿Estás seguro de que quieres salir sin
+              guardar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

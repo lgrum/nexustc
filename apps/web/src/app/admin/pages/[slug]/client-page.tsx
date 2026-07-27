@@ -25,8 +25,8 @@ import { orpcClient, queryClient } from "@/lib/orpc";
 const PAGE_TITLES: Record<string, string> = {
   about: "Sobre Nosotros",
   legal: "Aviso Legal",
-  privacy: "PolÃ­tica de Privacidad",
-  terms: "TÃ©rminos y Condiciones",
+  privacy: "Política de Privacidad",
+  terms: "Términos y Condiciones",
 };
 
 export type StaticPageData = {
@@ -114,7 +114,7 @@ function StaticPageEditor({
       }),
     onError: (error) => {
       toast.error(
-        `Error al actualizar pÃ¡gina: ${error instanceof Error ? error.message : "Error desconocido"}`,
+        `Error al actualizar página: ${error instanceof Error ? error.message : "Error desconocido"}`,
         { duration: 5000 }
       );
     },
@@ -134,7 +134,7 @@ function StaticPageEditor({
         },
       });
 
-      toast.success("PÃ¡gina actualizada correctamente", { duration: 3000 });
+      toast.success("Página actualizada correctamente", { duration: 3000 });
     },
   });
 
@@ -148,9 +148,7 @@ function StaticPageEditor({
 
   return (
     <main className="flex flex-col gap-6">
-      <h1 className="font-bold text-2xl">
-        Editar PÃ¡gina: {PAGE_TITLES[slug]}
-      </h1>
+      <h1 className="font-bold text-2xl">Editar Página: {PAGE_TITLES[slug]}</h1>
 
       <div className="flex flex-row items-center gap-4">
         <Button
@@ -172,17 +170,17 @@ function StaticPageEditor({
 
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="title">TÃ­tulo de la PÃ¡gina</Label>
+          <Label htmlFor="title">Título de la Página</Label>
           <Input
             id="title"
             onChange={(e) =>
               setCurrentData((prev) => ({ ...prev, title: e.target.value }))
             }
-            placeholder="TÃ­tulo de la pÃ¡gina"
+            placeholder="Título de la página"
             value={currentData.title}
           />
           <p className="text-muted-foreground text-sm">
-            Este tÃ­tulo se mostrarÃ¡ en la pestaÃ±a del navegador
+            Este título se mostrará en la pestaña del navegador
           </p>
         </div>
       </section>
@@ -190,7 +188,7 @@ function StaticPageEditor({
       <section className="flex flex-col gap-4 rounded-lg border p-4">
         <h2 className="font-semibold text-lg">Contenido</h2>
         <p className="text-muted-foreground text-sm">
-          Escribe el contenido de la pÃ¡gina en formato Markdown
+          Escribe el contenido de la página en formato Markdown
         </p>
 
         <div data-color-mode="dark">
@@ -219,10 +217,10 @@ function StaticPageEditor({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Â¿Descartar cambios?</AlertDialogTitle>
+            <AlertDialogTitle>¿Descartar cambios?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tienes cambios sin guardar. Â¿EstÃ¡s seguro de que quieres salir
-              sin guardar?
+              Tienes cambios sin guardar. ¿Estás seguro de que quieres salir sin
+              guardar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

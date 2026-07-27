@@ -319,8 +319,8 @@ export function ClientPage({
             </InputGroupAddon>
           </InputGroup>
           <FieldDescription>
-            Es posible que los juegos subidos o actualizados recientemente aÃºn
-            no estÃ©n disponibles.
+            Es posible que los juegos subidos o actualizados recientemente aún
+            no estén disponibles.
           </FieldDescription>
           <div className="grid grid-cols-5 gap-4">
             {allPosts?.map((post) => (
@@ -355,10 +355,10 @@ export function ClientPage({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Â¿Descartar cambios?</AlertDialogTitle>
+            <AlertDialogTitle>¿Descartar cambios?</AlertDialogTitle>
             <AlertDialogDescription>
-              Tienes cambios sin guardar. Â¿EstÃ¡s seguro de que quieres salir
-              sin guardar?
+              Tienes cambios sin guardar. ¿Estás seguro de que quieres salir sin
+              guardar?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
