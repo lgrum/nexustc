@@ -1,0 +1,1 @@
+ALTER TABLE "profile_settings" ADD COLUMN "reply_notifications_enabled" boolean DEFAULT true NOT NULL;

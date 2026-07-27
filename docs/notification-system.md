@@ -37,6 +37,9 @@ The service layer in [notification.ts](/C:/Dev/nexustc/packages/api/src/services
   - Publishes platform-wide announcement records.
 - `createUserNotification`
   - Small extensibility hook for future direct-user events like auctions, trades, card rewards, and marketplace sales.
+- `createCommentReplyNotification`
+  - Creates one direct-user notification when another user replies to a top-level comment.
+  - Respects the recipient's in-app reply preference and suppresses self-replies.
 
 This architecture keeps client code passive: clients read notifications, but only trusted backend code can generate them.
 
@@ -101,6 +104,16 @@ Current scale protections:
 - dedupe keys for idempotency
 - cooldown collapse for rapid repeated updates
 - expiration and archive filters in feed queries
+
+Reply notifications are created in the same transaction as the reply. They
+store only the actor name and post title, not a copy of the reply body. Their
+metadata links to the exact reply; deleted replies fall back to the comments
+section, while inaccessible posts keep their notification without an open
+action.
+
+Users can disable future in-app reply notifications from the
+`Notificaciones` profile section. The preference defaults to enabled and does
+not hide or remove notifications that were already delivered.
 
 ## 7. API Endpoints
 

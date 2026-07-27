@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { AccountSection } from "@/components/profile/account-section";
 import { AppearanceSection } from "@/components/profile/appearance-section";
 import { FollowingSection } from "@/components/profile/following-section";
+import { NotificationSettingsSection } from "@/components/profile/notification-settings-section";
 import { ProfileIdentity } from "@/components/profile/profile-identity";
 import { ProfileLibrarySection } from "@/components/profile/profile-library-section";
 import { ProfileOverviewSection } from "@/components/profile/profile-overview-section";
@@ -44,6 +45,11 @@ const NAVIGATION: NavigationItem[] = [
   { icon: Image01Icon, label: "Apariencia", value: "appearance" },
   { icon: Bookmark02Icon, label: "Biblioteca", value: "library" },
   { icon: Notification03Icon, label: "Siguiendo", value: "following" },
+  {
+    icon: Notification03Icon,
+    label: "Notificaciones",
+    value: "notifications",
+  },
   { icon: UserIcon, label: "Cuenta", value: "account" },
   { icon: ShieldUserIcon, label: "Seguridad", value: "security" },
 ];
@@ -187,6 +193,11 @@ function AuthenticatedProfile({
             <ProfileLibrarySection visibility={data.settings.visibility} />
           ) : null}
           {activeSection === "following" ? <FollowingSection /> : null}
+          {activeSection === "notifications" ? (
+            <NotificationSettingsSection
+              commentReplies={data.settings.notifications.commentReplies}
+            />
+          ) : null}
           {activeSection === "account" ? (
             <AccountSection userId={user.id} />
           ) : null}

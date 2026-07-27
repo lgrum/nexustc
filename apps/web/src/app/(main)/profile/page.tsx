@@ -14,6 +14,7 @@ export const PROFILE_SECTIONS = [
   "appearance",
   "library",
   "following",
+  "notifications",
   "account",
   "security",
 ] as const;

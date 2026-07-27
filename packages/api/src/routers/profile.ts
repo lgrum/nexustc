@@ -223,6 +223,9 @@ export default {
             : null,
           bannerColor: settings.bannerColor,
           bannerMode: settings.bannerMode,
+          notifications: {
+            commentReplies: settings.replyNotificationsEnabled,
+          },
           visibility: resolveProfileVisibility(settings.visibilityConfig),
         },
         summary: summary ?? null,
@@ -347,6 +350,30 @@ export default {
       return { success: true };
     }
   ),
+
+  updateNotificationPreferences: protectedProcedure
+    .input(z.object({ commentReplies: z.boolean() }))
+    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const logger = getLogger(ctx);
+      logger?.info(
+        `Updating notification preferences for user ${session.user.id}`
+      );
+      await getOrCreateProfileSettings(db, session.user.id);
+
+      const [settings] = await db
+        .update(profileSettings)
+        .set({ replyNotificationsEnabled: input.commentReplies })
+        .where(eq(profileSettings.userId, session.user.id))
+        .returning({
+          replyNotificationsEnabled: profileSettings.replyNotificationsEnabled,
+        });
+
+      if (!settings) {
+        throw errors.INTERNAL_SERVER_ERROR();
+      }
+
+      return { commentReplies: settings.replyNotificationsEnabled };
+    }),
 
   updateVisibility: protectedProcedure
     .input(visibilityUpdateSchema)

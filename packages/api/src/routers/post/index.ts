@@ -51,6 +51,7 @@ import {
   publicProcedure,
 } from "../../index";
 import { attachComicCatalogProgress } from "../../services/comic-progress";
+import { createCommentReplyNotification } from "../../services/notification";
 import { buildProfileSummaries } from "../../services/profile";
 import {
   getResolvedEngagementPromptsForPost,
@@ -1389,6 +1390,7 @@ export default {
           columns: {
             earlyAccessEnabled: true,
             earlyAccessStartedAt: true,
+            title: true,
             type: true,
             vip12EarlyAccessHours: true,
             vip8EarlyAccessHours: true,
@@ -1411,23 +1413,27 @@ export default {
           throw errors.FORBIDDEN();
         }
 
-        if (input.parentId) {
-          const [parentComment] = await db
-            .select({
-              id: comment.id,
-              parentId: comment.parentId,
-              postId: comment.postId,
-            })
-            .from(comment)
-            .innerJoin(user, eq(user.id, comment.authorId))
-            .where(
-              and(
-                eq(comment.id, input.parentId),
-                sql`${user.banned} IS DISTINCT FROM true`
+        const parentComments = input.parentId
+          ? await db
+              .select({
+                authorId: comment.authorId,
+                id: comment.id,
+                parentId: comment.parentId,
+                postId: comment.postId,
+              })
+              .from(comment)
+              .innerJoin(user, eq(user.id, comment.authorId))
+              .where(
+                and(
+                  eq(comment.id, input.parentId),
+                  sql`${user.banned} IS DISTINCT FROM true`
+                )
               )
-            )
-            .limit(1);
+              .limit(1)
+          : [];
+        const [parentComment] = parentComments;
 
+        if (input.parentId) {
           if (!parentComment || parentComment.postId !== input.postId) {
             throw errors.BAD_REQUEST({
               message:
@@ -1528,14 +1534,35 @@ export default {
           }
         }
 
-        await db.insert(comment).values({
-          authorId: session.user.id,
-          content: input.content,
-          engagementPromptId: selectedEngagementPrompt?.id ?? null,
-          engagementPromptSource: selectedEngagementPrompt?.source ?? null,
-          engagementPromptText: selectedEngagementPrompt?.text ?? null,
-          parentId: input.parentId ?? null,
-          postId: input.postId,
+        await db.transaction(async (tx) => {
+          const [createdComment] = await tx
+            .insert(comment)
+            .values({
+              authorId: session.user.id,
+              content: input.content,
+              engagementPromptId: selectedEngagementPrompt?.id ?? null,
+              engagementPromptSource: selectedEngagementPrompt?.source ?? null,
+              engagementPromptText: selectedEngagementPrompt?.text ?? null,
+              parentId: input.parentId ?? null,
+              postId: input.postId,
+            })
+            .returning({ id: comment.id });
+
+          if (!createdComment) {
+            throw errors.INTERNAL_SERVER_ERROR();
+          }
+
+          if (parentComment?.authorId) {
+            await createCommentReplyNotification(tx, {
+              parentCommentId: parentComment.id,
+              postId: input.postId,
+              postTitle: targetPost.title,
+              recipientUserId: parentComment.authorId,
+              replyCommentId: createdComment.id,
+              sourceUserId: session.user.id,
+              sourceUserName: session.user.name,
+            });
+          }
         });
         logger?.info(
           `Comment successfully created by user ${session.user.id} on post ${input.postId}`

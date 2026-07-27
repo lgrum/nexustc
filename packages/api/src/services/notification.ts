@@ -16,6 +16,7 @@ import {
   or,
   patron,
   post,
+  profileSettings,
   sql,
   user,
 } from "@repo/db";
@@ -297,7 +298,10 @@ async function createNotificationRecord(
   await db.insert(notificationTarget).values({
     audienceType: params.audienceType,
     notificationId: createdNotification.id,
-    targetContentId: params.targetContentId,
+    targetContentId:
+      params.audienceType === "content_followers"
+        ? params.targetContentId
+        : undefined,
     targetUserId: params.targetUserId,
   });
 
@@ -413,26 +417,37 @@ async function fetchNotificationFeed(db: NotificationDb, params: FeedParams) {
       vip8EarlyAccessHours,
       ...item
     } = row;
+    const canOpenTarget =
+      authorBanned !== true &&
+      row.contentType !== null &&
+      status !== null &&
+      canViewPost(
+        {
+          earlyAccessEnabled: earlyAccessEnabled ?? false,
+          earlyAccessStartedAt: earlyAccessStartedAt ?? null,
+          releasedAt: releasedAt ?? null,
+          status,
+          type: row.contentType,
+          vip12EarlyAccessHours: vip12EarlyAccessHours ?? 0,
+          vip8EarlyAccessHours: vip8EarlyAccessHours ?? 0,
+        },
+        viewer,
+        now
+      );
     const isRestrictedFollowerUpdate =
-      row.audienceType === "content_followers" &&
-      (authorBanned === true ||
-        !row.contentType ||
-        !status ||
-        !canViewPost(
-          {
-            earlyAccessEnabled: earlyAccessEnabled ?? false,
-            earlyAccessStartedAt: earlyAccessStartedAt ?? null,
-            releasedAt: releasedAt ?? null,
-            status,
-            type: row.contentType,
-            vip12EarlyAccessHours: vip12EarlyAccessHours ?? 0,
-            vip8EarlyAccessHours: vip8EarlyAccessHours ?? 0,
-          },
-          viewer,
-          now
-        ));
+      row.audienceType === "content_followers" && !canOpenTarget;
+    if (isRestrictedFollowerUpdate) {
+      return [];
+    }
 
-    return isRestrictedFollowerUpdate ? [] : [item];
+    const isUnavailableReplyTarget =
+      item.metadata.category === "comment_reply" && !canOpenTarget;
+
+    return [
+      isUnavailableReplyTarget
+        ? { ...item, contentType: null, targetContentId: null }
+        : item,
+    ];
   });
   const hasMore = visibleRows.length > params.limit;
   const items = hasMore ? visibleRows.slice(0, params.limit) : visibleRows;
@@ -487,6 +502,49 @@ export function createUserNotification(
     sourceUserId: params.sourceUserId,
     targetUserId: params.targetUserId,
     title: params.title,
+    type: "system",
+  });
+}
+
+export async function createCommentReplyNotification(
+  db: NotificationDb,
+  params: {
+    parentCommentId: string;
+    postId: string;
+    postTitle: string;
+    recipientUserId: string;
+    replyCommentId: string;
+    sourceUserId: string;
+    sourceUserName: string;
+  }
+) {
+  if (params.recipientUserId === params.sourceUserId) {
+    return null;
+  }
+
+  const settings = await db.query.profileSettings.findFirst({
+    columns: { replyNotificationsEnabled: true },
+    where: eq(profileSettings.userId, params.recipientUserId),
+  });
+
+  if (settings?.replyNotificationsEnabled === false) {
+    return null;
+  }
+
+  return createNotificationRecord(db, {
+    audienceType: "user",
+    dedupeKey: `comment-reply:${params.replyCommentId}`,
+    description: `En ${params.postTitle}.`,
+    metadata: {
+      category: "comment_reply",
+      commentId: params.replyCommentId,
+      linkPath: `/post/${params.postId}#comment-${params.replyCommentId}`,
+      parentCommentId: params.parentCommentId,
+    },
+    sourceUserId: params.sourceUserId,
+    targetContentId: params.postId,
+    targetUserId: params.recipientUserId,
+    title: `${params.sourceUserName} respondió a tu comentario`,
     type: "system",
   });
 }

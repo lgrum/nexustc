@@ -18,6 +18,7 @@ vi.mock("../utils/early-access", async (importOriginal) => {
 });
 
 const {
+  getNotificationFeed,
   getPublishedNewsArticleById,
   listPublishedNewsArticles,
   NEWS_ARTICLE_TARGET_NOT_PUBLIC,
@@ -182,5 +183,73 @@ describe("public news visibility", () => {
     expect(articleValues).toHaveBeenCalledWith(
       expect.objectContaining({ publishedAt: scheduledAt })
     );
+  });
+});
+
+describe("reply notification destinations", () => {
+  it("keeps the notification but removes an inaccessible post destination", async () => {
+    const targets = {
+      as: vi.fn().mockReturnValue({
+        audienceType: {},
+        notificationId: {},
+      }),
+      from: vi.fn(),
+      leftJoin: vi.fn(),
+      where: vi.fn(),
+    };
+    targets.from.mockReturnValue(targets);
+    targets.leftJoin.mockReturnValue(targets);
+    targets.where.mockReturnValue(targets);
+    const feed = {
+      from: vi.fn(),
+      innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
+      limit: vi.fn().mockResolvedValue([
+        {
+          audienceType: "user",
+          authorBanned: false,
+          contentType: "post",
+          description: "En una publicación.",
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          expirationAt: null,
+          id: "notification-1",
+          imageObjectKey: null,
+          isRead: false,
+          metadata: { category: "comment_reply" },
+          publishedAt: new Date(),
+          releasedAt: null,
+          status: "trash",
+          targetContentId: "post-1",
+          title: "Una respuesta",
+          type: "system",
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+        },
+      ]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    feed.from.mockReturnValue(feed);
+    feed.innerJoin.mockReturnValue(feed);
+    feed.leftJoin.mockReturnValue(feed);
+    feed.orderBy.mockReturnValue(feed);
+    feed.where.mockReturnValue(feed);
+    const database = {
+      query: {
+        patron: { findFirst: vi.fn().mockResolvedValue(null) },
+      },
+      select: vi.fn().mockReturnValueOnce(targets).mockReturnValueOnce(feed),
+    };
+
+    await expect(
+      getNotificationFeed(database as never, {
+        limit: 10,
+        role: "user",
+        userId: "recipient-1",
+      })
+    ).resolves.toMatchObject({
+      items: [{ id: "notification-1", targetContentId: null }],
+    });
   });
 });

@@ -1,5 +1,6 @@
 import {
   AlertCircleIcon,
+  Comment01Icon,
   Megaphone01Icon,
   News01Icon,
   Notification03Icon,
@@ -35,12 +36,26 @@ type NotificationItem = {
   type: "content_news" | "content_update" | "global_announcement" | "system";
 };
 
-function getNotificationAccent(type: NotificationItem["type"]): {
+function getNotificationAccent(
+  type: NotificationItem["type"],
+  category?: string
+): {
   badgeClassName: string;
   icon: typeof Megaphone01Icon;
   label: string;
   panelClassName: string;
 } {
+  if (category === "comment_reply") {
+    return {
+      badgeClassName:
+        "border-cyan-500/25 bg-cyan-500/10 text-cyan-200 shadow-[inset_0_1px_0_hsl(188_86%_53%/0.14)]",
+      icon: Comment01Icon,
+      label: "Respuesta",
+      panelClassName:
+        "border-cyan-500/20 bg-[linear-gradient(135deg,hsl(188_86%_53%/0.15),transparent_58%)]",
+    };
+  }
+
   switch (type) {
     case "global_announcement": {
       return {
@@ -149,7 +164,11 @@ function NotificationFeedCard({
   item: NotificationItem;
   onMarkRead?: (notificationId: string) => void;
 }) {
-  const accent = getNotificationAccent(item.type);
+  const category =
+    typeof item.metadata.category === "string"
+      ? item.metadata.category
+      : undefined;
+  const accent = getNotificationAccent(item.type, category);
   const contentLabel = getContentLabel(item.contentType);
   const isUnread = item.isRead === false;
   const timestamp = formatDistanceToNow(new Date(item.publishedAt), {
@@ -164,10 +183,16 @@ function NotificationFeedCard({
     item.type === "content_news" && metadataArticleId
       ? `/news/${metadataArticleId}`
       : null;
+  const metadataLink =
+    typeof item.metadata.linkPath === "string" &&
+    /^\/(?![\\/])/.test(item.metadata.linkPath) &&
+    (category !== "comment_reply" || item.targetContentId !== null)
+      ? item.metadata.linkPath
+      : null;
   const contentLink = item.targetContentId
     ? `/post/${item.targetContentId}`
     : null;
-  const openLink = articleLink ?? contentLink;
+  const openLink = articleLink ?? metadataLink ?? contentLink;
 
   return (
     <Card

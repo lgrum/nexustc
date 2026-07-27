@@ -189,8 +189,8 @@ export function NotificationCenter() {
                 Notificaciones
               </DrawerTitle>
               <DrawerDescription>
-                Novedades de la plataforma, tus juegos seguidos y avisos del
-                sistema.
+                Respuestas, novedades de la plataforma y avisos del contenido
+                que sigues.
               </DrawerDescription>
             </DrawerHeader>
             {content}

@@ -36,7 +36,11 @@ vi.mock("@repo/db", () => ({
 }));
 vi.mock("@repo/db/schema/app", () => ({
   profileMediaAsset: { id: {} },
-  profileSettings: { userId: {}, visibilityConfig: {} },
+  profileSettings: {
+    replyNotificationsEnabled: {},
+    userId: {},
+    visibilityConfig: {},
+  },
   user: { id: {} },
 }));
 vi.mock("@repo/db/utils", () => ({ generateId: mocks.generateId }));
@@ -137,6 +141,7 @@ beforeEach(() => {
     bannerAssetId: null,
     bannerColor: "#111827",
     bannerMode: "color",
+    replyNotificationsEnabled: true,
     visibilityConfig: { reserved: {} },
   });
   mocks.getProfileEntitlements.mockResolvedValue({
@@ -225,6 +230,47 @@ describe("profile visibility settings", () => {
         { context: anonymousContext }
       )
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+});
+
+describe("profile notification settings", () => {
+  it("enables comment reply notifications for existing users by default", async () => {
+    const { context } = createSettingsContext();
+
+    await expect(
+      call(profileRouter.getMySettings, undefined, { context })
+    ).resolves.toMatchObject({
+      settings: {
+        notifications: {
+          commentReplies: true,
+        },
+      },
+    });
+  });
+
+  it("updates the authenticated user's comment reply preference", async () => {
+    const returning = vi
+      .fn()
+      .mockResolvedValue([{ replyNotificationsEnabled: false }]);
+    const set = vi.fn(() => ({
+      where: vi.fn(() => ({ returning })),
+    }));
+    const context = {
+      db: {
+        update: vi.fn(() => ({ set })),
+      },
+      headers: new Headers(),
+      session: { user: { id: "user-1", role: "user" } },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        profileRouter.updateNotificationPreferences,
+        { commentReplies: false },
+        { context }
+      )
+    ).resolves.toEqual({ commentReplies: false });
+    expect(set).toHaveBeenCalledWith({ replyNotificationsEnabled: false });
   });
 });
 

@@ -933,6 +933,9 @@ export const profileSettings = pgTable(
       .notNull()
       .default(PROFILE_DEFAULTS.bannerColor),
     bannerMode: profileBannerModeEnum("banner_mode").notNull().default("color"),
+    replyNotificationsEnabled: boolean("reply_notifications_enabled")
+      .notNull()
+      .default(true),
     userId: text("user_id").primaryKey(),
     visibilityConfig: jsonb("visibility_config")
       .$type<ProfileVisibilityConfig>()

@@ -182,6 +182,11 @@ export function CommentSection({
   });
 
   useEffect(() => {
+    if (window.location.hash.startsWith("#comment-")) {
+      setVisible(true);
+      return;
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -200,6 +205,20 @@ export function CommentSection({
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (!commentsData || !window.location.hash.startsWith("#comment-")) {
+      return;
+    }
+
+    const targetId = window.location.hash.slice(1);
+    const target = document.querySelector<HTMLElement>(
+      `#${CSS.escape(targetId)}`
+    );
+    (target ?? ref.current)?.scrollIntoView({
+      block: target ? "center" : "start",
+    });
+  }, [commentsData]);
 
   const comments = commentsData ?? [];
   const commentCount = comments.length;
@@ -238,7 +257,8 @@ export function CommentSection({
 
     return (
       <div
-        className="group flex gap-4 border-border border-t p-4 first:border-t-0"
+        className="group scroll-mt-24 flex gap-4 rounded-xl border-border border-t p-4 transition-colors first:border-t-0 target:bg-primary/10 target:ring-2 target:ring-primary/40"
+        id={`comment-${comment.id}`}
         key={comment.id}
       >
         <Link href={`/user/${comment.author.id}`}>
@@ -455,7 +475,7 @@ export function CommentSection({
   };
 
   return (
-    <Card ref={ref}>
+    <Card id="comments" ref={ref}>
       <CardHeader>
         <CardTitle className="section-title">
           Comentarios{commentCount > 0 && ` (${commentCount})`}
@@ -568,7 +588,8 @@ export function CommentSection({
 
                   return (
                     <div
-                      className="group flex gap-4 border-border border-t p-4 first:border-t-0"
+                      className="group scroll-mt-24 flex gap-4 rounded-xl border-border border-t p-4 transition-colors first:border-t-0 target:bg-primary/10 target:ring-2 target:ring-primary/40"
+                      id={`comment-${comment.id}`}
                       key={comment.id}
                     >
                       <Link href={`/user/${comment.author.id}`}>
