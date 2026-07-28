@@ -28,9 +28,9 @@ import {
 import type { ProfileMediaStorage } from "./profile-media-storage";
 
 export const PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES = 40 * 1024 * 1024;
+export const PROFILE_MEDIA_PERMANENT_PREFIX = "profiles/media";
+export const PROFILE_MEDIA_TEMPORARY_PREFIX = "profiles/temp";
 const CLEANUP_BATCH_SIZE = 2;
-const PERMANENT_PREFIX = "profiles/media";
-const TEMPORARY_PREFIX = "profiles/temp";
 
 type ProfileMediaDb = Pick<
   Context["db"],
@@ -83,7 +83,7 @@ function getSourceLimit(actor: ProfileMediaActor) {
 }
 
 function getTemporaryPrefix(actor: ProfileMediaActor, slot: ProfileMediaSlot) {
-  return `${TEMPORARY_PREFIX}/${slot}/${actor.id}/`;
+  return `${PROFILE_MEDIA_TEMPORARY_PREFIX}/${slot}/${actor.id}/`;
 }
 
 function getTemporaryObjectKey(actor: ProfileMediaActor, input: UploadInput) {
@@ -94,7 +94,7 @@ function getPermanentObjectKey(
   actor: ProfileMediaActor,
   slot: ProfileMediaSlot
 ) {
-  return `${PERMANENT_PREFIX}/${slot}/${actor.id}/${generateId()}.webp`;
+  return `${PROFILE_MEDIA_PERMANENT_PREFIX}/${slot}/${actor.id}/${generateId()}.webp`;
 }
 
 function translateValidationError(error: unknown): ProfileMediaError | null {

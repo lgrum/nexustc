@@ -17,6 +17,7 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: httpUrlSchema,
     CLOUDFLARE_ACCOUNT_ID: z.string(),
+    CLOUDFLARE_API_TOKEN: z.string().optional(),
     DATABASE_URL: z.string(),
     EXE_TOKEN: z.string(),
     PATREON_CAMPAIGN_ID: z.string(),
@@ -36,6 +37,7 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
+    CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
     DATABASE_URL: process.env.DATABASE_URL,
     EXE_TOKEN: process.env.EXE_TOKEN,
     NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED:
