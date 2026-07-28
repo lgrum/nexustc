@@ -4,6 +4,17 @@ import type { Context } from "../context";
 import profileRouter from "./profile";
 
 const mocks = vi.hoisted(() => ({
+  ProfileMediaError: class ProfileMediaError extends Error {
+    readonly code: string;
+    readonly data?: { retryAfter?: number };
+
+    constructor(code: string, data?: { retryAfter?: number }) {
+      super(code);
+      this.name = "ProfileMediaError";
+      this.code = code;
+      this.data = data;
+    }
+  },
   cache: {
     del: vi.fn(),
     getDel: vi.fn(),
@@ -11,19 +22,14 @@ const mocks = vi.hoisted(() => ({
     ttl: vi.fn(),
   },
   buildProfileSummaries: vi.fn(),
-  generateId: vi.fn(() => "upload-1"),
   getOrCreateProfileSettings: vi.fn(),
   getProfileEntitlements: vi.fn(),
-  getSignedUrl: vi.fn(),
-  inspectProfileMediaAsset: vi.fn(),
+  finalizeProfileMediaUpload: vi.fn(),
+  issueProfileMediaUpload: vi.fn(),
+  removeUserProfileMedia: vi.fn(),
   resolveProfileVisibility: vi.fn(),
-  s3Send: vi.fn(),
-  validateProfileMediaUpload: vi.fn(),
 }));
 
-vi.mock("@aws-sdk/s3-request-presigner", () => ({
-  getSignedUrl: mocks.getSignedUrl,
-}));
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
 vi.mock("@repo/auth", () => ({ auth: { api: {} } }));
 vi.mock("@repo/db", () => ({
@@ -43,53 +49,31 @@ vi.mock("@repo/db/schema/app", () => ({
   },
   user: { id: {} },
 }));
-vi.mock("@repo/db/utils", () => ({ generateId: mocks.generateId }));
-vi.mock("@repo/env", () => ({
-  env: { R2_ASSETS_BUCKET_NAME: "assets" },
-}));
 vi.mock("../services/profile", () => ({
-  PROFILE_MEDIA_MAX_BYTES: 5_000_000,
   buildProfileSummaries: mocks.buildProfileSummaries,
-  getObjectExtension: () => "webp",
   getOrCreateProfileSettings: mocks.getOrCreateProfileSettings,
   getProfileEntitlements: mocks.getProfileEntitlements,
   getPublicProfile: vi.fn(),
-  inspectProfileMediaAsset: mocks.inspectProfileMediaAsset,
   resolveProfileVisibility: mocks.resolveProfileVisibility,
-  validateProfileMediaUpload: mocks.validateProfileMediaUpload,
 }));
-vi.mock("../utils/s3", () => ({
-  getS3Client: () => ({ send: mocks.s3Send }),
+vi.mock("../services/profile-media", () => ({
+  PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES: 40 * 1024 * 1024,
+  ProfileMediaError: mocks.ProfileMediaError,
+  finalizeProfileMediaUpload: mocks.finalizeProfileMediaUpload,
+  issueProfileMediaUpload: mocks.issueProfileMediaUpload,
+  removeUserProfileMedia: mocks.removeUserProfileMedia,
 }));
-
+vi.mock("../services/profile-media-storage", () => ({
+  r2ProfileMediaStorage: { kind: "test-storage" },
+}));
 const input = {
   contentLength: 123,
   contentType: "image/webp" as const,
   objectKey: "profiles/avatar/user-1/upload-1.webp",
   slot: "avatar" as const,
 };
-const intent = {
-  ...input,
-  issuedToUserId: "user-1",
-};
-
-function createContext({ insertError }: { insertError?: Error } = {}) {
-  const returning = vi.fn();
-  if (insertError) {
-    returning.mockRejectedValue(insertError);
-  } else {
-    returning.mockResolvedValue([
-      {
-        id: "asset-1",
-        isAnimated: false,
-        objectKey: input.objectKey,
-      },
-    ]);
-  }
+function createContext() {
   const db = {
-    insert: vi.fn(() => ({
-      values: vi.fn(() => ({ returning })),
-    })),
     update: vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
     })),
@@ -164,14 +148,6 @@ beforeEach(() => {
           : {},
       reviews: typeof config.reviews === "boolean" ? config.reviews : true,
     };
-  });
-  mocks.getSignedUrl.mockResolvedValue("https://uploads.test/object");
-  mocks.inspectProfileMediaAsset.mockResolvedValue({
-    durationMs: null,
-    fileSizeBytes: input.contentLength,
-    height: 512,
-    isAnimated: false,
-    width: 512,
   });
 });
 
@@ -274,38 +250,12 @@ describe("profile notification settings", () => {
   });
 });
 
-describe("profile upload intents", () => {
-  it("reserves cooldown and intent before signing a create-only policy", async () => {
-    await call(
-      profileRouter.getUploadPolicy,
-      {
-        contentLength: input.contentLength,
-        contentType: input.contentType,
-        slot: input.slot,
-      },
-      { context: createContext() }
-    );
-
-    expect(mocks.cache.set).toHaveBeenCalledTimes(2);
-    expect(mocks.cache.set.mock.invocationCallOrder[1]).toBeLessThan(
-      mocks.getSignedUrl.mock.invocationCallOrder[0]!
-    );
-    const [, command] = mocks.getSignedUrl.mock.calls[0]!;
-    expect(command.input).toMatchObject({
-      ContentLength: input.contentLength,
-      ContentType: input.contentType,
-      IfNoneMatch: "*",
-      Key: input.objectKey,
+describe("profile media contracts", () => {
+  it("preserves the upload policy response contract", async () => {
+    mocks.issueProfileMediaUpload.mockResolvedValue({
+      objectKey: "profiles/temp/avatar/user-1/upload-1.webp",
+      presignedUrl: "https://uploads.test/object",
     });
-    expect(mocks.getSignedUrl).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      { expiresIn: 300 }
-    );
-  });
-
-  it("removes only its intent when signing fails", async () => {
-    mocks.getSignedUrl.mockRejectedValue(new Error("signing failed"));
 
     await expect(
       call(
@@ -317,80 +267,76 @@ describe("profile upload intents", () => {
         },
         { context: createContext() }
       )
-    ).rejects.toThrow("signing failed");
-
-    expect(mocks.cache.del).toHaveBeenCalledWith(
-      `profile:media-upload-intent:${input.objectKey}`
-    );
-    expect(mocks.cache.del).not.toHaveBeenCalledWith(
-      "profile:media-upload:avatar:user-1"
-    );
-  });
-
-  it("rejects missing, replayed, or mismatched intents before inspection", async () => {
-    mocks.cache.getDel
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(
-        JSON.stringify({ ...intent, issuedToUserId: "other" })
-      );
-
-    await expect(
-      call(profileRouter.finalizeUpload, input, { context: createContext() })
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    await expect(
-      call(profileRouter.finalizeUpload, input, { context: createContext() })
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-
-    expect(mocks.inspectProfileMediaAsset).not.toHaveBeenCalled();
-    expect(mocks.s3Send).toHaveBeenCalledTimes(1);
-    expect(mocks.cache.del).not.toHaveBeenCalled();
-  });
-
-  it("deletes rejected metadata but accepts one matching intent without clearing cooldown", async () => {
-    mocks.cache.getDel.mockResolvedValue(JSON.stringify(intent));
-    mocks.inspectProfileMediaAsset.mockRejectedValueOnce(
-      new Error("UPLOAD_METADATA_MISMATCH")
-    );
-
-    await expect(
-      call(profileRouter.finalizeUpload, input, { context: createContext() })
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-    expect(mocks.s3Send).toHaveBeenCalledTimes(1);
-    expect(mocks.cache.del).not.toHaveBeenCalled();
-
-    mocks.inspectProfileMediaAsset.mockResolvedValue({
-      durationMs: null,
-      fileSizeBytes: input.contentLength,
-      height: 512,
-      isAnimated: false,
-      width: 512,
+    ).resolves.toEqual({
+      objectKey: "profiles/temp/avatar/user-1/upload-1.webp",
+      presignedUrl: "https://uploads.test/object",
     });
-    await expect(
-      call(profileRouter.finalizeUpload, input, { context: createContext() })
-    ).resolves.toMatchObject({
-      assetId: "asset-1",
-      objectKey: input.objectKey,
-    });
-    expect(mocks.inspectProfileMediaAsset).toHaveBeenLastCalledWith(
-      input.objectKey,
-      {
-        contentLength: input.contentLength,
-        contentType: input.contentType,
-      }
-    );
-    expect(mocks.cache.del).not.toHaveBeenCalled();
-  });
-
-  it("deletes the uploaded object when asset persistence fails", async () => {
-    mocks.cache.getDel.mockResolvedValue(JSON.stringify(intent));
-
-    await expect(
-      call(profileRouter.finalizeUpload, input, {
-        context: createContext({ insertError: new Error("insert failed") }),
+    expect(mocks.issueProfileMediaUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ id: "user-1" }),
+        input: expect.objectContaining({ slot: "avatar" }),
       })
-    ).rejects.toThrow("insert failed");
+    );
+  });
 
-    expect(mocks.s3Send).toHaveBeenCalledTimes(1);
-    expect(mocks.cache.del).not.toHaveBeenCalled();
+  it("translates stable lifecycle errors without relabeling infrastructure failures", async () => {
+    mocks.finalizeProfileMediaUpload.mockRejectedValueOnce(
+      new mocks.ProfileMediaError("INVALID_INTENT")
+    );
+    await expect(
+      call(profileRouter.finalizeUpload, input, { context: createContext() })
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+    mocks.finalizeProfileMediaUpload.mockRejectedValueOnce(
+      new Error("database unavailable")
+    );
+    await expect(
+      call(profileRouter.finalizeUpload, input, { context: createContext() })
+    ).rejects.toThrow("database unavailable");
+  });
+
+  it("preserves finalize and removal response bodies", async () => {
+    mocks.finalizeProfileMediaUpload.mockResolvedValue({
+      assetId: "asset-1",
+      isAnimated: false,
+      objectKey: "profiles/media/avatar/user-1/asset-1.webp",
+    });
+
+    await expect(
+      call(profileRouter.finalizeUpload, input, { context: createContext() })
+    ).resolves.toEqual({
+      assetId: "asset-1",
+      isAnimated: false,
+      objectKey: "profiles/media/avatar/user-1/asset-1.webp",
+    });
+    await expect(
+      call(profileRouter.removeAvatar, undefined, {
+        context: createContext(),
+      })
+    ).resolves.toEqual({ success: true });
+    expect(mocks.removeUserProfileMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ slot: "avatar" })
+    );
+  });
+
+  it("retires the active banner when appearance switches to color", async () => {
+    mocks.getOrCreateProfileSettings.mockResolvedValueOnce({
+      bannerAssetId: "banner-1",
+    });
+
+    await expect(
+      call(
+        profileRouter.updateAppearance,
+        {
+          avatarFallbackColor: "#f59e0b",
+          bannerColor: "#111827",
+          bannerMode: "color",
+        },
+        { context: createContext() }
+      )
+    ).resolves.toEqual({ success: true });
+    expect(mocks.removeUserProfileMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ slot: "banner" })
+    );
   });
 });

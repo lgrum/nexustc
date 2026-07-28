@@ -1,34 +1,25 @@
-import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, getRedis, sql } from "@repo/db";
 import { profileMediaAsset, profileSettings, user } from "@repo/db/schema/app";
-import { generateId } from "@repo/db/utils";
-import { env } from "@repo/env";
 import { PATRON_TIERS } from "@repo/shared/constants";
 import z from "zod";
 
 import { protectedProcedure, publicProcedure } from "../index";
 import {
   buildProfileSummaries,
-  getObjectExtension,
   getOrCreateProfileSettings,
   getProfileEntitlements,
   getPublicProfile,
-  inspectProfileMediaAsset,
-  PROFILE_MEDIA_MAX_BYTES,
   resolveProfileVisibility,
-  validateProfileMediaUpload,
 } from "../services/profile";
 import {
-  consumeProfileMediaUploadIntent,
-  createProfileMediaUploadIntent,
-  deleteProfileMediaUploadIntent,
-  getProfileMediaUploadCooldownKey,
-  PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
-  reserveProfileMediaUploadCooldown,
-} from "../utils/profile-media-cooldown";
-import { getS3Client } from "../utils/s3";
+  finalizeProfileMediaUpload,
+  issueProfileMediaUpload,
+  ProfileMediaError,
+  PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES,
+  removeUserProfileMedia,
+} from "../services/profile-media";
+import { r2ProfileMediaStorage } from "../services/profile-media-storage";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
 const uploadContentTypeSchema = z.enum([
@@ -49,20 +40,47 @@ const visibilityUpdateSchema = z
     { message: "Debes actualizar al menos una preferencia de privacidad." }
   );
 
-function getUploadObjectKey(
-  slot: "avatar" | "banner",
-  userId: string,
-  contentType: string
-) {
-  const extension = getObjectExtension(contentType);
-  return `profiles/${slot}/${userId}/${generateId()}.${extension}`;
+function throwProfileMediaError(
+  error: unknown,
+  errors: Parameters<
+    Parameters<typeof protectedProcedure.handler>[0]
+  >[0]["errors"]
+): never {
+  if (!(error instanceof ProfileMediaError)) {
+    throw error;
+  }
+  if (error.code === "RATE_LIMITED") {
+    throw errors.RATE_LIMITED({
+      data: { retryAfter: error.data?.retryAfter ?? 0 },
+    });
+  }
+  if (error.code === "BANNER_NOT_ALLOWED") {
+    throw errors.FORBIDDEN({ message: "No puedes subir banners." });
+  }
+  if (error.code === "INVALID_OBJECT_KEY") {
+    throw errors.FORBIDDEN({ message: "Asset inválido." });
+  }
+
+  const message =
+    error.code === "INVALID_INTENT"
+      ? "Invalid upload intent."
+      : error.code === "SOURCE_TOO_LARGE" || error.code === "OUTPUT_TOO_LARGE"
+        ? "El archivo es demasiado grande."
+        : error.code === "ANIMATION_NOT_ALLOWED"
+          ? "No puedes usar este contenido animado."
+          : "Asset inválido.";
+  throw errors.BAD_REQUEST({ message });
 }
 
 export default {
   finalizeUpload: protectedProcedure
     .input(
       z.object({
-        contentLength: z.number().int().positive().max(PROFILE_MEDIA_MAX_BYTES),
+        contentLength: z
+          .number()
+          .int()
+          .positive()
+          .max(PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES),
         contentType: uploadContentTypeSchema,
         objectKey: z.string().min(1),
         slot: z.enum(["avatar", "banner"]),
@@ -74,111 +92,21 @@ export default {
         `Finalizing ${input.slot} upload for user ${session.user.id}`
       );
 
-      const expectedPrefix = `profiles/${input.slot}/${session.user.id}/`;
-      if (!input.objectKey.startsWith(expectedPrefix)) {
-        throw errors.FORBIDDEN({ message: "Asset inválido." });
-      }
-
-      const deleteRejectedUpload = async () => {
-        try {
-          await getS3Client().send(
-            new DeleteObjectCommand({
-              Bucket: env.R2_ASSETS_BUCKET_NAME,
-              Key: input.objectKey,
-            })
-          );
-        } catch (cleanupError) {
-          logger?.warn(`Failed to delete rejected asset ${input.objectKey}`);
-          logger?.warn(cleanupError);
-        }
-      };
-
-      const cache = await getRedis();
-      const intent = await consumeProfileMediaUploadIntent(
-        cache,
-        input.objectKey
-      );
-      if (!intent) {
-        throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
-      }
-
-      if (
-        intent.issuedToUserId !== session.user.id ||
-        intent.slot !== input.slot ||
-        intent.objectKey !== input.objectKey ||
-        intent.contentType !== input.contentType ||
-        intent.contentLength !== input.contentLength
-      ) {
-        await deleteRejectedUpload();
-        throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
-      }
-
-      const entitlements = await getProfileEntitlements(
-        db,
-        session.user.id,
-        session.user.role
-      );
-      let validation: Awaited<ReturnType<typeof inspectProfileMediaAsset>>;
-
       try {
-        validation = await inspectProfileMediaAsset(input.objectKey, {
-          contentLength: input.contentLength,
-          contentType: input.contentType,
-        });
-        validateProfileMediaUpload({
-          contentType: input.contentType,
-          entitlements,
-          slot: input.slot,
-          validation,
+        return await finalizeProfileMediaUpload({
+          actor: session.user,
+          cache: await getRedis(),
+          db,
+          input,
+          onCleanupError: (cleanupError, objectKey) => {
+            logger?.warn(`Failed to clean Profile Media ${objectKey}`);
+            logger?.warn(cleanupError);
+          },
+          storage: r2ProfileMediaStorage,
         });
       } catch (error) {
-        await deleteRejectedUpload();
-        throw errors.BAD_REQUEST({
-          message: error instanceof Error ? error.message : "Asset inválido.",
-        });
+        throwProfileMediaError(error, errors);
       }
-
-      let asset: typeof profileMediaAsset.$inferSelect | undefined;
-
-      try {
-        [asset] = await db
-          .insert(profileMediaAsset)
-          .values({
-            durationMs: validation.durationMs,
-            fileSizeBytes: validation.fileSizeBytes,
-            height: validation.height,
-            isAnimated: validation.isAnimated,
-            mimeType: input.contentType,
-            objectKey: input.objectKey,
-            ownerUserId: session.user.id,
-            slot: input.slot,
-            validationStatus: "ready",
-            width: validation.width,
-          })
-          .returning();
-      } catch (error) {
-        await deleteRejectedUpload();
-        throw error;
-      }
-
-      if (input.slot === "avatar") {
-        await db
-          .update(user)
-          .set({ image: input.objectKey })
-          .where(eq(user.id, session.user.id));
-      } else {
-        await getOrCreateProfileSettings(db, session.user.id);
-        await db
-          .update(profileSettings)
-          .set({ bannerAssetId: asset!.id, bannerMode: "image" })
-          .where(eq(profileSettings.userId, session.user.id));
-      }
-
-      return {
-        assetId: asset!.id,
-        isAnimated: asset!.isAnimated,
-        objectKey: asset!.objectKey,
-      };
     }),
 
   getMySettings: protectedProcedure.handler(
@@ -253,7 +181,11 @@ export default {
   getUploadPolicy: protectedProcedure
     .input(
       z.object({
-        contentLength: z.number().int().positive().max(PROFILE_MEDIA_MAX_BYTES),
+        contentLength: z
+          .number()
+          .int()
+          .positive()
+          .max(PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES),
         contentType: uploadContentTypeSchema,
         slot: z.enum(["avatar", "banner"]),
       })
@@ -263,66 +195,20 @@ export default {
       logger?.info(
         `Generating upload policy for ${input.slot} by user ${session.user.id}`
       );
-      const entitlements = await getProfileEntitlements(
-        db,
-        session.user.id,
-        session.user.role
-      );
-
-      if (input.slot === "banner" && !entitlements.canUseUploadedBanner) {
-        throw errors.FORBIDDEN({ message: "No puedes subir banners." });
-      }
-
-      const cache = await getRedis();
-      const cooldown = await reserveProfileMediaUploadCooldown(
-        cache,
-        getProfileMediaUploadCooldownKey(session.user.id, input.slot)
-      );
-
-      if (!cooldown.reserved) {
-        throw errors.RATE_LIMITED({
-          data: { retryAfter: cooldown.retryAfter },
-        });
-      }
-
-      const objectKey = getUploadObjectKey(
-        input.slot,
-        session.user.id,
-        input.contentType
-      );
-      const intentCreated = await createProfileMediaUploadIntent(cache, {
-        contentLength: input.contentLength,
-        contentType: input.contentType,
-        issuedToUserId: session.user.id,
-        objectKey,
-        slot: input.slot,
-      });
-      if (!intentCreated) {
-        throw errors.INTERNAL_SERVER_ERROR();
-      }
-
       try {
-        const presignedUrl = await getSignedUrl(
-          getS3Client(),
-          new PutObjectCommand({
-            Bucket: env.R2_ASSETS_BUCKET_NAME,
-            ContentLength: input.contentLength,
-            ContentType: input.contentType,
-            IfNoneMatch: "*",
-            Key: objectKey,
-          }),
-          { expiresIn: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS }
-        );
-
-        return { objectKey, presignedUrl };
+        return await issueProfileMediaUpload({
+          actor: session.user,
+          cache: await getRedis(),
+          db,
+          input,
+          onCleanupError: (cleanupError, objectKey) => {
+            logger?.warn(`Failed to clean Profile Media ${objectKey}`);
+            logger?.warn(cleanupError);
+          },
+          storage: r2ProfileMediaStorage,
+        });
       } catch (error) {
-        try {
-          await deleteProfileMediaUploadIntent(cache, objectKey);
-        } catch (cleanupError) {
-          logger?.warn(`Failed to delete upload intent for ${objectKey}`);
-          logger?.warn(cleanupError);
-        }
-        throw error;
+        throwProfileMediaError(error, errors);
       }
     }),
 
@@ -330,10 +216,12 @@ export default {
     async ({ context: { db, session, ...ctx } }) => {
       const logger = getLogger(ctx);
       logger?.info(`Removing avatar for user ${session.user.id}`);
-      await db
-        .update(user)
-        .set({ image: null })
-        .where(eq(user.id, session.user.id));
+      await removeUserProfileMedia({
+        actor: session.user,
+        db,
+        slot: "avatar",
+        storage: r2ProfileMediaStorage,
+      });
       return { success: true };
     }
   ),
@@ -342,11 +230,12 @@ export default {
     async ({ context: { db, session, ...ctx } }) => {
       const logger = getLogger(ctx);
       logger?.info(`Removing banner for user ${session.user.id}`);
-      await getOrCreateProfileSettings(db, session.user.id);
-      await db
-        .update(profileSettings)
-        .set({ bannerAssetId: null, bannerMode: "color" })
-        .where(eq(profileSettings.userId, session.user.id));
+      await removeUserProfileMedia({
+        actor: session.user,
+        db,
+        slot: "banner",
+        storage: r2ProfileMediaStorage,
+      });
       return { success: true };
     }
   ),
@@ -456,6 +345,18 @@ export default {
         }
       }
 
+      if (input.bannerMode === "color") {
+        await removeUserProfileMedia({
+          actor: session.user,
+          avatarFallbackColor: input.avatarFallbackColor,
+          bannerColor: input.bannerColor,
+          db,
+          slot: "banner",
+          storage: r2ProfileMediaStorage,
+        });
+        return { success: true };
+      }
+
       await Promise.all([
         db
           .update(user)
@@ -464,12 +365,9 @@ export default {
         db
           .update(profileSettings)
           .set({
-            bannerAssetId:
-              input.bannerMode === "image"
-                ? (input.bannerAssetId ?? currentSettings.bannerAssetId)
-                : null,
+            bannerAssetId: input.bannerAssetId ?? currentSettings.bannerAssetId,
             bannerColor: input.bannerColor,
-            bannerMode: input.bannerMode,
+            bannerMode: "image",
           })
           .where(eq(profileSettings.userId, session.user.id)),
       ]);

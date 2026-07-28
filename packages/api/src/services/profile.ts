@@ -41,6 +41,7 @@ import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { getS3Client } from "../utils/s3";
 
 type Database = typeof database;
+export type ProfileEntitlementDb = Pick<Database, "query">;
 
 export type ProfileEntitlements = {
   canUseAnimatedAvatar: boolean;
@@ -196,7 +197,10 @@ function clampVisibleEmblems(
     .slice(0, maxVisibleEmblems);
 }
 
-export async function getUserPatronTier(db: Database, userId: string) {
+export async function getUserPatronTier(
+  db: ProfileEntitlementDb,
+  userId: string
+) {
   const patronRecord = await db.query.patron.findFirst({
     columns: { isActivePatron: true, tier: true },
     where: eq(patron.userId, userId),
@@ -235,7 +239,7 @@ export function getProfileEntitlementsForTier(
 }
 
 export async function getProfileEntitlements(
-  db: Database,
+  db: ProfileEntitlementDb,
   userId: string,
   role?: string | null
 ): Promise<ProfileEntitlements> {

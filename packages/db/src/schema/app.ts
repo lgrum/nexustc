@@ -925,6 +925,24 @@ export const profileMediaAsset = pgTable(
   ]
 );
 
+export const profileMediaDeletion = pgTable(
+  "profile_media_deletion",
+  {
+    objectKey: text("object_key").primaryKey(),
+    retryAfter: timestamp("retry_after", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    retryCount: integer("retry_count").notNull().default(0),
+    ...timestamps,
+  },
+  (table) => [
+    index("profile_media_deletion_retry_idx").on(
+      table.retryAfter,
+      table.createdAt
+    ),
+  ]
+);
+
 export const profileSettings = pgTable(
   "profile_settings",
   {
