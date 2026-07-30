@@ -93,7 +93,7 @@ export default {
       );
 
       try {
-        return await finalizeProfileMediaUpload({
+        const asset = await finalizeProfileMediaUpload({
           actor: session.user,
           cache: await getRedis(),
           db,
@@ -104,6 +104,11 @@ export default {
           },
           storage: r2ProfileMediaStorage,
         });
+        return {
+          assetId: asset.id,
+          isAnimated: asset.isAnimated,
+          objectKey: asset.objectKey,
+        };
       } catch (error) {
         throwProfileMediaError(error, errors);
       }

@@ -85,6 +85,7 @@ function createFinalizeDb(oldObjectKey: string) {
       values: table === profileMediaAsset ? assetValues : ledgerValues,
     })),
     query: {
+      media: { findMany: vi.fn().mockResolvedValue([]) },
       profileMediaAsset: {
         findFirst: vi.fn().mockResolvedValue({ id: "asset-old" }),
         findMany: vi
@@ -170,7 +171,7 @@ describe("finalizeProfileMediaUpload", () => {
         storage,
       })
     ).resolves.toEqual({
-      assetId: "asset-new",
+      id: "asset-new",
       isAnimated: false,
       objectKey: "profiles/media/avatar/user-1/canonical-1.webp",
     });
@@ -242,6 +243,98 @@ describe("finalizeProfileMediaUpload", () => {
     expect(cache.getDel).not.toHaveBeenCalled();
     expect(storage.has(objectKey)).toBeTruthy();
   });
+
+  it.each(["role-icon", "role-overlay", "emblem-icon"] as const)(
+    "canonicalizes %s without activating user media",
+    async (slot) => {
+      const sourceKey = `profiles/temp/${slot}/owner-1/source.png`;
+      const input = {
+        contentLength: 6,
+        contentType: "image/png",
+        objectKey: sourceKey,
+        slot,
+      };
+      const storage = new InMemoryProfileMediaStorage();
+      storage.seed(sourceKey, Buffer.from("source"), "image/png");
+      const asset = {
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        durationMs: null,
+        fileSizeBytes: 9,
+        height: 512,
+        id: `asset-${slot}`,
+        isAnimated: false,
+        mimeType: "image/webp",
+        objectKey: `profiles/media/${slot}/owner-1/canonical-1.webp`,
+        ownerUserId: "owner-1",
+        slot,
+        updatedAt: new Date("2026-01-01T00:00:00Z"),
+        validationStatus: "ready" as const,
+        width: 512,
+      };
+      const tx = {
+        insert: vi.fn(() => ({
+          values: vi.fn(() => ({
+            returning: vi.fn().mockResolvedValue([asset]),
+          })),
+        })),
+      };
+      const db = {
+        ...createCleanupDb(),
+        transaction: vi.fn(
+          async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+            await callback(tx)
+        ),
+      };
+
+      await expect(
+        finalizeProfileMediaUpload({
+          actor: { id: "owner-1", role: "owner" },
+          cache: createCache({ ...input, issuedToUserId: "owner-1" }) as never,
+          db: db as never,
+          input,
+          storage,
+        })
+      ).resolves.toEqual(asset);
+
+      expect(storage.has(sourceKey)).toBeFalsy();
+      expect(
+        storage.has(`profiles/media/${slot}/owner-1/canonical-1.webp`)
+      ).toBeTruthy();
+    }
+  );
+
+  it("caps owner canonical output at 10 MiB", async () => {
+    const sourceKey = "profiles/temp/role-overlay/owner-1/source.gif";
+    const input = {
+      contentLength: 6,
+      contentType: "image/gif",
+      objectKey: sourceKey,
+      slot: "role-overlay" as const,
+    };
+    const storage = new InMemoryProfileMediaStorage();
+    storage.seed(sourceKey, Buffer.from("source"), "image/gif");
+    mocks.optimizeImageBuffer.mockResolvedValueOnce({
+      buffer: Buffer.from("oversized"),
+      durationMs: 1000,
+      extension: "webp",
+      fileSizeBytes: 10 * 1024 * 1024 + 1,
+      height: 512,
+      isAnimated: true,
+      mimeType: "image/webp",
+      width: 512,
+    });
+
+    await expect(
+      finalizeProfileMediaUpload({
+        actor: { id: "owner-1", role: "owner" },
+        cache: createCache({ ...input, issuedToUserId: "owner-1" }) as never,
+        db: {} as never,
+        input,
+        storage,
+      })
+    ).rejects.toMatchObject({ code: "OUTPUT_TOO_LARGE" });
+    expect(storage.has(sourceKey)).toBeFalsy();
+  });
 });
 
 describe("issueProfileMediaUpload", () => {
@@ -281,6 +374,27 @@ describe("issueProfileMediaUpload", () => {
       { EX: 300, NX: true }
     );
   });
+
+  it.each(["role-icon", "role-overlay", "emblem-icon"] as const)(
+    "issues the bounded owner upload for %s",
+    async (slot) => {
+      await expect(
+        issueProfileMediaUpload({
+          actor: { id: "owner-1", role: "owner" },
+          cache: createIssueCache() as never,
+          db: createCleanupDb() as never,
+          input: {
+            contentLength: 40 * 1024 * 1024,
+            contentType: "image/gif",
+            slot,
+          },
+          storage: new InMemoryProfileMediaStorage(),
+        })
+      ).resolves.toMatchObject({
+        objectKey: `profiles/temp/${slot}/owner-1/canonical-1.gif`,
+      });
+    }
+  );
 });
 
 describe("cleanupProfileMediaDeletions", () => {
@@ -346,6 +460,7 @@ describe("Profile Media reference changes", () => {
             : ledgerValues,
       })),
       query: {
+        media: { findMany: vi.fn().mockResolvedValue([]) },
         profileMediaAsset: {
           findMany: vi.fn().mockResolvedValue([{ id: "asset-old", objectKey }]),
         },
@@ -390,10 +505,65 @@ describe("Profile Media reference changes", () => {
     expect(storage.has(objectKey)).toBeFalsy();
   });
 
-  it("retires only unreferenced assets after a managed reference change", async () => {
-    const objectKey = "profiles/media/role-icon/owner-1/old.webp";
+  it.each(["role-icon", "role-overlay", "emblem-icon"] as const)(
+    "assigns a replacement and retires removed %s media",
+    async (slot) => {
+      const objectKey = `profiles/media/${slot}/owner-1/old.webp`;
+      const storage = new InMemoryProfileMediaStorage();
+      storage.seed(objectKey, Buffer.from("old"), "image/webp");
+      const ledgerValues = vi.fn(() => ({
+        onConflictDoNothing: vi.fn().mockResolvedValue(null),
+      }));
+      const tx = {
+        delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+        insert: vi.fn(() => ({ values: ledgerValues })),
+        query: {
+          media: { findMany: vi.fn().mockResolvedValue([]) },
+          profileEmblemDefinition: {
+            findMany: vi.fn().mockResolvedValue([]),
+          },
+          profileMediaAsset: {
+            findMany: vi
+              .fn()
+              .mockResolvedValue([{ id: "asset-old", objectKey }]),
+          },
+          profileRoleDefinition: {
+            findMany: vi.fn().mockResolvedValue([]),
+          },
+          profileSettings: {
+            findMany: vi.fn().mockResolvedValue([]),
+          },
+        },
+      };
+      const db = {
+        ...createCleanupDb([{ objectKey, retryCount: 0 }]),
+        transaction: vi.fn(
+          async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+            await callback(tx)
+        ),
+      };
+
+      await expect(
+        changeManagedProfileMedia({
+          db: db as never,
+          mutate: vi.fn().mockResolvedValue({
+            retiredAssetIds: ["asset-old"],
+            value: "updated",
+          }),
+          storage,
+        })
+      ).resolves.toBe("updated");
+      expect(ledgerValues).toHaveBeenCalledWith([{ objectKey }]);
+      expect(storage.has(objectKey)).toBeFalsy();
+    }
+  );
+
+  it("keeps shared managed references and retires only detached media", async () => {
+    const detachedKey = "profiles/media/role-icon/owner-1/detached.webp";
+    const sharedKey = "profiles/media/role-icon/owner-1/shared.webp";
     const storage = new InMemoryProfileMediaStorage();
-    storage.seed(objectKey, Buffer.from("old"), "image/webp");
+    storage.seed(detachedKey, Buffer.from("detached"), "image/webp");
+    storage.seed(sharedKey, Buffer.from("shared"), "image/webp");
     const ledgerValues = vi.fn(() => ({
       onConflictDoNothing: vi.fn().mockResolvedValue(null),
     }));
@@ -401,11 +571,72 @@ describe("Profile Media reference changes", () => {
       delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
       insert: vi.fn(() => ({ values: ledgerValues })),
       query: {
+        media: { findMany: vi.fn().mockResolvedValue([]) },
         profileEmblemDefinition: {
           findMany: vi.fn().mockResolvedValue([]),
         },
         profileMediaAsset: {
-          findMany: vi.fn().mockResolvedValue([{ id: "asset-old", objectKey }]),
+          findMany: vi
+            .fn()
+            .mockResolvedValue([
+              { id: "asset-detached", objectKey: detachedKey },
+            ]),
+        },
+        profileRoleDefinition: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([
+              { iconAssetId: "asset-shared", overlayAssetId: null },
+            ]),
+        },
+        profileSettings: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+      },
+    };
+    const db = {
+      ...createCleanupDb([{ objectKey: detachedKey, retryCount: 0 }]),
+      transaction: vi.fn(
+        async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          await callback(tx)
+      ),
+    };
+
+    await changeManagedProfileMedia({
+      db: db as never,
+      mutate: vi.fn().mockResolvedValue({
+        retiredAssetIds: ["asset-detached", "asset-shared"],
+        value: "updated",
+      }),
+      storage,
+    });
+
+    expect(ledgerValues).toHaveBeenCalledWith([{ objectKey: detachedKey }]);
+    expect(storage.has(detachedKey)).toBeFalsy();
+    expect(storage.has(sharedKey)).toBeTruthy();
+  });
+
+  it("does not queue a managed asset object still owned by the media library", async () => {
+    const objectKey = "emblemas/shared.webp";
+    const storage = new InMemoryProfileMediaStorage();
+    storage.seed(objectKey, Buffer.from("shared"), "image/webp");
+    const ledgerValues = vi.fn(() => ({
+      onConflictDoNothing: vi.fn().mockResolvedValue(null),
+    }));
+    const tx = {
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      insert: vi.fn(() => ({ values: ledgerValues })),
+      query: {
+        media: {
+          findMany: vi.fn().mockResolvedValue([{ objectKey }]),
+        },
+        profileEmblemDefinition: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        profileMediaAsset: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([{ id: "asset-shared", objectKey }]),
         },
         profileRoleDefinition: {
           findMany: vi.fn().mockResolvedValue([]),
@@ -416,6 +647,58 @@ describe("Profile Media reference changes", () => {
       },
     };
     const db = {
+      ...createCleanupDb(),
+      transaction: vi.fn(
+        async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          await callback(tx)
+      ),
+    };
+
+    await changeManagedProfileMedia({
+      db: db as never,
+      mutate: vi.fn().mockResolvedValue({
+        retiredAssetIds: ["asset-shared"],
+        value: "updated",
+      }),
+      storage,
+    });
+
+    expect(ledgerValues).not.toHaveBeenCalled();
+    expect(tx.delete).toHaveBeenCalledWith(profileMediaAsset);
+    expect(storage.has(objectKey)).toBeTruthy();
+  });
+
+  it("retires finalized managed media left unassigned beyond the grace period", async () => {
+    const objectKey = "profiles/media/emblem-icon/owner-1/unassigned.webp";
+    const storage = new InMemoryProfileMediaStorage();
+    storage.seed(objectKey, Buffer.from("unassigned"), "image/webp");
+    const ledgerValues = vi.fn(() => ({
+      onConflictDoNothing: vi.fn().mockResolvedValue(null),
+    }));
+    const assetFindMany = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          createdAt: new Date("2026-01-01T00:00:00Z"),
+          id: "asset-unassigned",
+        },
+      ])
+      .mockResolvedValueOnce([{ id: "asset-unassigned", objectKey }]);
+    const tx = {
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      insert: vi.fn(() => ({ values: ledgerValues })),
+      query: {
+        media: { findMany: vi.fn().mockResolvedValue([]) },
+        profileEmblemDefinition: { findMany: vi.fn().mockResolvedValue([]) },
+        profileMediaAsset: { findMany: assetFindMany },
+        profileRoleDefinition: { findMany: vi.fn().mockResolvedValue([]) },
+        profileSettings: { findMany: vi.fn().mockResolvedValue([]) },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn().mockReturnValue({}) })),
+      })),
+    };
+    const db = {
       ...createCleanupDb([{ objectKey, retryCount: 0 }]),
       transaction: vi.fn(
         async (callback: (transaction: typeof tx) => Promise<unknown>) =>
@@ -423,17 +706,67 @@ describe("Profile Media reference changes", () => {
       ),
     };
 
-    await expect(
-      changeManagedProfileMedia({
-        db: db as never,
-        mutate: vi.fn().mockResolvedValue({
-          retiredAssetIds: ["asset-old"],
-          value: "updated",
-        }),
-        storage,
-      })
-    ).resolves.toBe("updated");
+    await changeManagedProfileMedia({
+      db: db as never,
+      mutate: vi.fn().mockResolvedValue({
+        retiredAssetIds: [],
+        value: "unchanged",
+      }),
+      now: new Date("2026-01-03T00:00:00Z"),
+      storage,
+    });
+
     expect(ledgerValues).toHaveBeenCalledWith([{ objectKey }]);
     expect(storage.has(objectKey)).toBeFalsy();
+  });
+
+  it("keeps freshly finalized managed media available to active forms", async () => {
+    const objectKey = "profiles/media/emblem-icon/owner-1/fresh.webp";
+    const storage = new InMemoryProfileMediaStorage();
+    storage.seed(objectKey, Buffer.from("fresh"), "image/webp");
+    const ledgerValues = vi.fn(() => ({
+      onConflictDoNothing: vi.fn().mockResolvedValue(null),
+    }));
+    const tx = {
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      insert: vi.fn(() => ({ values: ledgerValues })),
+      query: {
+        media: { findMany: vi.fn().mockResolvedValue([]) },
+        profileEmblemDefinition: { findMany: vi.fn().mockResolvedValue([]) },
+        profileMediaAsset: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              createdAt: new Date("2026-01-02T23:00:00Z"),
+              id: "asset-fresh",
+            },
+          ]),
+        },
+        profileRoleDefinition: { findMany: vi.fn().mockResolvedValue([]) },
+        profileSettings: { findMany: vi.fn().mockResolvedValue([]) },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({ where: vi.fn().mockReturnValue({}) })),
+      })),
+    };
+    const db = {
+      ...createCleanupDb(),
+      transaction: vi.fn(
+        async (callback: (transaction: typeof tx) => Promise<unknown>) =>
+          await callback(tx)
+      ),
+    };
+
+    await changeManagedProfileMedia({
+      db: db as never,
+      mutate: vi.fn().mockResolvedValue({
+        retiredAssetIds: [],
+        value: "unchanged",
+      }),
+      now: new Date("2026-01-03T00:00:00Z"),
+      storage,
+    });
+
+    expect(ledgerValues).not.toHaveBeenCalled();
+    expect(storage.has(objectKey)).toBeTruthy();
   });
 });

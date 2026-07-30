@@ -1,11 +1,15 @@
-import { and, asc, eq, inArray, lte } from "@repo/db";
+import { and, asc, eq, exists, inArray, lte, not, or } from "@repo/db";
 import {
+  media,
+  profileEmblemDefinition,
   profileMediaAsset,
   profileMediaDeletion,
+  profileRoleDefinition,
   profileSettings,
   user,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
+import { MANAGED_PROFILE_MEDIA_SLOTS } from "@repo/shared/profile";
 import type { ProfileMediaSlot } from "@repo/shared/profile";
 import type { RedisClientType } from "redis";
 
@@ -31,6 +35,7 @@ export const PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES = 40 * 1024 * 1024;
 export const PROFILE_MEDIA_PERMANENT_PREFIX = "profiles/media";
 export const PROFILE_MEDIA_TEMPORARY_PREFIX = "profiles/temp";
 const CLEANUP_BATCH_SIZE = 2;
+const MANAGED_MEDIA_GRACE_MS = 24 * 60 * 60 * 1000;
 
 type ProfileMediaDb = Pick<
   Context["db"],
@@ -47,6 +52,14 @@ type UploadInput = {
 };
 type FinalizeInput = UploadInput & {
   objectKey: string;
+};
+type FinalizeProfileMediaParams = {
+  actor: ProfileMediaActor;
+  cache: RedisClientType;
+  db: ProfileMediaDb;
+  input: FinalizeInput;
+  onCleanupError?: (error: unknown, objectKey: string) => void;
+  storage: ProfileMediaStorage;
 };
 
 export type ProfileMediaErrorCode =
@@ -80,6 +93,14 @@ function getSourceLimit(actor: ProfileMediaActor) {
   return actor.role === "owner"
     ? PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES
     : PROFILE_MEDIA_MAX_BYTES;
+}
+
+function isManagedProfileMediaSlot(
+  slot: ProfileMediaSlot
+): slot is (typeof MANAGED_PROFILE_MEDIA_SLOTS)[number] {
+  return MANAGED_PROFILE_MEDIA_SLOTS.includes(
+    slot as (typeof MANAGED_PROFILE_MEDIA_SLOTS)[number]
+  );
 }
 
 function getTemporaryPrefix(actor: ProfileMediaActor, slot: ProfileMediaSlot) {
@@ -162,10 +183,25 @@ async function retireAssets(
     return;
   }
 
-  await tx
-    .insert(profileMediaDeletion)
-    .values(assets.map(({ objectKey }) => ({ objectKey })))
-    .onConflictDoNothing();
+  const sharedObjects = await tx.query.media.findMany({
+    columns: { objectKey: true },
+    where: inArray(
+      media.objectKey,
+      assets.map(({ objectKey }) => objectKey)
+    ),
+  });
+  const sharedObjectKeys = new Set(
+    sharedObjects.map(({ objectKey }) => objectKey)
+  );
+  const deletions = assets
+    .filter(({ objectKey }) => !sharedObjectKeys.has(objectKey))
+    .map(({ objectKey }) => ({ objectKey }));
+  if (deletions.length > 0) {
+    await tx
+      .insert(profileMediaDeletion)
+      .values(deletions)
+      .onConflictDoNothing();
+  }
   await tx.delete(profileMediaAsset).where(
     inArray(
       profileMediaAsset.id,
@@ -189,8 +225,8 @@ async function findUnreferencedAssetIds(
     }),
     tx.query.profileRoleDefinition.findMany({
       columns: { iconAssetId: true, overlayAssetId: true },
-      where: (table, { or }) =>
-        or(
+      where: (table, { or: orWhere }) =>
+        orWhere(
           inArray(table.iconAssetId, candidates),
           inArray(table.overlayAssetId, candidates)
         ),
@@ -262,6 +298,63 @@ export async function cleanupProfileMediaDeletions(params: {
   }
 }
 
+async function cleanupUnassignedManagedProfileMedia(params: {
+  db: ProfileMediaDb;
+  now?: Date;
+  onCleanupError?: (error: unknown, objectKey: string) => void;
+}) {
+  const now = params.now ?? new Date();
+  const cutoff = new Date(now.getTime() - MANAGED_MEDIA_GRACE_MS);
+  try {
+    await params.db.transaction(async (tx) => {
+      const staleAssets = await tx.query.profileMediaAsset.findMany({
+        columns: { createdAt: true, id: true },
+        limit: CLEANUP_BATCH_SIZE,
+        orderBy: asc(profileMediaAsset.createdAt),
+        where: and(
+          inArray(profileMediaAsset.slot, [...MANAGED_PROFILE_MEDIA_SLOTS]),
+          eq(profileMediaAsset.validationStatus, "ready"),
+          lte(profileMediaAsset.createdAt, cutoff),
+          not(
+            exists(
+              tx
+                .select({ id: profileRoleDefinition.id })
+                .from(profileRoleDefinition)
+                .where(
+                  or(
+                    eq(profileRoleDefinition.iconAssetId, profileMediaAsset.id),
+                    eq(
+                      profileRoleDefinition.overlayAssetId,
+                      profileMediaAsset.id
+                    )
+                  )
+                )
+            )
+          ),
+          not(
+            exists(
+              tx
+                .select({ id: profileEmblemDefinition.id })
+                .from(profileEmblemDefinition)
+                .where(
+                  eq(profileEmblemDefinition.iconAssetId, profileMediaAsset.id)
+                )
+            )
+          )
+        ),
+      });
+      await retireAssets(
+        tx,
+        staleAssets
+          .filter(({ createdAt }) => createdAt <= cutoff)
+          .map(({ id }) => id)
+      );
+    });
+  } catch (error) {
+    params.onCleanupError?.(error, "unassigned-profile-media");
+  }
+}
+
 export async function issueProfileMediaUpload(params: {
   actor: ProfileMediaActor;
   cache: RedisClientType;
@@ -306,6 +399,9 @@ export async function issueProfileMediaUpload(params: {
       expiresIn: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
       objectKey,
     });
+    if (isManagedProfileMediaSlot(input.slot)) {
+      await cleanupUnassignedManagedProfileMedia(params);
+    }
     await cleanupProfileMediaDeletions(params);
     return { objectKey, presignedUrl };
   } catch (error) {
@@ -317,14 +413,9 @@ export async function issueProfileMediaUpload(params: {
   }
 }
 
-export async function finalizeProfileMediaUpload(params: {
-  actor: ProfileMediaActor;
-  cache: RedisClientType;
-  db: ProfileMediaDb;
-  input: FinalizeInput;
-  onCleanupError?: (error: unknown, objectKey: string) => void;
-  storage: ProfileMediaStorage;
-}) {
+export async function finalizeProfileMediaUpload(
+  params: FinalizeProfileMediaParams
+) {
   const { actor, cache, db, input, storage } = params;
   if (!input.objectKey.startsWith(getTemporaryPrefix(actor, input.slot))) {
     throw new ProfileMediaError("INVALID_OBJECT_KEY");
@@ -443,12 +534,11 @@ export async function finalizeProfileMediaUpload(params: {
   }
 
   await bestEffortDelete(storage, input.objectKey, params.onCleanupError);
+  if (isManagedProfileMediaSlot(input.slot)) {
+    await cleanupUnassignedManagedProfileMedia(params);
+  }
   await cleanupProfileMediaDeletions(params);
-  return {
-    assetId: asset.id,
-    isAnimated: asset.isAnimated,
-    objectKey: asset.objectKey,
-  };
+  return asset;
 }
 
 export async function removeUserProfileMedia(params: {
@@ -519,6 +609,7 @@ export async function changeManagedProfileMedia<T>(params: {
   mutate: (
     tx: Parameters<Parameters<ProfileMediaDb["transaction"]>[0]>[0]
   ) => Promise<{ retiredAssetIds: string[]; value: T }>;
+  now?: Date;
   onCleanupError?: (error: unknown, objectKey: string) => void;
   storage: ProfileMediaStorage;
 }) {
@@ -528,6 +619,7 @@ export async function changeManagedProfileMedia<T>(params: {
     await retireAssets(tx, obsolete);
     return change.value;
   });
+  await cleanupUnassignedManagedProfileMedia(params);
   await cleanupProfileMediaDeletions(params);
   return value;
 }

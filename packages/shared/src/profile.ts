@@ -1,11 +1,15 @@
 export const PROFILE_BANNER_MODES = ["color", "image"] as const;
 
-export const PROFILE_MEDIA_SLOTS = [
-  "avatar",
-  "banner",
+export const MANAGED_PROFILE_MEDIA_SLOTS = [
   "role-icon",
   "role-overlay",
   "emblem-icon",
+] as const;
+
+export const PROFILE_MEDIA_SLOTS = [
+  "avatar",
+  "banner",
+  ...MANAGED_PROFILE_MEDIA_SLOTS,
 ] as const;
 
 export const PROFILE_MEDIA_VALIDATION_STATUSES = [

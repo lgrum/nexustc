@@ -11,7 +11,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { toast } from "sonner";
-import z from "zod";
 
 import { DataTable } from "@/components/admin/data-table";
 import { ProfileAssetInput } from "@/components/admin/profile-asset-input";
@@ -30,12 +29,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAppForm } from "@/hooks/use-app-form";
 import { authClient } from "@/lib/auth-client";
-import {
-  createDeferredMediaSelectionFromExistingId,
-  createEmptyDeferredMediaSelection,
-  optionalSingleDeferredMediaSelectionSchema,
-} from "@/lib/deferred-media";
-import type { DeferredMediaSelection } from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 import { getBucketUrl } from "@/lib/utils";
 
@@ -70,7 +63,6 @@ type EmblemDefinitionListItem = {
   tooltip: string;
   iconAssetId: string | null;
   iconAsset: ProfileAssetPreview | null;
-  iconMediaId: string | null;
   priority: number;
   isVisible: boolean;
 };
@@ -105,8 +97,6 @@ type EmblemFormState = {
   tooltip: string;
   iconAssetId: string | null;
   iconObjectKey: string | null;
-  iconMediaId: string | null;
-  mediaSelection: DeferredMediaSelection;
   priority: number;
   isVisible: boolean;
 };
@@ -130,10 +120,8 @@ const defaultRoleState = (): RoleFormState => ({
 
 const defaultEmblemState = (): EmblemFormState => ({
   iconAssetId: null,
-  iconMediaId: null,
   iconObjectKey: null,
   isVisible: true,
-  mediaSelection: createEmptyDeferredMediaSelection(),
   name: "",
   priority: 0,
   slug: "",
@@ -163,23 +151,15 @@ function mapRole(role: RoleDefinitionListItem): RoleFormState {
 function mapEmblem(emblem: EmblemDefinitionListItem): EmblemFormState {
   return {
     iconAssetId: emblem.iconAssetId ?? null,
-    iconMediaId: emblem.iconMediaId ?? null,
     iconObjectKey: emblem.iconAsset?.objectKey ?? null,
     id: emblem.id,
     isVisible: emblem.isVisible,
-    mediaSelection: createDeferredMediaSelectionFromExistingId(
-      emblem.iconMediaId
-    ),
     name: emblem.name,
     priority: emblem.priority,
     slug: emblem.slug,
     tooltip: emblem.tooltip,
   };
 }
-
-const emblemMediaFormSchema = z.object({
-  mediaSelection: optionalSingleDeferredMediaSelectionSchema,
-});
 
 function useOwnerUsersQuery() {
   return useQuery({
@@ -975,21 +955,16 @@ function EmblemEditorCard({
   const fieldPrefix = state.id ?? `${mode}-emblem`;
   const mediaForm = useAppForm({
     defaultValues: {
-      mediaSelection: initial.mediaSelection,
+      iconAssetId: initial.iconAssetId,
+      iconObjectKey: initial.iconObjectKey,
     },
     onSubmit: async ({ value }) => {
-      await saveMutation.mutateAsync({
-        ...state,
-        mediaSelection: value.mediaSelection,
-      });
-    },
-    validators: {
-      onSubmit: emblemMediaFormSchema,
+      await saveMutation.mutateAsync({ ...state, ...value });
     },
   });
-  const selectedMedia = useStore(
+  const iconObjectKey = useStore(
     mediaForm.store,
-    (formState) => formState.values.mediaSelection
+    (formState) => formState.values.iconObjectKey
   );
 
   useEffect(() => {
@@ -1004,9 +979,7 @@ function EmblemEditorCard({
   }, [initial.id, mode]);
 
   const saveMutation = useMutation({
-    mutationFn: (
-      nextState: EmblemFormState & { mediaSelection: DeferredMediaSelection }
-    ) =>
+    mutationFn: (nextState: EmblemFormState) =>
       mode === "create"
         ? orpcClient.profileAdmin.emblems.create(nextState)
         : orpcClient.profileAdmin.emblems.update({
@@ -1116,34 +1089,15 @@ function EmblemEditorCard({
               Visible
             </label>
             <div className="md:col-span-2">
-              <mediaForm.AppField name="mediaSelection">
-                {(field) => (
-                  <field.MediaField
-                    description="Selecciona un icono desde la biblioteca central o prepara uno nuevo para subirlo al guardar."
-                    label="Icono"
-                    maxItems={1}
-                    ownerKind="Emblema"
-                  />
-                )}
-              </mediaForm.AppField>
-              {state.iconObjectKey &&
-              selectedMedia.length === 0 &&
-              !state.iconMediaId ? (
-                <div className="mt-3 rounded-xl border border-dashed border-border/60 bg-muted/20 p-3">
-                  <p className="text-muted-foreground text-xs">
-                    Icono actual fuera de la biblioteca central. Puedes dejarlo
-                    asi o reemplazarlo con un item de Media.
-                  </p>
-                  <div className="mt-3 flex h-16 w-16 items-center justify-center rounded-xl border border-border bg-background p-2">
-                    <img
-                      alt=""
-                      aria-hidden="true"
-                      className="max-h-full max-w-full object-contain"
-                      src={getBucketUrl(state.iconObjectKey)}
-                    />
-                  </div>
-                </div>
-              ) : null}
+              <ProfileAssetInput
+                currentObjectKey={iconObjectKey}
+                label="Icono"
+                onUploaded={(assetId, objectKey) => {
+                  mediaForm.setFieldValue("iconAssetId", assetId);
+                  mediaForm.setFieldValue("iconObjectKey", objectKey);
+                }}
+                slot="emblem-icon"
+              />
             </div>
             <div className="flex gap-2 md:col-span-2">
               <Button

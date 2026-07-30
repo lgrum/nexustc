@@ -1,5 +1,3 @@
-import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, getRedis, inArray } from "@repo/db";
 import {
@@ -11,30 +9,20 @@ import {
   profileRoleDefinition,
   profileSystemConfig,
 } from "@repo/db/schema/app";
-import { generateId } from "@repo/db/utils";
-import { env } from "@repo/env";
+import { MANAGED_PROFILE_MEDIA_SLOTS } from "@repo/shared/profile";
 import z from "zod";
 
 import { ownerProcedure } from "../index";
+import { getOrCreateProfileSystemConfig } from "../services/profile";
 import {
-  getObjectExtension,
-  getOrCreateProfileSystemConfig,
-  inspectProfileMediaAsset,
-  PROFILE_MEDIA_MAX_BYTES,
-  validateProfileMediaUpload,
-} from "../services/profile";
-import type { ProfileEntitlements } from "../services/profile";
-import {
-  optionalSingleDeferredMediaSelectionInputSchema,
-  withDeferredMediaSelection,
-} from "../utils/deferred-media";
-import {
-  consumeProfileMediaUploadIntent,
-  createProfileMediaUploadIntent,
-  deleteProfileMediaUploadIntent,
-  PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
-} from "../utils/profile-media-cooldown";
-import { getS3Client } from "../utils/s3";
+  changeManagedProfileMedia,
+  finalizeProfileMediaUpload,
+  issueProfileMediaUpload,
+  ProfileMediaError,
+  PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES,
+} from "../services/profile-media";
+import { r2ProfileMediaStorage } from "../services/profile-media-storage";
+import { optionalSingleDeferredMediaSelectionInputSchema } from "../utils/deferred-media";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
 const uploadContentTypeSchema = z.enum([
@@ -44,7 +32,14 @@ const uploadContentTypeSchema = z.enum([
   "image/png",
   "image/webp",
 ]);
-const ownerSlotsSchema = z.enum(["role-icon", "role-overlay", "emblem-icon"]);
+const ownerSlotsSchema = z.enum(MANAGED_PROFILE_MEDIA_SLOTS);
+const existingEmblemMediaSelectionSchema =
+  optionalSingleDeferredMediaSelectionInputSchema
+    .refine(
+      (selection) => selection.length === 0,
+      "Los iconos deben subirse como Profile Media."
+    )
+    .default([]);
 const roleDefinitionSchema = z.object({
   accentColor: colorSchema.nullable(),
   baseColor: colorSchema,
@@ -65,7 +60,7 @@ const roleDefinitionSchema = z.object({
 });
 const emblemDefinitionSchema = z.object({
   iconAssetId: z.string().nullable().optional(),
-  mediaSelection: optionalSingleDeferredMediaSelectionInputSchema.default([]),
+  mediaSelection: existingEmblemMediaSelectionSchema,
   isVisible: z.boolean(),
   name: z.string().min(1).max(64),
   priority: z.number().int().min(0).max(1000),
@@ -77,27 +72,26 @@ const emblemDefinitionSchema = z.object({
   tooltip: z.string().max(160).default(""),
 });
 
-const ownerProfileEntitlements = {
-  animatedAvatarRequiredTier: "level3",
-  animatedBannerRequiredTier: "level8",
-  canUseAnimatedAvatar: true,
-  canUseAnimatedBanner: true,
-  canUseUploadedBanner: true,
-  overrideSource: "staff" as const,
-  uploadedBannerRequiredTier: "level5",
-} satisfies ProfileEntitlements;
+function throwProfileMediaError(
+  error: unknown,
+  errors: Parameters<Parameters<typeof ownerProcedure.handler>[0]>[0]["errors"]
+): never {
+  if (!(error instanceof ProfileMediaError)) {
+    throw error;
+  }
+  if (error.code === "INVALID_OBJECT_KEY") {
+    throw errors.FORBIDDEN({ message: "Asset inválido." });
+  }
 
-type EmblemProfileAssetDb = Pick<
-  Parameters<Parameters<typeof ownerProcedure.handler>[0]>[0]["context"]["db"],
-  "insert" | "query"
->;
-
-function getOwnerUploadObjectKey(
-  slot: z.infer<typeof ownerSlotsSchema>,
-  userId: string,
-  contentType: string
-) {
-  return `profiles/${slot}/${userId}/${generateId()}.${getObjectExtension(contentType)}`;
+  const message =
+    error.code === "INVALID_INTENT"
+      ? "Invalid upload intent."
+      : error.code === "SOURCE_TOO_LARGE" || error.code === "OUTPUT_TOO_LARGE"
+        ? "El archivo es demasiado grande."
+        : error.code === "ANIMATION_NOT_ALLOWED"
+          ? "No puedes usar este contenido animado."
+          : "Asset inválido.";
+  throw errors.BAD_REQUEST({ message });
 }
 
 async function enrichDefinitionsWithAssets<
@@ -182,46 +176,6 @@ async function enrichEmblemsWithAssets(
   });
 }
 
-async function getOrCreateEmblemProfileAsset(params: {
-  db: EmblemProfileAssetDb;
-  objectKey: string;
-  ownerUserId: string;
-}) {
-  const existingAsset = await params.db.query.profileMediaAsset.findFirst({
-    where: eq(profileMediaAsset.objectKey, params.objectKey),
-  });
-
-  if (existingAsset) {
-    return existingAsset;
-  }
-
-  const validation = await inspectProfileMediaAsset(params.objectKey);
-  validateProfileMediaUpload({
-    contentType: "image/webp",
-    entitlements: ownerProfileEntitlements,
-    slot: "emblem-icon",
-    validation,
-  });
-
-  const [createdAsset] = await params.db
-    .insert(profileMediaAsset)
-    .values({
-      durationMs: validation.durationMs,
-      fileSizeBytes: validation.fileSizeBytes,
-      height: validation.height,
-      isAnimated: validation.isAnimated,
-      mimeType: "image/webp",
-      objectKey: params.objectKey,
-      ownerUserId: params.ownerUserId,
-      slot: "emblem-icon",
-      validationStatus: "ready",
-      width: validation.width,
-    })
-    .returning();
-
-  return createdAsset!;
-}
-
 export default {
   assignments: {
     getUserAssignments: ownerProcedure
@@ -287,49 +241,51 @@ export default {
   },
 
   emblems: {
-    create: ownerProcedure
-      .input(emblemDefinitionSchema)
-      .handler(async ({ context: { db, session }, input }) => {
-        const { mediaSelection, ...data } = input;
-
-        return await withDeferredMediaSelection({
+    create: ownerProcedure.input(emblemDefinitionSchema).handler(
+      async ({ context: { db }, input }) =>
+        await changeManagedProfileMedia({
           db,
-          onComplete: async ({ orderedMedia, tx }) => {
-            const iconAsset = orderedMedia[0]
-              ? await getOrCreateEmblemProfileAsset({
-                  db: tx,
-                  objectKey: orderedMedia[0].objectKey,
-                  ownerUserId: session.user.id,
-                })
-              : null;
+          mutate: async (tx) => {
             const [created] = await tx
               .insert(profileEmblemDefinition)
               .values({
-                iconAssetId: iconAsset?.id ?? data.iconAssetId ?? null,
-                isVisible: data.isVisible,
-                name: data.name,
-                priority: data.priority,
-                slug: data.slug,
-                tooltip: data.tooltip,
+                iconAssetId: input.iconAssetId ?? null,
+                isVisible: input.isVisible,
+                name: input.name,
+                priority: input.priority,
+                slug: input.slug,
+                tooltip: input.tooltip,
               })
               .returning();
-
-            return created;
+            return { retiredAssetIds: [], value: created };
           },
-          ownerKind: "Emblema",
-          resourceName: input.name,
-          selection: mediaSelection,
-        });
-      }),
+          storage: r2ProfileMediaStorage,
+        })
+    ),
 
-    delete: ownerProcedure
-      .input(z.object({ id: z.string() }))
-      .handler(async ({ context: { db }, input }) => {
-        await db
-          .delete(profileEmblemDefinition)
-          .where(eq(profileEmblemDefinition.id, input.id));
-        return { success: true };
-      }),
+    delete: ownerProcedure.input(z.object({ id: z.string() })).handler(
+      async ({ context: { db }, input }) =>
+        await changeManagedProfileMedia({
+          db,
+          mutate: async (tx) => {
+            const [current] = await tx
+              .select({ iconAssetId: profileEmblemDefinition.iconAssetId })
+              .from(profileEmblemDefinition)
+              .where(eq(profileEmblemDefinition.id, input.id))
+              .for("update");
+            await tx
+              .delete(profileEmblemDefinition)
+              .where(eq(profileEmblemDefinition.id, input.id));
+            return {
+              retiredAssetIds: current?.iconAssetId
+                ? [current.iconAssetId]
+                : [],
+              value: { success: true },
+            };
+          },
+          storage: r2ProfileMediaStorage,
+        })
+    ),
 
     list: ownerProcedure.handler(async ({ context: { db } }) => {
       const rows = await db.query.profileEmblemDefinition.findMany({
@@ -341,39 +297,38 @@ export default {
 
     update: ownerProcedure
       .input(emblemDefinitionSchema.extend({ id: z.string() }))
-      .handler(async ({ context: { db, session }, input }) => {
-        const { id, mediaSelection, ...rest } = input;
-
-        return await withDeferredMediaSelection({
-          db,
-          onComplete: async ({ orderedMedia, tx }) => {
-            const iconAsset = orderedMedia[0]
-              ? await getOrCreateEmblemProfileAsset({
-                  db: tx,
-                  objectKey: orderedMedia[0].objectKey,
-                  ownerUserId: session.user.id,
+      .handler(
+        async ({ context: { db }, input }) =>
+          await changeManagedProfileMedia({
+            db,
+            mutate: async (tx) => {
+              const [current] = await tx
+                .select({ iconAssetId: profileEmblemDefinition.iconAssetId })
+                .from(profileEmblemDefinition)
+                .where(eq(profileEmblemDefinition.id, input.id))
+                .for("update");
+              const [updated] = await tx
+                .update(profileEmblemDefinition)
+                .set({
+                  iconAssetId: input.iconAssetId ?? null,
+                  isVisible: input.isVisible,
+                  name: input.name,
+                  priority: input.priority,
+                  slug: input.slug,
+                  tooltip: input.tooltip,
                 })
-              : null;
-            const [updated] = await tx
-              .update(profileEmblemDefinition)
-              .set({
-                iconAssetId: iconAsset?.id ?? rest.iconAssetId ?? null,
-                isVisible: rest.isVisible,
-                name: rest.name,
-                priority: rest.priority,
-                slug: rest.slug,
-                tooltip: rest.tooltip,
-              })
-              .where(eq(profileEmblemDefinition.id, id))
-              .returning();
-
-            return updated;
-          },
-          ownerKind: "Emblema",
-          resourceName: input.name,
-          selection: mediaSelection,
-        });
-      }),
+                .where(eq(profileEmblemDefinition.id, input.id))
+                .returning();
+              return {
+                retiredAssetIds: current?.iconAssetId
+                  ? [current.iconAssetId]
+                  : [],
+                value: updated,
+              };
+            },
+            storage: r2ProfileMediaStorage,
+          })
+      ),
   },
 
   media: {
@@ -384,7 +339,7 @@ export default {
             .number()
             .int()
             .positive()
-            .max(PROFILE_MEDIA_MAX_BYTES),
+            .max(PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES),
           contentType: uploadContentTypeSchema,
           objectKey: z.string().min(1),
           slot: ownerSlotsSchema,
@@ -393,96 +348,20 @@ export default {
       .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
         const logger = getLogger(ctx);
         logger?.info(`Finalizing owner asset ${input.objectKey}`);
-        const deleteRejectedUpload = async () => {
-          try {
-            await getS3Client().send(
-              new DeleteObjectCommand({
-                Bucket: env.R2_ASSETS_BUCKET_NAME,
-                Key: input.objectKey,
-              })
-            );
-          } catch (cleanupError) {
-            logger?.warn(`Failed to delete rejected asset ${input.objectKey}`);
-            logger?.warn(cleanupError);
-          }
-        };
-
-        if (
-          !input.objectKey.startsWith(
-            `profiles/${input.slot}/${session.user.id}/`
-          )
-        ) {
-          throw errors.FORBIDDEN({ message: "Asset inválido." });
-        }
-
-        const intent = await consumeProfileMediaUploadIntent(
-          await getRedis(),
-          input.objectKey
-        );
-        if (!intent) {
-          throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
-        }
-
-        if (
-          intent.issuedToUserId !== session.user.id ||
-          intent.slot !== input.slot ||
-          intent.objectKey !== input.objectKey ||
-          intent.contentType !== input.contentType ||
-          intent.contentLength !== input.contentLength
-        ) {
-          await deleteRejectedUpload();
-          throw errors.BAD_REQUEST({ message: "Invalid upload intent." });
-        }
-
-        let validation: Awaited<ReturnType<typeof inspectProfileMediaAsset>>;
-
         try {
-          validation = await inspectProfileMediaAsset(input.objectKey, {
-            contentLength: input.contentLength,
-            contentType: input.contentType,
-          });
-          validateProfileMediaUpload({
-            contentType: input.contentType,
-            entitlements: {
-              animatedAvatarRequiredTier: "level3",
-              animatedBannerRequiredTier: "level8",
-              canUseAnimatedAvatar: true,
-              canUseAnimatedBanner: true,
-              canUseUploadedBanner: true,
-              overrideSource: "staff",
-              uploadedBannerRequiredTier: "level5",
+          return await finalizeProfileMediaUpload({
+            actor: session.user,
+            cache: await getRedis(),
+            db,
+            input,
+            onCleanupError: (cleanupError, objectKey) => {
+              logger?.warn(`Failed to clean Profile Media ${objectKey}`);
+              logger?.warn(cleanupError);
             },
-            slot: input.slot,
-            validation,
+            storage: r2ProfileMediaStorage,
           });
         } catch (error) {
-          await deleteRejectedUpload();
-          throw errors.BAD_REQUEST({
-            message: error instanceof Error ? error.message : "Asset inválido.",
-          });
-        }
-
-        try {
-          const [asset] = await db
-            .insert(profileMediaAsset)
-            .values({
-              durationMs: validation.durationMs,
-              fileSizeBytes: validation.fileSizeBytes,
-              height: validation.height,
-              isAnimated: validation.isAnimated,
-              mimeType: input.contentType,
-              objectKey: input.objectKey,
-              ownerUserId: session.user.id,
-              slot: input.slot,
-              validationStatus: "ready",
-              width: validation.width,
-            })
-            .returning();
-
-          return asset;
-        } catch (error) {
-          await deleteRejectedUpload();
-          throw error;
+          throwProfileMediaError(error, errors);
         }
       }),
 
@@ -493,92 +372,92 @@ export default {
             .number()
             .int()
             .positive()
-            .max(PROFILE_MEDIA_MAX_BYTES),
+            .max(PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES),
           contentType: uploadContentTypeSchema,
           slot: ownerSlotsSchema,
         })
       )
-      .handler(async ({ context: { session, ...ctx }, input, errors }) => {
+      .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
         const logger = getLogger(ctx);
         logger?.info(`Generating owner upload policy for ${input.slot}`);
-        const objectKey = getOwnerUploadObjectKey(
-          input.slot,
-          session.user.id,
-          input.contentType
-        );
-        const cache = await getRedis();
-        const intentCreated = await createProfileMediaUploadIntent(cache, {
-          contentLength: input.contentLength,
-          contentType: input.contentType,
-          issuedToUserId: session.user.id,
-          objectKey,
-          slot: input.slot,
-        });
-        if (!intentCreated) {
-          throw errors.INTERNAL_SERVER_ERROR();
-        }
-
         try {
-          const presignedUrl = await getSignedUrl(
-            getS3Client(),
-            new PutObjectCommand({
-              Bucket: env.R2_ASSETS_BUCKET_NAME,
-              ContentLength: input.contentLength,
-              ContentType: input.contentType,
-              IfNoneMatch: "*",
-              Key: objectKey,
-            }),
-            { expiresIn: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS }
-          );
-
-          return { objectKey, presignedUrl };
+          return await issueProfileMediaUpload({
+            actor: session.user,
+            cache: await getRedis(),
+            db,
+            input,
+            onCleanupError: (cleanupError, objectKey) => {
+              logger?.warn(`Failed to clean Profile Media ${objectKey}`);
+              logger?.warn(cleanupError);
+            },
+            storage: r2ProfileMediaStorage,
+          });
         } catch (error) {
-          try {
-            await deleteProfileMediaUploadIntent(cache, objectKey);
-          } catch (cleanupError) {
-            logger?.warn(`Failed to delete upload intent for ${objectKey}`);
-            logger?.warn(cleanupError);
-          }
-          throw error;
+          throwProfileMediaError(error, errors);
         }
       }),
   },
 
   roles: {
-    create: ownerProcedure
-      .input(roleDefinitionSchema)
-      .handler(async ({ context: { db }, input }) => {
-        const [created] = await db
-          .insert(profileRoleDefinition)
-          .values({
-            description: input.description,
-            iconAssetId: input.iconAssetId ?? null,
-            isExclusive: input.isExclusive,
-            isVisible: input.isVisible,
-            name: input.name,
-            overlayAssetId: input.overlayAssetId ?? null,
-            priority: input.priority,
-            slug: input.slug,
-            visualConfig: {
-              accentColor: input.accentColor,
-              baseColor: input.baseColor,
-              glowColor: input.glowColor,
-              textColor: input.textColor,
-            },
-          })
-          .returning();
+    create: ownerProcedure.input(roleDefinitionSchema).handler(
+      async ({ context: { db }, input }) =>
+        await changeManagedProfileMedia({
+          db,
+          mutate: async (tx) => {
+            const [created] = await tx
+              .insert(profileRoleDefinition)
+              .values({
+                description: input.description,
+                iconAssetId: input.iconAssetId ?? null,
+                isExclusive: input.isExclusive,
+                isVisible: input.isVisible,
+                name: input.name,
+                overlayAssetId: input.overlayAssetId ?? null,
+                priority: input.priority,
+                slug: input.slug,
+                visualConfig: {
+                  accentColor: input.accentColor,
+                  baseColor: input.baseColor,
+                  glowColor: input.glowColor,
+                  textColor: input.textColor,
+                },
+              })
+              .returning();
 
-        return created;
-      }),
+            return { retiredAssetIds: [], value: created };
+          },
+          storage: r2ProfileMediaStorage,
+        })
+    ),
 
-    delete: ownerProcedure
-      .input(z.object({ id: z.string() }))
-      .handler(async ({ context: { db }, input }) => {
-        await db
-          .delete(profileRoleDefinition)
-          .where(eq(profileRoleDefinition.id, input.id));
-        return { success: true };
-      }),
+    delete: ownerProcedure.input(z.object({ id: z.string() })).handler(
+      async ({ context: { db }, input }) =>
+        await changeManagedProfileMedia({
+          db,
+          mutate: async (tx) => {
+            const [current] = await tx
+              .select({
+                iconAssetId: profileRoleDefinition.iconAssetId,
+                overlayAssetId: profileRoleDefinition.overlayAssetId,
+              })
+              .from(profileRoleDefinition)
+              .where(eq(profileRoleDefinition.id, input.id))
+              .for("update");
+            await tx
+              .delete(profileRoleDefinition)
+              .where(eq(profileRoleDefinition.id, input.id));
+            return {
+              retiredAssetIds: current
+                ? [current.iconAssetId, current.overlayAssetId].filter(
+                    (id): id is string => id !== null
+                  )
+                : [],
+              value: { success: true },
+            };
+          },
+          storage: r2ProfileMediaStorage,
+        })
+    ),
 
     list: ownerProcedure.handler(async ({ context: { db } }) => {
       const rows = await db.query.profileRoleDefinition.findMany({
@@ -592,28 +471,49 @@ export default {
       .input(roleDefinitionSchema.extend({ id: z.string() }))
       .handler(async ({ context: { db }, input }) => {
         const { id, ...rest } = input;
-        const [updated] = await db
-          .update(profileRoleDefinition)
-          .set({
-            description: rest.description,
-            iconAssetId: rest.iconAssetId ?? null,
-            isExclusive: rest.isExclusive,
-            isVisible: rest.isVisible,
-            name: rest.name,
-            overlayAssetId: rest.overlayAssetId ?? null,
-            priority: rest.priority,
-            slug: rest.slug,
-            visualConfig: {
-              accentColor: rest.accentColor,
-              baseColor: rest.baseColor,
-              glowColor: rest.glowColor,
-              textColor: rest.textColor,
-            },
-          })
-          .where(eq(profileRoleDefinition.id, id))
-          .returning();
+        return await changeManagedProfileMedia({
+          db,
+          mutate: async (tx) => {
+            const [current] = await tx
+              .select({
+                iconAssetId: profileRoleDefinition.iconAssetId,
+                overlayAssetId: profileRoleDefinition.overlayAssetId,
+              })
+              .from(profileRoleDefinition)
+              .where(eq(profileRoleDefinition.id, id))
+              .for("update");
+            const [updated] = await tx
+              .update(profileRoleDefinition)
+              .set({
+                description: rest.description,
+                iconAssetId: rest.iconAssetId ?? null,
+                isExclusive: rest.isExclusive,
+                isVisible: rest.isVisible,
+                name: rest.name,
+                overlayAssetId: rest.overlayAssetId ?? null,
+                priority: rest.priority,
+                slug: rest.slug,
+                visualConfig: {
+                  accentColor: rest.accentColor,
+                  baseColor: rest.baseColor,
+                  glowColor: rest.glowColor,
+                  textColor: rest.textColor,
+                },
+              })
+              .where(eq(profileRoleDefinition.id, id))
+              .returning();
 
-        return updated;
+            return {
+              retiredAssetIds: current
+                ? [current.iconAssetId, current.overlayAssetId].filter(
+                    (assetId): assetId is string => assetId !== null
+                  )
+                : [],
+              value: updated,
+            };
+          },
+          storage: r2ProfileMediaStorage,
+        });
       }),
   },
 

@@ -297,7 +297,7 @@ describe("profile media contracts", () => {
 
   it("preserves finalize and removal response bodies", async () => {
     mocks.finalizeProfileMediaUpload.mockResolvedValue({
-      assetId: "asset-1",
+      id: "asset-1",
       isAnimated: false,
       objectKey: "profiles/media/avatar/user-1/asset-1.webp",
     });
