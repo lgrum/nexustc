@@ -9,26 +9,19 @@ import {
   user,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
-import { MANAGED_PROFILE_MEDIA_SLOTS } from "@repo/shared/profile";
+import {
+  MANAGED_PROFILE_MEDIA_SLOTS,
+  PROFILE_MEDIA_SLOTS,
+} from "@repo/shared/profile";
 import type { ProfileMediaSlot } from "@repo/shared/profile";
 import type { RedisClientType } from "redis";
+import z from "zod";
 
 import type { Context } from "../context";
 import { optimizeImageBuffer } from "../utils/images";
-import {
-  consumeProfileMediaUploadIntent,
-  createProfileMediaUploadIntent,
-  deleteProfileMediaUploadIntent,
-  getProfileMediaUploadCooldownKey,
-  PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
-  reserveProfileMediaUploadCooldown,
-} from "../utils/profile-media-cooldown";
-import {
-  getObjectExtension,
-  getProfileEntitlements,
-  PROFILE_MEDIA_MAX_BYTES,
-  validateProfileMediaUpload,
-} from "./profile";
+import type { OptimizedImageFile } from "../utils/images";
+import { getProfileEntitlements } from "./profile";
+import type { ProfileEntitlements } from "./profile";
 import type { ProfileMediaStorage } from "./profile-media-storage";
 
 export const PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES = 40 * 1024 * 1024;
@@ -36,6 +29,60 @@ export const PROFILE_MEDIA_PERMANENT_PREFIX = "profiles/media";
 export const PROFILE_MEDIA_TEMPORARY_PREFIX = "profiles/temp";
 const CLEANUP_BATCH_SIZE = 2;
 const MANAGED_MEDIA_GRACE_MS = 24 * 60 * 60 * 1000;
+const PROFILE_MEDIA_OUTPUT_MAX_BYTES = 10 * 1024 * 1024;
+const PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS = 60 * 5;
+const PROFILE_MEDIA_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  "image/avif": "avif",
+  "image/gif": "gif",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+const SLOT_LIMITS = {
+  avatar: {
+    animatedBytes: 1024 * 1024 * 1.5,
+    maxDurationMs: 6000,
+    minHeight: 64,
+    minWidth: 64,
+    staticBytes: 1024 * 512,
+  },
+  banner: {
+    animatedBytes: 1024 * 1024 * 3,
+    maxDurationMs: 8000,
+    minHeight: 64,
+    minWidth: 128,
+    staticBytes: 1024 * 1024 * 1.5,
+  },
+  "emblem-icon": {
+    animatedBytes: 1024 * 1024,
+    maxDurationMs: 6000,
+    minHeight: 32,
+    minWidth: 32,
+    staticBytes: 1024 * 512,
+  },
+  "role-icon": {
+    animatedBytes: 1024 * 1024,
+    maxDurationMs: 6000,
+    minHeight: 32,
+    minWidth: 32,
+    staticBytes: 1024 * 512,
+  },
+  "role-overlay": {
+    animatedBytes: 1024 * 1024,
+    maxDurationMs: 6000,
+    minHeight: 32,
+    minWidth: 32,
+    staticBytes: 1024 * 512,
+  },
+} as const;
+
+const profileMediaUploadIntentSchema = z.object({
+  contentLength: z.number().int().positive(),
+  contentType: z.string().min(1),
+  issuedToUserId: z.string().min(1),
+  objectKey: z.string().min(1),
+  slot: z.enum(PROFILE_MEDIA_SLOTS),
+});
 
 type ProfileMediaDb = Pick<
   Context["db"],
@@ -92,7 +139,74 @@ export class ProfileMediaError extends Error {
 function getSourceLimit(actor: ProfileMediaActor) {
   return actor.role === "owner"
     ? PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES
-    : PROFILE_MEDIA_MAX_BYTES;
+    : PROFILE_MEDIA_OUTPUT_MAX_BYTES;
+}
+
+function getProfileMediaUploadCooldownKey(
+  userId: string,
+  slot: "avatar" | "banner"
+) {
+  return `profile:media-upload:${slot}:${userId}`;
+}
+
+function getProfileMediaUploadIntentKey(objectKey: string) {
+  return `profile:media-upload-intent:${objectKey}`;
+}
+
+async function createProfileMediaUploadIntent(
+  cache: RedisClientType,
+  intent: z.infer<typeof profileMediaUploadIntentSchema>
+) {
+  return (
+    (await cache.set(
+      getProfileMediaUploadIntentKey(intent.objectKey),
+      JSON.stringify(intent),
+      { EX: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS, NX: true }
+    )) === "OK"
+  );
+}
+
+async function consumeProfileMediaUploadIntent(
+  cache: RedisClientType,
+  objectKey: string
+) {
+  const value = await cache.getDel(getProfileMediaUploadIntentKey(objectKey));
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const result = profileMediaUploadIntentSchema.safeParse(JSON.parse(value));
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+function deleteProfileMediaUploadIntent(
+  cache: RedisClientType,
+  objectKey: string
+) {
+  return cache.del(getProfileMediaUploadIntentKey(objectKey));
+}
+
+async function reserveProfileMediaUploadCooldown(
+  cache: RedisClientType,
+  key: string
+) {
+  const result = await cache.set(key, "1", {
+    EX: PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
+    NX: true,
+  });
+  if (result === "OK") {
+    return { reserved: true, retryAfter: 0 };
+  }
+
+  const ttl = await cache.ttl(key);
+  return {
+    reserved: false,
+    retryAfter: ttl > 0 ? ttl : PROFILE_MEDIA_UPLOAD_COOLDOWN_SECONDS,
+  };
 }
 
 function isManagedProfileMediaSlot(
@@ -108,7 +222,11 @@ function getTemporaryPrefix(actor: ProfileMediaActor, slot: ProfileMediaSlot) {
 }
 
 function getTemporaryObjectKey(actor: ProfileMediaActor, input: UploadInput) {
-  return `${getTemporaryPrefix(actor, input.slot)}${generateId()}.${getObjectExtension(input.contentType)}`;
+  const extension = PROFILE_MEDIA_EXTENSION_BY_MIME_TYPE[input.contentType];
+  if (!extension) {
+    throw new ProfileMediaError("INVALID_MEDIA");
+  }
+  return `${getTemporaryPrefix(actor, input.slot)}${generateId()}.${extension}`;
 }
 
 function getPermanentObjectKey(
@@ -119,41 +237,69 @@ function getPermanentObjectKey(
 }
 
 function translateValidationError(error: unknown): ProfileMediaError | null {
+  if (error instanceof ProfileMediaError) {
+    return error;
+  }
   if (!(error instanceof Error)) {
     return new ProfileMediaError("INVALID_MEDIA");
   }
-  if (error.message === "BANNER_UPLOAD_NOT_ALLOWED") {
-    return new ProfileMediaError("BANNER_NOT_ALLOWED", undefined, {
-      cause: error,
-    });
-  }
-  if (
-    error.message === "ANIMATED_AVATAR_NOT_ALLOWED" ||
-    error.message === "ANIMATED_BANNER_NOT_ALLOWED"
-  ) {
-    return new ProfileMediaError("ANIMATION_NOT_ALLOWED", undefined, {
-      cause: error,
-    });
-  }
-  if (error.message === "FILE_TOO_LARGE") {
-    return new ProfileMediaError("OUTPUT_TOO_LARGE", undefined, {
-      cause: error,
-    });
-  }
   if (
     error.message === "Image source exceeds byte limit" ||
-    error.message === "IMAGE_TOO_SMALL" ||
-    error.message === "ANIMATION_TOO_LONG" ||
     error.message === "Invalid image data" ||
     error.message === "Invalid image dimensions" ||
     error.message === "Image frame dimensions exceed limit" ||
     error.message === "Image frame count exceeds limit" ||
     error.message === "Image decoded pixels exceed limit" ||
-    error.message.includes("unsupported image format")
+    error.message.startsWith("Unsupported image type:")
   ) {
     return new ProfileMediaError("INVALID_MEDIA", undefined, { cause: error });
   }
   return null;
+}
+
+function validateProfileMedia(
+  slot: ProfileMediaSlot,
+  optimizedImage: OptimizedImageFile,
+  entitlements: ProfileEntitlements
+) {
+  const limits = SLOT_LIMITS[slot];
+  if (entitlements.overrideSource !== "staff") {
+    const maxBytes = optimizedImage.isAnimated
+      ? limits.animatedBytes
+      : limits.staticBytes;
+    if (optimizedImage.fileSizeBytes > maxBytes) {
+      throw new ProfileMediaError("OUTPUT_TOO_LARGE");
+    }
+    if (
+      optimizedImage.width < limits.minWidth ||
+      optimizedImage.height < limits.minHeight
+    ) {
+      throw new ProfileMediaError("INVALID_MEDIA");
+    }
+    if (
+      optimizedImage.isAnimated &&
+      optimizedImage.durationMs !== null &&
+      optimizedImage.durationMs > limits.maxDurationMs
+    ) {
+      throw new ProfileMediaError("INVALID_MEDIA");
+    }
+  }
+
+  if (
+    slot === "avatar" &&
+    optimizedImage.isAnimated &&
+    !entitlements.canUseAnimatedAvatar
+  ) {
+    throw new ProfileMediaError("ANIMATION_NOT_ALLOWED");
+  }
+  if (slot === "banner") {
+    if (!entitlements.canUseUploadedBanner) {
+      throw new ProfileMediaError("BANNER_NOT_ALLOWED");
+    }
+    if (optimizedImage.isAnimated && !entitlements.canUseAnimatedBanner) {
+      throw new ProfileMediaError("ANIMATION_NOT_ALLOWED");
+    }
+  }
 }
 
 async function bestEffortDelete(
@@ -451,15 +597,10 @@ export async function finalizeProfileMediaUpload(
     optimized = await optimizeImageBuffer(source.body, source.contentType, {
       maxSourceBytes: getSourceLimit(actor),
     });
-    if (optimized.fileSizeBytes > PROFILE_MEDIA_MAX_BYTES) {
-      throw new Error("FILE_TOO_LARGE");
+    if (optimized.fileSizeBytes > PROFILE_MEDIA_OUTPUT_MAX_BYTES) {
+      throw new ProfileMediaError("OUTPUT_TOO_LARGE");
     }
-    validateProfileMediaUpload({
-      contentType: optimized.mimeType,
-      entitlements,
-      slot: input.slot,
-      validation: optimized,
-    });
+    validateProfileMedia(input.slot, optimized, entitlements);
   } catch (error) {
     await bestEffortDelete(storage, input.objectKey, params.onCleanupError);
     throw translateValidationError(error) ?? error;

@@ -27,8 +27,6 @@ vi.mock("@repo/db/schema/app", () => ({
 }));
 vi.mock("../services/profile", () => ({
   getOrCreateProfileSystemConfig: vi.fn(),
-  inspectProfileMediaAsset: vi.fn(),
-  validateProfileMediaUpload: vi.fn(),
 }));
 vi.mock("../services/profile-media", () => {
   class ProfileMediaError extends Error {

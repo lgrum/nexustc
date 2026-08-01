@@ -1,4 +1,3 @@
-import { GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { and, eq, inArray, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
@@ -15,7 +14,6 @@ import {
   profileSystemConfig,
   user,
 } from "@repo/db/schema/app";
-import { env } from "@repo/env";
 import {
   PATRON_TIER_PROFILE_BADGES,
   ROLE_PROFILE_STYLES,
@@ -31,14 +29,10 @@ import {
 import type {
   ProfileActivityCollection,
   ProfileActivityVisibility,
-  ProfileMediaSlot,
   ProfileVisibilityConfig,
 } from "@repo/shared/profile";
-import sharp from "sharp";
-import type { Metadata } from "sharp";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
-import { getS3Client } from "../utils/s3";
 
 type Database = typeof database;
 export type ProfileEntitlementDb = Pick<Database, "query">;
@@ -115,67 +109,11 @@ export type PublicProfile = ProfileSummary & {
   visibility: ProfileActivityVisibility;
 };
 
-export type ProfileMediaValidation = {
-  width: number;
-  height: number;
-  durationMs: number | null;
-  isAnimated: boolean;
-  fileSizeBytes: number;
-};
-
-export const PROFILE_MEDIA_MAX_BYTES = 10 * 1024 * 1024;
-
 const PROFILE_ENTITLEMENT_RULES = {
   animatedAvatarRequiredTier: "level3",
   animatedBannerRequiredTier: "level8",
   uploadedBannerRequiredTier: "level5",
 } as const satisfies Record<string, PatronTier>;
-
-const SLOT_LIMITS = {
-  avatar: {
-    animatedBytes: 1024 * 1024 * 1.5,
-    maxDurationMs: 6000,
-    minHeight: 64,
-    minWidth: 64,
-    staticBytes: 1024 * 512,
-  },
-  banner: {
-    animatedBytes: 1024 * 1024 * 3,
-    maxDurationMs: 8000,
-    minHeight: 64,
-    minWidth: 128,
-    staticBytes: 1024 * 1024 * 1.5,
-  },
-  "emblem-icon": {
-    animatedBytes: 1024 * 1024,
-    maxDurationMs: 6000,
-    minHeight: 32,
-    minWidth: 32,
-    staticBytes: 1024 * 512,
-  },
-  "role-icon": {
-    animatedBytes: 1024 * 1024,
-    maxDurationMs: 6000,
-    minHeight: 32,
-    minWidth: 32,
-    staticBytes: 1024 * 512,
-  },
-  "role-overlay": {
-    animatedBytes: 1024 * 1024,
-    maxDurationMs: 6000,
-    minHeight: 32,
-    minWidth: 32,
-    staticBytes: 1024 * 512,
-  },
-} as const;
-
-const MIME_EXTENSIONS: Record<string, string> = {
-  "image/avif": "avif",
-  "image/gif": "gif",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-};
 
 function clampVisibleRoles(roles: PublicProfileRole[]) {
   const sorted = [...roles].toSorted((a, b) => b.priority - a.priority);
@@ -385,156 +323,6 @@ export async function getOrCreateProfileSystemConfig(db: Database) {
     .returning();
 
   return created!;
-}
-
-export function getObjectExtension(contentType: string) {
-  const extension = MIME_EXTENSIONS[contentType];
-
-  if (!extension) {
-    throw new Error("UNSUPPORTED_CONTENT_TYPE");
-  }
-
-  return extension;
-}
-
-export function inferAnimationDurationMs(metadata: Metadata) {
-  if (!metadata.delay) {
-    return null;
-  }
-
-  if (Array.isArray(metadata.delay)) {
-    return metadata.delay.reduce((sum, frameDelay) => sum + frameDelay, 0);
-  }
-
-  return metadata.delay;
-}
-
-async function readAssetBuffer(objectKey: string) {
-  const output = await getS3Client().send(
-    new GetObjectCommand({
-      Bucket: env.R2_ASSETS_BUCKET_NAME,
-      Key: objectKey,
-      Range: `bytes=0-${PROFILE_MEDIA_MAX_BYTES}`,
-    })
-  );
-
-  if (!output.Body) {
-    throw new Error("ASSET_NOT_FOUND");
-  }
-
-  const body = await output.Body.transformToByteArray();
-  const buffer = Buffer.from(body);
-  if (buffer.length > PROFILE_MEDIA_MAX_BYTES) {
-    throw new Error("FILE_TOO_LARGE");
-  }
-  return buffer;
-}
-
-export async function inspectProfileMediaAsset(
-  objectKey: string,
-  expected?: { contentLength: number; contentType: string }
-) {
-  const object = await getS3Client().send(
-    new HeadObjectCommand({
-      Bucket: env.R2_ASSETS_BUCKET_NAME,
-      Key: objectKey,
-    })
-  );
-  const contentLength = object.ContentLength ?? 0;
-
-  if (contentLength <= 0 || contentLength > PROFILE_MEDIA_MAX_BYTES) {
-    throw new Error("FILE_TOO_LARGE");
-  }
-
-  if (
-    expected &&
-    (contentLength !== expected.contentLength ||
-      object.ContentType !== expected.contentType)
-  ) {
-    throw new Error("UPLOAD_METADATA_MISMATCH");
-  }
-
-  const buffer = await readAssetBuffer(objectKey);
-  const metadata = await sharp(buffer, { animated: true }).metadata();
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
-  const isAnimated = (metadata.pages ?? 1) > 1;
-  const durationMs = inferAnimationDurationMs(metadata);
-
-  if (!(width > 0 && height > 0)) {
-    throw new Error("INVALID_IMAGE_DIMENSIONS");
-  }
-
-  return {
-    durationMs,
-    fileSizeBytes: buffer.length,
-    height,
-    isAnimated,
-    width,
-  } satisfies ProfileMediaValidation;
-}
-
-export function validateProfileMediaUpload({
-  slot,
-  contentType,
-  validation,
-  entitlements,
-}: {
-  slot: ProfileMediaSlot;
-  contentType: string;
-  validation: ProfileMediaValidation;
-  entitlements: ProfileEntitlements;
-}) {
-  if (!(contentType in MIME_EXTENSIONS)) {
-    throw new Error("UNSUPPORTED_CONTENT_TYPE");
-  }
-
-  const limits = SLOT_LIMITS[slot];
-  const hasUnlimitedProfileCustomization =
-    entitlements.overrideSource === "staff";
-
-  if (!hasUnlimitedProfileCustomization) {
-    const maxBytes = validation.isAnimated
-      ? limits.animatedBytes
-      : limits.staticBytes;
-
-    if (validation.fileSizeBytes > maxBytes) {
-      throw new Error("FILE_TOO_LARGE");
-    }
-
-    if (
-      validation.width < limits.minWidth ||
-      validation.height < limits.minHeight
-    ) {
-      throw new Error("IMAGE_TOO_SMALL");
-    }
-
-    if (
-      validation.isAnimated &&
-      validation.durationMs !== null &&
-      validation.durationMs > limits.maxDurationMs
-    ) {
-      throw new Error("ANIMATION_TOO_LONG");
-    }
-  }
-
-  if (
-    slot === "avatar" &&
-    validation.isAnimated &&
-    !entitlements.canUseAnimatedAvatar
-  ) {
-    throw new Error("ANIMATED_AVATAR_NOT_ALLOWED");
-  }
-
-  if (slot === "banner") {
-    if (!entitlements.canUseUploadedBanner) {
-      throw new Error("BANNER_UPLOAD_NOT_ALLOWED");
-    }
-
-    if (validation.isAnimated && !entitlements.canUseAnimatedBanner) {
-      throw new Error("ANIMATED_BANNER_NOT_ALLOWED");
-    }
-  }
 }
 
 function getMediaAssetsByIds(db: Database, ids: string[]) {

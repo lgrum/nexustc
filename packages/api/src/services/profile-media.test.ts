@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
   generateId: vi.fn(() => "canonical-1"),
   getProfileEntitlements: vi.fn(),
   optimizeImageBuffer: vi.fn(),
-  validateProfileMediaUpload: vi.fn(),
 }));
 
 vi.mock("@repo/db/utils", () => ({ generateId: mocks.generateId }));
@@ -30,7 +29,6 @@ vi.mock("../utils/images", () => ({
 vi.mock("./profile", async (importOriginal) => ({
   ...(await importOriginal<typeof ProfileService>()),
   getProfileEntitlements: mocks.getProfileEntitlements,
-  validateProfileMediaUpload: mocks.validateProfileMediaUpload,
 }));
 
 function createCache(intent: Record<string, unknown> | null) {
@@ -328,6 +326,39 @@ describe("finalizeProfileMediaUpload", () => {
       finalizeProfileMediaUpload({
         actor: { id: "owner-1", role: "owner" },
         cache: createCache({ ...input, issuedToUserId: "owner-1" }) as never,
+        db: {} as never,
+        input,
+        storage,
+      })
+    ).rejects.toMatchObject({ code: "OUTPUT_TOO_LARGE" });
+    expect(storage.has(sourceKey)).toBeFalsy();
+  });
+
+  it("enforces regular-user slot limits on canonical output", async () => {
+    const sourceKey = "profiles/temp/avatar/user-1/source.png";
+    const input = {
+      contentLength: 6,
+      contentType: "image/png",
+      objectKey: sourceKey,
+      slot: "avatar" as const,
+    };
+    const storage = new InMemoryProfileMediaStorage();
+    storage.seed(sourceKey, Buffer.from("source"), "image/png");
+    mocks.optimizeImageBuffer.mockResolvedValueOnce({
+      buffer: Buffer.from("oversized"),
+      durationMs: null,
+      extension: "webp",
+      fileSizeBytes: 1024 * 512 + 1,
+      height: 512,
+      isAnimated: false,
+      mimeType: "image/webp",
+      width: 512,
+    });
+
+    await expect(
+      finalizeProfileMediaUpload({
+        actor: { id: "user-1", role: "user" },
+        cache: createCache({ ...input, issuedToUserId: "user-1" }) as never,
         db: {} as never,
         input,
         storage,
