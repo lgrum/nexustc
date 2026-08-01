@@ -35,7 +35,8 @@ function createCache(intent: Record<string, unknown> | null) {
   return {
     getDel: vi
       .fn()
-      .mockResolvedValue(intent === null ? null : JSON.stringify(intent)),
+      .mockResolvedValueOnce(intent === null ? null : JSON.stringify(intent))
+      .mockResolvedValue(null),
   };
 }
 
@@ -182,6 +183,16 @@ describe("finalizeProfileMediaUpload", () => {
     expect(tx.delete).toHaveBeenCalledWith(profileMediaAsset);
     expect(storage.has(sourceKey)).toBeFalsy();
     expect(storage.has(oldObjectKey)).toBeFalsy();
+    await expect(
+      finalizeProfileMediaUpload({
+        actor: { id: "user-1", role: "user" },
+        cache: cache as never,
+        db: db as never,
+        input,
+        storage,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_INTENT" });
+    expect(cache.getDel).toHaveBeenCalledTimes(2);
   });
 
   it("rejects replay and source metadata mismatch before activation", async () => {
@@ -202,6 +213,22 @@ describe("finalizeProfileMediaUpload", () => {
         storage,
       })
     ).rejects.toMatchObject({ code: "INVALID_INTENT" });
+
+    storage.seed(input.objectKey, Buffer.from("content"), "image/png");
+    await expect(
+      finalizeProfileMediaUpload({
+        actor: { id: "user-1" },
+        cache: createCache({
+          ...input,
+          contentType: "image/jpeg",
+          issuedToUserId: "user-1",
+        }) as never,
+        db: {} as never,
+        input,
+        storage,
+      })
+    ).rejects.toMatchObject({ code: "INVALID_INTENT" });
+    expect(storage.has(input.objectKey)).toBeFalsy();
 
     storage.seed(input.objectKey, Buffer.from("short"), "image/png");
     await expect(
