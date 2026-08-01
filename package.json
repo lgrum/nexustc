@@ -46,7 +46,7 @@
     "dev:native": "turbo -F native dev",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
-    "web:build": "turbo -F web build",
+    "web:build": "turbo -F next build",
     "web:start": "turbo -F web start",
     "server:build": "turbo -F server build",
     "server:start": "turbo -F server start",
