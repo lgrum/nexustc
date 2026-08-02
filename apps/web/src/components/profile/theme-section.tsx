@@ -38,14 +38,12 @@ export function ThemeSection({
   >({
     mutationFn: (themeId: AppThemeId) =>
       orpcClient.appTheme.select({ themeId }),
-    onError: (error, _themeId, snapshot) => {
+    onError: (_error, _themeId, snapshot) => {
       if (snapshot?.state) {
         queryClient.setQueryData(queryOptions.queryKey, snapshot.state);
       }
       setTheme(snapshot?.theme ?? state.effectiveTheme);
-      toast.error(
-        error instanceof Error ? error.message : "No pudimos guardar el tema."
-      );
+      toast.error("No pudimos guardar el tema. Intenta nuevamente.");
     },
     onMutate: async (themeId) => {
       await queryClient.cancelQueries(queryOptions);
@@ -128,7 +126,11 @@ export function ThemeSection({
                 </span>
                 <Link
                   aria-label={`Ver membresías para desbloquear ${item.name}`}
-                  className={buttonVariants({ size: "sm", variant: "outline" })}
+                  className={buttonVariants({
+                    className: "min-h-11",
+                    size: "sm",
+                    variant: "outline",
+                  })}
                   href="/memberships"
                   onClick={() =>
                     trackEvent("app_theme_upgrade_clicked", {

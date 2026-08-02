@@ -63,6 +63,7 @@ export function AdSlot({
   reduced?: boolean;
   zoneId: string;
 }) {
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const { isLoading, policy } = useViewerAdPolicy();
   const mediaMatches = useMediaMatches(media);
@@ -71,7 +72,10 @@ export function AdSlot({
     markAdCooldown(cooldownKey);
   }, [cooldownKey]);
 
+  useEffect(() => setMounted(true), []);
+
   if (
+    !mounted ||
     isLoading ||
     !mediaMatches ||
     !canServe ||

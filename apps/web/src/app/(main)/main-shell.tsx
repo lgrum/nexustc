@@ -77,7 +77,7 @@ export function MainShell({
     <>
       <div className="relative min-h-screen w-full min-w-0 overflow-x-clip selection:bg-accent selection:text-accent-foreground">
         <AdblockBlockerDialog open={detected && policy !== "none"} />
-        <div className="group relative w-full overflow-hidden whitespace-nowrap border-border/60 border-b bg-linear-to-r from-background via-[oklch(0.2_0.03_285)] to-background">
+        <div className="group relative w-full overflow-hidden whitespace-nowrap border-border/60 border-b bg-linear-to-r from-background via-secondary/15 to-background">
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-linear-to-r from-background to-transparent" />
           <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-linear-to-l from-background to-transparent" />
           <div className="flex min-w-[200%] select-none justify-around hover:paused animate-marquee">

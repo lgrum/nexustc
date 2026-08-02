@@ -138,7 +138,7 @@ export function SortControl({
                 >
                   <span>{option.label}</span>
                   {selected && (
-                    <span className="size-1.5 rounded-full bg-primary shadow-[0_0_8px_2px_oklch(0.795_0.184_86.047/0.5)]" />
+                    <span className="size-1.5 rounded-full bg-primary shadow-primary/50 shadow-sm" />
                   )}
                 </button>
               );
@@ -280,7 +280,7 @@ function MultiSelectPanel({
           />
         </label>
 
-        <div className="max-h-72 overflow-y-auto pr-1 [scrollbar-color:oklch(0.795_0.184_86.047/0.35)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
+        <div className="max-h-72 overflow-y-auto pr-1 [scrollbar-color:var(--primary)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
           {loading && (
             <p className="p-3 text-center text-muted-foreground text-sm">
               Cargando opciones…
@@ -300,7 +300,7 @@ function MultiSelectPanel({
                 return (
                   <button
                     className={cn(
-                      "group/picker inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-2.5 py-1 text-[12px] font-medium transition-all",
+                      "group/picker inline-flex max-w-full items-center gap-1.5 truncate rounded-full border px-2.5 py-1 text-[12px] font-medium transition-colors",
                       selected
                         ? "border-primary/45 bg-primary/15 text-primary"
                         : "border-white/10 bg-background/60 text-muted-foreground hover:border-white/25 hover:text-foreground"
@@ -310,7 +310,7 @@ function MultiSelectPanel({
                     type="button"
                   >
                     {selected && (
-                      <span className="size-1.5 rounded-full bg-primary shadow-[0_0_6px_oklch(0.795_0.184_86.047/0.7)]" />
+                      <span className="size-1.5 rounded-full bg-primary shadow-primary/70 shadow-sm" />
                     )}
                     <span className="truncate">{option.name}</span>
                   </button>
@@ -597,4 +597,4 @@ function getVisiblePaginationItems(currentPage: number, totalPages: number) {
  * the local stacking context created by `backdrop-blur`.
  */
 export const LIBRARY_TOOLBAR_CLASS =
-  "relative z-30 flex flex-col gap-3 rounded-2xl border border-white/10 bg-card/60 p-3 shadow-[0_25px_60px_-40px_oklch(0.795_0.184_86.047/0.5)] backdrop-blur md:flex-row md:flex-wrap md:items-center md:gap-2";
+  "relative z-30 flex flex-col gap-3 rounded-2xl border border-border bg-card/60 p-3 shadow-primary/10 shadow-xl backdrop-blur md:flex-row md:flex-wrap md:items-center md:gap-2";

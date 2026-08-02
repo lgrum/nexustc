@@ -98,7 +98,7 @@
   --accent: oklch(0.6597 0.2275 21.0495);
   --accent-foreground: oklch(0.2272 0.0917 22.6906);
   --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.9851 0 0);
+  --destructive-foreground: #350710;
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.795 0.184 86.047 / 0.6);
@@ -155,7 +155,6 @@
   --chart-4: #67e8f9;
   --chart-5: #a3e635;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #fafafa;
   --input: #3b3745;
   --muted: #29262f;
@@ -193,7 +192,6 @@
   --chart-4: #f59e0b;
   --chart-5: #fde68a;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #fff8ed;
   --input: #513b2d;
   --muted: #32241b;
@@ -231,7 +229,6 @@
   --chart-4: #818cf8;
   --chart-5: #67e8f9;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #eafffb;
   --input: #28505a;
   --muted: #143239;
@@ -269,7 +266,6 @@
   --chart-4: #4ade80;
   --chart-5: #fde68a;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #f2fbed;
   --input: #38543e;
   --muted: #203429;
@@ -307,7 +303,6 @@
   --chart-4: #e879f9;
   --chart-5: #f43f5e;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #fff1f5;
   --input: #5d2a3e;
   --muted: #391a25;
@@ -345,7 +340,6 @@
   --chart-4: #a78bfa;
   --chart-5: #f0abfc;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #f8f4ff;
   --input: #473e61;
   --muted: #2a243b;
@@ -383,7 +377,6 @@
   --chart-4: #a8a29e;
   --chart-5: #fed7aa;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #fff7ed;
   --input: #563d31;
   --muted: #33241d;
@@ -421,7 +414,6 @@
   --chart-4: #e0f2fe;
   --chart-5: #60a5fa;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #f0f9ff;
   --input: #304b65;
   --muted: #1c2b3a;
@@ -459,7 +451,6 @@
   --chart-4: #67e8f9;
   --chart-5: #c4b5fd;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #f3f4ff;
   --input: #3b4169;
   --muted: #222640;
@@ -497,7 +488,6 @@
   --chart-4: #4ade80;
   --chart-5: #67e8f9;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #f4ffe8;
   --input: #38583c;
   --muted: #1d3222;
@@ -535,7 +525,6 @@
   --chart-4: #f0abfc;
   --chart-5: #fdba74;
   --destructive: #fb7185;
-  --destructive-foreground: #fff1f2;
   --foreground: #fff3f7;
   --input: #563447;
   --muted: #34202c;
@@ -679,7 +668,7 @@
 }
 
 .dark body {
-  background-image: var(--page-background);
+  background: var(--page-background);
   background-attachment: fixed;
   background-repeat: no-repeat;
   background-size: cover;

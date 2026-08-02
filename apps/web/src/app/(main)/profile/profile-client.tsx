@@ -134,7 +134,7 @@ function AuthenticatedProfile({
       <header className="relative overflow-hidden rounded-[2rem] border border-primary/15 bg-card/80 p-5 shadow-lg shadow-black/10 sm:p-6">
         <div
           aria-hidden
-          className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,oklch(0.795_0.184_86.047/0.16),transparent_38%)]"
+          className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--primary),transparent_38%)] opacity-15"
         />
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <ProfileIdentity nameAs="h1" user={identity}>

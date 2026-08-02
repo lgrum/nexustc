@@ -71,6 +71,8 @@ import {
 import { PostProvider, usePost } from "./post-context";
 
 const PAGES_PREVIEW_LIMIT = 8;
+const READER_CONTROL_CLASS_NAME =
+  "text-card-foreground hover:bg-accent hover:text-accent-foreground";
 
 type ComicProgressData = {
   currentPageCount: number;
@@ -299,7 +301,7 @@ function ComicHero({
   return (
     <section
       aria-label={`Portada de ${comic.title}`}
-      className="relative isolate overflow-hidden rounded-3xl border border-white/10 bg-card/40 shadow-[0_50px_120px_-60px_oklch(0.795_0.184_86.047/0.5)]"
+      className="relative isolate overflow-hidden rounded-3xl border border-border bg-card/40 shadow-2xl shadow-primary/20"
     >
       {/* Backdrop: blurred + saturated cover */}
       <div className="pointer-events-none absolute inset-0">
@@ -328,7 +330,7 @@ function ComicHero({
           }}
         />
         {/* Warm radial glow */}
-        <div className="absolute -top-1/3 -right-1/4 h-[80%] w-[60%] rounded-full bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.32),transparent_70%)]" />
+        <div className="absolute -top-1/3 -right-1/4 h-[80%] w-[60%] rounded-full bg-primary opacity-20 blur-3xl" />
       </div>
 
       <div className="relative grid gap-8 px-5 py-8 md:grid-cols-[1.1fr_0.9fr] md:gap-12 md:px-10 md:py-12 lg:px-14 lg:py-14">
@@ -409,7 +411,7 @@ function ComicHero({
             <Button
               className={cn(
                 AD_ACTION_CLASS_NAME,
-                "h-12 rounded-xl bg-primary px-5 font-semibold text-[15px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+                "h-12 rounded-xl bg-primary px-5 font-semibold text-[15px] text-primary-foreground shadow-lg shadow-primary/30 hover:bg-primary/90"
               )}
               onClick={() => setPage(0)}
               type="button"
@@ -453,7 +455,7 @@ function ComicHeroPoster({
 }) {
   return (
     <div className="group relative mx-auto block aspect-3/4 w-[min(360px,75%)] md:w-[min(420px,100%)]">
-      <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90" />
+      <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-primary opacity-20 blur-3xl" />
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/15 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:-rotate-1 group-hover:scale-[1.02]">
         {coverUrl ? (
           <Image
@@ -593,7 +595,7 @@ function PagePreviewButton({
     <button
       className={cn(
         AD_ACTION_CLASS_NAME,
-        "group relative aspect-3/4 overflow-hidden rounded-xl border border-white/10 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-[0_18px_40px_-22px_oklch(0.795_0.184_86.047/0.6)]"
+        "group relative aspect-3/4 overflow-hidden rounded-xl border border-border transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-0.5 hover:border-primary/55 hover:shadow-lg hover:shadow-primary/30"
       )}
       onClick={() => onSelect(index)}
       type="button"
@@ -611,7 +613,7 @@ function PagePreviewButton({
       </span>
       {/* Hover overlay */}
       <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/70 via-transparent to-transparent opacity-90 transition-opacity duration-300 group-hover:opacity-100" />
-      <div className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-full border border-primary/45 bg-primary/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-primary opacity-0 backdrop-blur-md transition-all duration-300 group-hover:opacity-100">
+      <div className="absolute right-2 bottom-2 inline-flex items-center gap-1 rounded-full border border-primary/45 bg-primary/15 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.16em] text-primary opacity-0 backdrop-blur-md transition-opacity duration-300 group-hover:opacity-100">
         Leer
         <HugeiconsIcon className="size-3" icon={ArrowRight01Icon} />
       </div>
@@ -1155,7 +1157,7 @@ export function ComicReader({
     // image area needs touch/mouse events for zoom/pan
     // oxlint-disable-next-line jsx_a11y/no-static-element-interactions
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-background"
+      className="fixed inset-0 z-50 flex flex-col bg-black"
       onMouseLeave={handleMouseUp}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -1164,7 +1166,7 @@ export function ComicReader({
       {/* Top Bar */}
       <div
         className={cn(
-          "absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-linear-to-b from-black/80 to-transparent p-4 transition-all duration-300",
+          "absolute inset-x-0 top-0 z-20 flex items-center justify-between bg-linear-to-b from-card/95 to-transparent p-4 text-card-foreground transition-[transform,opacity] duration-300",
           hudVisible && showControls
             ? "translate-y-0 opacity-100"
             : "pointer-events-none -translate-y-full opacity-0"
@@ -1172,7 +1174,7 @@ export function ComicReader({
       >
         <div className="flex items-center gap-3">
           <Button
-            className="text-white hover:bg-white/10 hover:text-white"
+            className={cn(READER_CONTROL_CLASS_NAME, "min-h-11")}
             onClick={goToInfo}
             size="sm"
             variant="ghost"
@@ -1180,8 +1182,8 @@ export function ComicReader({
             <HugeiconsIcon className="size-4" icon={Home01Icon} />
             Volver
           </Button>
-          <Separator className="bg-white/20" orientation="vertical" />
-          <h1 className="hidden md:block line-clamp-1 max-w-xs px-2 font-medium text-sm text-white md:max-w-md">
+          <Separator className="bg-border" orientation="vertical" />
+          <h1 className="hidden md:block line-clamp-1 max-w-xs px-2 font-medium text-sm text-card-foreground md:max-w-md">
             {comic.title}
           </h1>
         </div>
@@ -1194,8 +1196,8 @@ export function ComicReader({
               render={
                 <Button
                   className={cn(
-                    "min-w-24 rounded-full bg-white/10 px-3 font-medium text-sm text-white tabular-nums backdrop-blur-sm hover:bg-white/20 hover:text-white",
-                    showThumbnails && "bg-white/20"
+                    "min-h-11 min-w-24 rounded-full bg-accent/70 px-3 font-medium text-accent-foreground text-sm tabular-nums backdrop-blur-sm hover:bg-accent hover:text-accent-foreground",
+                    showThumbnails && "bg-accent"
                   )}
                   size="sm"
                   variant="ghost"
@@ -1213,7 +1215,8 @@ export function ComicReader({
               onClick={toggleHud}
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white"
+                  aria-label="Ocultar interfaz"
+                  className={cn(READER_CONTROL_CLASS_NAME, "min-h-11 min-w-11")}
                   size="icon-sm"
                   variant="ghost"
                 />
@@ -1237,7 +1240,11 @@ export function ComicReader({
                 }}
                 render={
                   <Button
-                    className="text-white hover:bg-white/10 hover:text-white"
+                    aria-label="Cambiar a modo cascada"
+                    className={cn(
+                      READER_CONTROL_CLASS_NAME,
+                      "min-h-11 min-w-11"
+                    )}
                     size="icon-sm"
                     variant="ghost"
                   />
@@ -1258,7 +1265,12 @@ export function ComicReader({
               onClick={toggleFullscreen}
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white"
+                  aria-label={
+                    isFullscreen
+                      ? "Salir de pantalla completa"
+                      : "Usar pantalla completa"
+                  }
+                  className={cn(READER_CONTROL_CLASS_NAME, "min-h-11 min-w-11")}
                   size="icon-sm"
                   variant="ghost"
                 />
@@ -1292,7 +1304,7 @@ export function ComicReader({
         <button
           aria-label="Página anterior"
           className={cn(
-            "absolute top-0 left-0 z-10 h-full cursor-pointer opacity-0 transition-opacity hover:opacity-100",
+            "absolute top-0 left-0 z-10 h-full cursor-pointer opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-inset",
             !canGoPrev && "cursor-not-allowed"
           )}
           disabled={!canGoPrev}
@@ -1300,11 +1312,8 @@ export function ComicReader({
           type="button"
         >
           <div className="flex h-full items-center justify-start pl-4">
-            <div className="rounded-full bg-white/10 p-3 backdrop-blur-sm">
-              <HugeiconsIcon
-                className="size-8 text-white"
-                icon={ArrowLeft01Icon}
-              />
+            <div className="rounded-full bg-card/85 p-3 text-card-foreground backdrop-blur-sm">
+              <HugeiconsIcon className="size-8" icon={ArrowLeft01Icon} />
             </div>
           </div>
         </button>
@@ -1312,7 +1321,7 @@ export function ComicReader({
         <button
           aria-label="Página siguiente"
           className={cn(
-            "absolute top-0 right-0 z-10 h-full cursor-pointer opacity-0 transition-opacity hover:opacity-100",
+            "absolute top-0 right-0 z-10 h-full cursor-pointer opacity-0 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring focus-visible:ring-inset",
             !canGoNext && "cursor-not-allowed"
           )}
           disabled={!canGoNext}
@@ -1320,11 +1329,8 @@ export function ComicReader({
           type="button"
         >
           <div className="flex h-full items-center justify-end pr-4">
-            <div className="rounded-full bg-white/10 p-3 backdrop-blur-sm">
-              <HugeiconsIcon
-                className="size-8 text-white"
-                icon={ArrowRight01Icon}
-              />
+            <div className="rounded-full bg-card/85 p-3 text-card-foreground backdrop-blur-sm">
+              <HugeiconsIcon className="size-8" icon={ArrowRight01Icon} />
             </div>
           </div>
         </button>
@@ -1332,7 +1338,7 @@ export function ComicReader({
         {/* Loading Spinner */}
         {isImageLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center">
-            <div className="size-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+            <div className="size-12 animate-spin rounded-full border-4 border-primary/25 border-t-primary" />
           </div>
         )}
 
@@ -1360,7 +1366,7 @@ export function ComicReader({
       {/* Bottom Navigation Bar */}
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 bg-linear-to-t from-black/80 to-transparent p-4 transition-all duration-300",
+          "absolute inset-x-0 bottom-0 z-20 flex flex-col gap-3 bg-linear-to-t from-card/95 to-transparent p-4 text-card-foreground transition-[transform,opacity] duration-300",
           hudVisible && showControls
             ? "translate-y-0 opacity-100"
             : "pointer-events-none translate-y-full opacity-0"
@@ -1377,7 +1383,11 @@ export function ComicReader({
             <TooltipTrigger
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white disabled:opacity-30"
+                  aria-label="Ir a la primera página"
+                  className={cn(
+                    READER_CONTROL_CLASS_NAME,
+                    "min-h-11 min-w-11 disabled:opacity-30"
+                  )}
                   disabled={!canGoPrev}
                   onClick={goToFirst}
                   size="icon"
@@ -1394,7 +1404,11 @@ export function ComicReader({
             <TooltipTrigger
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white disabled:opacity-30"
+                  aria-label="Ir a la página anterior"
+                  className={cn(
+                    READER_CONTROL_CLASS_NAME,
+                    "min-h-11 disabled:opacity-30"
+                  )}
                   disabled={!canGoPrev}
                   onClick={goToPrevious}
                   size="lg"
@@ -1409,7 +1423,7 @@ export function ComicReader({
 
           {/* Page indicator button - opens thumbnail view */}
           <Button
-            className="min-w-24 gap-2 text-white hover:bg-white/10 hover:text-white"
+            className={cn(READER_CONTROL_CLASS_NAME, "min-h-11 min-w-24 gap-2")}
             onClick={() => setShowThumbnails(!showThumbnails)}
             size="sm"
             variant="ghost"
@@ -1422,7 +1436,11 @@ export function ComicReader({
             <TooltipTrigger
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white disabled:opacity-30"
+                  aria-label="Ir a la página siguiente"
+                  className={cn(
+                    READER_CONTROL_CLASS_NAME,
+                    "min-h-11 disabled:opacity-30"
+                  )}
                   disabled={!canGoNext}
                   onClick={goToNext}
                   size="lg"
@@ -1439,7 +1457,11 @@ export function ComicReader({
             <TooltipTrigger
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white disabled:opacity-30"
+                  aria-label="Ir a la última página"
+                  className={cn(
+                    READER_CONTROL_CLASS_NAME,
+                    "min-h-11 min-w-11 disabled:opacity-30"
+                  )}
                   disabled={!canGoNext}
                   onClick={goToLast}
                   size="icon"
@@ -1454,7 +1476,7 @@ export function ComicReader({
         </div>
 
         {/* Keyboard shortcuts hint */}
-        <div className="hidden items-center justify-center gap-4 text-white/50 text-xs md:flex">
+        <div className="hidden items-center justify-center gap-4 text-card-foreground/60 text-xs md:flex">
           <span>← → Navegar</span>
           <span>F Pantalla completa</span>
           <span>+/- Zoom</span>
@@ -1482,7 +1504,8 @@ export function ComicReader({
             onClick={toggleHud}
             render={
               <Button
-                className="fixed top-4 right-4 z-30 rounded-full border border-white/15 bg-black/45 text-white shadow-2xl backdrop-blur-md hover:bg-white/10 hover:text-white"
+                aria-label="Mostrar interfaz"
+                className="fixed top-4 right-4 z-30 size-11 rounded-full border border-border bg-card/90 text-card-foreground shadow-2xl backdrop-blur-md hover:bg-accent hover:text-accent-foreground"
                 size="icon"
                 variant="ghost"
               />
@@ -1692,10 +1715,10 @@ export function ComicCascadeReader({
   };
 
   return (
-    <main className="min-h-dvh bg-zinc-950 text-white" ref={containerRef}>
+    <main className="min-h-dvh bg-black" ref={containerRef}>
       <div
         className={cn(
-          "fixed inset-x-0 top-0 z-30 border-white/10 border-b bg-zinc-950/85 px-3 py-3 backdrop-blur-xl transition-all duration-300 md:px-5",
+          "fixed inset-x-0 top-0 z-30 border-border border-b bg-card/90 px-3 py-3 text-card-foreground backdrop-blur-xl transition-[transform,opacity] duration-300 md:px-5",
           hudVisible
             ? "translate-y-0 opacity-100"
             : "pointer-events-none -translate-y-full opacity-0"
@@ -1704,7 +1727,7 @@ export function ComicCascadeReader({
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 md:gap-3">
             <Button
-              className="shrink-0 text-white hover:bg-white/10 hover:text-white"
+              className={cn(READER_CONTROL_CLASS_NAME, "min-h-11 shrink-0")}
               onClick={handleExit}
               size="sm"
               variant="ghost"
@@ -1713,10 +1736,10 @@ export function ComicCascadeReader({
               Volver
             </Button>
             <Separator
-              className="hidden bg-white/20 md:block"
+              className="hidden bg-border md:block"
               orientation="vertical"
             />
-            <h1 className="line-clamp-1 min-w-0 font-medium text-sm text-white">
+            <h1 className="line-clamp-1 min-w-0 font-medium text-card-foreground text-sm">
               {comic.title}
             </h1>
           </div>
@@ -1728,8 +1751,8 @@ export function ComicCascadeReader({
                 render={
                   <Button
                     className={cn(
-                      "min-w-24 rounded-full bg-white/10 px-3 font-medium text-sm text-white tabular-nums hover:bg-white/20 hover:text-white",
-                      showThumbnails && "bg-white/20"
+                      "min-h-11 min-w-24 rounded-full bg-accent/70 px-3 font-medium text-accent-foreground text-sm tabular-nums hover:bg-accent hover:text-accent-foreground",
+                      showThumbnails && "bg-accent"
                     )}
                     size="sm"
                     variant="ghost"
@@ -1745,7 +1768,11 @@ export function ComicCascadeReader({
                 onClick={toggleHud}
                 render={
                   <Button
-                    className="text-white hover:bg-white/10 hover:text-white"
+                    aria-label="Ocultar interfaz"
+                    className={cn(
+                      READER_CONTROL_CLASS_NAME,
+                      "min-h-11 min-w-11"
+                    )}
                     size="icon-sm"
                     variant="ghost"
                   />
@@ -1756,7 +1783,8 @@ export function ComicCascadeReader({
               <TooltipContent>Ocultar interfaz</TooltipContent>
             </Tooltip>
             <Button
-              className="text-white hover:bg-white/10 hover:text-white"
+              aria-label="Cambiar a modo de pantalla completa"
+              className={cn(READER_CONTROL_CLASS_NAME, "min-h-11")}
               onClick={() => {
                 trackEvent("comic_reader_mode_changed", {
                   comicId: comic.id,
@@ -1796,7 +1824,7 @@ export function ComicCascadeReader({
             {/* eslint-disable-next-line @next/next/no-img-element -- continuous reader preserves each source image's unknown intrinsic aspect ratio */}
             <img
               alt={`Página ${index + 1}`}
-              className="h-auto w-full max-w-full bg-zinc-900 object-contain md:rounded-sm"
+              className="h-auto w-full max-w-full bg-black object-contain md:rounded-sm"
               data-page-index={index}
               loading={index < 2 ? "eager" : "lazy"}
               ref={(element) => {
@@ -1825,7 +1853,8 @@ export function ComicCascadeReader({
             onClick={toggleHud}
             render={
               <Button
-                className="fixed top-4 right-4 z-30 rounded-full border border-white/15 bg-black/45 text-white shadow-2xl backdrop-blur-md hover:bg-white/10 hover:text-white"
+                aria-label="Mostrar interfaz"
+                className="fixed top-4 right-4 z-30 size-11 rounded-full border border-border bg-card/90 text-card-foreground shadow-2xl backdrop-blur-md hover:bg-accent hover:text-accent-foreground"
                 size="icon"
                 variant="ghost"
               />
@@ -1876,18 +1905,19 @@ function ThumbnailPanel({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className="data-closed:fade-out-0 data-open:fade-in-0 fixed isolate inset-0 z-50 bg-black/60 backdrop-blur-sm duration-200 data-closed:animate-out data-open:animate-in" />
         <DialogPrimitive.Popup
-          className="data-closed:slide-out-to-bottom data-open:slide-in-from-bottom fixed inset-0 z-50 flex flex-col overflow-hidden bg-zinc-900/95 backdrop-blur-xl duration-300 data-closed:animate-out data-open:animate-in"
+          className="data-closed:slide-out-to-bottom data-open:slide-in-from-bottom fixed inset-0 z-50 flex flex-col overflow-hidden bg-background/95 text-foreground backdrop-blur-xl duration-300 data-closed:animate-out data-open:animate-in"
           ref={panelRef}
         >
           {/* Header */}
-          <div className="z-10 flex shrink-0 items-center justify-between border-white/10 border-b bg-zinc-900/80 p-4 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm">
-            <h3 className="font-semibold text-lg text-white">
+          <div className="z-10 flex shrink-0 items-center justify-between border-border border-b bg-card/90 p-4 pt-[calc(1rem+env(safe-area-inset-top))] backdrop-blur-sm">
+            <h3 className="font-semibold text-card-foreground text-lg">
               Todas las páginas
             </h3>
             <DialogPrimitive.Close
               render={
                 <Button
-                  className="text-white hover:bg-white/10 hover:text-white"
+                  aria-label="Cerrar selector de páginas"
+                  className={cn(READER_CONTROL_CLASS_NAME, "min-h-11 min-w-11")}
                   size="icon-sm"
                   variant="ghost"
                 />
@@ -1898,14 +1928,14 @@ function ThumbnailPanel({
           </div>
 
           {/* Thumbnail Grid */}
-          <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 [scrollbar-color:oklch(0.795_0.184_86.047/0.35)_transparent] scrollbar-thin [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
+          <div className="min-h-0 flex-1 overflow-y-auto p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] md:p-6 scrollbar-thin [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-primary/30 [&::-webkit-scrollbar-thumb]:transition-colors hover:[&::-webkit-scrollbar-thumb]:bg-primary/55 [&::-webkit-scrollbar-track]:bg-transparent">
             <div className="grid grid-cols-4 gap-3 md:grid-cols-7 lg:grid-cols-10 xl:grid-cols-12">
               {images.map((image, index) => (
                 <button
                   className={cn(
-                    "group relative aspect-3/4 overflow-hidden rounded-lg transition-all",
+                    "group relative aspect-3/4 overflow-hidden rounded-lg transition-[opacity,box-shadow]",
                     currentPage === index
-                      ? "ring-2 ring-primary ring-offset-2 ring-offset-zinc-900"
+                      ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
                       : "opacity-60 hover:opacity-100"
                   )}
                   key={image}

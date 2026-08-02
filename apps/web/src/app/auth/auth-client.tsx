@@ -254,8 +254,8 @@ export function AuthClient() {
     <main className="relative flex min-h-dvh w-full items-center justify-center p-4">
       {/* Decorative glow orbs */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="absolute -top-32 -right-20 size-72 rounded-full bg-[radial-gradient(circle,oklch(0.8278_0.1659_79.4259/0.12),transparent_70%)]" />
-        <div className="absolute -bottom-20 -left-24 size-64 rounded-full bg-[radial-gradient(circle,oklch(0.571_0.297_304.654/0.10),transparent_70%)]" />
+        <div className="absolute -top-32 -right-20 size-72 rounded-full bg-[radial-gradient(circle,var(--primary),transparent_70%)] opacity-10" />
+        <div className="absolute -bottom-20 -left-24 size-64 rounded-full bg-[radial-gradient(circle,var(--secondary),transparent_70%)] opacity-10" />
       </div>
 
       <div className="relative z-10 w-full max-w-sm">

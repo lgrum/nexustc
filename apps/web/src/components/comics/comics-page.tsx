@@ -177,7 +177,7 @@ function ComicsHero({
   return (
     <section
       aria-label="Comic destacado"
-      className="relative isolate overflow-hidden rounded-3xl border border-white/10 bg-card/40 shadow-[0_50px_120px_-60px_oklch(0.795_0.184_86.047/0.5)]"
+      className="relative isolate overflow-hidden rounded-3xl border border-border bg-card/40 shadow-2xl shadow-primary/20"
     >
       {/* Backdrop: blurred + saturated cover */}
       <div className="pointer-events-none absolute inset-0">
@@ -207,7 +207,7 @@ function ComicsHero({
           }}
         />
         {/* Warm radial glow top-right */}
-        <div className="absolute -top-1/3 -right-1/4 h-[80%] w-[60%] rounded-full bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.32),transparent_70%)]" />
+        <div className="absolute -top-1/3 -right-1/4 h-[80%] w-[60%] rounded-full bg-primary opacity-20 blur-3xl" />
       </div>
 
       <div className="relative grid gap-8 px-5 py-8 md:grid-cols-[1.1fr_0.9fr] md:gap-12 md:px-10 md:py-12 lg:px-14 lg:py-14">
@@ -262,7 +262,7 @@ function ComicsHero({
             <Button
               className={cn(
                 AD_ACTION_CLASS_NAME,
-                "h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-[0_18px_40px_-18px_oklch(0.795_0.184_86.047/0.95)] hover:bg-primary/90"
+                "h-11 rounded-xl bg-primary px-5 font-semibold text-[14px] text-primary-foreground shadow-lg shadow-primary/30 hover:bg-primary/90"
               )}
               nativeButton={false}
               render={<Link href={`/comic/${featured.slug}`} />}
@@ -289,7 +289,7 @@ function ComicsHero({
                 <button
                   aria-label={`Ver destacado ${idx + 1}: ${p.title}`}
                   className={cn(
-                    "h-1 rounded-full transition-all duration-500 ease-out",
+                    "h-1 rounded-full transition-[width,background-color] duration-500 ease-out",
                     idx === active
                       ? "w-10 bg-primary"
                       : "w-3 bg-white/20 hover:bg-white/40"
@@ -326,7 +326,7 @@ function HeroPoster({ post }: { post: PostProps }) {
       prefetch={false}
     >
       {/* Aura behind the poster */}
-      <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.4),transparent_75%)] blur-2xl opacity-90 transition-opacity duration-500 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute -inset-6 rounded-[2rem] bg-primary opacity-20 blur-3xl transition-opacity duration-500 group-hover:opacity-30" />
 
       <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/15 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.7)] transition-transform duration-500 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:-rotate-1 group-hover:scale-[1.02]">
         {cover ? (
@@ -353,7 +353,7 @@ function HeroPoster({ post }: { post: PostProps }) {
         </div>
 
         {/* Hover affordance */}
-        <div className="absolute right-3 bottom-3 inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white opacity-0 backdrop-blur-md transition-all duration-300 group-hover:translate-x-0 translate-x-1 group-hover:opacity-100">
+        <div className="absolute right-3 bottom-3 inline-flex size-9 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white opacity-0 backdrop-blur-md transition-[transform,opacity] duration-300 group-hover:translate-x-0 translate-x-1 group-hover:opacity-100">
           <HugeiconsIcon className="size-4" icon={ArrowRight01Icon} />
         </div>
       </div>
@@ -389,8 +389,8 @@ function HeroSkeleton() {
 
 function HeroEmpty() {
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-card/40 px-6 py-14 text-center shadow-[0_30px_80px_-40px_oklch(0.795_0.184_86.047/0.4)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(closest-side,oklch(0.795_0.184_86.047/0.18),transparent_75%)]" />
+    <section className="relative overflow-hidden rounded-3xl border border-border bg-card/40 px-6 py-14 text-center shadow-primary/15 shadow-xl">
+      <div className="pointer-events-none absolute inset-0 bg-primary opacity-10 blur-3xl" />
       <HugeiconsIcon
         className="relative mx-auto size-10 text-primary/80"
         icon={Book03Icon}
@@ -643,7 +643,7 @@ function ComicsTrending({
                 <button
                   aria-label={`Ir al slide ${i + 1}`}
                   className={cn(
-                    "h-1 rounded-full transition-all duration-300",
+                    "h-1 rounded-full transition-[width,background-color] duration-300",
                     i === selected
                       ? "w-6 bg-rose-400"
                       : "w-1.5 bg-muted-foreground/30 hover:bg-muted-foreground/60"
