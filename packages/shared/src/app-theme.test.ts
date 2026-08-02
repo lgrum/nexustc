@@ -9,12 +9,84 @@ import {
 } from "./app-theme";
 
 describe("App Theme", () => {
-  it("defines the initial catalog with one default and one premium theme", () => {
-    expect(APP_THEME_CATALOG).toEqual([
-      expect.objectContaining({ id: "predeterminado", premium: false }),
-      expect.objectContaining({ id: "ceniza-solar", premium: true }),
+  it("defines the accepted catalog with one default and ten premium themes", () => {
+    expect(
+      APP_THEME_CATALOG.map(({ description, id, name, premium }) => ({
+        description,
+        id,
+        name,
+        premium,
+      }))
+    ).toEqual([
+      {
+        description: "Carbón, oro y violeta: la identidad actual de NeXusTC.",
+        id: "predeterminado",
+        name: "Predeterminado",
+        premium: false,
+      },
+      {
+        description: "Resplandor dorado bajo una bóveda de humo tostado.",
+        id: "ceniza-solar",
+        name: "Ceniza Solar",
+        premium: true,
+      },
+      {
+        description:
+          "Turquesa bioluminiscente en las profundidades del océano.",
+        id: "marea-abisal",
+        name: "Marea Abisal",
+        premium: true,
+      },
+      {
+        description: "Verde húmedo, musgo luminoso y reflejos de latón.",
+        id: "bosque-umbrio",
+        name: "Bosque Umbrío",
+        premium: true,
+      },
+      {
+        description: "Carmesí mineral y rosa lunar sobre negro vino.",
+        id: "eclipse-carmesi",
+        name: "Eclipse Carmesí",
+        premium: true,
+      },
+      {
+        description: "Lavanda espectral atravesada por destellos de cian.",
+        id: "niebla-arcana",
+        name: "Niebla Arcana",
+        premium: true,
+      },
+      {
+        description: "Cobre encendido, piedra fría y sombras de taller.",
+        id: "oxido-lunar",
+        name: "Óxido Lunar",
+        premium: true,
+      },
+      {
+        description: "Azul glacial y plata sobre una noche casi inmóvil.",
+        id: "hielo-negro",
+        name: "Hielo Negro",
+        premium: true,
+      },
+      {
+        description: "Índigo tormentoso con relámpagos de malva eléctrico.",
+        id: "tormenta-indigo",
+        name: "Tormenta Índigo",
+        premium: true,
+      },
+      {
+        description: "Ácido verde y mineral turquesa entre aguas estancadas.",
+        id: "pantano-neon",
+        name: "Pantano Neón",
+        premium: true,
+      },
+      {
+        description: "Coral encendido flotando entre vacío, tinta y cian.",
+        id: "vacio-coral",
+        name: "Vacío Coral",
+        premium: true,
+      },
     ]);
-    expect(new Set(APP_THEME_CATALOG.map(({ id }) => id)).size).toBe(2);
+    expect(new Set(APP_THEME_CATALOG.map(({ id }) => id)).size).toBe(11);
     expect(DEFAULT_APP_THEME_ID).toBe("predeterminado");
     expect(APP_THEME_REQUIRED_TIER).toBeNull();
     expect(appThemeIdSchema.safeParse("inventado").success).toBe(false);

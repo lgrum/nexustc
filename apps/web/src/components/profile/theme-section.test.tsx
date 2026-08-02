@@ -49,8 +49,9 @@ function renderSection() {
 
 beforeEach(() => vi.clearAllMocks());
 
-it("renders accessible Default and Ceniza Solar choices", () => {
+it("renders every catalog choice as an accessible button", () => {
   renderSection();
+  expect(screen.getAllByRole("button")).toHaveLength(11);
   expect(
     screen
       .getByRole("button", { name: /Predeterminado/ })
@@ -58,7 +59,7 @@ it("renders accessible Default and Ceniza Solar choices", () => {
   ).toBe("true");
   expect(
     screen
-      .getByRole("button", { name: /Ceniza Solar/ })
+      .getByRole("button", { name: /Vacío Coral/ })
       .getAttribute("aria-pressed")
   ).toBe("false");
 });
@@ -66,8 +67,8 @@ it("renders accessible Default and Ceniza Solar choices", () => {
 it("applies immediately and records a successful save", async () => {
   const nextState = {
     ...state,
-    effectiveTheme: "ceniza-solar" as const,
-    selectedTheme: "ceniza-solar" as const,
+    effectiveTheme: "vacio-coral" as const,
+    selectedTheme: "vacio-coral" as const,
   };
   let finishSave!: (value: typeof nextState) => void;
   mocks.select.mockImplementation(
@@ -75,16 +76,16 @@ it("applies immediately and records a successful save", async () => {
   );
   renderSection();
 
-  fireEvent.click(screen.getByRole("button", { name: /Ceniza Solar/ }));
+  fireEvent.click(screen.getByRole("button", { name: /Vacío Coral/ }));
   await waitFor(() =>
-    expect(mocks.setTheme).toHaveBeenCalledWith("ceniza-solar")
+    expect(mocks.setTheme).toHaveBeenCalledWith("vacio-coral")
   );
   finishSave(nextState);
 
   await waitFor(() =>
     expect(mocks.trackEvent).toHaveBeenCalledWith("app_theme_selected", {
       source: "theme_settings",
-      themeId: "ceniza-solar",
+      themeId: "vacio-coral",
     })
   );
 });
