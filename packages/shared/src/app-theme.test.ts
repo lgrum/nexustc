@@ -133,20 +133,63 @@ describe("App Theme", () => {
     }
   );
 
-  it("uses the canonical Patron hierarchy once a threshold is configured", () => {
+  it.each([
+    ["none", false],
+    ["level3", false],
+    ["level5", true],
+    ["level8", true],
+  ] as const)(
+    "resolves configured level5 entitlement for %s",
+    (tier, premiumEligible) => {
+      expect(
+        resolveAppTheme({
+          requiredTier: "level5",
+          role: "user",
+          selectedTheme: "ceniza-solar",
+          tier,
+        })
+      ).toMatchObject({
+        catalogVisible: true,
+        effectiveTheme: premiumEligible ? "ceniza-solar" : "predeterminado",
+        premiumEligible,
+        selectedTheme: "ceniza-solar",
+      });
+    }
+  );
+
+  it("does not grant moderators the configured entitlement", () => {
     expect(
       resolveAppTheme({
         requiredTier: "level5",
-        role: "user",
+        role: "moderator",
         selectedTheme: "ceniza-solar",
         tier: "level3",
-      }).effectiveTheme
-    ).toBe("predeterminado");
+      })
+    ).toMatchObject({
+      catalogVisible: true,
+      effectiveTheme: "predeterminado",
+      premiumEligible: false,
+      selectedTheme: "ceniza-solar",
+    });
+  });
+
+  it("restores a retained premium selection when entitlement returns", () => {
+    const lapsed = resolveAppTheme({
+      requiredTier: "level5",
+      role: "user",
+      selectedTheme: "ceniza-solar",
+      tier: "none",
+    });
+    expect(lapsed).toMatchObject({
+      effectiveTheme: "predeterminado",
+      selectedTheme: "ceniza-solar",
+    });
+
     expect(
       resolveAppTheme({
         requiredTier: "level5",
         role: "user",
-        selectedTheme: "ceniza-solar",
+        selectedTheme: lapsed.selectedTheme,
         tier: "level5",
       }).effectiveTheme
     ).toBe("ceniza-solar");

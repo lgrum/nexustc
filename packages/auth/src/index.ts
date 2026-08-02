@@ -13,7 +13,10 @@ import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins/two-factor";
 
 import { resend } from "./email";
-import { syncPatreonMembership } from "./patreon-sync";
+import {
+  deactivatePatreonMembershipAfterAccountDelete,
+  syncPatreonMembership,
+} from "./patreon-sync";
 import { adminPlugin } from "./plugins/admin";
 import { patreonPlugin } from "./plugins/patreon";
 import { turnstilePlugin } from "./plugins/turnstile";
@@ -110,6 +113,9 @@ export const auth = betterAuth({
             );
           }
         },
+      },
+      delete: {
+        after: deactivatePatreonMembershipAfterAccountDelete,
       },
     },
   },

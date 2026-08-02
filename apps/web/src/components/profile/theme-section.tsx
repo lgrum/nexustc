@@ -5,9 +5,10 @@ import { APP_THEME_CATALOG } from "@repo/shared/app-theme";
 import type { AppThemeId, AppThemeState } from "@repo/shared/app-theme";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTheme } from "next-themes";
+import Link from "next/link";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics";
 import { getAppThemeQueryOptions } from "@/lib/app-theme-query";
 import { orpcClient } from "@/lib/orpc";
@@ -88,7 +89,59 @@ export function ThemeSection({
         aria-label="Tema de la aplicación"
       >
         {APP_THEME_CATALOG.map((item) => {
-          const selected = state.effectiveTheme === item.id;
+          const locked = item.premium && !state.premiumEligible;
+          const selected = state.selectedTheme === item.id;
+          const content = (
+            <span className="flex w-full items-start gap-3">
+              <span
+                aria-hidden
+                className="flex shrink-0 overflow-hidden rounded-full border border-white/15"
+              >
+                {item.swatches.map((color) => (
+                  <span
+                    className="size-4"
+                    key={color}
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </span>
+              <span className="min-w-0">
+                <span className="block font-semibold">{item.name}</span>
+                <span className="mt-1 block text-xs opacity-75">
+                  {item.description}
+                </span>
+              </span>
+            </span>
+          );
+
+          if (locked) {
+            return (
+              <div
+                aria-label={`${item.name}, tema ${selected ? "seleccionado y bloqueado" : "bloqueado"}`}
+                className="flex min-h-28 flex-col items-start gap-3 rounded-lg border border-border bg-background p-4 text-left"
+                key={item.id}
+                role="group"
+              >
+                {content}
+                <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+                  {selected ? "Seleccionado · Bloqueado" : "Bloqueado"}
+                </span>
+                <Link
+                  aria-label={`Ver membresías para desbloquear ${item.name}`}
+                  className={buttonVariants({ size: "sm", variant: "outline" })}
+                  href="/memberships"
+                  onClick={() =>
+                    trackEvent("app_theme_upgrade_clicked", {
+                      source: "theme_settings",
+                      themeId: item.id,
+                    })
+                  }
+                >
+                  Ver membresías
+                </Link>
+              </div>
+            );
+          }
 
           return (
             <Button
@@ -99,26 +152,7 @@ export function ThemeSection({
               onClick={() => mutation.mutate(item.id)}
               variant={selected ? "default" : "outline"}
             >
-              <span className="flex w-full items-start gap-3">
-                <span
-                  aria-hidden
-                  className="flex shrink-0 overflow-hidden rounded-full border border-white/15"
-                >
-                  {item.swatches.map((color) => (
-                    <span
-                      className="size-4"
-                      key={color}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </span>
-                <span className="min-w-0">
-                  <span className="block font-semibold">{item.name}</span>
-                  <span className="mt-1 block text-xs opacity-75">
-                    {item.description}
-                  </span>
-                </span>
-              </span>
+              {content}
             </Button>
           );
         })}

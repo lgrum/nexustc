@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/item";
 import { Spinner } from "@/components/ui/spinner";
 import { trackEvent } from "@/lib/analytics";
+import { getAppThemeQueryOptions } from "@/lib/app-theme-query";
 import { authClient } from "@/lib/auth-client";
 import { orpc, orpcClient } from "@/lib/orpc";
 
@@ -92,8 +93,11 @@ export function AccountSection({ userId }: { userId: string }) {
     }
 
     trackEvent("social_account_unlinked", { provider: "patreon" });
-    await queryClient.invalidateQueries({ queryKey: accountsQueryKey });
-    await queryClient.invalidateQueries(orpc.patreon.getStatus.queryOptions());
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: accountsQueryKey }),
+      queryClient.invalidateQueries(orpc.patreon.getStatus.queryOptions()),
+      queryClient.invalidateQueries(getAppThemeQueryOptions(userId)),
+    ]);
     toast.success("Cuenta de Patreon desvinculada");
   };
 
@@ -155,12 +159,12 @@ export function AccountSection({ userId }: { userId: string }) {
         </ItemGroup>
       </ProfilePanel>
 
-      <PatreonStatusSection />
+      <PatreonStatusSection userId={userId} />
     </div>
   );
 }
 
-function PatreonStatusSection() {
+function PatreonStatusSection({ userId }: { userId: string }) {
   const { data: status } = useSuspenseQuery(
     orpc.patreon.getStatus.queryOptions()
   );
@@ -182,6 +186,7 @@ function PatreonStatusSection() {
         queryClient.invalidateQueries(
           orpc.profile.getMySettings.queryOptions()
         ),
+        queryClient.invalidateQueries(getAppThemeQueryOptions(userId)),
       ]);
       trackEvent("patreon_sync_completed", { result: "success" });
       toast.success("Estado de Patreon sincronizado");

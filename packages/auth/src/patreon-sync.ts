@@ -1,4 +1,4 @@
-import { db } from "@repo/db";
+import { db, eq } from "@repo/db";
 import { patron } from "@repo/db/schema/app";
 import {
   findPatreonMembershipForCampaign,
@@ -10,6 +10,20 @@ import {
   isActiveEntitledPatron,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
+
+export async function deactivatePatreonMembershipAfterAccountDelete(account: {
+  providerId: string;
+  userId: string;
+}): Promise<void> {
+  if (account.providerId !== "patreon") {
+    return;
+  }
+
+  await db
+    .update(patron)
+    .set({ isActivePatron: false })
+    .where(eq(patron.userId, account.userId));
+}
 
 /**
  * Sync Patreon membership data for a user after they link their account.
@@ -49,7 +63,7 @@ export async function syncPatreonMembership(
         patronSince: true,
         tier: true,
       },
-      where: (table, { eq }) => eq(table.userId, userId),
+      where: (table, { eq: equals }) => equals(table.userId, userId),
     });
     const patronStatus = resolvePermanentPatronTierStatus(existingPatron, {
       isActivePatron: isActive,

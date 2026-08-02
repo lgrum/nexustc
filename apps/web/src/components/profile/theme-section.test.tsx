@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { ThemeSection } from "./theme-section";
 
@@ -36,12 +42,12 @@ const state = {
   selectedTheme: "predeterminado" as const,
 };
 
-function renderSection() {
+function renderSection(themeState = state) {
   const client = new QueryClient();
-  client.setQueryData(queryOptions.queryKey, state);
+  client.setQueryData(queryOptions.queryKey, themeState);
   render(
     <QueryClientProvider client={client}>
-      <ThemeSection state={state} userId="user-1" />
+      <ThemeSection state={themeState} userId="user-1" />
     </QueryClientProvider>
   );
   return client;
@@ -62,6 +68,32 @@ it("renders every catalog choice as an accessible button", () => {
       .getByRole("button", { name: /Vacío Coral/ })
       .getAttribute("aria-pressed")
   ).toBe("false");
+});
+
+it("renders premium choices as locked membership previews", () => {
+  renderSection({
+    ...state,
+    premiumEligible: false,
+    requiredTier: "level5",
+  });
+
+  expect(screen.getByRole("button", { name: /Predeterminado/ })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /^Ceniza Solar/ })).toBeNull();
+  const preview = screen.getByRole("group", {
+    name: "Ceniza Solar, tema bloqueado",
+  });
+  expect(within(preview).getByText("Bloqueado")).toBeTruthy();
+  const upgrade = within(preview).getByRole("link", {
+    name: "Ver membresías para desbloquear Ceniza Solar",
+  });
+  expect(upgrade.getAttribute("href")).toBe("/memberships");
+
+  fireEvent.click(upgrade);
+  expect(mocks.select).not.toHaveBeenCalled();
+  expect(mocks.trackEvent).toHaveBeenCalledWith("app_theme_upgrade_clicked", {
+    source: "theme_settings",
+    themeId: "ceniza-solar",
+  });
 });
 
 it("applies immediately and records a successful save", async () => {
@@ -88,6 +120,26 @@ it("applies immediately and records a successful save", async () => {
       themeId: "vacio-coral",
     })
   );
+});
+
+it("distinguishes a retained Selected Theme from the Effective Theme", () => {
+  renderSection({
+    ...state,
+    effectiveTheme: "predeterminado",
+    premiumEligible: false,
+    requiredTier: "level5",
+    selectedTheme: "ceniza-solar",
+  });
+
+  expect(
+    screen
+      .getByRole("button", { name: /Predeterminado/ })
+      .getAttribute("aria-pressed")
+  ).toBe("false");
+  const retained = screen.getByRole("group", {
+    name: "Ceniza Solar, tema seleccionado y bloqueado",
+  });
+  expect(within(retained).getByText("Seleccionado · Bloqueado")).toBeTruthy();
 });
 
 it("restores the visible and cached theme when saving fails", async () => {

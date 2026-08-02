@@ -1,4 +1,5 @@
 import { call } from "@orpc/server";
+import type * as AppThemeModule from "@repo/shared/app-theme";
 
 import type { Context } from "../context";
 import appThemeRouter from "./app-theme";
@@ -8,6 +9,10 @@ vi.mock("@repo/db", () => ({ eq: vi.fn(() => "where") }));
 vi.mock("@repo/db/schema/app", () => ({
   patron: { userId: {} },
   user: { id: {} },
+}));
+vi.mock("@repo/shared/app-theme", async (importOriginal) => ({
+  ...(await importOriginal<typeof AppThemeModule>()),
+  APP_THEME_REQUIRED_TIER: "level5",
 }));
 
 function createContext({
@@ -92,8 +97,28 @@ describe("appTheme router", () => {
     expect(update).toHaveBeenCalledOnce();
   });
 
+  it("accepts an active membership at the configured threshold", async () => {
+    const { context, update } = createContext({
+      active: true,
+      role: "user",
+      tier: "level5",
+    });
+
+    await expect(
+      call(appThemeRouter.select, { themeId: "ceniza-solar" }, { context })
+    ).resolves.toMatchObject({
+      effectiveTheme: "ceniza-solar",
+      premiumEligible: true,
+    });
+    expect(update).toHaveBeenCalledOnce();
+  });
+
   it("rejects a forged premium selection before updating", async () => {
-    const { context, update } = createContext({ role: "moderator" });
+    const { context, update } = createContext({
+      active: false,
+      role: "moderator",
+      tier: "level100",
+    });
 
     await expect(
       call(appThemeRouter.select, { themeId: "ceniza-solar" }, { context })
