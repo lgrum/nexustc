@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 export const PROFILE_SECTIONS = [
   "overview",
   "appearance",
+  "theme",
   "library",
   "following",
   "notifications",

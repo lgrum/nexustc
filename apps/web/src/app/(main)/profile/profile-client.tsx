@@ -12,7 +12,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
+import { DEFAULT_APP_THEME_ID } from "@repo/shared/app-theme";
 import { useSuspenseQuery } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -26,8 +28,10 @@ import { ProfileIdentity } from "@/components/profile/profile-identity";
 import { ProfileLibrarySection } from "@/components/profile/profile-library-section";
 import { ProfileOverviewSection } from "@/components/profile/profile-overview-section";
 import { SecuritySection } from "@/components/profile/security-section";
+import { ThemeSection } from "@/components/profile/theme-section";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics";
+import { getAppThemeQueryOptions } from "@/lib/app-theme-query";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -43,6 +47,7 @@ type NavigationItem = {
 const NAVIGATION: NavigationItem[] = [
   { icon: Home01Icon, label: "Resumen", value: "overview" },
   { icon: Image01Icon, label: "Apariencia", value: "appearance" },
+  { icon: Image01Icon, label: "Tema", value: "theme" },
   { icon: Bookmark02Icon, label: "Biblioteca", value: "library" },
   { icon: Notification03Icon, label: "Siguiendo", value: "following" },
   {
@@ -72,7 +77,11 @@ function AuthenticatedProfile({
   user: (typeof authClient.$Infer.Session)["user"];
 }) {
   const { data } = useSuspenseQuery(orpc.profile.getMySettings.queryOptions());
+  const { data: themeState } = useSuspenseQuery(
+    getAppThemeQueryOptions(user.id)
+  );
   const router = useRouter();
+  const { setTheme } = useTheme();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const identity =
     data.summary ??
@@ -84,6 +93,13 @@ function AuthenticatedProfile({
       profileEmblems: [],
       profileRoles: [],
     } as const);
+  const visibleNavigation = themeState.catalogVisible
+    ? NAVIGATION
+    : NAVIGATION.filter(({ value }) => value !== "theme");
+  const visibleSection =
+    activeSection === "theme" && !themeState.catalogVisible
+      ? "overview"
+      : activeSection;
 
   const handleSignOut = async () => {
     if (isSigningOut) {
@@ -102,6 +118,7 @@ function AuthenticatedProfile({
       }
 
       queryClient.clear();
+      setTheme(DEFAULT_APP_THEME_ID);
       router.replace("/");
       router.refresh();
     } catch (error) {
@@ -155,9 +172,9 @@ function AuthenticatedProfile({
         aria-label="Secciones del perfil"
         className="flex gap-2 overflow-x-auto rounded-[1.25rem] border border-border/70 bg-card/65 p-2 lg:hidden"
       >
-        {NAVIGATION.map((item) => (
+        {visibleNavigation.map((item) => (
           <ProfileNavigationLink
-            active={activeSection === item.value}
+            active={visibleSection === item.value}
             item={item}
             key={item.value}
           />
@@ -170,9 +187,9 @@ function AuthenticatedProfile({
             aria-label="Secciones del perfil"
             className="flex flex-col gap-1"
           >
-            {NAVIGATION.map((item) => (
+            {visibleNavigation.map((item) => (
               <ProfileNavigationLink
-                active={activeSection === item.value}
+                active={visibleSection === item.value}
                 item={item}
                 key={item.value}
               />
@@ -181,27 +198,30 @@ function AuthenticatedProfile({
         </aside>
 
         <div className="min-w-0">
-          {activeSection === "overview" ? (
+          {visibleSection === "overview" ? (
             <ProfileOverviewSection
               bookmarksPublic={data.settings.visibility.favorites}
               reviewsPublic={data.settings.visibility.reviews}
               twoFactorEnabled={Boolean(user.twoFactorEnabled)}
             />
           ) : null}
-          {activeSection === "appearance" ? <AppearanceSection /> : null}
-          {activeSection === "library" ? (
+          {visibleSection === "appearance" ? <AppearanceSection /> : null}
+          {visibleSection === "theme" ? (
+            <ThemeSection state={themeState} userId={user.id} />
+          ) : null}
+          {visibleSection === "library" ? (
             <ProfileLibrarySection visibility={data.settings.visibility} />
           ) : null}
-          {activeSection === "following" ? <FollowingSection /> : null}
-          {activeSection === "notifications" ? (
+          {visibleSection === "following" ? <FollowingSection /> : null}
+          {visibleSection === "notifications" ? (
             <NotificationSettingsSection
               commentReplies={data.settings.notifications.commentReplies}
             />
           ) : null}
-          {activeSection === "account" ? (
+          {visibleSection === "account" ? (
             <AccountSection userId={user.id} />
           ) : null}
-          {activeSection === "security" ? (
+          {visibleSection === "security" ? (
             <SecuritySection
               email={user.email}
               isSigningOut={isSigningOut}

@@ -1,5 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 
+import appTheme from "./app-theme";
 import chronos from "./chronos";
 import comic from "./comic";
 import comicCreator from "./comic-creator";
@@ -25,6 +26,7 @@ import translator from "./translator";
 import user from "./user";
 
 export const appRouter = {
+  appTheme,
   chronos,
   comic,
   comicCreator,

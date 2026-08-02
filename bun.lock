@@ -213,6 +213,7 @@
       },
       "devDependencies": {
         "@repo/config": "workspace:*",
+        "vitest": "catalog:",
       },
       "peerDependencies": {
         "typescript": "^5",

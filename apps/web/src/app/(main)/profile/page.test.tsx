@@ -17,6 +17,7 @@ vi.mock("./profile-client", () => ({
 describe(parseProfileSection, () => {
   it("keeps valid URL-backed profile sections", () => {
     expect(parseProfileSection("library")).toBe("library");
+    expect(parseProfileSection("theme")).toBe("theme");
     expect(parseProfileSection(["security", "overview"])).toBe("security");
   });
 

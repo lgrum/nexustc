@@ -17,7 +17,7 @@ type AppRouterClient = RouterClient<typeof appRouter, ORPCClientContext>;
 
 export { getClientErrorMessage } from "./client-error";
 
-function createQueryClient() {
+export function createQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
@@ -32,6 +32,9 @@ function createQueryClient() {
     },
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (query.meta?.suppressErrorToast) {
+          return;
+        }
         toast.error(getClientErrorMessage(error), {
           action: {
             label: "retry",

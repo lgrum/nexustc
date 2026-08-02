@@ -1,10 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getClientErrorMessage } from "./client-error";
-import { getBrowserORPCUrl, orpcClient } from "./orpc";
+import { createQueryClient, getBrowserORPCUrl, orpcClient } from "./orpc";
+
+const { toastError } = vi.hoisted(() => ({ toastError: vi.fn() }));
+
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
 
 afterEach(() => {
+  toastError.mockClear();
   vi.restoreAllMocks();
+});
+
+it("suppresses global toasts for background reconciliation failures", async () => {
+  const queryClient = createQueryClient();
+
+  await expect(
+    queryClient.fetchQuery({
+      meta: { suppressErrorToast: true },
+      queryFn: () => Promise.reject(new Error("offline")),
+      queryKey: ["app-theme", "mine"],
+      retry: false,
+    })
+  ).rejects.toThrow("offline");
+  expect(toastError).not.toHaveBeenCalled();
 });
 
 describe("getClientErrorMessage", () => {

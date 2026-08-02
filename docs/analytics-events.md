@@ -21,6 +21,7 @@ NeXusTC uses Umami for privacy-conscious analytics. Event names are emitted dire
 | `password_changed`                   | Password change completes or fails       | `result`, `reason`                                                                                     |
 | `patreon_sync_completed`             | Patreon membership sync completes        | `result`, `reason`                                                                                     |
 | `profile_appearance_saved`           | Profile appearance save succeeds         | `bannerMode`                                                                                           |
+| `app_theme_selected`                 | App Theme save succeeds                  | `themeId`, `source`                                                                                    |
 | `profile_media_uploaded`             | Avatar/banner upload succeeds            | `slot`, `contentType`                                                                                  |
 | `profile_media_removed`              | Avatar/banner removal succeeds           | `slot`                                                                                                 |
 | `search_performed`                   | Search filters/query change              | `type`, `queryLength`, `filterCount`                                                                   |

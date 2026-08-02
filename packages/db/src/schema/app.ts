@@ -1,3 +1,4 @@
+import { DEFAULT_APP_THEME_ID } from "@repo/shared/app-theme";
 import {
   DOCUMENT_STATUSES,
   PATRON_TIER_KEYS,
@@ -61,6 +62,9 @@ export const user = pgTable(
     name: varchar("name", { length: 16 }).notNull(),
     newsletterOptIn: boolean("newsletter_opt_in").default(false).notNull(),
     role: text("role").default("user").notNull(),
+    selectedTheme: text("selected_theme")
+      .default(DEFAULT_APP_THEME_ID)
+      .notNull(),
     twoFactorEnabled: boolean("two_factor_enabled").default(false).notNull(),
     ...timestamps,
   },
