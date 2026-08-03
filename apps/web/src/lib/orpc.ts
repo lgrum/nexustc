@@ -35,11 +35,13 @@ export function createQueryClient() {
         if (query.meta?.suppressErrorToast) {
           return;
         }
-        toast.error(getClientErrorMessage(error), {
+        const message = getClientErrorMessage(error);
+        toast.error(message, {
           action: {
             label: "retry",
             onClick: query.invalidate,
           },
+          id: `query-error:${message}`,
         });
       },
     }),

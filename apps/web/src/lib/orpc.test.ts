@@ -26,6 +26,33 @@ it("suppresses global toasts for background reconciliation failures", async () =
   expect(toastError).not.toHaveBeenCalled();
 });
 
+it("deduplicates matching global query errors", async () => {
+  const queryClient = createQueryClient();
+  const failedQuery = (queryKey: string[]) =>
+    queryClient.fetchQuery({
+      queryFn: () => Promise.reject(new Error("Not Found")),
+      queryKey,
+      retry: false,
+    });
+
+  await Promise.allSettled([
+    failedQuery(["post", "recent"]),
+    failedQuery(["term", "popular-tags"]),
+  ]);
+
+  expect(toastError).toHaveBeenCalledTimes(2);
+  expect(toastError).toHaveBeenNthCalledWith(
+    1,
+    "Not Found",
+    expect.objectContaining({ id: "query-error:Not Found" })
+  );
+  expect(toastError).toHaveBeenNthCalledWith(
+    2,
+    "Not Found",
+    expect.objectContaining({ id: "query-error:Not Found" })
+  );
+});
+
 describe("getClientErrorMessage", () => {
   it("uses explicit server error messages", () => {
     const error = Object.assign(new Error("Tu mensaje parece spam."), {
