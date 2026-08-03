@@ -333,6 +333,7 @@ function AppearanceSectionContent({
               </label>
               <Input
                 accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                disabled={uploadMediaMutation.isPending}
                 id="profile-avatar-file"
                 onChange={handleAvatarInputChange}
                 type="file"
@@ -353,7 +354,9 @@ function AppearanceSectionContent({
               }
             />
             <Button
-              disabled={removeAvatarMutation.isPending}
+              disabled={
+                removeAvatarMutation.isPending || uploadMediaMutation.isPending
+              }
               onClick={() => removeAvatarMutation.mutate()}
               variant="outline"
             >
@@ -421,14 +424,19 @@ function AppearanceSectionContent({
               </label>
               <Input
                 accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
-                disabled={!data.entitlements.canUseUploadedBanner}
+                disabled={
+                  !data.entitlements.canUseUploadedBanner ||
+                  uploadMediaMutation.isPending
+                }
                 id="profile-banner-file"
                 onChange={handleBannerInputChange}
                 type="file"
               />
             </div>
             <Button
-              disabled={removeBannerMutation.isPending}
+              disabled={
+                removeBannerMutation.isPending || uploadMediaMutation.isPending
+              }
               onClick={() => removeBannerMutation.mutate()}
               variant="outline"
             >
@@ -444,7 +452,10 @@ function AppearanceSectionContent({
           </p>
           <Button
             className="shrink-0"
-            disabled={updateAppearanceMutation.isPending}
+            disabled={
+              updateAppearanceMutation.isPending ||
+              uploadMediaMutation.isPending
+            }
             onClick={() => updateAppearanceMutation.mutate()}
           >
             {updateAppearanceMutation.isPending ? (
@@ -454,13 +465,15 @@ function AppearanceSectionContent({
           </Button>
         </div>
 
-        {uploadMediaMutation.isPending && uploadProgress > 0 ? (
+        {uploadMediaMutation.isPending ? (
           <p
             aria-live="polite"
             className="text-muted-foreground text-sm"
             role="status"
           >
-            Subiendo archivo: {uploadProgress}%
+            {uploadProgress > 0
+              ? `Subiendo archivo: ${uploadProgress}%`
+              : "Preparando archivo…"}
           </p>
         ) : null}
       </div>
@@ -476,18 +489,26 @@ function AppearanceSectionContent({
             }
             imageSrc={pendingUpload.previewUrl}
             onConfirm={async (crop: ImagePercentCrop) => {
+              let croppedFile: File;
+
               try {
-                const croppedFile = await cropImage(pendingUpload.file, crop);
-                uploadMediaMutation.mutate({
-                  file: croppedFile,
-                  slot: pendingUpload.slot,
-                });
+                croppedFile = await cropImage(pendingUpload.file, crop);
               } catch (error) {
                 toast.error(
                   error instanceof Error
                     ? error.message
                     : "No se pudo recortar la imagen."
                 );
+                return;
+              }
+
+              try {
+                await uploadMediaMutation.mutateAsync({
+                  file: croppedFile,
+                  slot: pendingUpload.slot,
+                });
+              } catch {
+                // The mutation hook owns upload error feedback.
               }
             }}
             onOpenChange={(open) => {
@@ -500,6 +521,7 @@ function AppearanceSectionContent({
               }
             }}
             open={!!pendingUpload}
+            progress={uploadProgress}
             title={
               pendingUpload.slot === "avatar"
                 ? "Recortar avatar"
