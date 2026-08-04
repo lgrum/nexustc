@@ -607,14 +607,10 @@ function RecentPostsSection() {
 
       {!(isPending || isError) && (
         <>
-          <div className="relative">
-            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
-              {recentPosts?.map((post) => (
-                <PostCard key={post.id} playAnimationOnHover post={post} />
-              ))}
-            </div>
-            {/* Fade the last row into the funnel below */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-linear-to-b from-transparent to-background" />
+          <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+            {recentPosts?.map((post) => (
+              <PostCard key={post.id} playAnimationOnHover post={post} />
+            ))}
           </div>
           <BrowseAllGamesFunnel />
         </>
@@ -625,7 +621,7 @@ function RecentPostsSection() {
 
 function BrowseAllGamesFunnel() {
   return (
-    <div className="-mt-2 relative z-60 flex justify-center">
+    <div className="flex justify-center pt-3">
       <Link
         className="group inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 py-2 pr-3 pl-4 font-medium text-primary text-sm transition-colors hover:border-primary/45 hover:bg-primary/15"
         href="/juegos"
