@@ -1,49 +1,76 @@
+import {
+  Book03Icon,
+  BookOpenTextIcon,
+  Clock01Icon,
+  GameController03Icon,
+  Home07Icon,
+  InformationCircleIcon,
+  LegalDocument01Icon,
+  LegalHammerIcon,
+  Mortarboard02Icon,
+  News01Icon,
+  ShieldKeyIcon,
+  StarIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { DiscordLogo } from "../icons/discord";
+import { PatreonLogo } from "../icons/patreon";
+import { XLogo } from "../icons/x";
+import { YoutubeLogo } from "../icons/youtube";
 import { Logo } from "../logo";
 
 const exploreLinks = [
-  { href: "/", label: "Inicio" },
-  { href: "/juegos", label: "Juegos" },
-  { href: "/comics", label: "Comics" },
-  { href: "/tutorials", label: "Tutoriales" },
-  { href: "/vip", label: "VIP" },
-  { href: "/news", label: "Noticias" },
-  { href: "/chronos", label: "TheChronos" },
+  { href: "/", icon: Home07Icon, label: "Inicio" },
+  { href: "/juegos", icon: GameController03Icon, label: "Juegos" },
+  { href: "/comics", icon: Book03Icon, label: "Comics" },
+  { href: "/tutorials", icon: Mortarboard02Icon, label: "Tutoriales" },
+  { href: "/vip", icon: StarIcon, label: "VIP" },
+  { href: "/news", icon: News01Icon, label: "Noticias" },
+  { href: "/chronos", icon: Clock01Icon, label: "TheChronos" },
 ] as const;
 
 const legalLinks = [
-  { href: "/about", label: "Acerca" },
-  { href: "/review-guidelines", label: "Guía de reseñas" },
-  { href: "/privacy", label: "Política de Privacidad" },
-  { href: "/terms", label: "Términos y Condiciones" },
-  { href: "/legal", label: "Aviso Legal" },
+  { href: "/about", icon: InformationCircleIcon, label: "Acerca" },
+  {
+    href: "/review-guidelines",
+    icon: BookOpenTextIcon,
+    label: "Guía de reseñas",
+  },
+  { href: "/privacy", icon: ShieldKeyIcon, label: "Política de Privacidad" },
+  {
+    href: "/terms",
+    icon: LegalDocument01Icon,
+    label: "Términos y Condiciones",
+  },
+  { href: "/legal", icon: LegalHammerIcon, label: "Aviso Legal" },
 ] as const;
 
 const communityLinks: readonly {
   href: string;
-  icon?: ReactNode;
+  icon: ReactNode;
   label: string;
 }[] = [
   {
     href: "https://www.patreon.com/c/NeXusTC18",
+    icon: <PatreonLogo aria-hidden="true" className="size-4 shrink-0" />,
     label: "Patreon",
   },
   {
-    href: "https://ko-fi.com/nexustc2",
-    label: "Kofi",
-  },
-  {
     href: "https://x.com/NeXusTC18",
+    icon: <XLogo aria-hidden="true" className="size-4 shrink-0" />,
     label: "X",
   },
   {
     href: "https://www.youtube.com/@CUBAHUB",
-    label: "Youtube",
+    icon: <YoutubeLogo aria-hidden="true" className="size-4 shrink-0" />,
+    label: "YouTube",
   },
   {
     href: "https://discord.nexustc18.com/",
+    icon: <DiscordLogo aria-hidden="true" className="size-4 shrink-0" />,
     label: "Discord",
   },
 ] as const;
@@ -65,10 +92,15 @@ export function Footer() {
         <FooterColumn title="Explorar">
           {exploreLinks.map((link) => (
             <Link
-              className="text-muted-foreground text-sm transition-colors hover:text-primary"
+              className="inline-flex items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-primary"
               key={link.href}
               href={link.href}
             >
+              <HugeiconsIcon
+                aria-hidden="true"
+                className="size-4 shrink-0"
+                icon={link.icon}
+              />
               {link.label}
             </Link>
           ))}
@@ -92,10 +124,15 @@ export function Footer() {
         <FooterColumn title="Legal">
           {legalLinks.map((link) => (
             <Link
-              className="text-muted-foreground text-sm transition-colors hover:text-primary"
+              className="inline-flex items-center gap-2 text-muted-foreground text-sm transition-colors hover:text-primary"
               key={link.href}
               href={link.href}
             >
+              <HugeiconsIcon
+                aria-hidden="true"
+                className="size-4 shrink-0"
+                icon={link.icon}
+              />
               {link.label}
             </Link>
           ))}

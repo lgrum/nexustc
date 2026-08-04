@@ -1,4 +1,15 @@
-import { CircleLockIcon } from "@hugeicons/core-free-icons";
+import {
+  Book03Icon,
+  CircleLockIcon,
+  Clock01Icon,
+  Crown02Icon,
+  GameController03Icon,
+  Home07Icon,
+  Mortarboard02Icon,
+  News01Icon,
+  StarIcon,
+} from "@hugeicons/core-free-icons";
+import type { IconSvgElement } from "@hugeicons/react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import {
@@ -27,14 +38,34 @@ import { NotificationCenter } from "../notifications/notification-center";
 import { Button } from "../ui/button";
 
 const navItems = [
-  { href: "/", label: "Inicio", search: {} },
-  { href: "/juegos", label: "Juegos", search: {} },
-  { href: "/comics", label: "Comics", search: {} },
-  { href: "/tutorials", label: "Tutoriales", search: {} },
-  { href: "/vip", label: "VIP", search: {} },
-  { href: "/memberships", label: "Membresías", search: {} },
-  { href: "/news", label: "Noticias", search: {} },
-  { href: "/chronos", label: "TheChronos", search: {} },
+  { href: "/", icon: Home07Icon, label: "Inicio", search: {} },
+  {
+    href: "/juegos",
+    icon: GameController03Icon,
+    label: "Juegos",
+    search: {},
+  },
+  { href: "/comics", icon: Book03Icon, label: "Comics", search: {} },
+  {
+    href: "/tutorials",
+    icon: Mortarboard02Icon,
+    label: "Tutoriales",
+    search: {},
+  },
+  { href: "/vip", icon: StarIcon, label: "VIP", search: {} },
+  {
+    href: "/memberships",
+    icon: Crown02Icon,
+    label: "Membresías",
+    search: {},
+  },
+  { href: "/news", icon: News01Icon, label: "Noticias", search: {} },
+  {
+    href: "/chronos",
+    icon: Clock01Icon,
+    label: "TheChronos",
+    search: {},
+  },
 ] as const;
 
 export function Header() {
@@ -180,10 +211,11 @@ function HeaderNav() {
           x: blobX,
         }}
       />
-      <div className="relative flex items-center gap-4">
+      <div className="relative flex items-center gap-1">
         {navItems.map((item) => (
           <NavItem
             href={item.href}
+            icon={item.icon}
             isActive={activeHref === item.href}
             key={item.href}
             label={item.label}
@@ -203,11 +235,13 @@ function HeaderNav() {
 
 function NavItem({
   href,
+  icon,
   isActive,
   label,
   ref,
 }: {
   href: string;
+  icon: IconSvgElement;
   isActive: boolean;
   label: string;
   ref: React.Ref<HTMLAnchorElement>;
@@ -216,7 +250,7 @@ function NavItem({
     <Link
       aria-current={isActive ? "page" : undefined}
       className={cn(
-        "relative z-10 rounded-lg px-3 py-2 text-base tracking-wider transition-colors duration-200",
+        "relative z-10 inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-base tracking-wider transition-colors duration-200",
         isActive
           ? "text-primary"
           : "text-muted-foreground hover:text-foreground"
@@ -224,6 +258,11 @@ function NavItem({
       ref={ref}
       href={href}
     >
+      <HugeiconsIcon
+        aria-hidden="true"
+        className="size-4 shrink-0"
+        icon={icon}
+      />
       {label}
     </Link>
   );
