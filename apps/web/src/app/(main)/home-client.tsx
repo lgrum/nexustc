@@ -105,8 +105,8 @@ function HomeContent() {
 
         <RecentPostsSection />
 
-        {/* Active Users + Tags — mobile only */}
-        <div className="flex flex-col px-4 md:hidden">
+        {/* Active Users + Tags — mobile and tablet */}
+        <div className="flex flex-col px-4 lg:hidden">
           <div className="glow-line" />
           <ActiveUsersSection />
           <div className="glow-line" />
@@ -117,7 +117,7 @@ function HomeContent() {
       </div>
 
       {/* Sidebar — desktop only */}
-      <aside className="hidden w-80 shrink-0 md:block pb-4">
+      <aside className="hidden w-80 shrink-0 pb-4 lg:block">
         <div className="sticky top-4 flex flex-col gap-4">
           <AuthAction />
           <div className="glow-line" />
@@ -379,7 +379,7 @@ function ActiveUsersSection() {
       )}
       <div className="relative">
         {recentUsers.data && recentUsers.data.length > 0 && (
-          <div className="-top-2.5 absolute -right-3 z-10 inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 backdrop-blur-md">
+          <div className="-top-2.5 absolute right-0 z-10 inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 backdrop-blur-md">
             <span className="relative inline-flex size-1.5">
               <span
                 aria-hidden

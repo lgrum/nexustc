@@ -611,10 +611,10 @@
     @apply border-border outline-ring/50;
   }
   html {
-    @apply overflow-x-clip font-sans;
+    @apply font-sans;
   }
   body {
-    @apply font-sans overflow-x-clip bg-background text-foreground;
+    @apply bg-background font-sans text-foreground;
   }
 }
 

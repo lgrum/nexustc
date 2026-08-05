@@ -195,7 +195,7 @@ function HeaderNav() {
 
   return (
     <div
-      className="relative hidden md:block"
+      className="relative hidden xl:block"
       onMouseLeave={handleMouseLeave}
       onMouseMove={(e) => handleMouseMove(e.clientX, e.clientY)}
       ref={containerRef}

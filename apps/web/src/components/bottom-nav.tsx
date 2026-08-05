@@ -50,7 +50,7 @@ export function BottomNav() {
         "bg-background/80 backdrop-blur-md",
         "border-border border-t",
         "pb-[env(safe-area-inset-bottom)]",
-        "md:hidden",
+        "xl:hidden",
         "flex items-center justify-around",
         "h-16 px-2"
       )}

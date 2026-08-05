@@ -75,7 +75,7 @@ export function MainShell({
 
   return (
     <>
-      <div className="relative min-h-screen w-full min-w-0 overflow-x-clip selection:bg-accent selection:text-accent-foreground">
+      <div className="relative min-h-screen w-full min-w-0 selection:bg-accent selection:text-accent-foreground">
         <AdblockBlockerDialog open={detected && policy !== "none"} />
         <div className="group relative w-full overflow-hidden whitespace-nowrap border-border/60 border-b bg-linear-to-r from-background via-secondary/15 to-background">
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-linear-to-r from-background to-transparent" />
@@ -86,10 +86,10 @@ export function MainShell({
           </div>
         </div>
         <div
-          className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] overflow-x-clip pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] md:pb-0"
+          className="relative grid min-h-dvh min-w-0 grid-rows-[1fr_auto] pb-[calc(--spacing(16)+env(safe-area-inset-bottom))] xl:pb-0"
           id="main-scrollable-area"
         >
-          <div className="relative flex w-full min-w-0 max-w-full flex-col items-center overflow-x-clip">
+          <div className="relative flex w-full min-w-0 max-w-full flex-col items-center">
             <div className="container space-y-4">
               <Header />
               <Suspense fallback={<PageLoading />}>{children}</Suspense>
