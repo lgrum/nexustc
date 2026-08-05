@@ -8,6 +8,7 @@ import {
   StarIcon,
   ViewIcon,
   GameController03Icon,
+  Search01Icon,
   UserGroupIcon,
   Tag01Icon,
   Time04Icon,
@@ -18,7 +19,7 @@ import { PREMIUM_STATUS_CATEGORIES } from "@repo/shared/constants";
 import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage, Facehash } from "facehash";
 import Link from "next/link";
-import { createContext, use } from "react";
+import { createContext, use, useState } from "react";
 
 import { AdSlot } from "@/components/ads/ad-slot";
 import {
@@ -34,6 +35,11 @@ import { ProfileAvatar } from "@/components/profile/profile-avatar";
 import { TermBadge } from "@/components/term-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserLabel } from "@/components/users/user-label";
 import { useHasHydrated } from "@/hooks/use-has-hydrated";
@@ -370,6 +376,12 @@ function PlaceholderHero() {
 
 function ActiveUsersSection() {
   const { recentUsers } = useHomeData();
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLocaleLowerCase("es");
+  const filteredUsers =
+    recentUsers.data?.filter((user) =>
+      user.name.toLocaleLowerCase("es").includes(normalizedSearch)
+    ) ?? [];
 
   return (
     <section className="space-y-3 relative">
@@ -377,6 +389,18 @@ function ActiveUsersSection() {
       {!!recentUsers.error && (
         <p className="text-red-500 text-sm">Error: {recentUsers.error.code}</p>
       )}
+      <InputGroup className="mb-4 bg-background/60">
+        <InputGroupInput
+          aria-label="Buscar usuarios activos"
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Buscar usuario..."
+          type="search"
+          value={search}
+        />
+        <InputGroupAddon>
+          <HugeiconsIcon className="size-4" icon={Search01Icon} />
+        </InputGroupAddon>
+      </InputGroup>
       <div className="relative">
         {recentUsers.data && recentUsers.data.length > 0 && (
           <div className="-top-2.5 absolute right-0 z-10 inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 backdrop-blur-md">
@@ -397,7 +421,7 @@ function ActiveUsersSection() {
         )}
         <Card className="py-2">
           <CardContent className="flex flex-col gap-2 px-2">
-            {recentUsers.data?.map((user) => (
+            {filteredUsers.map((user) => (
               <Link
                 className="relative flex items-center gap-1.5 rounded-md py-1.5 px-2 hover:bg-accent transition-colors data-[active=true]:bg-accent"
                 key={user.id}
@@ -407,6 +431,11 @@ function ActiveUsersSection() {
                 <UserLabel user={user} />
               </Link>
             ))}
+            {recentUsers.data && filteredUsers.length === 0 && (
+              <p className="px-2 py-3 text-center text-muted-foreground text-xs">
+                No se encontraron usuarios.
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
