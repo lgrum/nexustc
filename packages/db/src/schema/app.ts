@@ -6,6 +6,11 @@ import {
   TAXONOMIES,
 } from "@repo/shared/constants";
 import {
+  ETERIS_TRANSACTION_KINDS,
+  ETERIS_WALLET_KINDS,
+  ETERIS_WALLET_STATUSES,
+} from "@repo/shared/eteris";
+import {
   PROFILE_ASSIGNMENT_SOURCE_TYPES,
   PROFILE_BANNER_MODES,
   PROFILE_DEFAULTS,
@@ -19,7 +24,10 @@ import type {
 import type { MarqueeItem as SiteMarqueeItem } from "@repo/shared/schemas";
 import { relations, sql } from "drizzle-orm";
 import {
+  check,
+  bigint,
   boolean,
+  date,
   foreignKey,
   index,
   integer,
@@ -27,6 +35,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -221,6 +230,13 @@ export const userRelations = relations(user, ({ many, one }) => ({
   profileSettings: one(profileSettings),
   sessions: many(session),
   twoFactors: many(twoFactor),
+  xpRewardBlocksCreated: many(xpRewardBlock, {
+    relationName: "xp_reward_block_created_by",
+  }),
+  xpRewardBlocksOwned: many(xpRewardBlock, {
+    relationName: "xp_reward_block_user",
+  }),
+  xpRewardSubjects: many(xpRewardSubject),
 }));
 
 export const patronRelations = relations(patron, ({ one }) => ({
@@ -272,6 +288,55 @@ export const forbiddenContentKindEnum = pgEnum("forbidden_content_kind", [
   "word",
   "url",
 ]);
+
+export const xpEventKindEnum = pgEnum("xp_event_kind", [
+  "comic_reading",
+  "review_milestone",
+  "comment_milestone",
+  "admin_adjustment",
+  "reversal",
+]);
+export const xpEventStateEnum = pgEnum("xp_event_state", [
+  "pending",
+  "posted",
+  "cancelled",
+]);
+export const xpRewardSubjectKindEnum = pgEnum("xp_reward_subject_kind", [
+  "review",
+  "comment",
+]);
+export const xpRewardDeletionReasonEnum = pgEnum("xp_reward_deletion_reason", [
+  "voluntary",
+  "guideline_abuse",
+  "parent_removed",
+]);
+export const xpRewardBlockKindEnum = pgEnum("xp_reward_block_kind", [
+  "review",
+  "comment",
+  "comic",
+]);
+export const xpIntegrityRiskLevelEnum = pgEnum("xp_integrity_risk_level", [
+  "medium",
+  "high",
+]);
+export const xpIntegrityCaseStatusEnum = pgEnum("xp_integrity_case_status", [
+  "open",
+  "released",
+  "reversed",
+  "dismissed",
+]);
+export const eterisWalletKindEnum = pgEnum(
+  "eteris_wallet_kind",
+  ETERIS_WALLET_KINDS
+);
+export const eterisWalletStatusEnum = pgEnum(
+  "eteris_wallet_status",
+  ETERIS_WALLET_STATUSES
+);
+export const eterisTransactionKindEnum = pgEnum(
+  "eteris_transaction_kind",
+  ETERIS_TRANSACTION_KINDS
+);
 
 export const term = pgTable("term", {
   color: text("color"),
@@ -736,6 +801,7 @@ export const postLikes = pgTable(
 export const postRating = pgTable(
   "post_rating",
   {
+    id: text("id").notNull().unique().$defaultFn(generateId),
     pinnedAt: timestamp("pinned_at", { withTimezone: true }),
     postId: text("post_id")
       .references(() => post.id, { onDelete: "cascade" })
@@ -763,18 +829,19 @@ export const postRatingLikes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
-    postId: text("post_id").notNull(),
-    ratingUserId: text("rating_user_id").notNull(),
+    ratingId: text("rating_id")
+      .references(() => postRating.id, { onDelete: "cascade" })
+      .notNull(),
     userId: text("user_id")
       .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
   },
   (table) => [
     primaryKey({
-      columns: [table.userId, table.ratingUserId, table.postId],
-      name: "post_rating_like_user_id_rating_user_id_post_id_pk",
+      columns: [table.userId, table.ratingId],
+      name: "post_rating_like_user_id_rating_id_pk",
     }),
-    index("post_rating_like_rating_idx").on(table.postId, table.ratingUserId),
+    index("post_rating_like_rating_id_idx").on(table.ratingId),
   ]
 );
 
@@ -823,6 +890,13 @@ export const userComicProgress = pgTable(
     totalPagesAtLastRead: integer("total_pages_at_last_read")
       .notNull()
       .default(0),
+    xpProcessedPageRanges: jsonb("xp_processed_page_ranges")
+      .$type<[number, number][]>()
+      .notNull()
+      .default([]),
+    xpTrackingUpdatedAt: timestamp("xp_tracking_updated_at", {
+      withTimezone: true,
+    }),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
@@ -839,6 +913,401 @@ export const userComicProgress = pgTable(
     index("user_comic_progress_user_last_read_idx").on(
       table.userId,
       table.lastReadTimestamp
+    ),
+  ]
+);
+
+export const progressionSystem = pgTable(
+  "progression_system",
+  {
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    curveVersion: text("curve_version").notNull(),
+    id: text("id").primaryKey(),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "progression_system_singleton_check",
+      sql`${table.id} = 'account-progression'`
+    ),
+  ]
+);
+
+export const userProgression = pgTable(
+  "user_progression",
+  {
+    level: smallint("level").notNull().default(1),
+    pendingXp: integer("pending_xp").notNull().default(0),
+    totalXp: integer("total_xp").notNull().default(0),
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "user_progression_total_xp_check",
+      sql`${table.totalXp} between 0 and 365000`
+    ),
+    check("user_progression_pending_xp_check", sql`${table.pendingXp} >= 0`),
+    check(
+      "user_progression_level_check",
+      sql`${table.level} between 1 and 1000`
+    ),
+    index("user_progression_level_idx").on(table.level),
+  ]
+);
+
+export const xpRewardSubject = pgTable(
+  "xp_reward_subject",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    dailyCapEligible: boolean("daily_cap_eligible").notNull(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    deletionReason: xpRewardDeletionReasonEnum("deletion_reason"),
+    entityId: text("entity_id").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    kind: xpRewardSubjectKindEnum("kind").notNull(),
+    normalizedContentHash: text("normalized_content_hash").notNull(),
+    parentPostId: text("parent_post_id"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("xp_reward_subject_kind_entity_unique").on(
+      table.kind,
+      table.entityId
+    ),
+    index("xp_reward_subject_user_kind_hash_idx").on(
+      table.userId,
+      table.kind,
+      table.normalizedContentHash
+    ),
+    index("xp_reward_subject_user_created_idx").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+);
+
+export const xpIntegrityCase = pgTable(
+  "xp_integrity_case",
+  {
+    autoReleaseAt: timestamp("auto_release_at", { withTimezone: true }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: text("decided_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    decisionReason: text("decision_reason"),
+    evidence: jsonb("evidence")
+      .$type<{ signals: { count: number; kind: string }[] }>()
+      .notNull()
+      .default({ signals: [] }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    riskLevel: xpIntegrityRiskLevelEnum("risk_level").notNull(),
+    status: xpIntegrityCaseStatusEnum("status").notNull().default("open"),
+    summary: text("summary").notNull(),
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    index("xp_integrity_case_status_risk_created_idx").on(
+      table.status,
+      table.riskLevel,
+      table.createdAt
+    ),
+    index("xp_integrity_case_user_id_idx").on(table.userId),
+  ]
+);
+
+export const xpRiskSignal = pgTable(
+  "xp_risk_signal",
+  {
+    deviceHash: text("device_hash"),
+    evidence: jsonb("evidence")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    ipPrefixHash: text("ip_prefix_hash"),
+    kind: text("kind").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    index("xp_risk_signal_expires_at_idx").on(table.expiresAt),
+    index("xp_risk_signal_device_occurred_idx").on(
+      table.deviceHash,
+      table.occurredAt
+    ),
+    index("xp_risk_signal_ip_occurred_idx").on(
+      table.ipPrefixHash,
+      table.occurredAt
+    ),
+    index("xp_risk_signal_user_occurred_idx").on(
+      table.userId,
+      table.occurredAt
+    ),
+  ]
+);
+
+export const xpRewardBlock = pgTable(
+  "xp_reward_block",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    integrityCaseId: text("integrity_case_id"),
+    kind: xpRewardBlockKindEnum("kind").notNull(),
+    reason: text("reason").notNull(),
+    scopeKey: text("scope_key").notNull(),
+    userId: text("user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.integrityCaseId],
+      foreignColumns: [xpIntegrityCase.id],
+      name: "xp_reward_block_integrity_case_fk",
+    }).onDelete("set null"),
+    uniqueIndex("xp_reward_block_user_kind_scope_unique")
+      .on(table.userId, table.kind, table.scopeKey)
+      .where(sql`${table.userId} is not null`),
+  ]
+);
+
+export const xpEvent = pgTable(
+  "xp_event",
+  {
+    amount: integer("amount").notNull(),
+    availableAt: timestamp("available_at", { withTimezone: true }),
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedBy: text("decided_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    integrityCaseId: text("integrity_case_id").references(
+      () => xpIntegrityCase.id,
+      { onDelete: "set null" }
+    ),
+    kind: xpEventKindEnum("kind").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    milestone: integer("milestone"),
+    reasonCode: text("reason_code").notNull(),
+    reversesEventId: text("reverses_event_id").unique(),
+    sourceRef: text("source_ref").notNull(),
+    state: xpEventStateEnum("state").notNull(),
+    subjectId: text("subject_id").references(() => xpRewardSubject.id, {
+      onDelete: "set null",
+    }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.reversesEventId],
+      foreignColumns: [table.id],
+      name: "xp_event_reversal_fk",
+    }).onDelete("restrict"),
+    check("xp_event_amount_check", sql`${table.amount} <> 0`),
+    index("xp_event_subject_idx").on(table.subjectId),
+    index("xp_event_user_created_idx").on(table.userId, table.createdAt),
+    index("xp_event_user_state_available_idx").on(
+      table.userId,
+      table.state,
+      table.availableAt
+    ),
+  ]
+);
+
+export const xpLikeDisqualification = pgTable(
+  "xp_like_disqualification",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    integrityCaseId: text("integrity_case_id")
+      .notNull()
+      .references(() => xpIntegrityCase.id, { onDelete: "cascade" }),
+    likerUserId: text("liker_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    reason: text("reason").notNull(),
+    subjectId: text("subject_id")
+      .notNull()
+      .references(() => xpRewardSubject.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("xp_like_disqualification_subject_liker_unique")
+      .on(table.subjectId, table.likerUserId)
+      .where(sql`${table.likerUserId} is not null`),
+    index("xp_like_disqualification_case_idx").on(table.integrityCaseId),
+  ]
+);
+
+export const eterisWallet = pgTable(
+  "eteris_wallet",
+  {
+    anonymizedAt: timestamp("anonymized_at", { withTimezone: true }),
+    code: text("code").unique(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    kind: eterisWalletKindEnum("kind").notNull(),
+    publicBalance: boolean("public_balance").notNull().default(false),
+    status: eterisWalletStatusEnum("status").notNull().default("active"),
+    userId: text("user_id")
+      .unique()
+      .references(() => user.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "eteris_wallet_identity_check",
+      sql`(${table.kind} = 'user' AND (${table.userId} IS NOT NULL OR ${table.status} = 'closed') AND ${table.code} IS NULL) OR (${table.kind} <> 'user' AND ${table.userId} IS NULL AND ${table.code} IS NOT NULL)`
+    ),
+  ]
+);
+
+export const eterisWalletBalance = pgTable("eteris_wallet_balance", {
+  balance: bigint("balance", { mode: "bigint" })
+    .notNull()
+    .default(sql`0`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  walletId: text("wallet_id")
+    .primaryKey()
+    .references(() => eterisWallet.id, { onDelete: "restrict" }),
+});
+
+export const eterisTransaction = pgTable(
+  "eteris_transaction",
+  {
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    kind: eterisTransactionKindEnum("kind").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    reason: text("reason"),
+    reversesTransactionId: text("reverses_transaction_id").unique(),
+    sourceModule: text("source_module").notNull(),
+    sourceRef: text("source_ref").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.reversesTransactionId],
+      foreignColumns: [table.id],
+      name: "eteris_transaction_reversal_fk",
+    }).onDelete("restrict"),
+    check(
+      "eteris_transaction_reason_check",
+      sql`${table.kind} NOT IN ('admin_adjustment', 'reversal') OR length(trim(${table.reason})) > 0`
+    ),
+    index("eteris_transaction_created_idx").on(table.createdAt),
+    index("eteris_transaction_kind_created_idx").on(
+      table.kind,
+      table.createdAt
+    ),
+    index("eteris_transaction_source_ref_idx").on(table.sourceRef),
+  ]
+);
+
+export const eterisPosting = pgTable(
+  "eteris_posting",
+  {
+    amount: bigint("amount", { mode: "bigint" }).notNull(),
+    balanceAfter: bigint("balance_after", { mode: "bigint" }).notNull(),
+    transactionId: text("transaction_id")
+      .notNull()
+      .references(() => eterisTransaction.id, { onDelete: "restrict" }),
+    walletId: text("wallet_id")
+      .notNull()
+      .references(() => eterisWallet.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.transactionId, table.walletId] }),
+    check("eteris_posting_amount_check", sql`${table.amount} <> 0`),
+    index("eteris_posting_wallet_transaction_idx").on(
+      table.walletId,
+      table.transactionId
+    ),
+  ]
+);
+
+export const eterisDailySnapshot = pgTable("eteris_daily_snapshot", {
+  anomalousEarners: jsonb("anomalous_earners")
+    .$type<{ total: string; userId: string }[]>()
+    .notNull(),
+  balancePercentiles: jsonb("balance_percentiles")
+    .$type<{ p50: string; p90: string; p99: string }>()
+    .notNull(),
+  burned: bigint("burned", { mode: "bigint" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  day: date("day").primaryKey(),
+  frozenWalletCount: integer("frozen_wallet_count").notNull(),
+  issued: bigint("issued", { mode: "bigint" }).notNull(),
+  negativeWalletCount: integer("negative_wallet_count").notNull(),
+  sinkTotals: jsonb("sink_totals").$type<Record<string, string>>().notNull(),
+  sourceTotals: jsonb("source_totals")
+    .$type<Record<string, string>>()
+    .notNull(),
+  totalUserSupply: bigint("total_user_supply", { mode: "bigint" }).notNull(),
+});
+
+export const eterisWalletReconciliation = pgTable(
+  "eteris_wallet_reconciliation",
+  {
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    ledgerBalance: bigint("ledger_balance", { mode: "bigint" }).notNull(),
+    projectionBalance: bigint("projection_balance", {
+      mode: "bigint",
+    }).notNull(),
+    repaired: boolean("repaired").notNull(),
+    walletId: text("wallet_id")
+      .notNull()
+      .references(() => eterisWallet.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    index("eteris_wallet_reconciliation_wallet_created_idx").on(
+      table.walletId,
+      table.createdAt
     ),
   ]
 );
@@ -1484,8 +1953,8 @@ export const postRatingLikesRelations = relations(
   postRatingLikes,
   ({ one }) => ({
     postRating: one(postRating, {
-      fields: [postRatingLikes.ratingUserId, postRatingLikes.postId],
-      references: [postRating.userId, postRating.postId],
+      fields: [postRatingLikes.ratingId],
+      references: [postRating.id],
     }),
     user: one(user, {
       fields: [postRatingLikes.userId],
@@ -1523,3 +1992,142 @@ export const userComicProgressRelations = relations(
     }),
   })
 );
+
+export const userProgressionRelations = relations(
+  userProgression,
+  ({ many, one }) => ({
+    events: many(xpEvent),
+    user: one(user, {
+      fields: [userProgression.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const xpRewardSubjectRelations = relations(
+  xpRewardSubject,
+  ({ many, one }) => ({
+    events: many(xpEvent),
+    user: one(user, {
+      fields: [xpRewardSubject.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const xpIntegrityCaseRelations = relations(
+  xpIntegrityCase,
+  ({ many, one }) => ({
+    blocks: many(xpRewardBlock),
+    decidedByUser: one(user, {
+      fields: [xpIntegrityCase.decidedBy],
+      references: [user.id],
+      relationName: "xp_integrity_case_decided_by",
+    }),
+    disqualifications: many(xpLikeDisqualification),
+    events: many(xpEvent),
+    user: one(user, {
+      fields: [xpIntegrityCase.userId],
+      references: [user.id],
+      relationName: "xp_integrity_case_user",
+    }),
+  })
+);
+
+export const xpRewardBlockRelations = relations(xpRewardBlock, ({ one }) => ({
+  createdByUser: one(user, {
+    fields: [xpRewardBlock.createdBy],
+    references: [user.id],
+    relationName: "xp_reward_block_created_by",
+  }),
+  integrityCase: one(xpIntegrityCase, {
+    fields: [xpRewardBlock.integrityCaseId],
+    references: [xpIntegrityCase.id],
+  }),
+  user: one(user, {
+    fields: [xpRewardBlock.userId],
+    references: [user.id],
+    relationName: "xp_reward_block_user",
+  }),
+}));
+
+export const xpEventRelations = relations(xpEvent, ({ one }) => ({
+  integrityCase: one(xpIntegrityCase, {
+    fields: [xpEvent.integrityCaseId],
+    references: [xpIntegrityCase.id],
+  }),
+  subject: one(xpRewardSubject, {
+    fields: [xpEvent.subjectId],
+    references: [xpRewardSubject.id],
+  }),
+  user: one(user, {
+    fields: [xpEvent.userId],
+    references: [user.id],
+  }),
+}));
+
+export const xpLikeDisqualificationRelations = relations(
+  xpLikeDisqualification,
+  ({ one }) => ({
+    case: one(xpIntegrityCase, {
+      fields: [xpLikeDisqualification.integrityCaseId],
+      references: [xpIntegrityCase.id],
+    }),
+    createdByUser: one(user, {
+      fields: [xpLikeDisqualification.createdBy],
+      references: [user.id],
+    }),
+    liker: one(user, {
+      fields: [xpLikeDisqualification.likerUserId],
+      references: [user.id],
+    }),
+    subject: one(xpRewardSubject, {
+      fields: [xpLikeDisqualification.subjectId],
+      references: [xpRewardSubject.id],
+    }),
+  })
+);
+
+export const eterisWalletRelations = relations(
+  eterisWallet,
+  ({ many, one }) => ({
+    balance: one(eterisWalletBalance),
+    postings: many(eterisPosting),
+    user: one(user, {
+      fields: [eterisWallet.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const eterisWalletBalanceRelations = relations(
+  eterisWalletBalance,
+  ({ one }) => ({
+    wallet: one(eterisWallet, {
+      fields: [eterisWalletBalance.walletId],
+      references: [eterisWallet.id],
+    }),
+  })
+);
+
+export const eterisTransactionRelations = relations(
+  eterisTransaction,
+  ({ many, one }) => ({
+    actor: one(user, {
+      fields: [eterisTransaction.actorUserId],
+      references: [user.id],
+    }),
+    postings: many(eterisPosting),
+  })
+);
+
+export const eterisPostingRelations = relations(eterisPosting, ({ one }) => ({
+  transaction: one(eterisTransaction, {
+    fields: [eterisPosting.transactionId],
+    references: [eterisTransaction.id],
+  }),
+  wallet: one(eterisWallet, {
+    fields: [eterisPosting.walletId],
+    references: [eterisWallet.id],
+  }),
+}));

@@ -16,6 +16,9 @@ vi.mock("@orpc/experimental-pino", () => ({
   },
 }));
 vi.mock("@repo/api/context", () => ({ createContext: vi.fn(() => ({})) }));
+vi.mock("@repo/env", () => ({
+  env: { BETTER_AUTH_SECRET: "test-integrity-secret" },
+}));
 vi.mock("@repo/api/routers/index", () => ({
   appRouter: { ping: os.handler(procedure) },
 }));
@@ -54,6 +57,23 @@ describe("RPC route", () => {
       "ok"
     );
     expect(procedure).toHaveBeenCalledTimes(1);
+  });
+
+  it("issues a secure first-party integrity device cookie", async () => {
+    const response = await route.POST(
+      new Request("http://localhost/api/rpc/ping", {
+        body: "{}",
+        headers: {
+          "content-type": "application/json",
+          "x-csrf-token": "orpc",
+        },
+        method: "POST",
+      })
+    );
+
+    expect(response.headers.get("set-cookie")).toMatch(
+      /^ntc_device=.+; Path=\/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax$/
+    );
   });
 
   it("rejects a declared body above the gross-body limit", async () => {

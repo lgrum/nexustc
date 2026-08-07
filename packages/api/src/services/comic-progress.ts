@@ -1,18 +1,33 @@
-import { and, eq, inArray } from "@repo/db";
-import { userComicProgress } from "@repo/db/schema/app";
+import { and, eq, gte, inArray, sql } from "@repo/db";
+import { userComicProgress, xpEvent } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
+import { env } from "@repo/env";
 import { getPatronTierRank } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import type { RedisClientType } from "redis";
 
 import type { Context } from "../context";
 import { getPostEarlyAccessView } from "../utils/early-access";
+import {
+  assessXpSourceCapPressure,
+  settleXpWithIntegrityInTransaction,
+} from "./integrity-settlement";
+import type { IntegrityCorrelationEvidence } from "./integrity-settlement";
 import { getUserPatronTier } from "./profile";
+import type { postXpEventInTransaction } from "./progression";
+import {
+  lockUserProgressionInTransaction,
+  notifyXpSettlement,
+} from "./progression";
 
 const COMIC_READING_SESSION_TTL_SECONDS = 60 * 60 * 6;
 const MIN_PAGE_ADVANCE_INTERVAL_MS = 400;
+const MIN_REWARD_CHECKPOINT_INTERVAL_MS = 2000;
+const MIN_REWARD_VISIBILITY_PERCENTAGE = 60;
 const NON_VIP_PERSIST_INTERVAL_MS = 30_000;
 const NON_VIP_PERSIST_PAGE_DELTA = 3;
+const COMIC_READING_DAILY_XP_CAP = 200;
+export const COMIC_READING_CAP_STATES = ["pending", "posted"] as const;
 
 type Database = Context["db"];
 
@@ -44,11 +59,15 @@ type ReadingSessionState = {
   comicId: string;
   completedAtIso: string | null;
   completedSnapshot: boolean;
+  consecutiveValidRewardCheckpoints: number;
+  fastRewardCheckpoints: boolean;
   lastAcceptedAtMs: number | null;
   lastAcceptedPage: number | null;
   lastPageRead: number;
   lastPersistedAtMs: number | null;
   lastPersistedPage: number;
+  lastRewardCheckpointAtMs: number | null;
+  pendingRewardPages: number[];
   startedAtMs: number;
   totalPages: number;
   totalPagesAtLastReadSnapshot: number;
@@ -69,6 +88,23 @@ type ApplyCheckpointResult = {
   nextState: ReadingSessionState;
   persisted: boolean;
   reason: "accepted" | "invalid_page" | "rate_limited" | "session_mismatch";
+};
+
+export type ComicPageCheckpointEvidence = {
+  documentVisible: boolean;
+  visibleDurationMs: number;
+  visiblePercentage: number;
+};
+
+type ApplyRewardCheckpointResult = {
+  nextState: ReadingSessionState;
+  reason:
+    | "accepted"
+    | "fast_checkpoint"
+    | "invalid_evidence"
+    | "invalid_page"
+    | "recovery";
+  rewardValid: boolean;
 };
 
 function getReadingSessionKey(readingSessionId: string) {
@@ -100,7 +136,62 @@ function parseStoredSession(value: string | null): ReadingSessionState | null {
     return null;
   }
 
-  return JSON.parse(value) as ReadingSessionState;
+  const state = JSON.parse(value) as ReadingSessionState;
+  return {
+    ...state,
+    consecutiveValidRewardCheckpoints:
+      state.consecutiveValidRewardCheckpoints ?? 0,
+    fastRewardCheckpoints: state.fastRewardCheckpoints ?? false,
+    lastRewardCheckpointAtMs: state.lastRewardCheckpointAtMs ?? null,
+    pendingRewardPages: state.pendingRewardPages ?? [],
+  };
+}
+
+export function normalizeProcessedPageRanges(
+  ranges: [number, number][]
+): [number, number][] {
+  const normalized: [number, number][] = [];
+  for (const [start, end] of ranges
+    .filter(
+      ([rangeStart, rangeEnd]) =>
+        Number.isInteger(rangeStart) &&
+        rangeStart >= 1 &&
+        Number.isInteger(rangeEnd) &&
+        rangeEnd >= rangeStart
+    )
+    .toSorted(([left], [right]) => left - right)) {
+    const previous = normalized.at(-1);
+    if (previous && start <= previous[1] + 1) {
+      previous[1] = Math.max(previous[1], end);
+    } else {
+      normalized.push([start, end]);
+    }
+  }
+  return normalized;
+}
+
+export function addProcessedPage(
+  ranges: [number, number][],
+  page: number
+): { added: boolean; ranges: [number, number][] } {
+  const normalized = normalizeProcessedPageRanges(ranges);
+  if (normalized.some(([start, end]) => page >= start && page <= end)) {
+    return { added: false, ranges: normalized };
+  }
+  return {
+    added: true,
+    ranges: normalizeProcessedPageRanges([...normalized, [page, page]]),
+  };
+}
+
+export function getComicReadingRewardCount(
+  newlyProcessedPageCount: number,
+  rewardedToday: number
+) {
+  return Math.min(
+    newlyProcessedPageCount,
+    Math.max(0, COMIC_READING_DAILY_XP_CAP - rewardedToday)
+  );
 }
 
 function clampPage(page: number, totalPages: number) {
@@ -155,6 +246,8 @@ function createSessionState(params: {
     comicId: params.comicId,
     completedAtIso: normalizedProgress?.completedAt?.toISOString() ?? null,
     completedSnapshot: normalizedProgress?.completed ?? false,
+    consecutiveValidRewardCheckpoints: 0,
+    fastRewardCheckpoints: false,
     lastAcceptedAtMs: null,
     lastAcceptedPage: null,
     lastPageRead: normalizedProgress?.lastPageRead ?? 0,
@@ -163,12 +256,93 @@ function createSessionState(params: {
       normalizedProgress?.lastReadTimestamp.getTime() ??
       null,
     lastPersistedPage: normalizedProgress?.lastPageRead ?? 0,
+    lastRewardCheckpointAtMs: null,
+    pendingRewardPages: [],
     startedAtMs: params.nowMs,
     totalPages: params.currentPageCount,
     totalPagesAtLastReadSnapshot:
       normalizedProgress?.totalPagesAtLastRead ?? params.currentPageCount,
     userId: params.userId,
     verifiedThroughPage,
+  };
+}
+
+export function applyRewardCheckpoint(params: {
+  evidence: ComicPageCheckpointEvidence;
+  nowMs: number;
+  page: number;
+  state: ReadingSessionState;
+}): ApplyRewardCheckpointResult {
+  const { evidence, nowMs, page, state } = params;
+  if (page < 1 || page > state.totalPages) {
+    return {
+      nextState: {
+        ...state,
+        consecutiveValidRewardCheckpoints: 0,
+      },
+      reason: "invalid_page",
+      rewardValid: false,
+    };
+  }
+  if (
+    !evidence.documentVisible ||
+    evidence.visibleDurationMs < MIN_REWARD_CHECKPOINT_INTERVAL_MS ||
+    evidence.visiblePercentage < MIN_REWARD_VISIBILITY_PERCENTAGE
+  ) {
+    return {
+      nextState: {
+        ...state,
+        consecutiveValidRewardCheckpoints: 0,
+      },
+      reason: "invalid_evidence",
+      rewardValid: false,
+    };
+  }
+
+  const previousCheckpointAtMs =
+    state.lastRewardCheckpointAtMs ?? state.startedAtMs;
+  if (nowMs - previousCheckpointAtMs < MIN_REWARD_CHECKPOINT_INTERVAL_MS) {
+    return {
+      nextState: {
+        ...state,
+        consecutiveValidRewardCheckpoints: 0,
+        fastRewardCheckpoints: true,
+        lastRewardCheckpointAtMs: nowMs,
+      },
+      reason: "fast_checkpoint",
+      rewardValid: false,
+    };
+  }
+
+  if (state.fastRewardCheckpoints) {
+    const consecutiveValidRewardCheckpoints =
+      state.consecutiveValidRewardCheckpoints + 1;
+    return {
+      nextState: {
+        ...state,
+        consecutiveValidRewardCheckpoints:
+          consecutiveValidRewardCheckpoints >= 3
+            ? 0
+            : consecutiveValidRewardCheckpoints,
+        fastRewardCheckpoints: consecutiveValidRewardCheckpoints < 3,
+        lastRewardCheckpointAtMs: nowMs,
+      },
+      reason: "recovery",
+      rewardValid: false,
+    };
+  }
+
+  return {
+    nextState: {
+      ...state,
+      consecutiveValidRewardCheckpoints: 0,
+      lastRewardCheckpointAtMs: nowMs,
+      pendingRewardPages: state.pendingRewardPages.includes(page)
+        ? state.pendingRewardPages
+        : [...state.pendingRewardPages, page],
+    },
+    reason: "accepted",
+    rewardValid: true,
   };
 }
 
@@ -490,41 +664,158 @@ function parseCompletedAt(value: string | null) {
 }
 
 async function persistProgressRecord(params: {
+  correlation: IntegrityCorrelationEvidence;
   db: Database;
   now: Date;
   state: ReadingSessionState;
 }) {
   const completed = params.state.completedSnapshot;
   const completedAt = parseCompletedAt(params.state.completedAtIso);
+  const progressValues = {
+    comicId: params.state.comicId,
+    completed,
+    completedAt,
+    lastPageRead: params.state.lastPageRead,
+    lastReadTimestamp: params.now,
+    totalPagesAtLastRead: completed
+      ? params.state.totalPagesAtLastReadSnapshot
+      : params.state.totalPages,
+    userId: params.state.userId,
+    verifiedThroughPage: params.state.verifiedThroughPage,
+  };
 
-  await params.db
-    .insert(userComicProgress)
-    .values({
-      comicId: params.state.comicId,
-      completed,
-      completedAt,
-      lastPageRead: params.state.lastPageRead,
-      lastReadTimestamp: params.now,
-      totalPagesAtLastRead: completed
-        ? params.state.totalPagesAtLastReadSnapshot
-        : params.state.totalPages,
-      userId: params.state.userId,
-      verifiedThroughPage: params.state.verifiedThroughPage,
-    })
-    .onConflictDoUpdate({
-      set: {
-        completed,
-        completedAt,
-        lastPageRead: params.state.lastPageRead,
-        lastReadTimestamp: params.now,
-        totalPagesAtLastRead: completed
-          ? params.state.totalPagesAtLastReadSnapshot
-          : params.state.totalPages,
+  const result = await params.db.transaction(async (tx) => {
+    await tx
+      .insert(userComicProgress)
+      .values(progressValues)
+      .onConflictDoNothing({
+        target: [userComicProgress.userId, userComicProgress.comicId],
+      });
+
+    let processedPageRanges: [number, number][] | undefined;
+    const processedPages: number[] = [];
+    let rewardedPages: number[] = [];
+    let settlement:
+      | Awaited<ReturnType<typeof postXpEventInTransaction>>
+      | undefined;
+
+    if (env.XP_ACCRUAL_ENABLED && params.state.pendingRewardPages.length > 0) {
+      await lockUserProgressionInTransaction(
+        tx,
+        params.state.userId,
+        params.now
+      );
+      const [stored] = await tx
+        .select({ ranges: userComicProgress.xpProcessedPageRanges })
+        .from(userComicProgress)
+        .where(
+          and(
+            eq(userComicProgress.userId, params.state.userId),
+            eq(userComicProgress.comicId, params.state.comicId)
+          )
+        )
+        .for("update");
+      if (!stored) {
+        throw new Error("No se pudo bloquear el progreso del comic.");
+      }
+
+      processedPageRanges = stored.ranges;
+      for (const page of [...new Set(params.state.pendingRewardPages)].toSorted(
+        (left, right) => left - right
+      )) {
+        const added = addProcessedPage(processedPageRanges, page);
+        processedPageRanges = added.ranges;
+        if (added.added) {
+          processedPages.push(page);
+        }
+      }
+
+      if (processedPages.length > 0) {
+        const utcDayStart = new Date(
+          Date.UTC(
+            params.now.getUTCFullYear(),
+            params.now.getUTCMonth(),
+            params.now.getUTCDate()
+          )
+        );
+        const [daily] = await tx
+          .select({
+            total: sql<number>`coalesce(sum(${xpEvent.amount}), 0)`,
+          })
+          .from(xpEvent)
+          .where(
+            and(
+              eq(xpEvent.userId, params.state.userId),
+              eq(xpEvent.kind, "comic_reading"),
+              inArray(xpEvent.state, COMIC_READING_CAP_STATES),
+              gte(xpEvent.createdAt, utcDayStart)
+            )
+          );
+        const rewardCount = getComicReadingRewardCount(
+          processedPages.length,
+          Number(daily?.total ?? 0)
+        );
+        rewardedPages = processedPages.slice(0, rewardCount);
+        if (rewardCount > 0) {
+          const batchKey = processedPages.join(",");
+          const integrityResult = await settleXpWithIntegrityInTransaction(
+            tx,
+            {
+              amount: rewardCount,
+              idempotencyKey: `comic-reading:${params.state.userId}:${params.state.comicId}:${batchKey}`,
+              kind: "comic_reading",
+              metadata: {
+                comicId: params.state.comicId,
+                processedPages,
+                rewardedPages,
+              },
+              reasonCode: "verified_comic_reading",
+              sourceRef: `comic:${params.state.comicId}:pages:${batchKey}`,
+              userId: params.state.userId,
+            },
+            assessXpSourceCapPressure({
+              correlation: params.correlation,
+              limit: COMIC_READING_DAILY_XP_CAP,
+              observed: Number(daily?.total ?? 0) + rewardCount,
+              source: "comic_reading_daily",
+            }),
+            params.now
+          );
+          if (integrityResult.outcome === "posted") {
+            ({ settlement } = integrityResult);
+          } else {
+            rewardedPages = [];
+          }
+        }
+      }
+    }
+
+    await tx
+      .update(userComicProgress)
+      .set({
+        ...progressValues,
+        ...(processedPageRanges
+          ? {
+              xpProcessedPageRanges: processedPageRanges,
+              xpTrackingUpdatedAt: params.now,
+            }
+          : {}),
         updatedAt: params.now,
-        verifiedThroughPage: params.state.verifiedThroughPage,
-      },
-      target: [userComicProgress.userId, userComicProgress.comicId],
-    });
+      })
+      .where(
+        and(
+          eq(userComicProgress.userId, params.state.userId),
+          eq(userComicProgress.comicId, params.state.comicId)
+        )
+      );
+
+    return { processedPages, rewardedPages, settlement };
+  });
+
+  if (result.settlement) {
+    await notifyXpSettlement(params.db, params.state.userId, result.settlement);
+  }
+  return result;
 }
 
 export async function attachComicCatalogProgress<
@@ -657,10 +948,16 @@ export async function startComicReadingSession(params: {
   });
   const readingSessionId = generateId();
 
-  await writeSessionState(params.cache, readingSessionId, sessionState);
+  let trackingAvailable = true;
+  try {
+    await writeSessionState(params.cache, readingSessionId, sessionState);
+  } catch {
+    trackingAvailable = false;
+  }
 
   return {
-    readingSessionId,
+    readingSessionId: trackingAvailable ? readingSessionId : null,
+    trackingAvailable,
     ...buildProgressOverview({
       currentPageCount: comicMetadata.currentPageCount,
       progress,
@@ -671,13 +968,29 @@ export async function startComicReadingSession(params: {
 
 export async function trackComicPageView(params: {
   cache: RedisClientType;
+  correlation: IntegrityCorrelationEvidence;
   db: Database;
+  evidence: ComicPageCheckpointEvidence;
   comicId: string;
   page: number;
   readingSessionId: string;
   userId: string;
 }) {
-  const state = await readSessionState(params.cache, params.readingSessionId);
+  let state: ReadingSessionState | null;
+  try {
+    state = await readSessionState(params.cache, params.readingSessionId);
+  } catch {
+    return {
+      accepted: false,
+      markedCompleted: false,
+      persisted: false,
+      processed: false,
+      reason: "tracking_unavailable" as const,
+      rewardedXp: 0,
+      status: "unread" as ComicProgressStatus,
+      trackingAvailable: false,
+    };
+  }
 
   if (
     !(
@@ -690,8 +1003,11 @@ export async function trackComicPageView(params: {
       accepted: false,
       markedCompleted: false,
       persisted: false,
+      processed: false,
       reason: "session_mismatch" as const,
+      rewardedXp: 0,
       status: "unread" as ComicProgressStatus,
+      trackingAvailable: true,
     };
   }
 
@@ -701,33 +1017,83 @@ export async function trackComicPageView(params: {
     page: params.page,
     state,
   });
+  const rewardCheckpoint = applyRewardCheckpoint({
+    evidence: params.evidence,
+    nowMs,
+    page: params.page,
+    state: checkpoint.nextState,
+  });
+  let { nextState } = rewardCheckpoint;
+  let persistenceResult:
+    | Awaited<ReturnType<typeof persistProgressRecord>>
+    | undefined;
 
-  if (checkpoint.accepted) {
-    await writeSessionState(
-      params.cache,
-      params.readingSessionId,
-      checkpoint.nextState
-    );
+  const persisted = checkpoint.persisted || rewardCheckpoint.rewardValid;
+  try {
+    await writeSessionState(params.cache, params.readingSessionId, nextState);
+  } catch {
+    return {
+      accepted: checkpoint.accepted,
+      lastPageRead: nextState.lastPageRead,
+      markedCompleted: checkpoint.markedCompleted,
+      persisted: false,
+      processed: false,
+      reason: "tracking_unavailable" as const,
+      rewardedXp: 0,
+      status: getPersistedProgressStatus(
+        nextState.totalPages,
+        buildSessionProgressSnapshot(nextState)
+      ),
+      trackingAvailable: false,
+      verifiedThroughPage: nextState.verifiedThroughPage,
+    };
   }
 
-  if (checkpoint.persisted) {
-    await persistProgressRecord({
+  if (persisted) {
+    persistenceResult = await persistProgressRecord({
+      correlation: params.correlation,
       db: params.db,
       now: new Date(nowMs),
-      state: checkpoint.nextState,
+      state: nextState,
     });
+    nextState = { ...nextState, pendingRewardPages: [] };
+  }
+
+  if (persisted) {
+    try {
+      await writeSessionState(params.cache, params.readingSessionId, nextState);
+    } catch {
+      return {
+        accepted: checkpoint.accepted,
+        lastPageRead: nextState.lastPageRead,
+        markedCompleted: checkpoint.markedCompleted,
+        persisted,
+        processed: (persistenceResult?.processedPages.length ?? 0) > 0,
+        reason: "tracking_unavailable" as const,
+        rewardedXp: persistenceResult?.rewardedPages.length ?? 0,
+        status: getPersistedProgressStatus(
+          nextState.totalPages,
+          buildSessionProgressSnapshot(nextState)
+        ),
+        trackingAvailable: false,
+        verifiedThroughPage: nextState.verifiedThroughPage,
+      };
+    }
   }
 
   return {
     accepted: checkpoint.accepted,
-    lastPageRead: checkpoint.nextState.lastPageRead,
+    lastPageRead: nextState.lastPageRead,
     markedCompleted: checkpoint.markedCompleted,
-    persisted: checkpoint.persisted,
-    reason: checkpoint.reason,
+    persisted,
+    processed: (persistenceResult?.processedPages.length ?? 0) > 0,
+    reason: rewardCheckpoint.reason,
+    rewardedXp: persistenceResult?.rewardedPages.length ?? 0,
     status: getPersistedProgressStatus(
-      checkpoint.nextState.totalPages,
-      buildSessionProgressSnapshot(checkpoint.nextState)
+      nextState.totalPages,
+      buildSessionProgressSnapshot(nextState)
     ),
-    verifiedThroughPage: checkpoint.nextState.verifiedThroughPage,
+    trackingAvailable: true,
+    verifiedThroughPage: nextState.verifiedThroughPage,
   };
 }

@@ -393,6 +393,55 @@
       "when": 1785694415446,
       "tag": "0055_spotty_firebird",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1786086545169,
+      "tag": "0056_cute_the_anarchist",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1786086659781,
+      "tag": "0057_curvy_venus",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1786088873975,
+      "tag": "0058_supreme_black_panther",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1786092007280,
+      "tag": "0059_thin_vanisher",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1786092244930,
+      "tag": "0060_mean_yellowjacket",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1786095277345,
+      "tag": "0061_pending_xp_integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1786096966401,
+      "tag": "0062_operational_economy",
+      "breakpoints": true
     }
   ]
 }

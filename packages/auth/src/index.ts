@@ -12,6 +12,7 @@ import { createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { twoFactor } from "better-auth/plugins/two-factor";
 
+import { closeAccount } from "./account-closure";
 import { resend } from "./email";
 import {
   deactivatePatreonMembershipAfterAccountDelete,
@@ -116,6 +117,13 @@ export const auth = betterAuth({
       },
       delete: {
         after: deactivatePatreonMembershipAfterAccountDelete,
+      },
+    },
+    user: {
+      delete: {
+        before: async (user) => {
+          await closeAccount(db, user.id);
+        },
       },
     },
   },

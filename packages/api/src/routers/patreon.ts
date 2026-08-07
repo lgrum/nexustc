@@ -15,6 +15,7 @@ import {
   protectedProcedure,
 } from "../index";
 import { reconcilePatreonMemberships } from "../services/patreon-reconciliation";
+import { grantMonthlyPatreonStipend } from "../services/patreon-stipend";
 import { fetchPatreonMembership, refreshPatreonToken } from "../utils/patreon";
 
 const webhookProcessingStatusSchema = z.enum([
@@ -290,6 +291,7 @@ export default {
           },
           target: patron.userId,
         });
+      await grantMonthlyPatreonStipend(db, session.user.id);
 
       logger?.info(
         `Patron sync complete for user ${session.user.id}, tier: ${patronStatus.tier}`

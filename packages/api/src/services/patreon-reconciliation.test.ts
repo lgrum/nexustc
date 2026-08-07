@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({ grantStipend: vi.fn() }));
+
 vi.mock("@repo/env", () => ({
   env: {
     PATREON_CAMPAIGN_ID: "campaign-1",
@@ -18,6 +20,9 @@ vi.mock("@repo/db/schema/app", () => ({
   patron: {
     id: "patron.id",
   },
+}));
+vi.mock("./patreon-stipend", () => ({
+  grantMonthlyPatreonStipend: mocks.grantStipend,
 }));
 
 const { reconcilePatreonMemberships } =
@@ -73,6 +78,31 @@ const linkedAccount = {
 describe(reconcilePatreonMemberships, () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.grantStipend.mockResolvedValue({ granted: "0", month: "2026-05" });
+  });
+
+  it("checks the monthly stipend after a successful live synchronization", async () => {
+    const database = createDatabase({
+      accountRecord: linkedAccount,
+      patronRecords: [activePatron],
+    });
+    const now = new Date("2026-05-29T12:00:00.000Z");
+
+    await reconcilePatreonMemberships({
+      db: database as never,
+      dependencies: {
+        fetchMembership: vi.fn().mockResolvedValue({
+          entitledTierIds: ["25898869"],
+          isActive: true,
+          patronSince: "2026-04-21T04:55:03.130Z",
+          pledgeAmountCents: 1200,
+        }),
+        now: () => now,
+      },
+      dryRun: false,
+    });
+
+    expect(mocks.grantStipend).toHaveBeenCalledWith(database, "user-1", now);
   });
 
   it("deactivates expired non-permanent patrons and clears patronSince", async () => {
@@ -128,6 +158,7 @@ describe(reconcilePatreonMemberships, () => {
     expect(summary.dryRun).toBe(true);
     expect(summary.deactivated).toBe(1);
     expect(database.update).not.toHaveBeenCalled();
+    expect(mocks.grantStipend).not.toHaveBeenCalled();
   });
 
   it("does not rotate expired refresh tokens during dry runs", async () => {
@@ -253,5 +284,10 @@ describe(reconcilePatreonMemberships, () => {
     });
     expect(database.query.account.findFirst).not.toHaveBeenCalled();
     expect(database.update).not.toHaveBeenCalled();
+    expect(mocks.grantStipend).toHaveBeenCalledWith(
+      database,
+      "user-1",
+      expect.any(Date)
+    );
   });
 });

@@ -13,6 +13,7 @@ import {
   profileSettings,
   profileSystemConfig,
   user,
+  userProgression,
 } from "@repo/db/schema/app";
 import {
   PATRON_TIER_PROFILE_BADGES,
@@ -33,6 +34,7 @@ import type {
 } from "@repo/shared/profile";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
+import { getPublicWalletBalance } from "./eteris";
 
 type Database = typeof database;
 export type ProfileEntitlementDb = Pick<Database, "query">;
@@ -94,8 +96,10 @@ export type ProfileSummary = {
 };
 
 export type PublicProfile = ProfileSummary & {
+  accountLevel: number;
   activityCounts: Record<ProfileActivityCollection, number | null>;
   createdAt: Date;
+  eterisBalance: string | null;
   banner: {
     mode: "color" | "image";
     color: string;
@@ -653,17 +657,24 @@ export async function getPublicProfile(db: Database, userId: string) {
   }
 
   const visibility = getProfileActivityVisibility(settings.visibilityConfig);
-  const [bannerAsset, activityCounts] = await Promise.all([
-    settings.bannerAssetId
-      ? db.query.profileMediaAsset.findFirst({
-          where: eq(profileMediaAsset.id, settings.bannerAssetId),
-        })
-      : null,
-    getPublicProfileActivityCounts(db, userId, visibility),
-  ]);
+  const [bannerAsset, activityCounts, progression, publicWallet] =
+    await Promise.all([
+      settings.bannerAssetId
+        ? db.query.profileMediaAsset.findFirst({
+            where: eq(profileMediaAsset.id, settings.bannerAssetId),
+          })
+        : null,
+      getPublicProfileActivityCounts(db, userId, visibility),
+      db.query.userProgression.findFirst({
+        columns: { level: true },
+        where: eq(userProgression.userId, userId),
+      }),
+      getPublicWalletBalance(db, userId),
+    ]);
 
   return {
     ...summary,
+    accountLevel: progression?.level ?? 1,
     activityCounts,
     banner: {
       asset: bannerAsset
@@ -677,6 +688,7 @@ export async function getPublicProfile(db: Database, userId: string) {
       mode: settings.bannerMode,
     },
     createdAt: currentUser.createdAt,
+    eterisBalance: publicWallet?.balance ?? null,
     maxVisibleEmblems: systemConfig.maxVisibleEmblems,
     visibility,
   } satisfies PublicProfile;

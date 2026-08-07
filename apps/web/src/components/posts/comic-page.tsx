@@ -69,6 +69,7 @@ import {
   TranslatorSupportCard,
 } from "./post-components";
 import { PostProvider, usePost } from "./post-context";
+import { useComicPageCheckpoints } from "./use-comic-page-checkpoints";
 
 const PAGES_PREVIEW_LIMIT = 8;
 const READER_CONTROL_CLASS_NAME =
@@ -726,7 +727,6 @@ export function ComicReader({
   const [scale, setScale] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -748,6 +748,10 @@ export function ComicReader({
   const progress = ((page + 1) / totalPages) * 100;
   const hasTrackedCompletionRef = useRef(false);
   const startPageRef = useRef(page + 1);
+  const { trackingUnavailable, trackPageElement } = useComicPageCheckpoints({
+    comicId: comic.id,
+    enabled: isAuthed,
+  });
 
   useEffect(() => {
     trackEvent("comic_reader_opened", {
@@ -774,60 +778,12 @@ export function ComicReader({
   }, [comic.id, page, totalPages]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    if (!isAuthed) {
-      return;
-    }
-
-    const createReadingSession = async () => {
-      try {
-        const sessionState = await orpcClient.comicProgress.startSession({
-          comicId: comic.id,
-        });
-
-        if (!cancelled) {
-          setReadingSessionId(sessionState.readingSessionId);
-        }
-      } catch {
-        if (!cancelled) {
-          setReadingSessionId(null);
-        }
-      }
-    };
-
-    createReadingSession();
-
+    const image = imageRef.current;
+    trackPageElement(image, page + 1);
     return () => {
-      cancelled = true;
+      trackPageElement(null, page + 1);
     };
-  }, [comic.id, isAuthed]);
-
-  useEffect(() => {
-    if (!(isAuthed && readingSessionId && totalPages > 0)) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      const syncProgress = async () => {
-        try {
-          await orpcClient.comicProgress.update({
-            comicId: comic.id,
-            page: page + 1,
-            readingSessionId,
-          });
-        } catch {
-          // Best-effort sync; reader UX should not break on transient failures.
-        }
-      };
-
-      syncProgress();
-    }, 900);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [comic.id, isAuthed, page, readingSessionId, totalPages]);
+  }, [currentImage, page, trackPageElement]);
 
   // Check if image is already cached/loaded on mount
   useEffect(() => {
@@ -1163,6 +1119,15 @@ export function ComicReader({
       onMouseUp={handleMouseUp}
       ref={containerRef}
     >
+      {trackingUnavailable && (
+        <p
+          className="fixed right-4 bottom-4 z-50 rounded-md bg-card px-3 py-2 text-sm text-card-foreground shadow-lg"
+          role="status"
+        >
+          El seguimiento de XP no está disponible temporalmente. Puedes seguir
+          leyendo.
+        </p>
+      )}
       {/* Top Bar */}
       <div
         className={cn(
@@ -1540,13 +1505,16 @@ export function ComicCascadeReader({
   const [currentPage, setCurrentPage] = useState(page);
   const [hudVisible, setHudVisible] = useState(true);
   const [showThumbnails, setShowThumbnails] = useState(false);
-  const [readingSessionId, setReadingSessionId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const pageRefs = useRef<(HTMLImageElement | null)[]>([]);
   const totalPages = images.length;
   const progress = totalPages > 0 ? ((currentPage + 1) / totalPages) * 100 : 0;
   const hasTrackedCompletionRef = useRef(false);
   const startPageRef = useRef(currentPage + 1);
+  const { trackingUnavailable, trackPageElement } = useComicPageCheckpoints({
+    comicId: comic.id,
+    enabled: isAuthed,
+  });
 
   usePostViewTracker({
     enabled: !comic.earlyAccess.isRestrictedView,
@@ -1577,36 +1545,6 @@ export function ComicCascadeReader({
       });
     }
   }, [comic.id, currentPage, totalPages]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!isAuthed) {
-      return;
-    }
-
-    const createReadingSession = async () => {
-      try {
-        const sessionState = await orpcClient.comicProgress.startSession({
-          comicId: comic.id,
-        });
-
-        if (!cancelled) {
-          setReadingSessionId(sessionState.readingSessionId);
-        }
-      } catch {
-        if (!cancelled) {
-          setReadingSessionId(null);
-        }
-      }
-    };
-
-    createReadingSession();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [comic.id, isAuthed]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -1648,30 +1586,18 @@ export function ComicCascadeReader({
   }, [currentPage]);
 
   useEffect(() => {
-    if (!(isAuthed && readingSessionId && totalPages > 0)) {
-      return;
+    const pages = pageRefs.current.flatMap((element, index) =>
+      element ? [{ element, pageNumber: index + 1 }] : []
+    );
+    for (const { element, pageNumber } of pages) {
+      trackPageElement(element, pageNumber);
     }
-
-    const timeoutId = window.setTimeout(() => {
-      const syncProgress = async () => {
-        try {
-          await orpcClient.comicProgress.update({
-            comicId: comic.id,
-            page: currentPage + 1,
-            readingSessionId,
-          });
-        } catch {
-          // Best-effort sync; reader UX should not break on transient failures.
-        }
-      };
-
-      syncProgress();
-    }, 900);
-
     return () => {
-      window.clearTimeout(timeoutId);
+      for (const { pageNumber } of pages) {
+        trackPageElement(null, pageNumber);
+      }
     };
-  }, [comic.id, currentPage, isAuthed, readingSessionId, totalPages]);
+  }, [images, trackPageElement]);
 
   const handleExit = () => {
     const invalidateProgress = async () => {
@@ -1716,6 +1642,15 @@ export function ComicCascadeReader({
 
   return (
     <main className="min-h-dvh bg-black" ref={containerRef}>
+      {trackingUnavailable && (
+        <p
+          className="fixed right-4 bottom-4 z-50 rounded-md bg-card px-3 py-2 text-sm text-card-foreground shadow-lg"
+          role="status"
+        >
+          El seguimiento de XP no está disponible temporalmente. Puedes seguir
+          leyendo.
+        </p>
+      )}
       <div
         className={cn(
           "fixed inset-x-0 top-0 z-30 border-border border-b bg-card/90 px-3 py-3 text-card-foreground backdrop-blur-xl transition-[transform,opacity] duration-300 md:px-5",

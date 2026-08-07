@@ -9,6 +9,7 @@ import type { PatronTier } from "@repo/shared/constants";
 
 import { fetchPatreonMembership, refreshPatreonToken } from "../utils/patreon";
 import type { PatreonMembership } from "../utils/patreon";
+import { grantMonthlyPatreonStipend } from "./patreon-stipend";
 
 type Database = typeof defaultDb;
 
@@ -277,6 +278,9 @@ export async function reconcilePatreonMemberships({
     };
 
     if (isPermanentPatronTier(patronRecord.tier)) {
+      if (!dryRun) {
+        await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+      }
       results.push({
         ...baseResult,
         action: "skipped_permanent",
@@ -433,6 +437,9 @@ export async function reconcilePatreonMemberships({
       now,
       patronRecord,
     });
+    if (!dryRun && patronStatus.isActivePatron) {
+      await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+    }
 
     results.push({
       ...baseResult,

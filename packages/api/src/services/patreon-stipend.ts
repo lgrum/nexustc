@@ -1,0 +1,112 @@
+import { and, eq, gte, lt } from "@repo/db";
+import type { db as database } from "@repo/db";
+import { eterisPosting, eterisTransaction, patron } from "@repo/db/schema/app";
+import { env } from "@repo/env";
+import {
+  ETERIS_MONTHLY_PATREON_STIPENDS,
+  ETERIS_PATREON_STIPEND_VERSION,
+  ETERIS_SYSTEM_WALLETS,
+} from "@repo/shared/eteris";
+
+import {
+  getOrCreateUserWalletInTransaction,
+  lockEterisWalletsInTransaction,
+  postEterisTransactionInTransaction,
+} from "./eteris";
+import { ensureProgressionActivationInTransaction } from "./progression-activation";
+
+type Database = typeof database;
+const ZERO = 0n;
+
+function getUtcMonth(now: Date) {
+  const year = now.getUTCFullYear();
+  const monthIndex = now.getUTCMonth();
+  return {
+    end: new Date(Date.UTC(year, monthIndex + 1, 1)),
+    key: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
+    start: new Date(Date.UTC(year, monthIndex, 1)),
+  };
+}
+
+export function grantMonthlyPatreonStipend(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
+  const month = getUtcMonth(now);
+  if (!(env.XP_ACCRUAL_ENABLED && env.XP_ECONOMY_ENABLED)) {
+    return { granted: "0", month: month.key };
+  }
+
+  return db.transaction(async (tx) => {
+    await ensureProgressionActivationInTransaction(tx, now);
+    const membership = await tx.query.patron.findFirst({
+      columns: { isActivePatron: true, tier: true },
+      where: eq(patron.userId, userId),
+    });
+    if (!membership?.isActivePatron) {
+      return { granted: "0", month: month.key };
+    }
+
+    const target = ETERIS_MONTHLY_PATREON_STIPENDS[membership.tier];
+    if (target === ZERO) {
+      return { granted: "0", month: month.key };
+    }
+
+    const wallet = await getOrCreateUserWalletInTransaction(tx, userId, now);
+    const locked = await lockEterisWalletsInTransaction(tx, [
+      wallet.id,
+      ETERIS_SYSTEM_WALLETS[0].id,
+    ]);
+    if (locked.length !== 2) {
+      throw new Error(
+        "No se pudo bloquear la Billetera para el beneficio VIP."
+      );
+    }
+
+    const posted = await tx
+      .select({ amount: eterisPosting.amount })
+      .from(eterisPosting)
+      .innerJoin(
+        eterisTransaction,
+        eq(eterisTransaction.id, eterisPosting.transactionId)
+      )
+      .where(
+        and(
+          eq(eterisPosting.walletId, wallet.id),
+          eq(eterisTransaction.kind, "vip_stipend"),
+          eq(eterisTransaction.sourceModule, "patreon"),
+          gte(eterisTransaction.createdAt, month.start),
+          lt(eterisTransaction.createdAt, month.end)
+        )
+      );
+    const alreadyGranted = posted.reduce(
+      (total, posting) => total + posting.amount,
+      ZERO
+    );
+    const grant = target - alreadyGranted;
+    if (grant <= ZERO) {
+      return { granted: "0", month: month.key };
+    }
+
+    const sourceRef = `vip:${wallet.id}:${month.key}:target:${target}`;
+    await postEterisTransactionInTransaction(tx, {
+      createdAt: now,
+      idempotencyKey: sourceRef,
+      kind: "vip_stipend",
+      metadata: {
+        month: month.key,
+        tier: membership.tier,
+        version: ETERIS_PATREON_STIPEND_VERSION,
+      },
+      postings: [
+        { amount: grant, walletId: wallet.id },
+        { amount: -grant, walletId: ETERIS_SYSTEM_WALLETS[0].id },
+      ],
+      sourceModule: "patreon",
+      sourceRef,
+    });
+
+    return { granted: grant.toString(), month: month.key };
+  });
+}

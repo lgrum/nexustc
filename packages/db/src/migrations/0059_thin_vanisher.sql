@@ -1,0 +1,2 @@
+ALTER TABLE "user_comic_progress" ADD COLUMN "xp_processed_page_ranges" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "user_comic_progress" ADD COLUMN "xp_tracking_updated_at" timestamp with time zone;

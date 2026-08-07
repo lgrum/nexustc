@@ -1,4 +1,13 @@
-import { applyCheckpoint, getPersistedProgressStatus } from "./comic-progress";
+import {
+  COMIC_READING_CAP_STATES,
+  addProcessedPage,
+  applyCheckpoint,
+  applyRewardCheckpoint,
+  getComicReadingRewardCount,
+  getPersistedProgressStatus,
+  normalizeProcessedPageRanges,
+  trackComicPageView,
+} from "./comic-progress";
 
 function createState(
   overrides?: Partial<Parameters<typeof applyCheckpoint>[0]["state"]>
@@ -8,11 +17,15 @@ function createState(
     comicId: "comic-1",
     completedAtIso: null,
     completedSnapshot: false,
+    consecutiveValidRewardCheckpoints: 0,
+    fastRewardCheckpoints: false,
     lastAcceptedAtMs: null,
     lastAcceptedPage: null,
     lastPageRead: 0,
     lastPersistedAtMs: null,
     lastPersistedPage: 0,
+    lastRewardCheckpointAtMs: null,
+    pendingRewardPages: [],
     startedAtMs: 0,
     totalPages: 4,
     totalPagesAtLastReadSnapshot: 4,
@@ -41,6 +54,186 @@ describe("getPersistedProgressStatus", () => {
         totalPagesAtLastRead: 12,
       })
     ).toBe("reading");
+  });
+});
+
+describe("verified comic reading rewards", () => {
+  const evidence = {
+    documentVisible: true,
+    visibleDurationMs: 2000,
+    visiblePercentage: 60,
+  };
+
+  it("normalizes sparse processed positions without creating a page row", () => {
+    expect(
+      normalizeProcessedPageRanges([
+        [5, 5],
+        [1, 2],
+        [4, 4],
+        [8, 9],
+        [2, 3],
+      ])
+    ).toEqual([
+      [1, 5],
+      [8, 9],
+    ]);
+    expect(addProcessedPage([[1, 2]], 4)).toEqual({
+      added: true,
+      ranges: [
+        [1, 2],
+        [4, 4],
+      ],
+    });
+    expect(addProcessedPage([[1, 4]], 3)).toEqual({
+      added: false,
+      ranges: [[1, 4]],
+    });
+    expect(addProcessedPage([[1, 4]], 5)).toEqual({
+      added: true,
+      ranges: [[1, 5]],
+    });
+  });
+
+  it("rewards only the first 200 newly processed positions per UTC day", () => {
+    expect(COMIC_READING_CAP_STATES).toEqual(["pending", "posted"]);
+    expect(getComicReadingRewardCount(3, 198)).toBe(2);
+    expect(getComicReadingRewardCount(3, 200)).toBe(0);
+  });
+
+  it("requires visible evidence and plausible server time", () => {
+    const hidden = applyRewardCheckpoint({
+      evidence: { ...evidence, documentVisible: false },
+      nowMs: 2000,
+      page: 1,
+      state: createState(),
+    });
+    const short = applyRewardCheckpoint({
+      evidence: { ...evidence, visibleDurationMs: 1999 },
+      nowMs: 2000,
+      page: 1,
+      state: createState(),
+    });
+    const fast = applyRewardCheckpoint({
+      evidence,
+      nowMs: 1000,
+      page: 1,
+      state: createState(),
+    });
+
+    expect(hidden.reason).toBe("invalid_evidence");
+    expect(short.reason).toBe("invalid_evidence");
+    expect(fast.reason).toBe("fast_checkpoint");
+    expect(fast.nextState.fastRewardCheckpoints).toBe(true);
+  });
+
+  it("restores eligibility only after three consecutive plausible checkpoints", () => {
+    const fast = applyRewardCheckpoint({
+      evidence,
+      nowMs: 1000,
+      page: 4,
+      state: createState(),
+    });
+    const first = applyRewardCheckpoint({
+      evidence,
+      nowMs: 3000,
+      page: 1,
+      state: fast.nextState,
+    });
+    const interrupted = applyRewardCheckpoint({
+      evidence: { ...evidence, documentVisible: false },
+      nowMs: 4000,
+      page: 2,
+      state: first.nextState,
+    });
+    const second = applyRewardCheckpoint({
+      evidence,
+      nowMs: 5000,
+      page: 3,
+      state: interrupted.nextState,
+    });
+    const third = applyRewardCheckpoint({
+      evidence,
+      nowMs: 7000,
+      page: 2,
+      state: second.nextState,
+    });
+    const restored = applyRewardCheckpoint({
+      evidence,
+      nowMs: 9000,
+      page: 4,
+      state: third.nextState,
+    });
+    const eligible = applyRewardCheckpoint({
+      evidence,
+      nowMs: 11_000,
+      page: 3,
+      state: restored.nextState,
+    });
+
+    expect([
+      first.rewardValid,
+      second.rewardValid,
+      third.rewardValid,
+      restored.rewardValid,
+    ]).toEqual([false, false, false, false]);
+    expect(interrupted.nextState.consecutiveValidRewardCheckpoints).toBe(0);
+    expect(restored.nextState.fastRewardCheckpoints).toBe(false);
+    expect(eligible.rewardValid).toBe(true);
+  });
+
+  it("fails reward validation closed when Redis is unavailable", async () => {
+    const cache = {
+      get: vi.fn().mockRejectedValue(new Error("redis unavailable")),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const db = {} as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        comicId: "comic-1",
+        db,
+        evidence,
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      accepted: false,
+      reason: "tracking_unavailable",
+      rewardedXp: 0,
+      trackingAvailable: false,
+    });
+  });
+
+  it("does not settle a reward when Redis cannot persist checkpoint evidence", async () => {
+    const cache = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      set: vi.fn().mockRejectedValue(new Error("redis unavailable")),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const transaction = vi.fn();
+    const db = {
+      transaction,
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        comicId: "comic-1",
+        db,
+        evidence,
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      persisted: false,
+      processed: false,
+      reason: "tracking_unavailable",
+      rewardedXp: 0,
+    });
+    expect(transaction).not.toHaveBeenCalled();
   });
 });
 

@@ -74,6 +74,15 @@ const nav = {
     ],
     name: "Creadores",
   },
+  economy: {
+    links: [
+      {
+        href: "/admin/economy",
+        name: "Informe diario",
+      },
+    ],
+    name: "Economía",
+  },
   emojis: {
     links: [
       {
@@ -189,6 +198,15 @@ const nav = {
       },
     ],
     name: "Perfiles",
+  },
+  progressionIntegrity: {
+    links: [
+      {
+        href: "/admin/progression-integrity",
+        name: "Casos pendientes",
+      },
+    ],
+    name: "Integridad XP",
   },
   staticPages: {
     links: [
@@ -306,6 +324,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               </HasPermissions>
               <HasPermissions permissions={{ moderation: ["list"] }}>
                 <SidebarLinks item={nav.moderation} />
+              </HasPermissions>
+              <HasPermissions permissions={{ progressionIntegrity: ["view"] }}>
+                <SidebarLinks item={nav.progressionIntegrity} />
+              </HasPermissions>
+              <HasPermissions permissions={{ economy: ["view"] }}>
+                <SidebarLinks item={nav.economy} />
               </HasPermissions>
               <HasAnyPermissions
                 permissions={[

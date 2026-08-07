@@ -7,13 +7,30 @@ const mocks = vi.hoisted(() => ({
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
   publicCatalogVisibilityCondition: vi.fn(),
+  settleReviewMilestonesInTransaction: vi.fn(),
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
-vi.mock("@repo/auth", () => ({ auth: { api: {} } }));
+vi.mock("@repo/auth", () => ({
+  auth: {
+    api: {
+      userHasPermission: vi.fn().mockResolvedValue({ success: true }),
+    },
+  },
+}));
 vi.mock("../services/profile", () => ({
   buildProfileSummaries: mocks.buildProfileSummaries,
   canReadPublicProfileActivity: mocks.canReadPublicProfileActivity,
+}));
+vi.mock("../services/contribution-rewards", () => ({
+  deleteReviewWithRewards: vi.fn(),
+  getReviewDeletionWarning: vi.fn(),
+  saveReviewRewardSubjectInTransaction: vi.fn(),
+  settleReviewMilestonesInTransaction:
+    mocks.settleReviewMilestonesInTransaction,
+}));
+vi.mock("../services/progression", () => ({
+  notifyXpSettlement: vi.fn(),
 }));
 vi.mock("../utils/early-access", async (importOriginal) => {
   const original = await importOriginal<{
@@ -64,6 +81,9 @@ function createContext(select = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.settleReviewMilestonesInTransaction.mockResolvedValue({
+    settlements: [],
+  });
 });
 
 describe("profile review privacy", () => {
@@ -161,5 +181,76 @@ describe("profile review privacy", () => {
     expect(mocks.canReadPublicProfileActivity).not.toHaveBeenCalled();
     expect(ratingsQuery.limit).toHaveBeenCalledWith(7);
     expect(select.mock.calls[1]?.[0]).toHaveProperty("slug");
+  });
+});
+
+describe("stable review likes", () => {
+  it("attaches a new like to the current review incarnation", async () => {
+    const ratingQuery = createPaginatedQuery([{ id: "review-current" }]);
+    const returning = vi
+      .fn()
+      .mockResolvedValue([{ ratingId: "review-current" }]);
+    const onConflictDoNothing = vi.fn().mockReturnValue({ returning });
+    const values = vi.fn().mockReturnValue({ onConflictDoNothing });
+    const insert = vi.fn().mockReturnValue({ values });
+    const select = vi.fn().mockReturnValue(ratingQuery);
+    const executor = { insert, select };
+    const context = {
+      ...createContext(select),
+      db: {
+        ...executor,
+        transaction: vi.fn((callback) => callback(executor)),
+      },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        ratingRouter.toggleReviewLike,
+        { liked: true, postId: "post-1", ratingUserId: "author-1" },
+        { context }
+      )
+    ).resolves.toEqual({ success: true });
+
+    expect(select.mock.calls[0]?.[0]).toHaveProperty("id");
+    expect(values).toHaveBeenCalledWith({
+      ratingId: "review-current",
+      userId: "owner-1",
+    });
+    expect(onConflictDoNothing).toHaveBeenCalledOnce();
+    expect(returning).toHaveBeenCalledOnce();
+    expect(mocks.settleReviewMilestonesInTransaction).toHaveBeenCalledWith(
+      executor,
+      "review-current",
+      expect.any(Date),
+      "owner-1"
+    );
+  });
+
+  it("does not replay milestone work when the like already exists", async () => {
+    const ratingQuery = createPaginatedQuery([{ id: "review-current" }]);
+    const returning = vi.fn().mockResolvedValue([]);
+    const executor = {
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoNothing: vi.fn().mockReturnValue({ returning }),
+        }),
+      }),
+      select: vi.fn().mockReturnValue(ratingQuery),
+    };
+    const context = {
+      ...createContext(executor.select),
+      db: {
+        ...executor,
+        transaction: vi.fn((callback) => callback(executor)),
+      },
+    } as unknown as Context;
+
+    await call(
+      ratingRouter.toggleReviewLike,
+      { liked: true, postId: "post-1", ratingUserId: "author-1" },
+      { context }
+    );
+
+    expect(mocks.settleReviewMilestonesInTransaction).not.toHaveBeenCalled();
   });
 });

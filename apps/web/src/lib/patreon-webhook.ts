@@ -1,3 +1,4 @@
+import { grantMonthlyPatreonStipend } from "@repo/api/services/patreon-stipend";
 import { verifyWebhookSignature } from "@repo/api/utils/patreon";
 import { db, eq } from "@repo/db";
 import { patreonWebhookRequest, patron } from "@repo/db/schema/app";
@@ -237,6 +238,7 @@ async function handleMemberUpdate(
       },
       target: patron.userId,
     });
+  await grantMonthlyPatreonStipend(db, patreonAccount.userId);
 
   console.log(
     `Webhook: Updated patron status for user ${patreonAccount.userId}, tier: ${patronStatus.tier}, active: ${patronStatus.isActivePatron}`

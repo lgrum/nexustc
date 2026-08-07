@@ -14,6 +14,7 @@ import {
 import { createContentSlug, dedupeContentSlug } from "@repo/shared/slug";
 
 import type { Context } from "../context";
+import { markParentPostContributionSubjectsRemovedInTransaction } from "../services/contribution-rewards";
 import {
   createOrCollapseContentUpdateNotification,
   deriveContentUpdateEvent,
@@ -843,9 +844,12 @@ export async function deleteContent({
   const logger = getLogger(ctx);
   logger?.info(`Deleting ${input.type}: ${input.id}`);
 
-  await db
-    .delete(post)
-    .where(and(eq(post.id, input.id), eq(post.type, input.type)));
+  await db.transaction(async (tx) => {
+    await markParentPostContributionSubjectsRemovedInTransaction(tx, input.id);
+    await tx
+      .delete(post)
+      .where(and(eq(post.id, input.id), eq(post.type, input.type)));
+  });
 
   logger?.info(`${input.type} ${input.id} successfully deleted`);
 }

@@ -9,6 +9,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
     ["catalog:comics", "content", "home", "news", "profiles", "vip-feed"],
   ],
   ["chronos/update", ["chronos"]],
+  ["comicProgress/update", ["profiles"]],
   ["engagementQuestion/create", ["content"]],
   ["engagementQuestion/delete", ["content"]],
   ["engagementQuestion/edit", ["content"]],
@@ -16,6 +17,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["extras/deleteTutorial", ["tutorials"]],
   ["notification/admin/archive", ["news"]],
   ["notification/admin/createNewsArticle", ["news"]],
+  ["patreon/admin/reconcileMemberships", ["profiles"]],
   ["patreon/syncMembership", ["profiles"]],
   ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
   [
@@ -28,15 +30,26 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ],
   ["post/admin/uploadFeaturedPosts", ["home"]],
   ["post/admin/uploadWeeklyPosts", ["home"]],
+  ["post/deleteComment", ["profiles"]],
+  ["post/deleteOwnComment", ["profiles"]],
+  ["post/toggleCommentLike", ["profiles"]],
   ["profile/finalizeUpload", ["profiles"]],
   ["profile/removeAvatar", ["profiles"]],
   ["profile/removeBanner", ["profiles"]],
   ["profile/updateAppearance", ["profiles"]],
   ["profile/updateVisibility", ["profiles"]],
+  ["progression/owner/adjustXp", ["profiles"]],
+  ["progression/admin/decideCase", ["profiles"]],
+  ["progression/getMine", ["profiles"]],
+  ["eteris/getMine", ["profiles"]],
+  ["eteris/owner/adjust", ["profiles"]],
+  ["eteris/owner/reconcileWallet", ["profiles"]],
+  ["eteris/setPublicBalance", ["profiles"]],
   ["rating/create", ["profiles"]],
   ["rating/delete", ["profiles"]],
   ["rating/deleteAny", ["profiles"]],
   ["rating/update", ["profiles"]],
+  ["rating/toggleReviewLike", ["profiles"]],
   ["profileAdmin/assignments/setUserAssignments", ["profiles"]],
   ["profileAdmin/emblems/create", ["profiles"]],
   ["profileAdmin/emblems/delete", ["profiles"]],
@@ -57,7 +70,8 @@ export function getCacheTagsForProcedure(procedurePath: string) {
 }
 
 export function getCacheRevalidationProfile(procedurePath: string) {
-  return procedurePath === "profile/updateVisibility"
+  return procedurePath === "profile/updateVisibility" ||
+    procedurePath === "eteris/setPublicBalance"
     ? ({ expire: 0 } as const)
     : "max";
 }

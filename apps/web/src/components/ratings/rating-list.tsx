@@ -30,6 +30,7 @@ import { UserLabel } from "@/components/users/user-label";
 import { authClient } from "@/lib/auth-client";
 import { orpcClient } from "@/lib/orpc";
 
+import { getReviewDeletionDescription } from "./review-deletion-warning";
 import { ReviewMarkdown } from "./review-markdown";
 
 type RatingListProps = {
@@ -162,11 +163,22 @@ export function RatingList({ postId }: RatingListProps) {
     postId: string;
     userId: string;
   }) => {
+    let ownDeletionDescription = "";
+    if (isOwnRating) {
+      try {
+        ownDeletionDescription = getReviewDeletionDescription(
+          await orpcClient.rating.getDeletionWarning({ postId: targetPostId })
+        );
+      } catch {
+        toast.error("No pudimos comprobar el impacto de eliminar tu reseña.");
+        return;
+      }
+    }
     const isConfirmed = await confirm({
       cancelText: "Cancelar",
       confirmText: "Eliminar",
       description: isOwnRating
-        ? "¿Estás seguro de que quieres eliminar tu valoración? Esta acción no se puede deshacer."
+        ? ownDeletionDescription
         : "¿Estás seguro de que quieres eliminar esta valoración? Esta acción no se puede deshacer.",
       title: "Eliminar valoración",
     });

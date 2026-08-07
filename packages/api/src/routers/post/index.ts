@@ -51,8 +51,15 @@ import {
   publicProcedure,
 } from "../../index";
 import { attachComicCatalogProgress } from "../../services/comic-progress";
+import {
+  deleteCommentWithRewards,
+  getCommentDeletionWarning,
+  saveCommentRewardSubjectInTransaction,
+  settleCommentMilestonesInTransaction,
+} from "../../services/contribution-rewards";
 import { createCommentReplyNotification } from "../../services/notification";
 import { buildProfileSummaries } from "../../services/profile";
+import { notifyXpSettlement } from "../../services/progression";
 import {
   getResolvedEngagementPromptsForPost,
   getSelectableEngagementPromptsForPost,
@@ -1546,11 +1553,22 @@ export default {
               parentId: input.parentId ?? null,
               postId: input.postId,
             })
-            .returning({ id: comment.id });
+            .returning({
+              content: comment.content,
+              createdAt: comment.createdAt,
+              id: comment.id,
+              postId: comment.postId,
+              userId: comment.authorId,
+            });
 
-          if (!createdComment) {
+          if (!createdComment?.userId) {
             throw errors.INTERNAL_SERVER_ERROR();
           }
+
+          await saveCommentRewardSubjectInTransaction(tx, {
+            ...createdComment,
+            userId: createdComment.userId,
+          });
 
           if (parentComment?.authorId) {
             await createCommentReplyNotification(tx, {
@@ -1670,18 +1688,33 @@ export default {
           }
         }
 
-        await db
-          .update(comment)
-          .set({
-            content: input.content,
-            editedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(comment.id, input.commentId),
-              eq(comment.authorId, session.user.id)
+        await db.transaction(async (tx) => {
+          const [updatedComment] = await tx
+            .update(comment)
+            .set({
+              content: input.content,
+              editedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(comment.id, input.commentId),
+                eq(comment.authorId, session.user.id)
+              )
             )
-          );
+            .returning({
+              content: comment.content,
+              createdAt: comment.createdAt,
+              id: comment.id,
+              postId: comment.postId,
+              userId: comment.authorId,
+            });
+          if (updatedComment?.userId) {
+            await saveCommentRewardSubjectInTransaction(tx, {
+              ...updatedComment,
+              userId: updatedComment.userId,
+            });
+          }
+        });
 
         logger?.debug(`Own comment ${input.commentId} edited`);
         return { success: true };
@@ -1766,26 +1799,32 @@ export default {
 
   deleteComment: permissionProcedure({ comments: ["delete"] })
     .input(z.object({ commentId: z.string() }))
-    .handler(async ({ context: { db, ...context }, input, errors }) => {
-      const logger = getLogger(context);
-      logger?.info(`Deleting comment ${input.commentId}`);
+    .handler(
+      async ({ context: { db, session, ...context }, input, errors }) => {
+        const logger = getLogger(context);
+        logger?.info(`Deleting comment ${input.commentId}`);
 
-      const existingComment = await db.query.comment.findFirst({
-        columns: {
-          id: true,
-        },
-        where: eq(comment.id, input.commentId),
-      });
+        const existingComment = await db.query.comment.findFirst({
+          columns: {
+            id: true,
+          },
+          where: eq(comment.id, input.commentId),
+        });
 
-      if (!existingComment) {
-        throw errors.NOT_FOUND();
+        if (!existingComment) {
+          throw errors.NOT_FOUND();
+        }
+
+        await deleteCommentWithRewards(db, {
+          actorUserId: session.user.id,
+          commentId: input.commentId,
+          reason: "guideline_abuse",
+        });
+
+        logger?.debug(`Comment ${input.commentId} deleted`);
+        return { success: true };
       }
-
-      await db.delete(comment).where(eq(comment.id, input.commentId));
-
-      logger?.debug(`Comment ${input.commentId} deleted`);
-      return { success: true };
-    }),
+    ),
 
   deleteOwnComment: protectedProcedure
     .input(z.object({ commentId: z.string() }))
@@ -1812,21 +1851,27 @@ export default {
           throw errors.FORBIDDEN();
         }
 
-        await db
-          .delete(comment)
-          .where(
-            and(
-              eq(comment.id, input.commentId),
-              eq(comment.authorId, session.user.id)
-            )
-          );
+        await deleteCommentWithRewards(db, {
+          commentId: input.commentId,
+          reason: "voluntary",
+        });
 
         logger?.debug(`Own comment ${input.commentId} deleted`);
         return { success: true };
       }
     ),
 
+  getCommentDeletionWarning: protectedProcedure
+    .input(z.object({ commentId: z.string() }))
+    .handler(({ context: { db, session }, input }) =>
+      getCommentDeletionWarning(db, {
+        commentId: input.commentId,
+        userId: session.user.id,
+      })
+    ),
+
   toggleCommentLike: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .input(z.object({ commentId: z.string(), liked: z.boolean() }))
     .handler(
       async ({ context: { db, session, ...context }, input, errors }) => {
@@ -1835,31 +1880,24 @@ export default {
           `User ${session.user.id} toggling comment like ${input.commentId} to ${input.liked}`
         );
 
-        const existingComment = await db
-          .select({ id: comment.id })
-          .from(comment)
-          .innerJoin(user, eq(user.id, comment.authorId))
-          .where(
-            and(
-              eq(comment.id, input.commentId),
-              sql`${user.banned} IS DISTINCT FROM true`
+        const result = await db.transaction(async (tx) => {
+          const [existingComment] = await tx
+            .select({ authorId: comment.authorId, id: comment.id })
+            .from(comment)
+            .innerJoin(user, eq(user.id, comment.authorId))
+            .where(
+              and(
+                eq(comment.id, input.commentId),
+                sql`${user.banned} IS DISTINCT FROM true`
+              )
             )
-          )
-          .limit(1);
+            .limit(1);
 
-        if (existingComment.length === 0) {
-          throw errors.NOT_FOUND();
-        }
-
-        const toggleLikeQuery = input.liked
-          ? db
-              .insert(commentLikes)
-              .values({
-                commentId: input.commentId,
-                userId: session.user.id,
-              })
-              .onConflictDoNothing()
-          : db
+          if (!existingComment?.authorId) {
+            throw errors.NOT_FOUND();
+          }
+          if (!input.liked) {
+            await tx
               .delete(commentLikes)
               .where(
                 and(
@@ -1867,8 +1905,34 @@ export default {
                   eq(commentLikes.userId, session.user.id)
                 )
               );
+            return { authorId: existingComment.authorId, settlements: [] };
+          }
 
-        await toggleLikeQuery;
+          const inserted = await tx
+            .insert(commentLikes)
+            .values({
+              commentId: input.commentId,
+              userId: session.user.id,
+            })
+            .onConflictDoNothing()
+            .returning({ commentId: commentLikes.commentId });
+          if (inserted.length === 0) {
+            return { authorId: existingComment.authorId, settlements: [] };
+          }
+          const settlement = await settleCommentMilestonesInTransaction(
+            tx,
+            input.commentId,
+            new Date(),
+            session.user.id
+          );
+          return {
+            authorId: existingComment.authorId,
+            settlements: settlement.settlements,
+          };
+        });
+        for (const settlement of result.settlements) {
+          await notifyXpSettlement(db, result.authorId, settlement);
+        }
 
         return { success: true };
       }

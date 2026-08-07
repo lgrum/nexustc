@@ -19,7 +19,7 @@ export const webUrlSchema = z.url({
   protocol: /^https?$/,
 });
 
-const ratingReviewSchema = z
+export const ratingReviewSchema = z
   .string()
   .trim()
   .max(RATING_REVIEW_MAX_LENGTH)
@@ -308,8 +308,11 @@ export const comicProgressComicSchema = z.object({
 
 export const comicProgressUpdateSchema = z.object({
   comicId: z.string().min(1),
+  documentVisible: z.boolean(),
   page: z.number().int().min(1),
   readingSessionId: z.string().min(1),
+  visibleDurationMs: z.number().int().min(0).max(60_000),
+  visiblePercentage: z.number().min(0).max(100),
 });
 
 export const chronosUpdateSchema = z.object({

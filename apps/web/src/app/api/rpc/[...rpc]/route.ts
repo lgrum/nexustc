@@ -4,6 +4,7 @@ import { BodyLimitPlugin, RPCHandler } from "@orpc/server/fetch";
 import { SimpleCsrfProtectionHandlerPlugin } from "@orpc/server/plugins";
 import { createContext } from "@repo/api/context";
 import { appRouter } from "@repo/api/routers/index";
+import { ensureIntegrityDeviceCookie } from "@repo/api/utils/integrity-evidence";
 import { ADMIN_RPC_BODY_MAX_BYTES } from "@repo/shared/media";
 import { revalidateTag } from "next/cache";
 
@@ -26,8 +27,17 @@ const rpcHandler = new RPCHandler(appRouter, {
 });
 
 async function handle(request: Request) {
-  const rpcResult = await rpcHandler.handle(request, {
-    context: await createContext(request.headers),
+  const { deviceId, setCookie } = ensureIntegrityDeviceCookie(request.headers);
+  const headers = new Headers(request.headers);
+  if (setCookie) {
+    const cookie = headers.get("cookie");
+    headers.set(
+      "cookie",
+      `${cookie ? `${cookie}; ` : ""}ntc_device=${deviceId}`
+    );
+  }
+  const rpcResult = await rpcHandler.handle(new Request(request, { headers }), {
+    context: await createContext(headers),
     prefix: "/api/rpc",
   });
   if (rpcResult.response) {
@@ -41,7 +51,12 @@ async function handle(request: Request) {
       }
     }
 
-    return rpcResult.response;
+    if (!setCookie) {
+      return rpcResult.response;
+    }
+    const response = new Response(rpcResult.response.body, rpcResult.response);
+    response.headers.append("set-cookie", setCookie);
+    return response;
   }
 
   return new Response("Not found", { status: 404 });

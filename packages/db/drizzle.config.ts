@@ -11,5 +11,5 @@ export default defineConfig({
   },
   dialect: "postgresql",
   out: "./src/migrations",
-  schema: "./src/schema",
+  schema: ["./src/schema/app.ts", "./src/schema/notification.ts"],
 });

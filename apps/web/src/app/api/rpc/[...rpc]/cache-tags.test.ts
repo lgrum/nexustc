@@ -15,12 +15,25 @@ test("invalidates home and catalog tags for post mutations", () => {
 });
 
 test.each([
+  "patreon/admin/reconcileMemberships",
   "patreon/syncMembership",
+  "comicProgress/update",
   "profile/updateAppearance",
   "profile/updateVisibility",
+  "post/deleteComment",
+  "post/deleteOwnComment",
+  "post/toggleCommentLike",
+  "progression/admin/decideCase",
+  "progression/getMine",
+  "progression/owner/adjustXp",
+  "eteris/getMine",
+  "eteris/owner/adjust",
+  "eteris/owner/reconcileWallet",
+  "eteris/setPublicBalance",
   "rating/create",
   "rating/delete",
   "rating/deleteAny",
+  "rating/toggleReviewLike",
   "rating/update",
   "user/toggleBookmark",
 ])("invalidates profile tags for %s", (procedurePath) => {
@@ -47,4 +60,7 @@ test("expires privacy-sensitive profile data immediately", () => {
     expire: 0,
   });
   expect(getCacheRevalidationProfile("profile/updateAppearance")).toBe("max");
+  expect(getCacheRevalidationProfile("eteris/setPublicBalance")).toEqual({
+    expire: 0,
+  });
 });
