@@ -2,14 +2,19 @@ import type { db as database } from "@repo/db";
 import { xpIntegrityCase, xpRiskSignal } from "@repo/db/schema/app";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { settleXpWithIntegrityInTransaction } from "./integrity";
+import {
+  decideIntegrityCase,
+  settleXpWithIntegrityInTransaction,
+} from "./integrity";
 
 const progression = vi.hoisted(() => ({
+  matured: vi.fn(),
   pending: vi.fn(),
   posted: vi.fn(),
 }));
 
 vi.mock("./progression", () => ({
+  releaseMaturedPendingXpInTransaction: progression.matured,
   createPendingXpEventInTransaction: progression.pending,
   lockUserProgressionInTransaction: vi.fn(),
   notifyXpSettlement: vi.fn(),
@@ -51,6 +56,7 @@ function createTransaction() {
 }
 
 beforeEach(() => {
+  progression.matured.mockReset().mockResolvedValue([]);
   progression.pending.mockReset().mockResolvedValue({
     eventId: "event-1",
     pendingXp: 25,
@@ -78,6 +84,57 @@ describe("integrity settlement", () => {
     });
     expect(progression.posted).toHaveBeenCalledOnce();
     expect(progression.pending).not.toHaveBeenCalled();
+    expect(progression.matured).toHaveBeenCalledWith(
+      expect.anything(),
+      command.userId,
+      expect.any(Date)
+    );
+  });
+
+  it("rejects like disqualification for a subject unrelated to the case", async () => {
+    const insert = vi.fn();
+    const tx = {
+      insert,
+      select: vi.fn((shape?: Record<string, unknown>) => {
+        if (!shape) {
+          const chain = {
+            for: vi
+              .fn()
+              .mockResolvedValue([
+                { id: "case-1", status: "open", userId: "user-1" },
+              ]),
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        const chain = {
+          from: vi.fn(),
+          limit: vi.fn().mockResolvedValue([]),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "disqualify_likes",
+        actorUserId: "moderator-1",
+        caseId: "case-1",
+        likerUserIds: ["liker-1"],
+        reason: "El sujeto no pertenece al caso investigado",
+        subjectId: "unrelated-subject",
+      })
+    ).rejects.toThrow("INTEGRITY_SUBJECT_MISMATCH");
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it("holds medium risk for 24 hours and persists only its anomaly", async () => {

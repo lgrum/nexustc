@@ -695,6 +695,9 @@ async function persistProgressRecord(params: {
     let processedPageRanges: [number, number][] | undefined;
     const processedPages: number[] = [];
     let rewardedPages: number[] = [];
+    let releasedSettlements: Awaited<
+      ReturnType<typeof postXpEventInTransaction>
+    >[] = [];
     let settlement:
       | Awaited<ReturnType<typeof postXpEventInTransaction>>
       | undefined;
@@ -781,8 +784,18 @@ async function persistProgressRecord(params: {
             }),
             params.now
           );
-          if (integrityResult.outcome === "posted") {
+          if (
+            "releasedSettlements" in integrityResult &&
+            integrityResult.releasedSettlements
+          ) {
+            ({ releasedSettlements } = integrityResult);
+          }
+          if (
+            integrityResult.outcome === "posted" &&
+            "settlement" in integrityResult
+          ) {
             ({ settlement } = integrityResult);
+            rewardedPages = rewardedPages.slice(0, settlement.settledXp);
           } else {
             rewardedPages = [];
           }
@@ -809,11 +822,18 @@ async function persistProgressRecord(params: {
         )
       );
 
-    return { processedPages, rewardedPages, settlement };
+    return { processedPages, releasedSettlements, rewardedPages, settlement };
   });
 
   if (result.settlement) {
     await notifyXpSettlement(params.db, params.state.userId, result.settlement);
+  }
+  for (const releasedSettlement of result.releasedSettlements) {
+    await notifyXpSettlement(
+      params.db,
+      params.state.userId,
+      releasedSettlement
+    );
   }
   return result;
 }

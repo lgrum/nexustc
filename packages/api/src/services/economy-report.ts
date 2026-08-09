@@ -1,4 +1,4 @@
-import { eq, sql } from "@repo/db";
+import { sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import { eterisDailySnapshot } from "@repo/db/schema/app";
 
@@ -47,13 +47,6 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(487645233901)`);
-    const existing = await tx.query.eterisDailySnapshot.findFirst({
-      where: eq(eterisDailySnapshot.day, day),
-    });
-    if (existing) {
-      return serializeSnapshot(existing);
-    }
-
     const result = await tx.execute(sql`
       with user_wallets as (
         select w.id, w.user_id, w.status, b.balance
@@ -91,7 +84,7 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
             select 1
             from xp_risk_signal s
             where s.user_id = p.user_id
-              and s.kind in ('wallet_credit_velocity', 'xp_velocity')
+              and s.kind in ('source_cap_pressure', 'wallet_credit_velocity', 'xp_velocity')
               and s.occurred_at >= ${dayStart}
               and s.occurred_at < ${dayEnd}
           )
@@ -140,10 +133,10 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
       sourceTotals: metrics.issued_by_reason,
       totalUserSupply: BigInt(metrics.total_user_supply),
     } satisfies typeof eterisDailySnapshot.$inferSelect;
-    await tx
-      .insert(eterisDailySnapshot)
-      .values(snapshot)
-      .onConflictDoNothing({ target: eterisDailySnapshot.day });
+    await tx.insert(eterisDailySnapshot).values(snapshot).onConflictDoUpdate({
+      set: snapshot,
+      target: eterisDailySnapshot.day,
+    });
     return serializeSnapshot(snapshot);
   });
 }

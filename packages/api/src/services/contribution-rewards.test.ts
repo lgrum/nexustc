@@ -16,6 +16,7 @@ import {
 const flags = vi.hoisted(() => ({ accrual: true }));
 const progression = vi.hoisted(() => ({
   assessments: [] as string[],
+  cancelledPending: [] as Record<string, unknown>[],
   calls: [] as Record<string, unknown>[],
   fail: false,
   replayed: false,
@@ -40,6 +41,7 @@ vi.mock("./integrity-settlement", () => ({
           level: 1,
           previousLevel: 1,
           replayed: progression.replayed,
+          settledXp: progression.replayed ? 0 : Number(input.amount),
           totalXp: progression.replayed ? 0 : Number(input.amount),
         },
       });
@@ -49,6 +51,9 @@ vi.mock("./integrity-settlement", () => ({
 
 const activation = vi.hoisted(() => ({ date: null as Date | null }));
 vi.mock("./progression-activation", () => ({
+  ensureProgressionActivationInTransaction: vi.fn((_tx, now: Date) =>
+    Promise.resolve(activation.date ?? now)
+  ),
   readProgressionActivationDate: vi.fn(() => Promise.resolve(activation.date)),
 }));
 
@@ -60,6 +65,10 @@ vi.mock("@repo/env", () => ({
   },
 }));
 vi.mock("./progression", () => ({
+  cancelPendingXpEventsInTransaction: vi.fn((_tx, input) => {
+    progression.cancelledPending.push(input);
+    return Promise.resolve([]);
+  }),
   notifyXpSettlement: vi.fn(),
   postXpEventInTransaction: vi.fn((_tx, input) => {
     progression.calls.push(input);
@@ -72,6 +81,7 @@ vi.mock("./progression", () => ({
       level: 1,
       previousLevel: 1,
       replayed: progression.replayed,
+      settledXp: progression.replayed ? 0 : Number(input.amount),
       totalXp: progression.replayed ? 0 : Number(input.amount),
     });
   }),
@@ -179,6 +189,7 @@ beforeEach(() => {
   activation.date = null;
   flags.accrual = true;
   progression.assessments = [];
+  progression.cancelledPending = [];
   progression.calls = [];
   progression.fail = false;
   progression.replayed = false;
@@ -379,6 +390,21 @@ describe("review milestone settlement", () => {
       )
     ).resolves.toMatchObject({ eligibleLikes: 0, grantedXp: 0 });
     expect(progression.calls).toHaveLength(0);
+  });
+
+  it("counts only likes received on or after progression activation", async () => {
+    activation.date = new Date("2026-08-15T00:00:00.000Z");
+
+    await expect(
+      settleReviewMilestonesInTransaction(
+        createSettlementTransaction().tx,
+        review.id,
+        new Date("2026-08-20T00:00:00.000Z")
+      )
+    ).resolves.toMatchObject({ eligibleLikes: 50, grantedXp: 375 });
+    expect(progression.calls.map(({ milestone }) => milestone)).toEqual([
+      3, 10, 25, 50,
+    ]);
   });
 });
 
@@ -746,6 +772,21 @@ describe("review removal lifecycle", () => {
       })
     ).rejects.toThrow("atomic progression failure");
     expect(store.deletedReview).not.toHaveBeenCalled();
+  });
+
+  it("cancels pending milestone XP before deleting its reward subject", async () => {
+    const store = createDeletionDatabase("voluntary");
+
+    await deleteReviewWithRewards(store.db, {
+      postId: review.postId,
+      reason: "voluntary",
+      userId: review.userId,
+    });
+
+    expect(progression.cancelledPending).toEqual([
+      expect.objectContaining({ subjectId: subject.id }),
+    ]);
+    expect(store.deletedReview).toHaveBeenCalledOnce();
   });
 
   it("marks parent removals without reversing earned XP", async () => {

@@ -7,12 +7,14 @@ import {
 
 import {
   adjustXp,
+  cancelPendingXpEventsInTransaction,
   getPublicAccountLevel,
   getUserProgression,
   listUserXpHistory,
   postXpEventInTransaction,
   postXpEvent,
 } from "./progression";
+import type { ProgressionExecutor } from "./progression";
 
 const flags = vi.hoisted(() => ({ accrual: false, economy: false }));
 const ledger = vi.hoisted(() => ({
@@ -23,8 +25,19 @@ const ledger = vi.hoisted(() => ({
     metadata?: Record<string, unknown>;
   }[],
   failAtCall: 0,
+  mismatchAtCall: 0,
   notifications: [] as { metadata?: Record<string, unknown>; title: string }[],
-  transactions: new Map<string, { amount: bigint; id: string; kind: string }>(),
+  transactions: new Map<
+    string,
+    {
+      amount: bigint;
+      id: string;
+      kind: string;
+      metadata: Record<string, unknown>;
+      reversesTransactionId: string | null;
+      sourceModule: string;
+    }
+  >(),
 }));
 vi.mock("@repo/env", () => ({
   env: {
@@ -45,6 +58,9 @@ vi.mock("./eteris", () => ({
     if (ledger.failAtCall === ledger.calls.length) {
       throw new Error("ledger failure");
     }
+    if (ledger.mismatchAtCall === ledger.calls.length) {
+      return Promise.resolve({ mismatched: ["user-wallet"] });
+    }
     const amount = input.postings.find(
       (posting: { walletId: string }) => posting.walletId === "user-wallet"
     ).amount as bigint;
@@ -54,6 +70,9 @@ vi.mock("./eteris", () => ({
       amount,
       id,
       kind: input.kind,
+      metadata: input.metadata ?? {},
+      reversesTransactionId: null,
+      sourceModule: input.sourceModule,
     });
     return Promise.resolve({ id, replayed: false });
   }),
@@ -73,6 +92,9 @@ vi.mock("./eteris", () => ({
         amount: -original.amount,
         id,
         kind: "reversal",
+        metadata: {},
+        reversesTransactionId: original.id,
+        sourceModule: "progression",
       });
       return Promise.resolve({ id, replayed: false });
     }
@@ -181,6 +203,18 @@ function createDatabase(options?: { banned?: boolean }) {
           Promise.resolve({ balance: ledger.balance, walletId: "user-wallet" })
         ),
       },
+      eterisTransaction: {
+        findMany: vi.fn(() =>
+          Promise.resolve(
+            [...ledger.transactions.values()].map((transaction) => ({
+              ...transaction,
+              createdAt: new Date(),
+              metadata: transaction.metadata,
+              postings: [{ walletId: "user-wallet" }],
+            }))
+          )
+        ),
+      },
       progressionSystem: {
         findFirst: vi.fn(() => Promise.resolve(activation)),
       },
@@ -211,7 +245,14 @@ function createDatabase(options?: { banned?: boolean }) {
               where: vi.fn(() => ({
                 orderBy: vi.fn(() =>
                   Promise.resolve(
-                    events.map(({ amount, id }) => ({ amount, id }))
+                    events
+                      .toSorted(
+                        (left, right) =>
+                          left.createdAt.getTime() -
+                            right.createdAt.getTime() ||
+                          left.id.localeCompare(right.id)
+                      )
+                      .map(({ amount, id }) => ({ amount, id }))
                   )
                 ),
               })),
@@ -287,6 +328,13 @@ function createDatabase(options?: { banned?: boolean }) {
     setBanned: (value: boolean) => {
       banned = value;
     },
+    setProgression: (value: {
+      level: number;
+      pendingXp: number;
+      totalXp: number;
+    }) => {
+      progression = { ...value, userId: "user-1" };
+    },
   };
 }
 
@@ -296,11 +344,63 @@ beforeEach(() => {
   ledger.balance = 0n;
   ledger.calls = [];
   ledger.failAtCall = 0;
+  ledger.mismatchAtCall = 0;
   ledger.notifications = [];
   ledger.transactions = new Map();
 });
 
 describe("progression service", () => {
+  it("cancels Pending XP and decrements its projection in the same transaction", async () => {
+    const updates: { table: unknown; values: Record<string, unknown> }[] = [];
+    const pending = [
+      {
+        amount: 25,
+        id: "pending-1",
+        userId: "user-1",
+      },
+      {
+        amount: 50,
+        id: "pending-2",
+        userId: "user-1",
+      },
+    ];
+    const tx = {
+      select: vi.fn(() => {
+        const chain = {
+          for: vi.fn().mockResolvedValue(pending),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+      update: vi.fn((table: unknown) => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updates.push({ table, values });
+          return { where: vi.fn(() => Promise.resolve()) };
+        }),
+      })),
+    } as unknown as ProgressionExecutor;
+
+    await expect(
+      cancelPendingXpEventsInTransaction(tx, {
+        now: new Date("2026-08-10T00:00:00.000Z"),
+        subjectId: "subject-1",
+      })
+    ).resolves.toEqual(pending);
+    expect(updates).toEqual([
+      expect.objectContaining({
+        table: xpEvent,
+        values: expect.objectContaining({ state: "cancelled" }),
+      }),
+      expect.objectContaining({
+        table: userProgression,
+        values: expect.objectContaining({ pendingXp: expect.anything() }),
+      }),
+    ]);
+  });
+
   it("keeps release creation on its source day and updates it on release day", async () => {
     flags.accrual = true;
     const store = createDatabase();
@@ -606,6 +706,67 @@ describe("progression service", () => {
     expect(ledger.calls.at(-1)?.idempotencyKey).toMatch(/^level-reward:.+:3$/);
   });
 
+  it("reverses the reward actually posted by a backdated Pending release", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    const firstPostedAt = new Date("2026-08-08T00:00:00.000Z");
+    const pendingSourceAt = new Date("2026-08-07T00:00:00.000Z");
+    const pendingReleasedAt = new Date("2026-08-09T00:00:00.000Z");
+
+    await store.db.transaction((tx) =>
+      postXpEventInTransaction(
+        tx,
+        {
+          amount: 67,
+          idempotencyKey: "first-level-crossing",
+          kind: "review_milestone",
+          reasonCode: "eligible_likes_3",
+          sourceRef: "review:first",
+          userId: "user-1",
+        },
+        firstPostedAt
+      )
+    );
+    const firstEventId = store.getEvent()?.id;
+    await store.db.transaction((tx) =>
+      postXpEventInTransaction(
+        tx,
+        {
+          amount: 66,
+          idempotencyKey: "pending-release:backdated",
+          kind: "review_milestone",
+          reasonCode: "eligible_likes_10",
+          sourceCreatedAt: pendingSourceAt,
+          sourceRef: "review:backdated",
+          userId: "user-1",
+        },
+        pendingReleasedAt
+      )
+    );
+    const releasedEventId = store.getEvent()?.id;
+    expect(releasedEventId).not.toBe(firstEventId);
+
+    await expect(
+      store.db.transaction((tx) =>
+        postXpEventInTransaction(
+          tx,
+          {
+            amount: -66,
+            idempotencyKey: "reverse-backdated-release",
+            kind: "reversal",
+            reasonCode: "confirmed_integrity_abuse",
+            sourceRef: "integrity:backdated",
+            userId: "user-1",
+          },
+          new Date("2026-08-10T00:00:00.000Z")
+        )
+      )
+    ).resolves.toMatchObject({ level: 2, totalXp: 67 });
+    expect(ledger.calls.at(-1)).toMatchObject({
+      originalIdempotencyKey: `level-reward:${releasedEventId}:3`,
+    });
+  });
+
   it("rolls back XP and every reward when one ledger posting fails", async () => {
     flags.accrual = true;
     ledger.failAtCall = 2;
@@ -626,6 +787,29 @@ describe("progression service", () => {
     expect(ledger.balance).toBe(0n);
     expect(ledger.transactions.size).toBe(0);
     expect(ledger.notifications).toHaveLength(0);
+  });
+
+  it("keeps the source action successful when a reward detects a frozen projection", async () => {
+    flags.accrual = true;
+    ledger.mismatchAtCall = 1;
+    const store = createDatabase();
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: 67,
+        idempotencyKey: "projection-mismatch-source",
+        kind: "review_milestone",
+        reasonCode: "eligible_likes_3",
+        sourceRef: "review:projection-mismatch",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      eventId: null,
+      settledXp: 0,
+      totalXp: 0,
+    });
+    expect(store.getEvents()).toHaveLength(0);
+    expect(store.getProgression()).toMatchObject({ level: 1, totalXp: 0 });
   });
 
   it("rejects disabled and out-of-range corrections without changing totals", async () => {
@@ -677,6 +861,39 @@ describe("progression service", () => {
       })
     ).rejects.toMatchObject({ code: "ACCOUNT_BANNED" });
     expect(store.getProgression()).toMatchObject({ level: 2, totalXp: 67 });
+    expect(store.getEvents()).toHaveLength(1);
+  });
+
+  it("clips positive XP at the published cap without aborting the source action", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    store.setProgression({ level: 999, pendingXp: 0, totalXp: 364_995 });
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: 10,
+        idempotencyKey: "cap-crossing",
+        kind: "comic_reading",
+        reasonCode: "verified_pages",
+        sourceRef: "comic:cap-crossing",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ settledXp: 5, totalXp: 365_000 });
+    expect(store.getEvent()).toMatchObject({
+      amount: 5,
+      metadata: expect.objectContaining({ requestedAmount: 10 }),
+    });
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: 1,
+        idempotencyKey: "already-at-cap",
+        kind: "comic_reading",
+        reasonCode: "verified_pages",
+        sourceRef: "comic:already-at-cap",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ eventId: null, settledXp: 0 });
     expect(store.getEvents()).toHaveLength(1);
   });
 });

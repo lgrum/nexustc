@@ -23,6 +23,7 @@ import {
   getUserWallet,
   listEterisHistory,
   postEterisTransaction,
+  postEterisTransactionInTransaction,
   reconcileWallet,
   reverseEterisTransaction,
   setPublicWalletBalance,
@@ -654,6 +655,46 @@ test("a projection mismatch freezes the wallet and fails without postings", asyn
       sourceRef: "must-fail",
     })
   ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+  expect(store.transactions.size).toBe(1);
+  expect(store.wallets.get(userWallet.id)?.status).toBe("frozen");
+});
+
+test("an outer transaction can commit a projection freeze before its caller reports failure", async () => {
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  const userWallet = [...store.wallets.values()].find(
+    (wallet) => wallet.userId === "user-1"
+  )!;
+  await postEterisTransaction(store.db, {
+    debtPolicy: "trusted-recovery",
+    idempotencyKey: "seed-nested-mismatch",
+    kind: "admin_adjustment",
+    postings: [
+      { amount: 10n, walletId: userWallet.id },
+      { amount: -10n, walletId: "eteris-system-mint" },
+    ],
+    reason: "Saldo de prueba",
+    sourceModule: "owner",
+    sourceRef: "seed-nested-mismatch",
+  });
+  store.corruptBalance(userWallet.id, 999n);
+
+  const result = await store.db.transaction((tx) =>
+    postEterisTransactionInTransaction(tx, {
+      debtPolicy: "trusted-recovery",
+      idempotencyKey: "nested-mismatch",
+      kind: "admin_adjustment",
+      postings: [
+        { amount: 1n, walletId: userWallet.id },
+        { amount: -1n, walletId: "eteris-system-mint" },
+      ],
+      reason: "No debe asentarse",
+      sourceModule: "owner",
+      sourceRef: "nested-mismatch",
+    })
+  );
+
+  expect(result).toEqual({ mismatched: [userWallet.id] });
   expect(store.transactions.size).toBe(1);
   expect(store.wallets.get(userWallet.id)?.status).toBe("frozen");
 });

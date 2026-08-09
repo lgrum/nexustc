@@ -26,8 +26,15 @@ import { ratingReviewSchema } from "@repo/shared/schemas";
 import { findForbiddenContentMatch } from "../utils/forbidden-content";
 import { detectSpammyText } from "../utils/spam-detection";
 import { settleXpWithIntegrityInTransaction } from "./integrity-settlement";
-import { notifyXpSettlement, postXpEventInTransaction } from "./progression";
-import { readProgressionActivationDate } from "./progression-activation";
+import {
+  cancelPendingXpEventsInTransaction,
+  notifyXpSettlement,
+  postXpEventInTransaction,
+} from "./progression";
+import {
+  ensureProgressionActivationInTransaction,
+  readProgressionActivationDate,
+} from "./progression-activation";
 
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -565,13 +572,21 @@ async function postContributionMilestonesInTransaction(
     );
     if (
       result.outcome === "posted" &&
+      "settlement" in result &&
       result.settlement &&
       !result.settlement.replayed
     ) {
-      grantedXp += milestone.xp;
+      grantedXp += result.settlement.settledXp;
     }
-    if (result.outcome === "posted" && result.settlement) {
+    if (
+      result.outcome === "posted" &&
+      "settlement" in result &&
+      result.settlement
+    ) {
       settlements.push(result.settlement);
+    }
+    if ("releasedSettlements" in result && result.releasedSettlements) {
+      settlements.push(...result.releasedSettlements);
     }
   }
   return { eligibleLikes: input.eligibleLikes, grantedXp, settlements };
@@ -619,6 +634,7 @@ export async function settleReviewMilestonesInTransaction(
   ) {
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
   }
+  const activatedAt = await ensureProgressionActivationInTransaction(tx, now);
 
   const likes = await tx
     .select({
@@ -635,6 +651,7 @@ export async function settleReviewMilestonesInTransaction(
   const eligibleLikes = likes.filter(
     (like) =>
       isEligibleLike({ authorUserId: review.userId, ...like }) &&
+      like.likeCreatedAt >= activatedAt &&
       !disqualified.has(like.likerUserId)
   ).length;
   return postContributionMilestonesInTransaction(tx, {
@@ -694,6 +711,7 @@ export async function settleCommentMilestonesInTransaction(
   ) {
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
   }
+  const activatedAt = await ensureProgressionActivationInTransaction(tx, now);
 
   const likes = await tx
     .select({
@@ -710,6 +728,7 @@ export async function settleCommentMilestonesInTransaction(
   const eligibleLikes = likes.filter(
     (like) =>
       isEligibleLike({ authorUserId: snapshot.userId, ...like }) &&
+      like.likeCreatedAt >= activatedAt &&
       !disqualified.has(like.likerUserId)
   ).length;
   return postContributionMilestonesInTransaction(tx, {
@@ -827,6 +846,10 @@ async function reverseContributionRewardsInTransaction(
   kind: "comment" | "review",
   now: Date
 ) {
+  await cancelPendingXpEventsInTransaction(tx, {
+    now,
+    subjectId: subject.id,
+  });
   const events = await tx
     .select({
       amount: xpEvent.amount,

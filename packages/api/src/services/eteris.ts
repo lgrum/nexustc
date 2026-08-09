@@ -266,7 +266,7 @@ export function lockEterisWalletsInTransaction(
     .for("update");
 }
 
-export async function postEterisTransaction(
+async function settleEterisTransaction(
   db: Database | EterisExecutor,
   input: EterisTransactionInput
 ) {
@@ -448,6 +448,14 @@ export async function postEterisTransaction(
   const result =
     "transaction" in db ? await db.transaction(settle) : await settle(db);
 
+  return result;
+}
+
+export async function postEterisTransaction(
+  db: Database,
+  input: EterisTransactionInput
+) {
+  const result = await settleEterisTransaction(db, input);
   if ("mismatched" in result) {
     throw new EterisError("PROJECTION_MISMATCH");
   }
@@ -458,7 +466,7 @@ export function postEterisTransactionInTransaction(
   tx: EterisExecutor,
   input: EterisTransactionInput
 ) {
-  return postEterisTransaction(tx, input);
+  return settleEterisTransaction(tx, input);
 }
 
 export async function reverseEterisTransactionByIdempotencyKeyInTransaction(
@@ -528,6 +536,9 @@ export async function adjustEteris(
       sourceRef: `owner-adjustment:${input.idempotencyKey}`,
     });
   });
+  if ("mismatched" in result) {
+    throw new EterisError("PROJECTION_MISMATCH");
+  }
   if (!result.replayed) {
     await db.transaction(async (tx) => {
       await createUserNotification(tx, {

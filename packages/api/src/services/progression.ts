@@ -1,18 +1,23 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { and, asc, desc, eq, lt, or } from "@repo/db";
+import { and, desc, eq, gt, inArray, lt, lte, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisWallet,
   eterisWalletBalance,
+  eterisTransaction,
+  eterisPosting,
   user,
   userProgression,
   xpEvent,
+  xpIntegrityCase,
+  xpRiskSignal,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import {
   ACCOUNT_LEVEL_REWARD_CONFIG_VERSION,
+  ACCOUNT_LEVEL_XP_CAP,
   MAX_ACCOUNT_LEVEL,
   getAccountLevelProgress,
   getAccountLevelReward,
@@ -189,38 +194,51 @@ export async function listUserXpHistory(
 
 async function getActiveLevelRewardSources(
   executor: ProgressionExecutor,
-  userId: string,
-  expectedTotalXp: number
+  walletId: string
 ) {
-  const events = await executor
-    .select({ amount: xpEvent.amount, id: xpEvent.id })
-    .from(xpEvent)
-    .where(and(eq(xpEvent.userId, userId), eq(xpEvent.state, "posted")))
-    .orderBy(asc(xpEvent.createdAt), asc(xpEvent.id));
+  const transactions = await executor.query.eterisTransaction.findMany({
+    columns: {
+      id: true,
+      kind: true,
+      metadata: true,
+      reversesTransactionId: true,
+      sourceModule: true,
+    },
+    where: and(
+      inArray(eterisTransaction.kind, ["level_reward", "reversal"]),
+      eq(eterisTransaction.sourceModule, "progression")
+    ),
+    with: {
+      postings: {
+        columns: { walletId: true },
+        where: eq(eterisPosting.walletId, walletId),
+      },
+    },
+  });
+  const relevant = transactions.filter(({ postings }) => postings.length > 0);
+  const reversed = new Set(
+    relevant.flatMap(({ reversesTransactionId }) =>
+      reversesTransactionId ? [reversesTransactionId] : []
+    )
+  );
   const activeSources = new Map<number, string>();
-  let totalXp = 0;
-
-  // ponytail: reversals scan one user's XP history; persist active crossings if reversal volume makes this measurable.
-  for (const event of events) {
-    const previousLevel = getAccountLevelProgress(totalXp).level;
-    totalXp += event.amount;
-    const { level } = getAccountLevelProgress(totalXp);
-    if (level > previousLevel) {
-      for (
-        let crossedLevel = previousLevel + 1;
-        crossedLevel <= level;
-        crossedLevel += 1
-      ) {
-        activeSources.set(crossedLevel, event.id);
-      }
-    } else if (level < previousLevel) {
-      for (let lostLevel = previousLevel; lostLevel > level; lostLevel -= 1) {
-        activeSources.delete(lostLevel);
-      }
+  for (const transaction of relevant) {
+    if (transaction.kind !== "level_reward" || reversed.has(transaction.id)) {
+      continue;
     }
-  }
-  if (totalXp !== expectedTotalXp) {
-    throw new ProgressionError("INVALID_TOTAL");
+    const { metadata } = transaction;
+    if (!metadata || typeof metadata !== "object") {
+      continue;
+    }
+    const level = "level" in metadata ? metadata.level : undefined;
+    const xpEventId = "xpEventId" in metadata ? metadata.xpEventId : undefined;
+    if (
+      typeof level === "number" &&
+      Number.isInteger(level) &&
+      typeof xpEventId === "string"
+    ) {
+      activeSources.set(level, xpEventId);
+    }
   }
   return activeSources;
 }
@@ -240,6 +258,161 @@ export type XpEventCommand = {
   subjectId?: string;
   userId: string;
 };
+
+export function buildPendingXpReleaseCommand(
+  event: Pick<
+    typeof xpEvent.$inferSelect,
+    | "amount"
+    | "createdAt"
+    | "id"
+    | "kind"
+    | "milestone"
+    | "reasonCode"
+    | "sourceRef"
+    | "subjectId"
+    | "userId"
+  > & { metadata?: unknown },
+  caseId: string,
+  actorUserId?: string
+): XpEventCommand {
+  const metadata =
+    event.metadata && typeof event.metadata === "object" ? event.metadata : {};
+  return {
+    amount: event.amount,
+    createdBy: actorUserId,
+    idempotencyKey: `pending-release:${event.id}`,
+    integrityCaseId: caseId,
+    kind: event.kind,
+    metadata: { ...metadata, releasedPendingEventId: event.id },
+    milestone: event.milestone ?? undefined,
+    reasonCode: event.reasonCode,
+    sourceCreatedAt: event.createdAt,
+    sourceRef: event.sourceRef,
+    subjectId: event.subjectId ?? undefined,
+    userId: event.userId,
+  };
+}
+
+export async function cancelPendingXpEventsInTransaction(
+  tx: ProgressionExecutor,
+  input: {
+    actorUserId?: string;
+    caseId?: string;
+    now: Date;
+    subjectId?: string;
+  }
+) {
+  const scopeCondition = input.caseId
+    ? eq(xpEvent.integrityCaseId, input.caseId)
+    : input.subjectId
+      ? eq(xpEvent.subjectId, input.subjectId)
+      : null;
+  if (!scopeCondition) {
+    throw new Error("PENDING_XP_SCOPE_REQUIRED");
+  }
+  const events = await tx
+    .select()
+    .from(xpEvent)
+    .where(and(eq(xpEvent.state, "pending"), scopeCondition))
+    .for("update");
+  if (events.length === 0) {
+    return events;
+  }
+
+  await tx
+    .update(xpEvent)
+    .set({
+      decidedAt: input.now,
+      decidedBy: input.actorUserId,
+      state: "cancelled",
+      updatedAt: input.now,
+    })
+    .where(
+      inArray(
+        xpEvent.id,
+        events.map(({ id }) => id)
+      )
+    );
+  const pendingByUser = new Map<string, number>();
+  for (const event of events) {
+    pendingByUser.set(
+      event.userId,
+      (pendingByUser.get(event.userId) ?? 0) + event.amount
+    );
+  }
+  for (const [userId, pendingXp] of pendingByUser) {
+    await tx
+      .update(userProgression)
+      .set({
+        pendingXp: sql`greatest(0, ${userProgression.pendingXp} - ${pendingXp})`,
+        updatedAt: input.now,
+      })
+      .where(eq(userProgression.userId, userId));
+  }
+  return events;
+}
+
+export async function releaseMaturedPendingXpInTransaction(
+  tx: ProgressionExecutor,
+  userId: string,
+  now = new Date()
+) {
+  const cases = await tx
+    .select({ createdAt: xpIntegrityCase.createdAt, id: xpIntegrityCase.id })
+    .from(xpIntegrityCase)
+    .where(
+      and(
+        eq(xpIntegrityCase.userId, userId),
+        eq(xpIntegrityCase.riskLevel, "medium"),
+        eq(xpIntegrityCase.status, "open"),
+        lte(xpIntegrityCase.autoReleaseAt, now)
+      )
+    )
+    .for("update");
+  const settlements = [] as Awaited<
+    ReturnType<typeof postXpEventInTransaction>
+  >[];
+  for (const integrityCase of cases) {
+    const [additional] = await tx
+      .select({ id: xpRiskSignal.id })
+      .from(xpRiskSignal)
+      .where(
+        and(
+          eq(xpRiskSignal.userId, userId),
+          gt(xpRiskSignal.occurredAt, integrityCase.createdAt),
+          gt(xpRiskSignal.expiresAt, now)
+        )
+      )
+      .limit(1);
+    if (additional) {
+      continue;
+    }
+    const pending = await cancelPendingXpEventsInTransaction(tx, {
+      caseId: integrityCase.id,
+      now,
+    });
+    for (const event of pending) {
+      settlements.push(
+        await postXpEventInTransaction(
+          tx,
+          buildPendingXpReleaseCommand(event, integrityCase.id),
+          now
+        )
+      );
+    }
+    await tx
+      .update(xpIntegrityCase)
+      .set({
+        decidedAt: now,
+        decisionReason:
+          "Liberacion automatica tras 24 horas sin senales adicionales",
+        status: "released",
+        updatedAt: now,
+      })
+      .where(eq(xpIntegrityCase.id, integrityCase.id));
+  }
+  return settlements;
+}
 
 export async function postXpEventInTransaction(
   tx: ProgressionExecutor,
@@ -276,9 +449,13 @@ export async function postXpEventInTransaction(
       typeof existing.metadata === "object" && existing.metadata !== null
         ? (existing.metadata as Record<string, unknown>)
         : {};
+    const existingRequestedAmount =
+      typeof existingMetadata.requestedAmount === "number"
+        ? existingMetadata.requestedAmount
+        : existing.amount;
     if (
       existing.userId !== input.userId ||
-      existing.amount !== input.amount ||
+      existingRequestedAmount !== input.amount ||
       existing.createdBy !== (input.createdBy ?? null) ||
       existing.kind !== input.kind ||
       (existing.integrityCaseId ?? null) !== (input.integrityCaseId ?? null) ||
@@ -301,6 +478,7 @@ export async function postXpEventInTransaction(
       level: progression.level,
       previousLevel: progression.level,
       replayed: true,
+      settledXp: existing.amount,
       totalXp: progression.totalXp,
     };
   }
@@ -315,7 +493,22 @@ export async function postXpEventInTransaction(
     }
   }
 
-  const totalXp = progression.totalXp + input.amount;
+  const settledXp =
+    input.amount > 0
+      ? Math.min(input.amount, ACCOUNT_LEVEL_XP_CAP - progression.totalXp)
+      : input.amount;
+  if (settledXp === 0) {
+    return {
+      debtCreated: false,
+      eventId: null,
+      level: progression.level,
+      previousLevel: progression.level,
+      replayed: false,
+      settledXp: 0,
+      totalXp: progression.totalXp,
+    };
+  }
+  const totalXp = progression.totalXp + settledXp;
   let level: number;
   try {
     ({ level } = getAccountLevelProgress(totalXp));
@@ -338,7 +531,7 @@ export async function postXpEventInTransaction(
         crossedLevel += 1
       ) {
         const amount = BigInt(getAccountLevelReward(crossedLevel));
-        await postEterisTransactionInTransaction(tx, {
+        const reward = await postEterisTransactionInTransaction(tx, {
           idempotencyKey: `level-reward:${eventId}:${crossedLevel}`,
           kind: "level_reward",
           metadata: {
@@ -353,13 +546,21 @@ export async function postXpEventInTransaction(
           sourceModule: "progression",
           sourceRef: `xp-event:${eventId}:level:${crossedLevel}`,
         });
+        if ("mismatched" in reward) {
+          return {
+            debtCreated: false,
+            eventId: null,
+            level: progression.level,
+            previousLevel: progression.level,
+            projectionMismatch: true,
+            replayed: false,
+            settledXp: 0,
+            totalXp: progression.totalXp,
+          };
+        }
       }
     } else {
-      const activeSources = await getActiveLevelRewardSources(
-        tx,
-        input.userId,
-        progression.totalXp
-      );
+      const activeSources = await getActiveLevelRewardSources(tx, wallet.id);
       for (
         let lostLevel = progression.level;
         lostLevel > level;
@@ -369,12 +570,25 @@ export async function postXpEventInTransaction(
         if (!sourceEventId) {
           throw new ProgressionError("INVALID_TOTAL");
         }
-        await reverseEterisTransactionByIdempotencyKeyInTransaction(tx, {
-          idempotencyKey: `level-reward-reversal:${eventId}:${lostLevel}`,
-          originalIdempotencyKey: `level-reward:${sourceEventId}:${lostLevel}`,
-          reason: `Reversion automatica del nivel ${lostLevel}`,
-          sourceRef: `xp-event:${eventId}:lost-level:${lostLevel}`,
-        });
+        const reversal =
+          await reverseEterisTransactionByIdempotencyKeyInTransaction(tx, {
+            idempotencyKey: `level-reward-reversal:${eventId}:${lostLevel}`,
+            originalIdempotencyKey: `level-reward:${sourceEventId}:${lostLevel}`,
+            reason: `Reversion automatica del nivel ${lostLevel}`,
+            sourceRef: `xp-event:${eventId}:lost-level:${lostLevel}`,
+          });
+        if ("mismatched" in reversal) {
+          return {
+            debtCreated: false,
+            eventId: null,
+            level: progression.level,
+            previousLevel: progression.level,
+            projectionMismatch: true,
+            replayed: false,
+            settledXp: 0,
+            totalXp: progression.totalXp,
+          };
+        }
       }
       const settledBalance = await tx.query.eterisWalletBalance.findFirst({
         where: eq(eterisWalletBalance.walletId, wallet.id),
@@ -386,7 +600,7 @@ export async function postXpEventInTransaction(
     }
   }
   await tx.insert(xpEvent).values({
-    amount: input.amount,
+    amount: settledXp,
     createdBy: input.createdBy,
     createdAt: input.sourceCreatedAt,
     id: eventId,
@@ -397,6 +611,7 @@ export async function postXpEventInTransaction(
       ...input.metadata,
       levelAfter: level,
       levelBefore: progression.level,
+      requestedAmount: input.amount,
     },
     milestone: input.milestone,
     reasonCode: input.reasonCode,
@@ -418,6 +633,7 @@ export async function postXpEventInTransaction(
     level,
     previousLevel: progression.level,
     replayed: false,
+    settledXp,
     totalXp,
   };
 }
@@ -567,6 +783,7 @@ export function postXpEvent(
     return {
       eventId: result.eventId,
       level: result.level,
+      settledXp: result.settledXp,
       totalXp: result.totalXp,
     };
   });

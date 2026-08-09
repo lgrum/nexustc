@@ -1,13 +1,11 @@
-import { and, desc, eq, gt, inArray, lte } from "@repo/db";
+import { and, desc, eq } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
-  userProgression,
   xpEvent,
   xpIntegrityCase,
   xpLikeDisqualification,
   xpRewardBlock,
   xpRewardSubject,
-  xpRiskSignal,
 } from "@repo/db/schema/app";
 import { xpRiskSignalKindSchema } from "@repo/shared/xp-integrity";
 
@@ -21,9 +19,11 @@ import type { IntegrityRiskSignal } from "./integrity-settlement";
 import { createUserNotification } from "./notification";
 import type { XpEventCommand } from "./progression";
 import {
-  lockUserProgressionInTransaction,
+  buildPendingXpReleaseCommand,
+  cancelPendingXpEventsInTransaction,
   notifyXpSettlement,
   postXpEventInTransaction,
+  releaseMaturedPendingXpInTransaction,
 } from "./progression";
 
 type Database = typeof database;
@@ -35,6 +35,7 @@ export {
   settleXpWithIntegrityInTransaction,
 } from "./integrity-settlement";
 export type { IntegrityCorrelationEvidence } from "./integrity-settlement";
+export { buildPendingXpReleaseCommand } from "./progression";
 
 export function classifyIntegrityDisposition(input: {
   invalidProof?: boolean;
@@ -103,6 +104,11 @@ export async function settleXpWithIntegrity(
   const result = await db.transaction((tx) =>
     settleXpWithIntegrityInTransaction(tx, input, normalizedAssessment, now)
   );
+  if ("releasedSettlements" in result && result.releasedSettlements) {
+    for (const settlement of result.releasedSettlements) {
+      await notifyXpSettlement(db, input.userId, settlement);
+    }
+  }
   if (
     result.outcome === "posted" &&
     "settlement" in result &&
@@ -113,59 +119,17 @@ export async function settleXpWithIntegrity(
   return result;
 }
 
-async function cancelPendingEvents(
-  tx: Transaction,
-  caseId: string,
-  actorUserId: string | undefined,
-  now: Date
-) {
-  const events = await tx
-    .select()
-    .from(xpEvent)
-    .where(
-      and(eq(xpEvent.integrityCaseId, caseId), eq(xpEvent.state, "pending"))
-    )
-    .for("update");
-  if (events.length === 0) {
-    return events;
-  }
-  const progression = await lockUserProgressionInTransaction(
-    tx,
-    events[0]!.userId,
-    now
-  );
-  const amount = events.reduce((sum, event) => sum + event.amount, 0);
-  await tx
-    .update(xpEvent)
-    .set({
-      decidedAt: now,
-      decidedBy: actorUserId,
-      state: "cancelled",
-      updatedAt: now,
-    })
-    .where(
-      inArray(
-        xpEvent.id,
-        events.map(({ id }) => id)
-      )
-    );
-  await tx
-    .update(userProgression)
-    .set({
-      pendingXp: Math.max(0, progression.pendingXp - amount),
-      updatedAt: now,
-    })
-    .where(eq(userProgression.userId, progression.userId));
-  return events;
-}
-
 async function releasePendingEvents(
   tx: Transaction,
   caseId: string,
   actorUserId: string | undefined,
   now: Date
 ) {
-  const pending = await cancelPendingEvents(tx, caseId, actorUserId, now);
+  const pending = await cancelPendingXpEventsInTransaction(tx, {
+    actorUserId,
+    caseId,
+    now,
+  });
   const settlements: XpSettlement[] = [];
   for (const event of pending) {
     settlements.push(
@@ -177,38 +141,6 @@ async function releasePendingEvents(
     );
   }
   return { settlements, userId: pending[0]?.userId ?? null };
-}
-
-export function buildPendingXpReleaseCommand(
-  event: Pick<
-    typeof xpEvent.$inferSelect,
-    | "amount"
-    | "createdAt"
-    | "id"
-    | "kind"
-    | "milestone"
-    | "reasonCode"
-    | "sourceRef"
-    | "subjectId"
-    | "userId"
-  >,
-  caseId: string,
-  actorUserId?: string
-): XpEventCommand {
-  return {
-    amount: event.amount,
-    createdBy: actorUserId,
-    idempotencyKey: `pending-release:${event.id}`,
-    integrityCaseId: caseId,
-    kind: event.kind,
-    metadata: { releasedPendingEventId: event.id },
-    milestone: event.milestone ?? undefined,
-    reasonCode: event.reasonCode,
-    sourceCreatedAt: event.createdAt,
-    sourceRef: event.sourceRef,
-    subjectId: event.subjectId ?? undefined,
-    userId: event.userId,
-  };
 }
 
 async function reversePostedCaseEvents(
@@ -351,18 +283,21 @@ export async function decideIntegrityCase(
       ));
       status = "released";
     } else if (input.action === "dismiss") {
-      const pending = await cancelPendingEvents(
-        tx,
-        input.caseId,
-        input.actorUserId,
-        now
-      );
+      const pending = await cancelPendingXpEventsInTransaction(tx, {
+        actorUserId: input.actorUserId,
+        caseId: input.caseId,
+        now,
+      });
       userId = pending[0]?.userId ?? userId;
     } else if (input.action === "reverse") {
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
       }
-      await cancelPendingEvents(tx, input.caseId, input.actorUserId, now);
+      await cancelPendingXpEventsInTransaction(tx, {
+        actorUserId: input.actorUserId,
+        caseId: input.caseId,
+        now,
+      });
       ({ settlements, userId } = await reversePostedCaseEvents(
         tx,
         input.caseId,
@@ -374,11 +309,28 @@ export async function decideIntegrityCase(
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
       }
-      await cancelPendingEvents(tx, input.caseId, input.actorUserId, now);
+      await cancelPendingXpEventsInTransaction(tx, {
+        actorUserId: input.actorUserId,
+        caseId: input.caseId,
+        now,
+      });
       await blockCaseScope(tx, input.caseId, input.actorUserId, input.reason);
     } else {
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
+      }
+      const [caseEvent] = await tx
+        .select({ id: xpEvent.id })
+        .from(xpEvent)
+        .where(
+          and(
+            eq(xpEvent.integrityCaseId, input.caseId),
+            eq(xpEvent.subjectId, input.subjectId)
+          )
+        )
+        .limit(1);
+      if (!caseEvent) {
+        throw new Error("INTEGRITY_SUBJECT_MISMATCH");
       }
       for (const likerUserId of new Set(input.likerUserIds)) {
         await tx
@@ -444,41 +396,11 @@ export async function releaseMaturedPendingXp(
   userId: string,
   now = new Date()
 ) {
-  const cases = await db
-    .select({ id: xpIntegrityCase.id })
-    .from(xpIntegrityCase)
-    .where(
-      and(
-        eq(xpIntegrityCase.userId, userId),
-        eq(xpIntegrityCase.riskLevel, "medium"),
-        eq(xpIntegrityCase.status, "open"),
-        lte(xpIntegrityCase.autoReleaseAt, now)
-      )
-    );
-  for (const integrityCase of cases) {
-    const [additional] = await db
-      .select({ id: xpRiskSignal.id })
-      .from(xpRiskSignal)
-      .innerJoin(xpIntegrityCase, eq(xpIntegrityCase.id, integrityCase.id))
-      .where(
-        and(
-          eq(xpRiskSignal.userId, userId),
-          gt(xpRiskSignal.occurredAt, xpIntegrityCase.createdAt),
-          gt(xpRiskSignal.expiresAt, now)
-        )
-      )
-      .limit(1);
-    if (!additional) {
-      await decideIntegrityCase(
-        db,
-        {
-          action: "release",
-          caseId: integrityCase.id,
-          reason: "Liberacion automatica tras 24 horas sin senales adicionales",
-        },
-        now
-      );
-    }
+  const settlements = await db.transaction((tx) =>
+    releaseMaturedPendingXpInTransaction(tx, userId, now)
+  );
+  for (const settlement of settlements) {
+    await notifyXpSettlement(db, userId, settlement);
   }
 }
 

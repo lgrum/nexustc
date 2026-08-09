@@ -8,6 +8,7 @@ import type { XpEventCommand } from "./progression";
 import {
   createPendingXpEventInTransaction,
   postXpEventInTransaction,
+  releaseMaturedPendingXpInTransaction,
 } from "./progression";
 
 type Database = typeof database;
@@ -100,12 +101,18 @@ export async function settleXpWithIntegrityInTransaction(
       },
   now = new Date()
 ) {
+  const releasedSettlements = await releaseMaturedPendingXpInTransaction(
+    tx,
+    input.userId,
+    now
+  );
+  const released = releasedSettlements.length ? { releasedSettlements } : {};
   if (assessment.disposition === "invalid") {
-    return { outcome: "rejected" as const, replayed: false };
+    return { outcome: "rejected" as const, replayed: false, ...released };
   }
   if (assessment.disposition === "low") {
     const settlement = await postXpEventInTransaction(tx, input, now);
-    return { outcome: "posted" as const, settlement };
+    return { outcome: "posted" as const, settlement, ...released };
   }
 
   const existing = await tx.query.xpEvent.findFirst({
@@ -121,6 +128,7 @@ export async function settleXpWithIntegrityInTransaction(
           ? ("pending" as const)
           : ("posted" as const),
       replayed: true,
+      ...released,
     };
   }
 
@@ -156,5 +164,5 @@ export async function settleXpWithIntegrityInTransaction(
     },
     now
   );
-  return { caseId, outcome: "pending" as const, ...pending };
+  return { caseId, outcome: "pending" as const, ...pending, ...released };
 }

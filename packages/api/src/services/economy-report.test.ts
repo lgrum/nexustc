@@ -4,15 +4,16 @@ import { getDailyEconomyReport } from "./economy-report";
 
 type Database = typeof database;
 
-test("the UTC report is generated once under the database lock and exposes only aggregate data", async () => {
+test("the current UTC report refreshes under the database lock and exposes only aggregate data", async () => {
   let snapshot: Record<string, unknown> | undefined;
   let metricQueries = 0;
   const executor = {
-    execute: vi.fn(() => {
+    execute: vi.fn((_query?: unknown) => {
       metricQueries += 1;
       if (metricQueries % 2 === 1) {
         return Promise.resolve({ rows: [] });
       }
+      const issued = metricQueries === 2 ? "700" : "725";
       return Promise.resolve({
         rows: [
           {
@@ -21,8 +22,11 @@ test("the UTC report is generated once under the database lock and exposes only 
             burned: "100",
             burned_by_reason: { purchase: "100" },
             frozen_wallet_count: 1,
-            issued: "700",
-            issued_by_reason: { level_reward: "100", vip_stipend: "600" },
+            issued,
+            issued_by_reason: {
+              level_reward: metricQueries === 2 ? "100" : "125",
+              vip_stipend: "600",
+            },
             negative_wallet_count: 1,
             total_user_supply: "600",
           },
@@ -32,7 +36,9 @@ test("the UTC report is generated once under the database lock and exposes only 
     insert: vi.fn(() => ({
       values: vi.fn((value: Record<string, unknown>) => {
         snapshot = value;
-        return { onConflictDoNothing: vi.fn(() => Promise.resolve()) };
+        return {
+          onConflictDoUpdate: vi.fn(() => Promise.resolve()),
+        };
       }),
     })),
     query: {
@@ -65,9 +71,12 @@ test("the UTC report is generated once under the database lock and exposes only 
     sourceSinkRatio: "7.0000",
     totalUserSupply: "600",
   });
-  expect(repeated).toEqual(first);
-  expect(executor.insert).toHaveBeenCalledTimes(1);
-  expect(executor.execute).toHaveBeenCalledTimes(3);
+  expect(repeated).toMatchObject({ issued: "725" });
+  expect(executor.insert).toHaveBeenCalledTimes(2);
+  expect(executor.execute).toHaveBeenCalledTimes(4);
+  expect(JSON.stringify(executor.execute.mock.calls[1]?.[0])).toContain(
+    "source_cap_pressure"
+  );
   expect(JSON.stringify(first)).not.toMatch(
     /"(?:email|deviceHash|ipPrefixHash|metadata)"/
   );
@@ -88,12 +97,29 @@ test("a report with issuance but no burns has no finite source/sink ratio", asyn
     totalUserSupply: 10n,
   };
   const executor = {
-    execute: vi.fn(() => Promise.resolve({ rows: [] })),
-    query: {
-      eterisDailySnapshot: {
-        findFirst: vi.fn(() => Promise.resolve(snapshot)),
-      },
-    },
+    execute: vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            anomalous_earners: snapshot.anomalousEarners,
+            balance_percentiles: snapshot.balancePercentiles,
+            burned: snapshot.burned.toString(),
+            burned_by_reason: snapshot.burnedByReason,
+            frozen_wallet_count: snapshot.frozenWalletCount,
+            issued: snapshot.issued.toString(),
+            issued_by_reason: snapshot.issuedByReason,
+            negative_wallet_count: snapshot.negativeWalletCount,
+            total_user_supply: snapshot.totalUserSupply.toString(),
+          },
+        ],
+      }),
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        onConflictDoUpdate: vi.fn(() => Promise.resolve()),
+      })),
+    })),
   };
   const db = {
     transaction: vi.fn((callback: (tx: typeof executor) => unknown) =>

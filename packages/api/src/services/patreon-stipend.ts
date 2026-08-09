@@ -90,7 +90,7 @@ export function grantMonthlyPatreonStipend(
     }
 
     const sourceRef = `vip:${wallet.id}:${month.key}:target:${target}`;
-    await postEterisTransactionInTransaction(tx, {
+    const result = await postEterisTransactionInTransaction(tx, {
       createdAt: now,
       idempotencyKey: sourceRef,
       kind: "vip_stipend",
@@ -106,6 +106,9 @@ export function grantMonthlyPatreonStipend(
       sourceModule: "patreon",
       sourceRef,
     });
+    if ("mismatched" in result) {
+      return { granted: "0", month: month.key };
+    }
 
     return { granted: grant.toString(), month: month.key };
   });
