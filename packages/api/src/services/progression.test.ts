@@ -153,6 +153,16 @@ function createDatabase(options?: { banned?: boolean }) {
     metadata: Record<string, unknown>;
     state: "posted";
   }[] = [];
+  const findLevelRewardTransactions = vi.fn((_options?: unknown) =>
+    Promise.resolve(
+      [...ledger.transactions.values()].map((transaction) => ({
+        ...transaction,
+        createdAt: new Date(),
+        metadata: transaction.metadata,
+        postings: [{ walletId: "user-wallet" }],
+      }))
+    )
+  );
 
   const executor = {
     insert: vi.fn((table: unknown) => ({
@@ -204,16 +214,7 @@ function createDatabase(options?: { banned?: boolean }) {
         ),
       },
       eterisTransaction: {
-        findMany: vi.fn(() =>
-          Promise.resolve(
-            [...ledger.transactions.values()].map((transaction) => ({
-              ...transaction,
-              createdAt: new Date(),
-              metadata: transaction.metadata,
-              postings: [{ walletId: "user-wallet" }],
-            }))
-          )
-        ),
+        findMany: findLevelRewardTransactions,
       },
       progressionSystem: {
         findFirst: vi.fn(() => Promise.resolve(activation)),
@@ -321,6 +322,8 @@ function createDatabase(options?: { banned?: boolean }) {
     getActivation: () => activation,
     getEvent: () => events.at(-1),
     getEvents: () => events,
+    getLevelRewardQuery: () =>
+      findLevelRewardTransactions.mock.calls.at(-1)?.[0],
     getProgression: () => progression,
     spend: (amount: bigint) => {
       ledger.balance -= amount;
@@ -399,6 +402,81 @@ describe("progression service", () => {
         values: expect.objectContaining({ pendingXp: expect.anything() }),
       }),
     ]);
+  });
+
+  it("dismisses an integrity case when source removal cancels its last Pending event", async () => {
+    const updates: { table: unknown; values: Record<string, unknown> }[] = [];
+    const pending = [
+      {
+        amount: 25,
+        id: "pending-1",
+        integrityCaseId: "case-1",
+        userId: "user-1",
+      },
+    ];
+    let selectCall = 0;
+    const tx = {
+      select: vi.fn(() => {
+        selectCall += 1;
+        if (selectCall === 1) {
+          const chain = {
+            for: vi.fn().mockResolvedValue(pending),
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([]),
+          }),
+        };
+      }),
+      update: vi.fn((table: unknown) => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updates.push({ table, values });
+          return { where: vi.fn(() => Promise.resolve()) };
+        }),
+      })),
+    } as unknown as ProgressionExecutor;
+
+    await cancelPendingXpEventsInTransaction(tx, {
+      closeEmptyCases: true,
+      now: new Date("2026-08-10T00:00:00.000Z"),
+      subjectId: "subject-1",
+    });
+
+    expect(updates).toContainEqual(
+      expect.objectContaining({
+        values: expect.objectContaining({ status: "dismissed" }),
+      })
+    );
+  });
+
+  it("clips reversals at the Account XP floor instead of rejecting the source action", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    store.setProgression({ level: 1, pendingXp: 0, totalXp: 10 });
+
+    await expect(
+      store.db.transaction((tx) =>
+        postXpEventInTransaction(
+          tx,
+          {
+            amount: -25,
+            idempotencyKey: "content-removal-floor",
+            kind: "reversal",
+            reasonCode: "content_removed",
+            sourceRef: "comment:removed",
+            userId: "user-1",
+          },
+          new Date("2026-08-10T00:00:00.000Z")
+        )
+      )
+    ).resolves.toMatchObject({ settledXp: -10, totalXp: 0 });
+    expect(store.getProgression()).toMatchObject({ level: 1, totalXp: 0 });
   });
 
   it("keeps release creation on its source day and updates it on release day", async () => {
@@ -685,6 +763,10 @@ describe("progression service", () => {
       })
     ).resolves.toMatchObject({ level: 2, totalXp: 67 });
     expect(ledger.balance).toBe(-5n);
+    expect(store.getLevelRewardQuery()).toMatchObject({
+      where: expect.anything(),
+    });
+    expect(store.getLevelRewardQuery()).not.toHaveProperty("with");
     expect(ledger.notifications.map(({ title }) => title)).toEqual([
       "Subiste al nivel 3",
       "Tu Account XP fue ajustado",

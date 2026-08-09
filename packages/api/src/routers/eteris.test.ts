@@ -97,14 +97,22 @@ test("wallet reads and history are scoped to the authenticated account", async (
 
   expect(mocks.getMine).toHaveBeenCalledWith(expect.anything(), "user-1");
   expect(mocks.grantStipend).toHaveBeenCalledWith(expect.anything(), "user-1");
-  expect(mocks.grantStipend.mock.invocationCallOrder[0]).toBeLessThan(
-    mocks.getMine.mock.invocationCallOrder[0]!
+  expect(mocks.getMine.mock.invocationCallOrder[0]).toBeLessThan(
+    mocks.grantStipend.mock.invocationCallOrder[0]!
   );
   expect(mocks.listHistory).toHaveBeenCalledWith(expect.anything(), {
     cursor: { sequence: 42n },
     limit: 20,
     userId: "user-1",
   });
+});
+
+test("wallet reads survive a stipend settlement failure", async () => {
+  mocks.grantStipend.mockRejectedValueOnce(new EterisError("CLOSED_OR_FROZEN"));
+
+  await expect(
+    call(eterisRouter.getMine, undefined, { context: createContext() })
+  ).resolves.toMatchObject({ status: "active" });
 });
 
 test("public lookup returns only the opt-in serialized balance", async () => {

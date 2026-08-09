@@ -190,7 +190,7 @@ export function setPublicWalletBalance(
   return db.transaction(async (tx) => {
     const wallet = await getOrCreateUserWalletInTransaction(tx, userId);
     const [locked] = await lockEterisWalletsInTransaction(tx, [wallet.id]);
-    if (locked?.status !== "active") {
+    if (publicBalance && locked?.status !== "active") {
       throw new EterisError("CLOSED_OR_FROZEN");
     }
     await tx
@@ -213,10 +213,10 @@ export async function getPublicWalletBalance(db: Database, userId: string) {
     return null;
   }
   const wallet = await db.query.eterisWallet.findFirst({
-    columns: { id: true, publicBalance: true },
+    columns: { id: true, publicBalance: true, status: true },
     where: eq(eterisWallet.userId, userId),
   });
-  if (!wallet?.publicBalance) {
+  if (!(wallet?.publicBalance && wallet.status === "active")) {
     return null;
   }
   const balance = await db.query.eterisWalletBalance.findFirst({

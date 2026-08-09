@@ -206,23 +206,21 @@ async function getActiveLevelRewardSources(
     },
     where: and(
       inArray(eterisTransaction.kind, ["level_reward", "reversal"]),
-      eq(eterisTransaction.sourceModule, "progression")
+      eq(eterisTransaction.sourceModule, "progression"),
+      sql`exists (
+        select 1 from ${eterisPosting}
+        where ${eterisPosting.transactionId} = ${eterisTransaction.id}
+          and ${eterisPosting.walletId} = ${walletId}
+      )`
     ),
-    with: {
-      postings: {
-        columns: { walletId: true },
-        where: eq(eterisPosting.walletId, walletId),
-      },
-    },
   });
-  const relevant = transactions.filter(({ postings }) => postings.length > 0);
   const reversed = new Set(
-    relevant.flatMap(({ reversesTransactionId }) =>
+    transactions.flatMap(({ reversesTransactionId }) =>
       reversesTransactionId ? [reversesTransactionId] : []
     )
   );
   const activeSources = new Map<number, string>();
-  for (const transaction of relevant) {
+  for (const transaction of transactions) {
     if (transaction.kind !== "level_reward" || reversed.has(transaction.id)) {
       continue;
     }
@@ -298,6 +296,7 @@ export async function cancelPendingXpEventsInTransaction(
   input: {
     actorUserId?: string;
     caseId?: string;
+    closeEmptyCases?: boolean;
     now: Date;
     subjectId?: string;
   }
@@ -348,6 +347,50 @@ export async function cancelPendingXpEventsInTransaction(
         updatedAt: input.now,
       })
       .where(eq(userProgression.userId, userId));
+  }
+  if (input.closeEmptyCases) {
+    const caseIds = [
+      ...new Set(
+        events.flatMap(({ integrityCaseId }) =>
+          integrityCaseId ? [integrityCaseId] : []
+        )
+      ),
+    ];
+    if (caseIds.length > 0) {
+      const remaining = await tx
+        .select({ integrityCaseId: xpEvent.integrityCaseId })
+        .from(xpEvent)
+        .where(
+          and(
+            inArray(xpEvent.integrityCaseId, caseIds),
+            eq(xpEvent.state, "pending")
+          )
+        );
+      const casesWithPending = new Set(
+        remaining.flatMap(({ integrityCaseId }) =>
+          integrityCaseId ? [integrityCaseId] : []
+        )
+      );
+      const emptyCaseIds = caseIds.filter(
+        (caseId) => !casesWithPending.has(caseId)
+      );
+      if (emptyCaseIds.length > 0) {
+        await tx
+          .update(xpIntegrityCase)
+          .set({
+            decidedAt: input.now,
+            decisionReason: "El contenido de origen fue eliminado.",
+            status: "dismissed",
+            updatedAt: input.now,
+          })
+          .where(
+            and(
+              inArray(xpIntegrityCase.id, emptyCaseIds),
+              eq(xpIntegrityCase.status, "open")
+            )
+          );
+      }
+    }
   }
   return events;
 }
@@ -496,7 +539,9 @@ export async function postXpEventInTransaction(
   const settledXp =
     input.amount > 0
       ? Math.min(input.amount, ACCOUNT_LEVEL_XP_CAP - progression.totalXp)
-      : input.amount;
+      : input.kind === "reversal"
+        ? Math.max(input.amount, -progression.totalXp)
+        : input.amount;
   if (settledXp === 0) {
     return {
       debtCreated: false,

@@ -21,7 +21,6 @@ test.each([
   "profile/updateVisibility",
   "post/deleteComment",
   "post/deleteOwnComment",
-  "post/toggleCommentLike",
   "progression/admin/decideCase",
   "progression/getMine",
   "progression/owner/adjustXp",
@@ -32,7 +31,6 @@ test.each([
   "rating/create",
   "rating/delete",
   "rating/deleteAny",
-  "rating/toggleReviewLike",
   "rating/update",
   "user/toggleBookmark",
 ])("invalidates profile tags for %s", (procedurePath) => {
@@ -73,6 +71,32 @@ test("invalidates only the affected profile after a comic checkpoint changes its
     })
   ).toEqual([]);
 });
+
+test.each(["post/toggleCommentLike", "rating/toggleReviewLike"])(
+  "invalidates only the rewarded author's profile after %s changes Account Level",
+  (procedurePath) => {
+    expect(
+      getCacheTagsForProcedure(procedurePath, {
+        responseBody: {
+          json: {
+            profileUserId: "author-1",
+            publicProfileChanged: true,
+          },
+        },
+      })
+    ).toEqual(["profile:author-1"]);
+    expect(
+      getCacheTagsForProcedure(procedurePath, {
+        responseBody: {
+          json: {
+            profileUserId: "author-1",
+            publicProfileChanged: false,
+          },
+        },
+      })
+    ).toEqual([]);
+  }
+);
 
 test("expires privacy-sensitive profile data immediately", () => {
   expect(getCacheRevalidationProfile("profile/updateVisibility")).toEqual({

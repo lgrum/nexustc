@@ -449,6 +449,13 @@
       "when": 1786312602103,
       "tag": "0063_elite_iron_patriot",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1786318199390,
+      "tag": "0064_curved_toad_men",
+      "breakpoints": true
     }
   ]
 }

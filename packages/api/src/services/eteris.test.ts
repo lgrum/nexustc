@@ -944,6 +944,28 @@ test("account closure is idempotent and blocks concurrent wallet writes", async 
   expect(store.wallets.get(first.walletId)?.publicBalance).toBe(false);
 });
 
+test("a frozen wallet can turn off public balance and is never exposed publicly", async () => {
+  flags.economy = true;
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  const wallet = [...store.wallets.values()].find(
+    (candidate) => candidate.userId === "user-1"
+  )!;
+  wallet.publicBalance = true;
+  wallet.status = "frozen";
+
+  await expect(
+    setPublicWalletBalance(store.db, "user-1", false)
+  ).resolves.toEqual({ publicBalance: false });
+  expect(store.wallets.get(wallet.id)?.publicBalance).toBe(false);
+
+  wallet.publicBalance = true;
+  await expect(getPublicWalletBalance(store.db, "user-1")).resolves.toBeNull();
+  await expect(
+    setPublicWalletBalance(store.db, "user-1", true)
+  ).rejects.toMatchObject({ code: "CLOSED_OR_FROZEN" });
+});
+
 test("account closure removes private progression and retains only anonymous ledger data", async () => {
   const store = createDatabase();
   await getUserWallet(store.db, "user-1");

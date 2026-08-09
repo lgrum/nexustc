@@ -75,6 +75,7 @@ export function getContributionContentHash(content: string) {
 }
 
 export function isEligibleLike(input: {
+  activatedAt?: Date;
   authorUserId: string;
   likeCreatedAt: Date;
   likerBanned: boolean | null;
@@ -84,6 +85,7 @@ export function isEligibleLike(input: {
 }) {
   return (
     input.likerUserId !== input.authorUserId &&
+    (!input.activatedAt || input.likeCreatedAt >= input.activatedAt) &&
     input.likerEmailVerified &&
     !input.likerBanned &&
     input.likerCreatedAt.getTime() <=
@@ -101,7 +103,7 @@ async function isEligibleTriggeringReviewLike(
       likeCreatedAt: postRatingLikes.createdAt,
       likerBanned: user.banned,
       likerCreatedAt: user.createdAt,
-      likerEmailVerified: user.emailVerified,
+      likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
       likerUserId: postRatingLikes.userId,
     })
     .from(postRatingLikes)
@@ -128,7 +130,7 @@ async function isEligibleTriggeringCommentLike(
       likeCreatedAt: commentLikes.createdAt,
       likerBanned: user.banned,
       likerCreatedAt: user.createdAt,
-      likerEmailVerified: user.emailVerified,
+      likerEmailVerified: commentLikes.emailVerifiedAtCreation,
       likerUserId: commentLikes.userId,
     })
     .from(commentLikes)
@@ -724,7 +726,7 @@ export async function settleReviewMilestonesInTransaction(
       likeCreatedAt: postRatingLikes.createdAt,
       likerBanned: user.banned,
       likerCreatedAt: user.createdAt,
-      likerEmailVerified: user.emailVerified,
+      likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
       likerUserId: postRatingLikes.userId,
     })
     .from(postRatingLikes)
@@ -733,8 +735,7 @@ export async function settleReviewMilestonesInTransaction(
   const disqualified = await getDisqualifiedLikerIds(tx, subject.id);
   const eligibleLikes = likes.filter(
     (like) =>
-      isEligibleLike({ authorUserId: review.userId, ...like }) &&
-      like.likeCreatedAt >= activatedAt &&
+      isEligibleLike({ activatedAt, authorUserId: review.userId, ...like }) &&
       !disqualified.has(like.likerUserId)
   ).length;
   return postContributionMilestonesInTransaction(tx, {
@@ -801,7 +802,7 @@ export async function settleCommentMilestonesInTransaction(
       likeCreatedAt: commentLikes.createdAt,
       likerBanned: user.banned,
       likerCreatedAt: user.createdAt,
-      likerEmailVerified: user.emailVerified,
+      likerEmailVerified: commentLikes.emailVerifiedAtCreation,
       likerUserId: commentLikes.userId,
     })
     .from(commentLikes)
@@ -810,8 +811,7 @@ export async function settleCommentMilestonesInTransaction(
   const disqualified = await getDisqualifiedLikerIds(tx, subject.id);
   const eligibleLikes = likes.filter(
     (like) =>
-      isEligibleLike({ authorUserId: snapshot.userId, ...like }) &&
-      like.likeCreatedAt >= activatedAt &&
+      isEligibleLike({ activatedAt, authorUserId: snapshot.userId, ...like }) &&
       !disqualified.has(like.likerUserId)
   ).length;
   return postContributionMilestonesInTransaction(tx, {
@@ -839,6 +839,7 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
   if (!subject) {
     throw new Error("REWARD_SUBJECT_NOT_FOUND");
   }
+  const activatedAt = await readProgressionActivationDate(tx);
   const disqualified = await getDisqualifiedLikerIds(tx, subject.id);
   let eligibleLikes = 0;
   if (subject.kind === "review") {
@@ -847,7 +848,7 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
         likeCreatedAt: postRatingLikes.createdAt,
         likerBanned: user.banned,
         likerCreatedAt: user.createdAt,
-        likerEmailVerified: user.emailVerified,
+        likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
         likerUserId: postRatingLikes.userId,
       })
       .from(postRatingLikes)
@@ -856,7 +857,11 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
     eligibleLikes = likes.filter(
       (like) =>
         !disqualified.has(like.likerUserId) &&
-        isEligibleLike({ authorUserId: subject.userId, ...like })
+        isEligibleLike({
+          activatedAt: activatedAt ?? undefined,
+          authorUserId: subject.userId,
+          ...like,
+        })
     ).length;
   } else {
     const likes = await tx
@@ -864,7 +869,7 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
         likeCreatedAt: commentLikes.createdAt,
         likerBanned: user.banned,
         likerCreatedAt: user.createdAt,
-        likerEmailVerified: user.emailVerified,
+        likerEmailVerified: commentLikes.emailVerifiedAtCreation,
         likerUserId: commentLikes.userId,
       })
       .from(commentLikes)
@@ -873,7 +878,11 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
     eligibleLikes = likes.filter(
       (like) =>
         !disqualified.has(like.likerUserId) &&
-        isEligibleLike({ authorUserId: subject.userId, ...like })
+        isEligibleLike({
+          activatedAt: activatedAt ?? undefined,
+          authorUserId: subject.userId,
+          ...like,
+        })
     ).length;
   }
 
@@ -1198,11 +1207,27 @@ export function deleteCommentWithRewards(
     });
 }
 
-export function markParentPostContributionSubjectsRemovedInTransaction(
+export async function markParentPostContributionSubjectsRemovedInTransaction(
   tx: Transaction,
   postId: string,
   now = new Date()
 ) {
+  const subjects = await tx
+    .select({ id: xpRewardSubject.id })
+    .from(xpRewardSubject)
+    .where(
+      and(
+        eq(xpRewardSubject.parentPostId, postId),
+        isNull(xpRewardSubject.deletedAt)
+      )
+    );
+  for (const subject of subjects) {
+    await cancelPendingXpEventsInTransaction(tx, {
+      closeEmptyCases: true,
+      now,
+      subjectId: subject.id,
+    });
+  }
   return tx
     .update(xpRewardSubject)
     .set({ deletedAt: now, deletionReason: "parent_removed" })

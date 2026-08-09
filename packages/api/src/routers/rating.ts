@@ -24,6 +24,7 @@ import {
 } from "../services/profile";
 import { notifyXpSettlement } from "../services/progression";
 import {
+  canViewPost,
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
@@ -351,12 +352,26 @@ export default {
       logger?.info(
         `User ${session.user.id} toggling review like for ${input.ratingUserId} on post ${input.postId} to ${input.liked}`
       );
+      const now = new Date();
+      const viewerTier = input.liked
+        ? await getViewerPatronTier(db, session)
+        : "none";
 
-      const settlements = await db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const [existingRating] = await tx
-          .select({ id: postRating.id })
+          .select({
+            earlyAccessEnabled: post.earlyAccessEnabled,
+            earlyAccessStartedAt: post.earlyAccessStartedAt,
+            id: postRating.id,
+            releasedAt: post.releasedAt,
+            status: post.status,
+            type: post.type,
+            vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+            vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+          })
           .from(postRating)
           .innerJoin(user, eq(user.id, postRating.userId))
+          .innerJoin(post, eq(post.id, postRating.postId))
           .where(
             and(
               eq(postRating.postId, input.postId),
@@ -368,6 +383,16 @@ export default {
         if (!existingRating) {
           throw errors.NOT_FOUND();
         }
+        if (
+          input.liked &&
+          !canViewPost(
+            existingRating,
+            { role: session.user.role, tier: viewerTier },
+            now
+          )
+        ) {
+          throw errors.NOT_FOUND();
+        }
         if (!input.liked) {
           await tx
             .delete(postRatingLikes)
@@ -377,32 +402,45 @@ export default {
                 eq(postRatingLikes.userId, session.user.id)
               )
             );
-          return [];
+          return { authorId: input.ratingUserId, settlements: [] };
         }
         const inserted = await tx
           .insert(postRatingLikes)
           .values({
+            createdAt: now,
+            emailVerifiedAtCreation: session.user.emailVerified,
             ratingId: existingRating.id,
             userId: session.user.id,
           })
           .onConflictDoNothing()
           .returning({ ratingId: postRatingLikes.ratingId });
         if (inserted.length === 0) {
-          return [];
+          return { authorId: input.ratingUserId, settlements: [] };
         }
         const settlement = await settleReviewMilestonesInTransaction(
           tx,
           existingRating.id,
-          new Date(),
+          now,
           session.user.id
         );
-        return settlement.settlements;
+        return {
+          authorId: input.ratingUserId,
+          settlements: settlement.settlements,
+        };
       });
-      for (const settlement of settlements) {
+      for (const settlement of result.settlements) {
         await notifyXpSettlement(db, input.ratingUserId, settlement);
       }
 
-      return { success: true };
+      return {
+        profileUserId: result.authorId,
+        publicProfileChanged: result.settlements.some(
+          (settlement) =>
+            !settlement.replayed &&
+            settlement.level !== settlement.previousLevel
+        ),
+        success: true,
+      };
     }),
 
   getDeletionWarning: protectedProcedure

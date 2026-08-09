@@ -227,33 +227,50 @@ describe("comment reward likes", () => {
     const query = {
       from: vi.fn(),
       innerJoin: vi.fn(),
-      limit: vi
-        .fn()
-        .mockResolvedValue([{ authorId: "comment-author", id: "comment-1" }]),
+      leftJoin: vi.fn(),
+      limit: vi.fn().mockResolvedValue([
+        {
+          authorId: "comment-author",
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          id: "comment-1",
+          postId: "post-1",
+          releasedAt: null,
+          status: "publish",
+          type: "post",
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+        },
+      ]),
       where: vi.fn(),
     };
     query.from.mockReturnValue(query);
     query.innerJoin.mockReturnValue(query);
+    query.leftJoin.mockReturnValue(query);
     query.where.mockReturnValue(query);
     const returning = vi
       .fn()
       .mockResolvedValueOnce([{ commentId: "comment-1" }])
       .mockResolvedValueOnce([]);
+    const values = vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockReturnValue({ returning }),
+    });
     const tx = {
       insert: vi.fn().mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          onConflictDoNothing: vi.fn().mockReturnValue({ returning }),
-        }),
+        values,
       }),
       select: vi.fn().mockReturnValue(query),
     };
     const context = {
       db: {
         ...tx,
+        query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
         transaction: vi.fn((callback) => callback(tx)),
       },
       headers: new Headers(),
-      session: { user: { id: "liker-1", role: "user" } },
+      session: {
+        user: { emailVerified: true, id: "liker-1", role: "user" },
+      },
     } as unknown as Context;
 
     await call(
@@ -274,5 +291,60 @@ describe("comment reward likes", () => {
       "liker-1"
     );
     expect(rewards.settleCommentMilestonesInTransaction).toHaveBeenCalledOnce();
+    expect(values).toHaveBeenCalledWith({
+      commentId: "comment-1",
+      createdAt: expect.any(Date),
+      emailVerifiedAtCreation: true,
+      userId: "liker-1",
+    });
+  });
+
+  it("rejects a like when the comment's parent post is not viewable", async () => {
+    const query = {
+      from: vi.fn(),
+      innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
+      limit: vi.fn().mockResolvedValue([
+        {
+          authorId: "comment-author",
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          id: "comment-1",
+          postId: "post-1",
+          releasedAt: null,
+          status: "draft",
+          type: "post",
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+        },
+      ]),
+      where: vi.fn(),
+    };
+    query.from.mockReturnValue(query);
+    query.innerJoin.mockReturnValue(query);
+    query.leftJoin.mockReturnValue(query);
+    query.where.mockReturnValue(query);
+    const insert = vi.fn();
+    const tx = { insert, select: vi.fn().mockReturnValue(query) };
+    const context = {
+      db: {
+        ...tx,
+        query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+        transaction: vi.fn((callback) => callback(tx)),
+      },
+      headers: new Headers(),
+      session: {
+        user: { emailVerified: true, id: "liker-1", role: "user" },
+      },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        postRouter.toggleCommentLike,
+        { commentId: "comment-1", liked: true },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(insert).not.toHaveBeenCalled();
   });
 });

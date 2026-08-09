@@ -68,6 +68,7 @@ import {
 } from "../../utils/comment-engagement";
 import {
   activeVipCatalogCondition,
+  canViewPost,
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
@@ -1888,12 +1889,28 @@ export default {
         logger?.info(
           `User ${session.user.id} toggling comment like ${input.commentId} to ${input.liked}`
         );
+        const now = new Date();
+        const viewerTier = input.liked
+          ? await getViewerPatronTier(db, session)
+          : "none";
 
         const result = await db.transaction(async (tx) => {
           const [existingComment] = await tx
-            .select({ authorId: comment.authorId, id: comment.id })
+            .select({
+              authorId: comment.authorId,
+              earlyAccessEnabled: post.earlyAccessEnabled,
+              earlyAccessStartedAt: post.earlyAccessStartedAt,
+              id: comment.id,
+              postId: comment.postId,
+              releasedAt: post.releasedAt,
+              status: post.status,
+              type: post.type,
+              vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+              vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+            })
             .from(comment)
             .innerJoin(user, eq(user.id, comment.authorId))
+            .leftJoin(post, eq(post.id, comment.postId))
             .where(
               and(
                 eq(comment.id, input.commentId),
@@ -1903,6 +1920,30 @@ export default {
             .limit(1);
 
           if (!existingComment?.authorId) {
+            throw errors.NOT_FOUND();
+          }
+          if (
+            input.liked &&
+            existingComment.postId &&
+            (!existingComment.type ||
+              !existingComment.status ||
+              existingComment.earlyAccessEnabled === null ||
+              existingComment.vip12EarlyAccessHours === null ||
+              existingComment.vip8EarlyAccessHours === null ||
+              !canViewPost(
+                {
+                  earlyAccessEnabled: existingComment.earlyAccessEnabled,
+                  earlyAccessStartedAt: existingComment.earlyAccessStartedAt,
+                  releasedAt: existingComment.releasedAt,
+                  status: existingComment.status,
+                  type: existingComment.type,
+                  vip12EarlyAccessHours: existingComment.vip12EarlyAccessHours,
+                  vip8EarlyAccessHours: existingComment.vip8EarlyAccessHours,
+                },
+                { role: session.user.role, tier: viewerTier },
+                now
+              ))
+          ) {
             throw errors.NOT_FOUND();
           }
           if (!input.liked) {
@@ -1921,6 +1962,8 @@ export default {
             .insert(commentLikes)
             .values({
               commentId: input.commentId,
+              createdAt: now,
+              emailVerifiedAtCreation: session.user.emailVerified,
               userId: session.user.id,
             })
             .onConflictDoNothing()
@@ -1931,7 +1974,7 @@ export default {
           const settlement = await settleCommentMilestonesInTransaction(
             tx,
             input.commentId,
-            new Date(),
+            now,
             session.user.id
           );
           return {
@@ -1943,7 +1986,15 @@ export default {
           await notifyXpSettlement(db, result.authorId, settlement);
         }
 
-        return { success: true };
+        return {
+          profileUserId: result.authorId,
+          publicProfileChanged: result.settlements.some(
+            (settlement) =>
+              !settlement.replayed &&
+              settlement.level !== settlement.previousLevel
+          ),
+          success: true,
+        };
       }
     ),
 

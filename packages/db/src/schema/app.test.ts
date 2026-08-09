@@ -28,9 +28,15 @@ test("review likes belong to one stable review incarnation", () => {
   });
   expect(likesConfig.columns.map(({ name }) => name)).toEqual([
     "created_at",
+    "email_verified_at_creation",
     "rating_id",
     "user_id",
   ]);
+  expect(
+    likesConfig.columns.find(
+      ({ name }) => name === "email_verified_at_creation"
+    )
+  ).toMatchObject({ hasDefault: true, notNull: true });
   expect(
     likesConfig.primaryKeys.map(({ columns }) =>
       columns.map(({ name }) => name)

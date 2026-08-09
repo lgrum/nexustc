@@ -21,6 +21,7 @@ import {
 } from "./progression";
 
 const COMIC_READING_SESSION_TTL_SECONDS = 60 * 60 * 6;
+const COMIC_READING_SESSION_LOCK_TTL_MS = 30_000;
 const MIN_PAGE_ADVANCE_INTERVAL_MS = 400;
 const MIN_REWARD_CHECKPOINT_INTERVAL_MS = 2000;
 const MIN_REWARD_VISIBILITY_PERCENTAGE = 60;
@@ -109,6 +110,51 @@ type ApplyRewardCheckpointResult = {
 
 function getReadingSessionKey(readingSessionId: string) {
   return `comic-progress:session:${readingSessionId}`;
+}
+
+function getReadingSessionLockKey(readingSessionId: string) {
+  return `comic-progress:session-lock:${readingSessionId}`;
+}
+
+function getTrackingUnavailableResult() {
+  return {
+    accepted: false,
+    markedCompleted: false,
+    persisted: false,
+    processed: false,
+    publicProfileChanged: false,
+    reason: "tracking_unavailable" as const,
+    rewardedXp: 0,
+    status: "unread" as ComicProgressStatus,
+    trackingAvailable: false,
+  };
+}
+
+async function acquireReadingSessionLock(
+  cache: RedisClientType,
+  readingSessionId: string,
+  token: string
+) {
+  return (
+    (await cache.set(getReadingSessionLockKey(readingSessionId), token, {
+      NX: true,
+      PX: COMIC_READING_SESSION_LOCK_TTL_MS,
+    })) === "OK"
+  );
+}
+
+async function releaseReadingSessionLock(
+  cache: RedisClientType,
+  readingSessionId: string,
+  token: string
+) {
+  await cache.eval(
+    "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
+    {
+      arguments: [token],
+      keys: [getReadingSessionLockKey(readingSessionId)],
+    }
+  );
 }
 
 function getComicPageCount(item: CatalogComicItem): number {
@@ -998,7 +1044,7 @@ export async function startComicReadingSession(params: {
   };
 }
 
-export async function trackComicPageView(params: {
+async function trackComicPageViewWithLockHeld(params: {
   cache: RedisClientType;
   correlation: IntegrityCorrelationEvidence;
   db: Database;
@@ -1133,4 +1179,37 @@ export async function trackComicPageView(params: {
     trackingAvailable: true,
     verifiedThroughPage: nextState.verifiedThroughPage,
   };
+}
+
+export async function trackComicPageView(
+  params: Parameters<typeof trackComicPageViewWithLockHeld>[0]
+) {
+  const token = generateId();
+  try {
+    if (
+      !(await acquireReadingSessionLock(
+        params.cache,
+        params.readingSessionId,
+        token
+      ))
+    ) {
+      return getTrackingUnavailableResult();
+    }
+  } catch {
+    return getTrackingUnavailableResult();
+  }
+
+  try {
+    return await trackComicPageViewWithLockHeld(params);
+  } finally {
+    try {
+      await releaseReadingSessionLock(
+        params.cache,
+        params.readingSessionId,
+        token
+      );
+    } catch {
+      // The short lease expires safely; a failed cleanup must not alter output.
+    }
+  }
 }

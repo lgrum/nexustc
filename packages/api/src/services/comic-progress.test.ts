@@ -206,6 +206,49 @@ describe("verified comic reading rewards", () => {
     });
   });
 
+  it("serializes concurrent updates for the same reading session", async () => {
+    let releaseRead: ((value: string | null) => void) | undefined;
+    const get = vi.fn(
+      () =>
+        new Promise<string | null>((resolve) => {
+          releaseRead = resolve;
+        })
+    );
+    const set = vi.fn().mockResolvedValueOnce("OK").mockResolvedValueOnce(null);
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get,
+      set,
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const input = {
+      cache,
+      correlation: { deviceHash: null, ipPrefixHash: null },
+      comicId: "comic-1",
+      db: {} as Parameters<typeof trackComicPageView>[0]["db"],
+      evidence,
+      page: 1,
+      readingSessionId: "session-1",
+      userId: "user-1",
+    };
+
+    const first = trackComicPageView(input);
+    await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
+    await expect(trackComicPageView(input)).resolves.toMatchObject({
+      accepted: false,
+      reason: "tracking_unavailable",
+      trackingAvailable: false,
+    });
+    releaseRead?.(null);
+    await first;
+
+    expect(set).toHaveBeenNthCalledWith(
+      1,
+      "comic-progress:session-lock:session-1",
+      expect.any(String),
+      { NX: true, PX: 30_000 }
+    );
+  });
+
   it("does not settle a reward when Redis cannot persist checkpoint evidence", async () => {
     const cache = {
       get: vi.fn().mockResolvedValue(JSON.stringify(createState())),

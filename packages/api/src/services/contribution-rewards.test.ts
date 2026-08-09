@@ -9,6 +9,7 @@ import {
   markParentPostContributionSubjectsRemovedInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
+  reverseUnsupportedContributionMilestonesInTransaction,
   saveCommentRewardSubjectInTransaction,
   saveReviewRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction,
@@ -215,7 +216,10 @@ const commentSubject = {
   normalizedContentHash: getContributionContentHash(commentText),
 } satisfies typeof xpRewardSubject.$inferSelect;
 
-function createSettlementTransaction(options?: { duplicate?: boolean }) {
+function createSettlementTransaction(options?: {
+  duplicate?: boolean;
+  events?: Record<string, unknown>[];
+}) {
   const subjectFindFirst = vi
     .fn()
     .mockResolvedValueOnce(subject)
@@ -231,6 +235,13 @@ function createSettlementTransaction(options?: { duplicate?: boolean }) {
     likerUserId: `liker-${index}`,
   }));
   const select = vi.fn((shape: Record<string, unknown>) => {
+    if ("amount" in shape && options?.events) {
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(options.events),
+        }),
+      };
+    }
     if ("authorBanned" in shape) {
       const chain = {
         from: vi.fn(),
@@ -490,6 +501,37 @@ describe("review milestone settlement", () => {
     expect(progression.calls.map(({ milestone }) => milestone)).toEqual([
       3, 10, 25, 50,
     ]);
+  });
+
+  it("excludes pre-activation likes when integrity recomputes milestones", async () => {
+    activation.date = new Date("2026-08-15T00:00:00.000Z");
+    const { tx } = createSettlementTransaction({
+      events: [
+        {
+          amount: 400,
+          id: "milestone-100",
+          kind: "review_milestone",
+          milestone: 100,
+          reversesEventId: null,
+        },
+      ],
+    });
+    tx.query.xpRewardSubject.findFirst = vi.fn().mockResolvedValue(subject);
+
+    await reverseUnsupportedContributionMilestonesInTransaction(tx, {
+      actorUserId: "owner-1",
+      integrityCaseId: "case-1",
+      now: new Date("2026-08-20T00:00:00.000Z"),
+      subjectId: subject.id,
+    });
+
+    expect(progression.calls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          idempotencyKey: expect.stringContaining("integrity-like-reversal"),
+        }),
+      ])
+    );
   });
 });
 
@@ -874,11 +916,18 @@ describe("review removal lifecycle", () => {
     expect(store.deletedReview).toHaveBeenCalledOnce();
   });
 
-  it("marks parent removals without reversing earned XP", async () => {
+  it("marks parent removals, cancels Pending XP, and preserves posted XP", async () => {
+    const affected = [{ id: "subject-1" }, { id: "subject-2" }];
+    const select = vi.fn(() => ({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockResolvedValue(affected),
+      }),
+    }));
     const set = vi.fn().mockReturnValue({
       where: vi.fn().mockResolvedValue(null),
     });
     const tx = {
+      select,
       update: vi.fn().mockReturnValue({ set }),
     } as unknown as Transaction;
 
@@ -891,6 +940,11 @@ describe("review removal lifecycle", () => {
       deletedAt: new Date("2026-08-08T00:00:00.000Z"),
       deletionReason: "parent_removed",
     });
+    expect(progression.cancelledPending).toEqual(
+      affected.map(({ id }) =>
+        expect.objectContaining({ closeEmptyCases: true, subjectId: id })
+      )
+    );
     expect(progression.calls).toHaveLength(0);
   });
 });

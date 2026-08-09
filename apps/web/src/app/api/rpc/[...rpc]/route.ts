@@ -47,10 +47,13 @@ async function handle(request: Request) {
         /^\/api\/rpc\//,
         ""
       );
-      const responseBody =
-        procedurePath === "comicProgress/update"
-          ? await rpcResult.response.clone().json()
-          : undefined;
+      const responseBody = [
+        "comicProgress/update",
+        "post/toggleCommentLike",
+        "rating/toggleReviewLike",
+      ].includes(procedurePath)
+        ? await rpcResult.response.clone().json()
+        : undefined;
       for (const tag of getCacheTagsForProcedure(procedurePath, {
         responseBody,
         userId: context.session?.user.id,

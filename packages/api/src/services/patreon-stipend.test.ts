@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   posted: [] as { amount: bigint; month: string }[],
   posts: [] as Record<string, unknown>[],
   tier: "level12",
+  walletStatus: "active" as "active" | "frozen",
 }));
 
 vi.mock("@repo/env", () => ({
@@ -55,8 +56,8 @@ vi.mock("./eteris", () => ({
   lockEterisWalletsInTransaction: vi.fn(() => {
     state.events.push("lock");
     return Promise.resolve([
-      { walletId: "eteris-system-mint" },
-      { walletId: "wallet-user-1" },
+      { status: "active", walletId: "eteris-system-mint" },
+      { status: state.walletStatus, walletId: "wallet-user-1" },
     ]);
   }),
   postEterisTransactionInTransaction: vi.fn(
@@ -140,6 +141,7 @@ describe(grantMonthlyPatreonStipend, () => {
     state.posted = [];
     state.posts = [];
     state.tier = "level12";
+    state.walletStatus = "active";
   });
 
   it("locks before summing and posts the safe monthly Mint to User grant", async () => {
@@ -164,6 +166,20 @@ describe(grantMonthlyPatreonStipend, () => {
         sourceModule: "patreon",
       }),
     ]);
+  });
+
+  it("skips a frozen patron wallet without failing the batch", async () => {
+    state.walletStatus = "frozen";
+
+    await expect(
+      grantMonthlyPatreonStipend(
+        createDatabase() as never,
+        "user-1",
+        new Date("2026-06-30T23:59:59.999Z")
+      )
+    ).resolves.toEqual({ granted: "0", month: "2026-06" });
+    expect(state.events).toEqual(["activation", "lock"]);
+    expect(state.posts).toEqual([]);
   });
 
   it("grants once under retries and concurrent calls", async () => {

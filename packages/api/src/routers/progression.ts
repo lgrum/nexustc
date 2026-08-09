@@ -1,3 +1,4 @@
+import { getLogger } from "@orpc/experimental-pino";
 import { z } from "zod";
 
 import {
@@ -37,11 +38,21 @@ const adjustXpInputSchema = z.object({
 });
 
 export default {
-  getMine: protectedProcedure.handler(async ({ context: { db, session } }) => {
-    await releaseMaturedPendingXp(db, session.user.id);
-    await grantMonthlyPatreonStipend(db, session.user.id);
-    return getUserProgression(db, session.user.id);
-  }),
+  getMine: protectedProcedure.handler(
+    async ({ context: { db, session, ...context } }) => {
+      await releaseMaturedPendingXp(db, session.user.id);
+      const progression = await getUserProgression(db, session.user.id);
+      try {
+        await grantMonthlyPatreonStipend(db, session.user.id);
+      } catch (error) {
+        getLogger(context)?.warn(
+          { err: error },
+          "Monthly Patreon stipend settlement did not block progression read"
+        );
+      }
+      return progression;
+    }
+  ),
 
   getPublic: publicProcedure
     .input(z.object({ userId: z.string().min(1) }))

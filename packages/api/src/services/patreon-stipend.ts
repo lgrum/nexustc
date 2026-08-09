@@ -63,6 +63,10 @@ export function grantMonthlyPatreonStipend(
         "No se pudo bloquear la Billetera para el beneficio VIP."
       );
     }
+    const userWallet = locked.find(({ walletId }) => walletId === wallet.id);
+    if (userWallet?.status !== "active") {
+      return { granted: "0", month: month.key };
+    }
 
     const posted = await tx
       .select({ amount: eterisPosting.amount })

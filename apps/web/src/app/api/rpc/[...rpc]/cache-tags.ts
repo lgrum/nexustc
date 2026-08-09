@@ -31,7 +31,6 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["post/admin/uploadWeeklyPosts", ["home"]],
   ["post/deleteComment", ["profiles"]],
   ["post/deleteOwnComment", ["profiles"]],
-  ["post/toggleCommentLike", ["profiles"]],
   ["profile/finalizeUpload", ["profiles"]],
   ["profile/removeAvatar", ["profiles"]],
   ["profile/removeBanner", ["profiles"]],
@@ -48,7 +47,6 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["rating/delete", ["profiles"]],
   ["rating/deleteAny", ["profiles"]],
   ["rating/update", ["profiles"]],
-  ["rating/toggleReviewLike", ["profiles"]],
   ["profileAdmin/assignments/setUserAssignments", ["profiles"]],
   ["profileAdmin/emblems/create", ["profiles"]],
   ["profileAdmin/emblems/delete", ["profiles"]],
@@ -68,25 +66,32 @@ export function getCacheTagsForProcedure(
   procedurePath: string,
   options?: { responseBody?: unknown; userId?: string }
 ) {
-  if (procedurePath === "comicProgress/update") {
-    if (
-      !(
-        options?.userId &&
-        options.responseBody &&
-        typeof options.responseBody === "object"
-      )
-    ) {
+  if (
+    procedurePath === "comicProgress/update" ||
+    procedurePath === "post/toggleCommentLike" ||
+    procedurePath === "rating/toggleReviewLike"
+  ) {
+    if (!(options?.responseBody && typeof options.responseBody === "object")) {
       return [];
     }
     const output =
       "json" in options.responseBody
         ? options.responseBody.json
         : options.responseBody;
-    return output &&
+    if (!(output && typeof output === "object")) {
+      return [];
+    }
+    const profileUserId =
+      procedurePath === "comicProgress/update"
+        ? options.userId
+        : "profileUserId" in output && typeof output.profileUserId === "string"
+          ? output.profileUserId
+          : undefined;
+    return profileUserId &&
       typeof output === "object" &&
       "publicProfileChanged" in output &&
       output.publicProfileChanged === true
-      ? [`profile:${options.userId}`]
+      ? [`profile:${profileUserId}`]
       : [];
   }
   return cacheTagsByMutation.get(procedurePath) ?? [];

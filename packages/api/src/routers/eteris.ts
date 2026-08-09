@@ -1,3 +1,4 @@
+import { getLogger } from "@orpc/experimental-pino";
 import { eterisAmountSchema } from "@repo/shared/eteris";
 import { z } from "zod";
 
@@ -80,10 +81,24 @@ function rethrowEterisError(error: unknown, errors: RouterErrors): never {
 
 export default {
   getMine: protectedProcedure.handler(
-    async ({ context: { db, session }, errors }) => {
+    async ({ context: { db, session, ...context }, errors }) => {
       try {
-        await grantMonthlyPatreonStipend(db, session.user.id);
-        return await getUserWallet(db, session.user.id);
+        const wallet = await getUserWallet(db, session.user.id);
+        if (wallet.status !== "active") {
+          return wallet;
+        }
+        try {
+          const stipend = await grantMonthlyPatreonStipend(db, session.user.id);
+          return stipend.granted === "0"
+            ? wallet
+            : await getUserWallet(db, session.user.id);
+        } catch (error) {
+          getLogger(context)?.warn(
+            { err: error },
+            "Monthly Patreon stipend settlement did not block wallet read"
+          );
+          return wallet;
+        }
       } catch (error) {
         rethrowEterisError(error, errors);
       }

@@ -638,6 +638,9 @@ export const commentLikes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
+    emailVerifiedAtCreation: boolean("email_verified_at_creation")
+      .default(false)
+      .notNull(),
     userId: text("user_id")
       .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
@@ -829,6 +832,9 @@ export const postRatingLikes = pgTable(
   {
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
+      .notNull(),
+    emailVerifiedAtCreation: boolean("email_verified_at_creation")
+      .default(false)
       .notNull(),
     ratingId: text("rating_id")
       .references(() => postRating.id, { onDelete: "cascade" })

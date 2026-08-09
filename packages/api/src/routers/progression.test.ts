@@ -82,9 +82,17 @@ describe("progression router", () => {
       expect.anything(),
       "user-1"
     );
-    expect(mocks.grantStipend.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.getMine.mock.invocationCallOrder[0]!
+    expect(mocks.getMine.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.grantStipend.mock.invocationCallOrder[0]!
     );
+  });
+
+  it("returns progression when stipend settlement is unavailable", async () => {
+    mocks.grantStipend.mockRejectedValueOnce(new Error("wallet frozen"));
+
+    await expect(
+      call(progressionRouter.getMine, undefined, { context: createContext() })
+    ).resolves.toMatchObject({ level: 1, totalXp: 0 });
   });
 
   it("does not multiply Account XP when the monthly VIP stipend is granted", async () => {

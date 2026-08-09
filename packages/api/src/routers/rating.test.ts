@@ -75,9 +75,14 @@ function createPostQuery(rows: unknown[]) {
 
 function createContext(select = vi.fn()) {
   return {
-    db: { select },
+    db: {
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select,
+    },
     headers: new Headers(),
-    session: { user: { id: "owner-1", role: "user" } },
+    session: {
+      user: { emailVerified: true, id: "owner-1", role: "user" },
+    },
   } as unknown as Context;
 }
 
@@ -191,7 +196,18 @@ describe("profile review privacy", () => {
 
 describe("stable review likes", () => {
   it("attaches a new like to the current review incarnation", async () => {
-    const ratingQuery = createPaginatedQuery([{ id: "review-current" }]);
+    const ratingQuery = createPaginatedQuery([
+      {
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "review-current",
+        releasedAt: null,
+        status: "publish",
+        type: "post",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]);
     const returning = vi
       .fn()
       .mockResolvedValue([{ ratingId: "review-current" }]);
@@ -199,7 +215,11 @@ describe("stable review likes", () => {
     const values = vi.fn().mockReturnValue({ onConflictDoNothing });
     const insert = vi.fn().mockReturnValue({ values });
     const select = vi.fn().mockReturnValue(ratingQuery);
-    const executor = { insert, select };
+    const executor = {
+      insert,
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select,
+    };
     const context = {
       ...createContext(select),
       db: {
@@ -214,10 +234,12 @@ describe("stable review likes", () => {
         { liked: true, postId: "post-1", ratingUserId: "author-1" },
         { context }
       )
-    ).resolves.toEqual({ success: true });
+    ).resolves.toMatchObject({ success: true });
 
     expect(select.mock.calls[0]?.[0]).toHaveProperty("id");
     expect(values).toHaveBeenCalledWith({
+      createdAt: expect.any(Date),
+      emailVerifiedAtCreation: true,
       ratingId: "review-current",
       userId: "owner-1",
     });
@@ -232,7 +254,18 @@ describe("stable review likes", () => {
   });
 
   it("does not replay milestone work when the like already exists", async () => {
-    const ratingQuery = createPaginatedQuery([{ id: "review-current" }]);
+    const ratingQuery = createPaginatedQuery([
+      {
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "review-current",
+        releasedAt: null,
+        status: "publish",
+        type: "post",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]);
     const returning = vi.fn().mockResolvedValue([]);
     const executor = {
       insert: vi.fn().mockReturnValue({
@@ -240,6 +273,7 @@ describe("stable review likes", () => {
           onConflictDoNothing: vi.fn().mockReturnValue({ returning }),
         }),
       }),
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
       select: vi.fn().mockReturnValue(ratingQuery),
     };
     const context = {
@@ -257,5 +291,42 @@ describe("stable review likes", () => {
     );
 
     expect(mocks.settleReviewMilestonesInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a like when the parent post is not viewable", async () => {
+    const ratingQuery = createPaginatedQuery([
+      {
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "review-hidden",
+        releasedAt: null,
+        status: "draft",
+        type: "post",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]);
+    const insert = vi.fn();
+    const executor = {
+      insert,
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select: vi.fn().mockReturnValue(ratingQuery),
+    };
+    const context = {
+      ...createContext(executor.select),
+      db: {
+        ...executor,
+        transaction: vi.fn((callback) => callback(executor)),
+      },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        ratingRouter.toggleReviewLike,
+        { liked: true, postId: "post-1", ratingUserId: "author-1" },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(insert).not.toHaveBeenCalled();
   });
 });
