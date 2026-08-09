@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { and, asc, desc, eq, inArray, lt, or, sql } from "@repo/db";
+import { and, asc, desc, eq, inArray, lt, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
@@ -358,7 +358,7 @@ async function settleEterisTransaction(
           eq(eterisTransaction.id, eterisPosting.transactionId)
         )
         .where(eq(eterisPosting.walletId, wallet.walletId))
-        .orderBy(desc(eterisTransaction.createdAt), desc(eterisTransaction.id))
+        .orderBy(desc(eterisTransaction.sequence))
         .limit(1);
       if (latest && latest.balanceAfter !== wallet.balance) {
         mismatched.push(wallet.walletId);
@@ -619,7 +619,7 @@ export async function listEterisHistory(
   db: Database,
   input: {
     authorizedStaff?: boolean;
-    cursor?: { createdAt: Date; id: string };
+    cursor?: { sequence: bigint };
     limit: number;
     userId: string;
   }
@@ -631,13 +631,7 @@ export async function listEterisHistory(
     getOrCreateUserWalletInTransaction(tx, input.userId)
   );
   const cursorCondition = input.cursor
-    ? or(
-        lt(eterisTransaction.createdAt, input.cursor.createdAt),
-        and(
-          eq(eterisTransaction.createdAt, input.cursor.createdAt),
-          lt(eterisTransaction.id, input.cursor.id)
-        )
-      )
+    ? lt(eterisTransaction.sequence, input.cursor.sequence)
     : undefined;
   const rows = await db
     .select({
@@ -646,6 +640,7 @@ export async function listEterisHistory(
       createdAt: eterisTransaction.createdAt,
       id: eterisTransaction.id,
       kind: eterisTransaction.kind,
+      sequence: eterisTransaction.sequence,
     })
     .from(eterisPosting)
     .innerJoin(
@@ -653,7 +648,7 @@ export async function listEterisHistory(
       eq(eterisTransaction.id, eterisPosting.transactionId)
     )
     .where(and(eq(eterisPosting.walletId, wallet.id), cursorCondition))
-    .orderBy(desc(eterisTransaction.createdAt), desc(eterisTransaction.id))
+    .orderBy(desc(eterisTransaction.sequence))
     .limit(input.limit + 1);
   const hasMore = rows.length > input.limit;
   const items = rows.slice(0, input.limit).map((row) => ({
@@ -665,10 +660,13 @@ export async function listEterisHistory(
     label: HISTORY_LABELS[row.kind],
   }));
   const last = items.at(-1);
+  const cursorRow = rows[input.limit - 1];
   return {
     items,
     nextCursor:
-      hasMore && last ? { createdAt: last.createdAt, id: last.id } : null,
+      hasMore && last && cursorRow
+        ? { sequence: cursorRow.sequence.toString() }
+        : null,
   };
 }
 

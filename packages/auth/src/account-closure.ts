@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray, or } from "@repo/db";
+import { and, asc, desc, eq, inArray, isNull, not, or } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
@@ -114,7 +114,7 @@ export function closeAccount(db: Database, userId: string) {
           eq(eterisTransaction.id, eterisPosting.transactionId)
         )
         .where(eq(eterisPosting.walletId, lockedWallet.walletId))
-        .orderBy(desc(eterisTransaction.createdAt), desc(eterisTransaction.id))
+        .orderBy(desc(eterisTransaction.sequence))
         .limit(1);
       if (
         (latest && latest.balanceAfter !== lockedWallet.balance) ||
@@ -203,6 +203,11 @@ async function deletePrivateProgression(
         inArray(xpLikeDisqualification.integrityCaseId, ownedCaseIds),
         inArray(xpLikeDisqualification.subjectId, ownedSubjectIds)
       )
+    );
+  await tx
+    .delete(xpEvent)
+    .where(
+      and(eq(xpEvent.userId, userId), not(isNull(xpEvent.reversesEventId)))
     );
   await tx.delete(xpEvent).where(eq(xpEvent.userId, userId));
   await tx.delete(xpRewardSubject).where(eq(xpRewardSubject.userId, userId));

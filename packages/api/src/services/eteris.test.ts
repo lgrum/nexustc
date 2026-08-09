@@ -87,6 +87,7 @@ function sqlValues(value: unknown, seen = new WeakSet<object>()): unknown[] {
 
 function createDatabase() {
   let banned = false;
+  let transactionSequence = 0n;
   const wallets = new Map<string, Wallet>();
   const balances = new Map<string, bigint>();
   const transactions = new Map<
@@ -101,6 +102,7 @@ function createDatabase() {
       reversesTransactionId: string | null;
       sourceModule: string;
       sourceRef: string;
+      sequence: bigint;
     }
   >();
   const postings: {
@@ -154,6 +156,7 @@ function createDatabase() {
         }
         if (table === eterisTransaction) {
           const [value] = values;
+          transactionSequence += 1n;
           transactions.set(value.id, {
             createdAt: new Date(),
             id: value.id,
@@ -164,6 +167,7 @@ function createDatabase() {
             reversesTransactionId: value.reversesTransactionId ?? null,
             sourceModule: value.sourceModule,
             sourceRef: value.sourceRef,
+            sequence: transactionSequence,
           });
         }
         if (table === eterisPosting) {

@@ -19,4 +19,11 @@ test("account closure removes every personal integrity evidence table", async ()
   expect(
     compactSource.indexOf("tx.delete(xpLikeDisqualification)")
   ).toBeLessThan(compactSource.indexOf("tx.delete(xpIntegrityCase)"));
+  const reversalDelete = compactSource.indexOf(
+    "not(isNull(xpEvent.reversesEventId))"
+  );
+  expect(reversalDelete).toBeGreaterThan(-1);
+  expect(reversalDelete).toBeLessThan(
+    compactSource.lastIndexOf("tx.delete(xpEvent)")
+  );
 });

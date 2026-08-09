@@ -113,3 +113,40 @@ export function grantMonthlyPatreonStipend(
     return { granted: grant.toString(), month: month.key };
   });
 }
+
+export async function grantMonthlyPatreonStipends(
+  db: Database,
+  now = new Date()
+) {
+  if (!(env.XP_ACCRUAL_ENABLED && env.XP_ECONOMY_ENABLED)) {
+    return { checked: 0, granted: 0 };
+  }
+
+  const memberships = await db.query.patron.findMany({
+    columns: { userId: true },
+    where: eq(patron.isActivePatron, true),
+  });
+  let granted = 0;
+  const errors: unknown[] = [];
+  for (const membership of memberships) {
+    try {
+      const result = await grantMonthlyPatreonStipend(
+        db,
+        membership.userId,
+        now
+      );
+      if (BigInt(result.granted) > ZERO) {
+        granted += 1;
+      }
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(
+      errors,
+      "No se pudieron liquidar todos los beneficios VIP."
+    );
+  }
+  return { checked: memberships.length, granted };
+}

@@ -4,6 +4,7 @@ import postRouter from ".";
 import type { Context } from "../../context";
 
 const rewards = vi.hoisted(() => ({
+  reconcileEditedCommentRewardsInTransaction: vi.fn(),
   saveCommentRewardSubjectInTransaction: vi.fn(),
   settleCommentMilestonesInTransaction: vi.fn(),
 }));
@@ -19,6 +20,8 @@ vi.mock("@repo/auth", () => ({
 vi.mock("../../services/contribution-rewards", () => ({
   deleteCommentWithRewards: vi.fn(),
   getCommentDeletionWarning: vi.fn(),
+  reconcileEditedCommentRewardsInTransaction:
+    rewards.reconcileEditedCommentRewardsInTransaction,
   saveCommentRewardSubjectInTransaction:
     rewards.saveCommentRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction:

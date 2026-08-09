@@ -76,7 +76,8 @@ vi.mock("./eteris", () => ({
   ),
 }));
 
-const { grantMonthlyPatreonStipend } = await import("./patreon-stipend");
+const { grantMonthlyPatreonStipend, grantMonthlyPatreonStipends } =
+  await import("./patreon-stipend");
 
 function createDatabase() {
   let queue = Promise.resolve();
@@ -108,6 +109,11 @@ function createDatabase() {
   };
 
   return {
+    query: {
+      patron: {
+        findMany: vi.fn().mockResolvedValue([{ userId: "user-1" }]),
+      },
+    },
     async transaction<T>(callback: (executor: typeof tx) => Promise<T>) {
       const previous = queue;
       let release: (() => void) | undefined;
@@ -228,5 +234,28 @@ describe(grantMonthlyPatreonStipend, () => {
     ).toEqual({ granted: "0", month: "2026-06" });
     expect(state.events).toEqual([]);
     expect(state.posts).toEqual([]);
+  });
+});
+
+describe(grantMonthlyPatreonStipends, () => {
+  beforeEach(() => {
+    state.accrualEnabled = true;
+    state.active = true;
+    state.economyEnabled = true;
+    state.events = [];
+    state.month = "2026-06";
+    state.posted = [];
+    state.posts = [];
+    state.tier = "level12";
+  });
+
+  it("checks active patrons through the recurring batch path", async () => {
+    const result = await grantMonthlyPatreonStipends(
+      createDatabase() as never,
+      new Date("2026-06-15T12:00:00.000Z")
+    );
+
+    expect(result).toEqual({ checked: 1, granted: 1 });
+    expect(state.posts).toHaveLength(1);
   });
 });

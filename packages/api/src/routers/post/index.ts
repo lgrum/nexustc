@@ -54,6 +54,7 @@ import { attachComicCatalogProgress } from "../../services/comic-progress";
 import {
   deleteCommentWithRewards,
   getCommentDeletionWarning,
+  reconcileEditedCommentRewardsInTransaction,
   saveCommentRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction,
 } from "../../services/contribution-rewards";
@@ -1688,7 +1689,7 @@ export default {
           }
         }
 
-        await db.transaction(async (tx) => {
+        const settlements = await db.transaction(async (tx) => {
           const [updatedComment] = await tx
             .update(comment)
             .set({
@@ -1709,12 +1710,20 @@ export default {
               userId: comment.authorId,
             });
           if (updatedComment?.userId) {
-            await saveCommentRewardSubjectInTransaction(tx, {
-              ...updatedComment,
-              userId: updatedComment.userId,
-            });
+            const result = await reconcileEditedCommentRewardsInTransaction(
+              tx,
+              {
+                ...updatedComment,
+                userId: updatedComment.userId,
+              }
+            );
+            return result.settlements;
           }
+          return [];
         });
+        for (const settlement of settlements) {
+          await notifyXpSettlement(db, session.user.id, settlement);
+        }
 
         logger?.debug(`Own comment ${input.commentId} edited`);
         return { success: true };

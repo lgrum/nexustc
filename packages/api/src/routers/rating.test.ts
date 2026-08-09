@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
   publicCatalogVisibilityCondition: vi.fn(),
+  reconcileEditedReviewRewardsInTransaction: vi.fn(),
   settleReviewMilestonesInTransaction: vi.fn(),
 }));
 
@@ -25,7 +26,8 @@ vi.mock("../services/profile", () => ({
 vi.mock("../services/contribution-rewards", () => ({
   deleteReviewWithRewards: vi.fn(),
   getReviewDeletionWarning: vi.fn(),
-  saveReviewRewardSubjectInTransaction: vi.fn(),
+  reconcileEditedReviewRewardsInTransaction:
+    mocks.reconcileEditedReviewRewardsInTransaction,
   settleReviewMilestonesInTransaction:
     mocks.settleReviewMilestonesInTransaction,
 }));
@@ -82,6 +84,9 @@ function createContext(select = vi.fn()) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.settleReviewMilestonesInTransaction.mockResolvedValue({
+    settlements: [],
+  });
+  mocks.reconcileEditedReviewRewardsInTransaction.mockResolvedValue({
     settlements: [],
   });
 });

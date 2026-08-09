@@ -9,7 +9,6 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
     ["catalog:comics", "content", "home", "news", "profiles", "vip-feed"],
   ],
   ["chronos/update", ["chronos"]],
-  ["comicProgress/update", ["profiles"]],
   ["engagementQuestion/create", ["content"]],
   ["engagementQuestion/delete", ["content"]],
   ["engagementQuestion/edit", ["content"]],
@@ -65,7 +64,31 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["user/toggleBookmark", ["profiles"]],
 ]);
 
-export function getCacheTagsForProcedure(procedurePath: string) {
+export function getCacheTagsForProcedure(
+  procedurePath: string,
+  options?: { responseBody?: unknown; userId?: string }
+) {
+  if (procedurePath === "comicProgress/update") {
+    if (
+      !(
+        options?.userId &&
+        options.responseBody &&
+        typeof options.responseBody === "object"
+      )
+    ) {
+      return [];
+    }
+    const output =
+      "json" in options.responseBody
+        ? options.responseBody.json
+        : options.responseBody;
+    return output &&
+      typeof output === "object" &&
+      "publicProfileChanged" in output &&
+      output.publicProfileChanged === true
+      ? [`profile:${options.userId}`]
+      : [];
+  }
   return cacheTagsByMutation.get(procedurePath) ?? [];
 }
 

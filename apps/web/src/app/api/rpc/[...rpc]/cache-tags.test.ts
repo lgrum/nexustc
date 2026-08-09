@@ -17,7 +17,6 @@ test("invalidates home and catalog tags for post mutations", () => {
 test.each([
   "patreon/admin/reconcileMemberships",
   "patreon/syncMembership",
-  "comicProgress/update",
   "profile/updateAppearance",
   "profile/updateVisibility",
   "post/deleteComment",
@@ -53,6 +52,26 @@ test.each([
 
 test("does not invalidate cache tags for unknown procedures", () => {
   expect(getCacheTagsForProcedure("post/getRecent")).toEqual([]);
+});
+
+test("invalidates only the affected profile after a comic checkpoint changes its level", () => {
+  expect(
+    getCacheTagsForProcedure("comicProgress/update", {
+      responseBody: { json: { publicProfileChanged: true } },
+      userId: "user-1",
+    })
+  ).toEqual(["profile:user-1"]);
+  expect(
+    getCacheTagsForProcedure("comicProgress/update", {
+      responseBody: { json: { publicProfileChanged: false } },
+      userId: "user-1",
+    })
+  ).toEqual([]);
+  expect(
+    getCacheTagsForProcedure("comicProgress/update", {
+      responseBody: { json: { publicProfileChanged: true } },
+    })
+  ).toEqual([]);
 });
 
 test("expires privacy-sensitive profile data immediately", () => {

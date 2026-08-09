@@ -91,7 +91,7 @@ test("wallet reads and history are scoped to the authenticated account", async (
   await call(eterisRouter.getMine, undefined, { context: createContext() });
   await call(
     eterisRouter.history,
-    { cursor: { createdAt: "2026-08-07T00:00:00.000Z", id: "tx-2" } },
+    { cursor: { sequence: "42" } },
     { context: createContext() }
   );
 
@@ -101,7 +101,7 @@ test("wallet reads and history are scoped to the authenticated account", async (
     mocks.getMine.mock.invocationCallOrder[0]!
   );
   expect(mocks.listHistory).toHaveBeenCalledWith(expect.anything(), {
-    cursor: { createdAt: new Date("2026-08-07T00:00:00.000Z"), id: "tx-2" },
+    cursor: { sequence: 42n },
     limit: 20,
     userId: "user-1",
   });

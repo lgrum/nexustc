@@ -26,6 +26,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   check,
   bigint,
+  bigserial,
   boolean,
   date,
   foreignKey,
@@ -1219,6 +1220,7 @@ export const eterisTransaction = pgTable(
       .default({}),
     reason: text("reason"),
     reversesTransactionId: text("reverses_transaction_id").unique(),
+    sequence: bigserial("sequence", { mode: "bigint" }).notNull(),
     sourceModule: text("source_module").notNull(),
     sourceRef: text("source_ref").notNull(),
   },

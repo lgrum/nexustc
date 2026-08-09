@@ -7,6 +7,8 @@ import {
   getContributionContentHash,
   isEligibleLike,
   markParentPostContributionSubjectsRemovedInTransaction,
+  reconcileEditedCommentRewardsInTransaction,
+  reconcileEditedReviewRewardsInTransaction,
   saveCommentRewardSubjectInTransaction,
   saveReviewRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction,
@@ -121,6 +123,89 @@ const commentSnapshot = {
   content: commentText,
   userId: "author-1",
 };
+
+function createEditedContributionTransaction(
+  editedSubject: typeof xpRewardSubject.$inferSelect
+) {
+  const where = vi.fn().mockResolvedValue(null);
+  const update = vi.fn().mockReturnValue({
+    set: vi.fn().mockReturnValue({ where }),
+  });
+  const select = vi.fn((shape: Record<string, unknown>) => {
+    if ("amount" in shape) {
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([
+            {
+              amount: 25,
+              id: "xp-posted",
+              kind: `${editedSubject.kind}_milestone`,
+              milestone: 3,
+              reversesEventId: null,
+            },
+          ]),
+        }),
+      };
+    }
+    const chain = {
+      for: vi.fn().mockResolvedValue([{ id: editedSubject.id }]),
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    chain.from.mockReturnValue(chain);
+    chain.where.mockReturnValue(chain);
+    return chain;
+  });
+  return {
+    query: {
+      user: { findFirst: vi.fn().mockResolvedValue({ banned: false }) },
+      xpRewardSubject: {
+        findFirst: vi.fn().mockResolvedValue(editedSubject),
+      },
+    },
+    select,
+    update,
+  } as unknown as Transaction;
+}
+
+describe("edited contribution eligibility", () => {
+  it("reverses a posted review milestone when the edit becomes ineligible", async () => {
+    const tx = createEditedContributionTransaction(subject);
+
+    await reconcileEditedReviewRewardsInTransaction(tx, {
+      ...review,
+      review: "Demasiado corta",
+    });
+
+    expect(progression.cancelledPending).toContainEqual(
+      expect.objectContaining({ subjectId: subject.id })
+    );
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: -25,
+        reasonCode: "review_ineligible",
+        reversesEventId: "xp-posted",
+      })
+    );
+  });
+
+  it("reverses a posted comment milestone when the edit becomes ineligible", async () => {
+    const tx = createEditedContributionTransaction(commentSubject);
+
+    await reconcileEditedCommentRewardsInTransaction(tx, {
+      ...commentSnapshot,
+      content: "Muy corto",
+    });
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: -25,
+        reasonCode: "comment_ineligible",
+        reversesEventId: "xp-posted",
+      })
+    );
+  });
+});
 const commentSubject = {
   ...subject,
   createdAt: commentSnapshot.createdAt,

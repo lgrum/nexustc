@@ -822,7 +822,19 @@ async function persistProgressRecord(params: {
         )
       );
 
-    return { processedPages, releasedSettlements, rewardedPages, settlement };
+    const publicProfileChanged = [settlement, ...releasedSettlements].some(
+      (candidate) =>
+        candidate &&
+        !candidate.replayed &&
+        candidate.level !== candidate.previousLevel
+    );
+    return {
+      processedPages,
+      publicProfileChanged,
+      releasedSettlements,
+      rewardedPages,
+      settlement,
+    };
   });
 
   if (result.settlement) {
@@ -1005,6 +1017,7 @@ export async function trackComicPageView(params: {
       markedCompleted: false,
       persisted: false,
       processed: false,
+      publicProfileChanged: false,
       reason: "tracking_unavailable" as const,
       rewardedXp: 0,
       status: "unread" as ComicProgressStatus,
@@ -1024,6 +1037,7 @@ export async function trackComicPageView(params: {
       markedCompleted: false,
       persisted: false,
       processed: false,
+      publicProfileChanged: false,
       reason: "session_mismatch" as const,
       rewardedXp: 0,
       status: "unread" as ComicProgressStatus,
@@ -1058,6 +1072,7 @@ export async function trackComicPageView(params: {
       markedCompleted: checkpoint.markedCompleted,
       persisted: false,
       processed: false,
+      publicProfileChanged: false,
       reason: "tracking_unavailable" as const,
       rewardedXp: 0,
       status: getPersistedProgressStatus(
@@ -1089,6 +1104,7 @@ export async function trackComicPageView(params: {
         markedCompleted: checkpoint.markedCompleted,
         persisted,
         processed: (persistenceResult?.processedPages.length ?? 0) > 0,
+        publicProfileChanged: persistenceResult?.publicProfileChanged ?? false,
         reason: "tracking_unavailable" as const,
         rewardedXp: persistenceResult?.rewardedPages.length ?? 0,
         status: getPersistedProgressStatus(
@@ -1107,6 +1123,7 @@ export async function trackComicPageView(params: {
     markedCompleted: checkpoint.markedCompleted,
     persisted,
     processed: (persistenceResult?.processedPages.length ?? 0) > 0,
+    publicProfileChanged: persistenceResult?.publicProfileChanged ?? false,
     reason: rewardCheckpoint.reason,
     rewardedXp: persistenceResult?.rewardedPages.length ?? 0,
     status: getPersistedProgressStatus(

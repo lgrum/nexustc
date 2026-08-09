@@ -69,6 +69,11 @@ test("wallet balances and postings use signed 64-bit integers", () => {
       ?.isUnique
   ).toBe(true);
   expect(
+    transactionConfig.columns
+      .find(({ name }) => name === "sequence")
+      ?.getSQLType()
+  ).toBe("bigserial");
+  expect(
     postingConfig.primaryKeys.map(({ columns }) =>
       columns.map(({ name }) => name)
     )

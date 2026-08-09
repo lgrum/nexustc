@@ -22,9 +22,7 @@ import {
 import { grantMonthlyPatreonStipend } from "../services/patreon-stipend";
 
 const historyInputSchema = z.object({
-  cursor: z
-    .object({ createdAt: z.iso.datetime(), id: z.string().min(1) })
-    .optional(),
+  cursor: z.object({ sequence: z.string().regex(/^\d+$/) }).optional(),
   limit: z.number().int().min(1).max(50).default(20),
 });
 const userInputSchema = z.object({ userId: z.string().min(1) });
@@ -105,10 +103,7 @@ export default {
       try {
         return await listEterisHistory(db, {
           cursor: input.cursor
-            ? {
-                createdAt: new Date(input.cursor.createdAt),
-                id: input.cursor.id,
-              }
+            ? { sequence: BigInt(input.cursor.sequence) }
             : undefined,
           limit: input.limit,
           userId: session.user.id,
@@ -147,10 +142,7 @@ export default {
             listEterisHistory(db, {
               authorizedStaff: true,
               cursor: input.cursor
-                ? {
-                    createdAt: new Date(input.cursor.createdAt),
-                    id: input.cursor.id,
-                  }
+                ? { sequence: BigInt(input.cursor.sequence) }
                 : undefined,
               limit: input.limit,
               userId: input.userId,

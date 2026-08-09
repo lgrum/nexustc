@@ -15,7 +15,7 @@ import {
 import {
   deleteReviewWithRewards,
   getReviewDeletionWarning,
-  saveReviewRewardSubjectInTransaction,
+  reconcileEditedReviewRewardsInTransaction,
   settleReviewMilestonesInTransaction,
 } from "../services/contribution-rewards";
 import {
@@ -180,7 +180,7 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await db.transaction(async (tx) => {
+      const settlements = await db.transaction(async (tx) => {
         const [savedReview] = await tx
           .insert(postRating)
           .values({
@@ -206,9 +206,17 @@ export default {
             userId: postRating.userId,
           });
         if (savedReview) {
-          await saveReviewRewardSubjectInTransaction(tx, savedReview);
+          const result = await reconcileEditedReviewRewardsInTransaction(
+            tx,
+            savedReview
+          );
+          return result.settlements;
         }
+        return [];
       });
+      for (const settlement of settlements) {
+        await notifyXpSettlement(db, session.user.id, settlement);
+      }
 
       logger?.debug(
         `Rating upserted for user ${session.user.id} on post ${input.postId}`
@@ -239,7 +247,7 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await db.transaction(async (tx) => {
+      const settlements = await db.transaction(async (tx) => {
         const [savedReview] = await tx
           .update(postRating)
           .set({
@@ -262,9 +270,17 @@ export default {
             userId: postRating.userId,
           });
         if (savedReview) {
-          await saveReviewRewardSubjectInTransaction(tx, savedReview);
+          const result = await reconcileEditedReviewRewardsInTransaction(
+            tx,
+            savedReview
+          );
+          return result.settlements;
         }
+        return [];
       });
+      for (const settlement of settlements) {
+        await notifyXpSettlement(db, session.user.id, settlement);
+      }
 
       logger?.debug(
         `Rating updated for user ${session.user.id} on post ${input.postId}`

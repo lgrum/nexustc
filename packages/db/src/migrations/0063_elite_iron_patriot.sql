@@ -1,0 +1,1 @@
+ALTER TABLE "eteris_transaction" ADD COLUMN "sequence" bigserial NOT NULL;

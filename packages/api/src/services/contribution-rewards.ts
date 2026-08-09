@@ -446,6 +446,89 @@ export async function saveCommentRewardSubjectInTransaction(
   return subject;
 }
 
+async function reconcileEditedContributionRewardsInTransaction(
+  tx: Transaction,
+  input: {
+    eligible: (
+      tx: Transaction,
+      subject: typeof xpRewardSubject.$inferSelect
+    ) => Promise<boolean>;
+    kind: "comment" | "review";
+    now: Date;
+    subject: typeof xpRewardSubject.$inferSelect;
+  }
+) {
+  await tx
+    .select({ id: xpRewardSubject.id })
+    .from(xpRewardSubject)
+    .where(eq(xpRewardSubject.id, input.subject.id))
+    .for("update");
+  if (await input.eligible(tx, input.subject)) {
+    return { reversedXp: 0, settlements: [] };
+  }
+  return reverseContributionRewardsInTransaction(
+    tx,
+    input.subject,
+    input.kind,
+    input.now,
+    "ineligible"
+  );
+}
+
+export async function reconcileEditedReviewRewardsInTransaction(
+  tx: Transaction,
+  review: ReviewSnapshot,
+  now = new Date()
+) {
+  const subject = await saveReviewRewardSubjectInTransaction(tx, review);
+  if (!subject) {
+    return { reversedXp: 0, settlements: [] };
+  }
+  const author = await tx.query.user.findFirst({
+    columns: { banned: true },
+    where: eq(user.id, review.userId),
+  });
+  return reconcileEditedContributionRewardsInTransaction(tx, {
+    eligible: (executor, lockedSubject) =>
+      isReviewCurrentlyEligible(
+        executor,
+        review,
+        lockedSubject,
+        author?.banned ?? null
+      ),
+    kind: "review",
+    now,
+    subject,
+  });
+}
+
+export async function reconcileEditedCommentRewardsInTransaction(
+  tx: Transaction,
+  snapshot: CommentSnapshot,
+  now = new Date()
+) {
+  const subject = await saveCommentRewardSubjectInTransaction(tx, snapshot);
+  if (!subject) {
+    return { reversedXp: 0, settlements: [] };
+  }
+  const author = await tx.query.user.findFirst({
+    columns: { banned: true },
+    where: eq(user.id, snapshot.userId),
+  });
+  return reconcileEditedContributionRewardsInTransaction(tx, {
+    eligible: (executor, lockedSubject) =>
+      isCommentCurrentlyEligible(
+        executor,
+        snapshot,
+        lockedSubject,
+        author?.banned ?? null
+      ),
+    kind: "comment",
+    now,
+    subject,
+  });
+}
+
 async function isContributionCurrentlyEligible(
   tx: Transaction,
   input: {
@@ -844,7 +927,8 @@ async function reverseContributionRewardsInTransaction(
   tx: Transaction,
   subject: typeof xpRewardSubject.$inferSelect,
   kind: "comment" | "review",
-  now: Date
+  now: Date,
+  reason: "ineligible" | "removed" = "removed"
 ) {
   await cancelPendingXpEventsInTransaction(tx, {
     now,
@@ -876,12 +960,12 @@ async function reverseContributionRewardsInTransaction(
         tx,
         {
           amount: -event.amount,
-          idempotencyKey: `${kind}-reversal:${subject.id}:${event.id}`,
+          idempotencyKey: `${kind}-${reason}-reversal:${subject.id}:${event.id}`,
           kind: "reversal",
           milestone: event.milestone ?? undefined,
-          reasonCode: `${kind}_removed`,
+          reasonCode: `${kind}_${reason}`,
           reversesEventId: event.id,
-          sourceRef: `${kind}:${subject.id}:reversal:${event.id}`,
+          sourceRef: `${kind}:${subject.id}:${reason}-reversal:${event.id}`,
           subjectId: subject.id,
           userId: subject.userId,
         },

@@ -36,8 +36,9 @@ async function handle(request: Request) {
       `${cookie ? `${cookie}; ` : ""}ntc_device=${deviceId}`
     );
   }
+  const context = await createContext(headers);
   const rpcResult = await rpcHandler.handle(new Request(request, { headers }), {
-    context: await createContext(headers),
+    context,
     prefix: "/api/rpc",
   });
   if (rpcResult.response) {
@@ -46,7 +47,14 @@ async function handle(request: Request) {
         /^\/api\/rpc\//,
         ""
       );
-      for (const tag of getCacheTagsForProcedure(procedurePath)) {
+      const responseBody =
+        procedurePath === "comicProgress/update"
+          ? await rpcResult.response.clone().json()
+          : undefined;
+      for (const tag of getCacheTagsForProcedure(procedurePath, {
+        responseBody,
+        userId: context.session?.user.id,
+      })) {
         revalidateTag(tag, getCacheRevalidationProfile(procedurePath));
       }
     }
