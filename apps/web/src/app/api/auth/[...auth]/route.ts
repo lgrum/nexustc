@@ -1,3 +1,4 @@
+import "@/lib/account-closure.server";
 import { auth } from "@repo/auth";
 import { toNextJsHandler } from "better-auth/next-js";
 

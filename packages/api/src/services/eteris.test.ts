@@ -5,6 +5,7 @@ import {
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
+  eterisDailySnapshot,
   eterisTransaction,
   eterisWallet,
   eterisWalletBalance,
@@ -94,6 +95,7 @@ function sqlValues(value: unknown, seen = new WeakSet<object>()): unknown[] {
 }
 
 function createDatabase(options?: {
+  anomalousEarners?: { total: string; userId: string }[];
   banExpires?: Date | null;
   banned?: boolean;
   userExists?: boolean;
@@ -101,6 +103,13 @@ function createDatabase(options?: {
   let banExpires = options?.banExpires ?? null;
   let banned = options?.banned ?? false;
   const userExists = options?.userExists ?? true;
+  const dailySnapshots = [
+    {
+      anomalousEarners: options?.anomalousEarners ?? [],
+      day: "2026-08-10",
+    },
+  ];
+  const operations: string[] = [];
   let transactionSequence = 0n;
   const wallets = new Map<string, Wallet>();
   const balances = new Map<string, bigint>();
@@ -241,6 +250,21 @@ function createDatabase(options?: {
             })),
           };
         }
+        if (table === user) {
+          return {
+            where: vi.fn(() => ({
+              for: vi.fn(() => {
+                operations.push("lock-user");
+                return Promise.resolve(userExists ? [{ id: "user-1" }] : []);
+              }),
+            })),
+          };
+        }
+        if (table === eterisDailySnapshot) {
+          return {
+            where: vi.fn(() => Promise.resolve(dailySnapshots)),
+          };
+        }
         if (table === eterisWalletBalance) {
           if (Object.keys(shape).length === 1 && "balance" in shape) {
             return {
@@ -351,6 +375,9 @@ function createDatabase(options?: {
     })),
     delete: vi.fn((table: unknown) => ({
       where: vi.fn(() => {
+        if (table === user) {
+          operations.push("delete-user");
+        }
         deletedTables.add(table);
         return Promise.resolve();
       }),
@@ -370,6 +397,18 @@ function createDatabase(options?: {
               }
             }
           }
+          if (table === eterisDailySnapshot) {
+            const day = ids.at(-1);
+            const snapshot = dailySnapshots.find(
+              (candidate) => candidate.day === day
+            );
+            if (snapshot && Array.isArray(values.anomalousEarners)) {
+              snapshot.anomalousEarners = values.anomalousEarners as {
+                total: string;
+                userId: string;
+              }[];
+            }
+          }
           return Promise.resolve();
         }),
       })),
@@ -387,6 +426,12 @@ function createDatabase(options?: {
         });
         await previous;
         const balancesBefore = new Map(balances);
+        const dailySnapshotsBefore = dailySnapshots.map((snapshot) => ({
+          ...snapshot,
+          anomalousEarners: snapshot.anomalousEarners.map((earner) => ({
+            ...earner,
+          })),
+        }));
         const deletedTablesBefore = new Set(deletedTables);
         const postingsBefore = postings.map((posting) => ({ ...posting }));
         const reconciliationsBefore = reconciliations.map((entry) => ({
@@ -406,6 +451,11 @@ function createDatabase(options?: {
           for (const entry of balancesBefore) {
             balances.set(...entry);
           }
+          dailySnapshots.splice(
+            0,
+            dailySnapshots.length,
+            ...dailySnapshotsBefore
+          );
           deletedTables.clear();
           for (const table of deletedTablesBefore) {
             deletedTables.add(table);
@@ -438,8 +488,10 @@ function createDatabase(options?: {
     corruptBalance: (walletId: string, balance: bigint) =>
       balances.set(walletId, balance),
     db,
+    dailySnapshots,
     deletedTables,
     lockOrders,
+    operations,
     postings,
     reconciliations,
     setBanned: (value: boolean, expires: Date | null = null) => {
@@ -1116,11 +1168,74 @@ test("account closure deletes the identity in the same transaction", async () =>
   const store = createDatabase();
   await getUserWallet(store.db, "user-1");
   vi.mocked(store.db.transaction).mockClear();
+  const reconcileOutgoingLikes = vi.fn(() => {
+    store.operations.push("reconcile-likes");
+    return Promise.resolve();
+  });
 
-  await closeAccountAndDeleteUser(store.db, "user-1");
+  await closeAccountAndDeleteUser(store.db, "user-1", reconcileOutgoingLikes);
 
   expect(store.deletedTables).toContain(user);
+  expect(reconcileOutgoingLikes).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({
+      actorUserId: "user-1",
+      likerUserId: "user-1",
+    })
+  );
+  expect(store.operations).toEqual([
+    "lock-user",
+    "reconcile-likes",
+    "delete-user",
+  ]);
   expect(store.db.transaction).toHaveBeenCalledOnce();
+});
+
+test("account deletion fails closed when economy reconciliation is not composed", async () => {
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  vi.mocked(store.db.transaction).mockClear();
+
+  expect(() => closeAccountAndDeleteUser(store.db, "user-1")).toThrow(
+    "ACCOUNT_CLOSURE_RECONCILER_NOT_CONFIGURED"
+  );
+
+  expect(store.db.transaction).not.toHaveBeenCalled();
+  expect(store.deletedTables).not.toContain(user);
+});
+
+test("account closure removes the user from retained anomaly snapshots", async () => {
+  const store = createDatabase({
+    anomalousEarners: [
+      { total: "900", userId: "user-1" },
+      { total: "700", userId: "user-2" },
+    ],
+  });
+  await getUserWallet(store.db, "user-1");
+
+  await closeAccountAndDeleteUser(store.db, "user-1", () => Promise.resolve());
+
+  expect(store.dailySnapshots[0]?.anomalousEarners).toEqual([
+    { total: "700", userId: "user-2" },
+  ]);
+});
+
+test("account deletion rolls back when outgoing-like reconciliation fails", async () => {
+  const store = createDatabase({
+    anomalousEarners: [{ total: "900", userId: "user-1" }],
+  });
+  await getUserWallet(store.db, "user-1");
+
+  await expect(
+    closeAccountAndDeleteUser(store.db, "user-1", () =>
+      Promise.reject(new Error("XP_PROJECTION_MISMATCH"))
+    )
+  ).rejects.toThrow("XP_PROJECTION_MISMATCH");
+
+  expect(store.deletedTables).not.toContain(user);
+  expect(store.dailySnapshots[0]?.anomalousEarners).toEqual([
+    { total: "900", userId: "user-1" },
+  ]);
 });
 
 test("a frozen wallet can turn off public balance and is never exposed publicly", async () => {

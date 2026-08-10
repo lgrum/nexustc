@@ -1,4 +1,5 @@
 import type { db as database } from "@repo/db";
+import { commentLikes, postRatingLikes } from "@repo/db/schema/app";
 import type { xpRewardSubject } from "@repo/db/schema/app";
 
 import {
@@ -8,6 +9,7 @@ import {
   isEligibleLike,
   markParentPostContributionSubjectsRemovedInTransaction,
   reconcileBannedLikerRewards,
+  reconcileClosedLikerRewardsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
   reverseUnsupportedContributionMilestonesInTransaction,
@@ -606,6 +608,79 @@ describe("banned liker reconciliation", () => {
         reversesEventId: "milestone-3",
       })
     );
+  });
+
+  it("records account closure as the reason outgoing likes became ineligible", async () => {
+    const select = vi.fn((shape: Record<string, unknown>) => {
+      if (Object.keys(shape).length === 1 && "id" in shape) {
+        const chain = {
+          for: vi.fn().mockResolvedValue([{ id: subject.id }]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }
+      return {
+        from: vi.fn().mockReturnValue({
+          innerJoin: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(
+              "count" in shape
+                ? [{ count: 2 }]
+                : [
+                    {
+                      amount: 25,
+                      id: "milestone-3",
+                      kind: "review_milestone",
+                      milestone: 3,
+                      reversesEventId: null,
+                      state: "posted",
+                    },
+                  ]
+            ),
+          }),
+          where: vi.fn().mockResolvedValue(
+            "count" in shape
+              ? [{ count: 2 }]
+              : [
+                  {
+                    amount: 25,
+                    id: "milestone-3",
+                    kind: "review_milestone",
+                    milestone: 3,
+                    reversesEventId: null,
+                    state: "posted",
+                  },
+                ]
+          ),
+        }),
+      };
+    });
+    const tx = {
+      delete: vi.fn().mockReturnValue({
+        where: vi.fn(() => Promise.resolve()),
+      }),
+      execute: vi.fn().mockResolvedValue({ rows: [subject] }),
+      select,
+    } as unknown as Transaction;
+
+    await reconcileClosedLikerRewardsInTransaction(tx, {
+      actorUserId: "closing-user",
+      likerUserId: "closing-user",
+      now: new Date("2026-08-10T00:00:00.000Z"),
+    });
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: -25,
+        idempotencyKey: "closed-liker-reversal:closing-user:milestone-3",
+        reasonCode: "eligible_liker_account_closed",
+        reversesEventId: "milestone-3",
+      })
+    );
+    expect(tx.delete).toHaveBeenCalledWith(postRatingLikes);
+    expect(tx.delete).toHaveBeenCalledWith(commentLikes);
   });
 });
 

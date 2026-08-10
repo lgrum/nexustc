@@ -1234,9 +1234,17 @@ async function reverseUnsupportedMilestonesForCount(
   };
 }
 
-export async function reconcileBannedLikerRewardsInTransaction(
+async function reconcileIneligibleLikerRewardsInTransaction(
   tx: Transaction,
-  input: { actorUserId: string; likerUserId: string; now: Date }
+  input: {
+    actorUserId: string;
+    idempotencyPrefix: string;
+    likerUserId: string;
+    now: Date;
+    reasonCode: string;
+    removeLikesBeforeRecount: boolean;
+    sourcePrefix: string;
+  }
 ) {
   const result = await tx.execute(sql`
       select distinct
@@ -1261,6 +1269,14 @@ export async function reconcileBannedLikerRewardsInTransaction(
       where likes.user_id = ${input.likerUserId}
         and subject.deleted_at is null
   `);
+  if (input.removeLikesBeforeRecount) {
+    await tx
+      .delete(postRatingLikes)
+      .where(eq(postRatingLikes.userId, input.likerUserId));
+    await tx
+      .delete(commentLikes)
+      .where(eq(commentLikes.userId, input.likerUserId));
+  }
   const activatedAt = await readProgressionActivationDate(tx);
   const reconciled: { settlements: XpSettlement[]; userId: string }[] = [];
   for (const row of result.rows) {
@@ -1298,15 +1314,41 @@ export async function reconcileBannedLikerRewardsInTransaction(
       await reverseUnsupportedMilestonesForCount(tx, {
         actorUserId: input.actorUserId,
         eligibleLikes,
-        idempotencyPrefix: `banned-liker-reversal:${input.likerUserId}`,
+        idempotencyPrefix: `${input.idempotencyPrefix}:${input.likerUserId}`,
         now: input.now,
-        reasonCode: "eligible_liker_banned",
-        sourcePrefix: `banned-liker:${input.likerUserId}:reversal`,
+        reasonCode: input.reasonCode,
+        sourcePrefix: `${input.sourcePrefix}:${input.likerUserId}:reversal`,
         subject,
       })
     );
   }
   return reconciled;
+}
+
+export function reconcileBannedLikerRewardsInTransaction(
+  tx: Transaction,
+  input: { actorUserId: string; likerUserId: string; now: Date }
+) {
+  return reconcileIneligibleLikerRewardsInTransaction(tx, {
+    ...input,
+    idempotencyPrefix: "banned-liker-reversal",
+    reasonCode: "eligible_liker_banned",
+    removeLikesBeforeRecount: false,
+    sourcePrefix: "banned-liker",
+  });
+}
+
+export function reconcileClosedLikerRewardsInTransaction(
+  tx: Transaction,
+  input: { actorUserId: string; likerUserId: string; now: Date }
+) {
+  return reconcileIneligibleLikerRewardsInTransaction(tx, {
+    ...input,
+    idempotencyPrefix: "closed-liker-reversal",
+    reasonCode: "eligible_liker_account_closed",
+    removeLikesBeforeRecount: true,
+    sourcePrefix: "closed-liker",
+  });
 }
 
 export async function notifyBannedLikerRewardSettlements(

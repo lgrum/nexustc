@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, inArray, isNull, not, or } from "@repo/db";
+import { and, asc, desc, eq, inArray, isNull, not, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
+  eterisDailySnapshot,
   eterisTransaction,
   eterisWallet,
   eterisWalletBalance,
@@ -24,6 +25,25 @@ import {
 
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+export type AccountClosureLikeReconciler = (
+  tx: Transaction,
+  input: { actorUserId: string; likerUserId: string; now: Date }
+) => Promise<unknown>;
+
+let configuredLikeReconciler: AccountClosureLikeReconciler | undefined;
+
+export function configureAccountClosureLikeReconciler(
+  reconciler: AccountClosureLikeReconciler
+) {
+  configuredLikeReconciler = reconciler;
+}
+
+function requireLikeReconciler() {
+  if (!configuredLikeReconciler) {
+    throw new Error("ACCOUNT_CLOSURE_RECONCILER_NOT_CONFIGURED");
+  }
+  return configuredLikeReconciler;
+}
 
 function assertSignedBigint(value: bigint) {
   if (value < ETERIS_MIN_AMOUNT || value > ETERIS_MAX_AMOUNT) {
@@ -32,19 +52,42 @@ function assertSignedBigint(value: bigint) {
 }
 
 export function closeAccount(db: Database, userId: string) {
-  return db.transaction((tx) => closeAccountInTransaction(tx, userId));
+  return db.transaction((tx) =>
+    closeAccountInTransaction(tx, userId, new Date())
+  );
 }
 
-export function closeAccountAndDeleteUser(db: Database, userId: string) {
+export function closeAccountAndDeleteUser(
+  db: Database,
+  userId: string,
+  reconcileOutgoingLikes = requireLikeReconciler()
+) {
   return db.transaction(async (tx) => {
-    const result = await closeAccountInTransaction(tx, userId);
+    const now = new Date();
+    const [account] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for("update");
+    if (!account) {
+      throw new Error("ACCOUNT_CLOSURE_USER_NOT_FOUND");
+    }
+    const result = await closeAccountInTransaction(tx, userId, now);
+    await reconcileOutgoingLikes(tx, {
+      actorUserId: userId,
+      likerUserId: userId,
+      now,
+    });
     await tx.delete(user).where(eq(user.id, userId));
     return result;
   });
 }
 
-async function closeAccountInTransaction(tx: Transaction, userId: string) {
-  const now = new Date();
+async function closeAccountInTransaction(
+  tx: Transaction,
+  userId: string,
+  now: Date
+) {
   await tx
     .select({ userId: userProgression.userId })
     .from(userProgression)
@@ -240,4 +283,25 @@ async function deletePrivateProgression(tx: Transaction, userId: string) {
   await tx
     .delete(userComicProgress)
     .where(eq(userComicProgress.userId, userId));
+  const snapshots = await tx
+    .select({
+      anomalousEarners: eterisDailySnapshot.anomalousEarners,
+      day: eterisDailySnapshot.day,
+    })
+    .from(eterisDailySnapshot)
+    .where(
+      sql`${eterisDailySnapshot.anomalousEarners} @> ${JSON.stringify([
+        { userId },
+      ])}::jsonb`
+    );
+  for (const snapshot of snapshots) {
+    await tx
+      .update(eterisDailySnapshot)
+      .set({
+        anomalousEarners: snapshot.anomalousEarners.filter(
+          (earner) => earner.userId !== userId
+        ),
+      })
+      .where(eq(eterisDailySnapshot.day, snapshot.day));
+  }
 }

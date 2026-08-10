@@ -238,7 +238,14 @@ async function handleMemberUpdate(
       },
       target: patron.userId,
     });
-  await grantMonthlyPatreonStipend(db, patreonAccount.userId);
+  try {
+    await grantMonthlyPatreonStipend(db, patreonAccount.userId);
+  } catch (error) {
+    console.error(
+      "Monthly Patreon stipend settlement failed; the recurring stipend job will retry it:",
+      error
+    );
+  }
 
   console.log(
     `Webhook: Updated patron status for user ${patreonAccount.userId}, tier: ${patronStatus.tier}, active: ${patronStatus.isActivePatron}`
