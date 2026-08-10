@@ -286,6 +286,13 @@ describe("comment edit reward reconciliation", () => {
       publicProfileChanged: true,
       success: true,
     });
+    expect(
+      rewards.lockContributionParticipantsInTransaction
+    ).toHaveBeenCalledWith(tx, ["author-1"]);
+    expect(
+      rewards.lockContributionParticipantsInTransaction.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(set.mock.invocationCallOrder[0]!);
   });
 });
 

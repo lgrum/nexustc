@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  notifyBannedLikerRewardSettlementsInTransaction,
   reconcileClosedAuthorCommentRewardsInTransaction,
   reconcileClosedLikerRewardsInTransaction,
 } from "@repo/api/services/contribution-rewards";
@@ -13,7 +14,11 @@ import { revalidateTag } from "next/cache";
 configureAccountClosureCommentReconciler(
   reconcileClosedAuthorCommentRewardsInTransaction
 );
-configureAccountClosureLikeReconciler(reconcileClosedLikerRewardsInTransaction);
+configureAccountClosureLikeReconciler(async (tx, input) => {
+  const settlements = await reconcileClosedLikerRewardsInTransaction(tx, input);
+  await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
+  return settlements;
+});
 configureAccountClosureCompletionHandler((userId) => {
   revalidateTag(`profile:${userId}`, "max");
   revalidateTag("profiles", "max");

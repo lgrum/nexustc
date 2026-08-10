@@ -71,9 +71,7 @@ export function useComicPageCheckpoints(params: {
             visibleDurationMs: MIN_VISIBLE_TIME_MS,
             visiblePercentage: Math.round(page.ratio * 100),
           });
-          if (!result.trackingAvailable) {
-            setTrackingUnavailable(true);
-          }
+          setTrackingUnavailable(!result.trackingAvailable);
           if (result.processed) {
             page.retryOnExit = false;
           } else {

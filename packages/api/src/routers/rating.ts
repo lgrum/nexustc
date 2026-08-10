@@ -194,6 +194,7 @@ export default {
       assertTextIsNotSpammy(review, errors, session.user.role);
 
       const settlements = await db.transaction(async (tx) => {
+        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
         const [savedReview] = await tx
           .insert(postRating)
           .values({
@@ -261,6 +262,7 @@ export default {
       assertTextIsNotSpammy(review, errors, session.user.role);
 
       const settlements = await db.transaction(async (tx) => {
+        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
         const [savedReview] = await tx
           .update(postRating)
           .set({

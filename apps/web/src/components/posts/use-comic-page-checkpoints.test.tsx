@@ -151,4 +151,33 @@ describe(useComicPageCheckpoints, () => {
     });
     expect(api.update).toHaveBeenCalledTimes(2);
   });
+
+  it("clears the tracking warning after a successful retry", async () => {
+    api.update
+      .mockRejectedValueOnce(new Error("temporary outage"))
+      .mockResolvedValueOnce({ processed: true, trackingAvailable: true });
+    const page = document.createElement("img");
+    const { result } = renderHook(() =>
+      useComicPageCheckpoints({ comicId: "comic-1", enabled: true })
+    );
+    await act(() => Promise.resolve());
+
+    await act(async () => {
+      result.current.trackPageElement(page, 4);
+      MockIntersectionObserver.instance.emit(page, 0.8);
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+    expect(result.current.trackingUnavailable).toBe(true);
+
+    await act(async () => {
+      MockIntersectionObserver.instance.emit(page, 0.1);
+      MockIntersectionObserver.instance.emit(page, 0.8);
+      vi.advanceTimersByTime(2000);
+      await Promise.resolve();
+    });
+
+    expect(api.update).toHaveBeenCalledTimes(2);
+    expect(result.current.trackingUnavailable).toBe(false);
+  });
 });

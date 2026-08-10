@@ -467,6 +467,65 @@ describe("stable review likes", () => {
   });
 });
 
+describe("review edit locking", () => {
+  it("locks the author before updating the review source", async () => {
+    const returning = vi.fn().mockResolvedValue([
+      {
+        createdAt: new Date("2026-08-10T12:00:00.000Z"),
+        id: "review-1",
+        postId: "post-1",
+        review:
+          "Resena actualizada con suficiente detalle para conservarse y asegurar que supera el minimo requerido por el contrato compartido.",
+        userId: "owner-1",
+      },
+    ]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    const tx = { update: vi.fn().mockReturnValue({ set }) };
+    const context = {
+      db: {
+        query: {
+          forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
+          patron: { findFirst: vi.fn().mockResolvedValue(null) },
+          post: {
+            findFirst: vi.fn().mockResolvedValue({
+              earlyAccessEnabled: false,
+              earlyAccessStartedAt: null,
+              type: "post",
+              vip12EarlyAccessHours: 0,
+              vip8EarlyAccessHours: 0,
+            }),
+          },
+        },
+        transaction: vi.fn((callback) => callback(tx)),
+      },
+      headers: new Headers(),
+      session: {
+        user: { emailVerified: true, id: "owner-1", role: "user" },
+      },
+    } as unknown as Context;
+
+    await call(
+      ratingRouter.update,
+      {
+        postId: "post-1",
+        rating: 4,
+        review:
+          "Resena actualizada con suficiente detalle para conservarse y asegurar que supera el minimo requerido por el contrato compartido.",
+      },
+      { context }
+    );
+
+    expect(
+      mocks.lockContributionParticipantsInTransaction
+    ).toHaveBeenCalledWith(tx, ["owner-1"]);
+    expect(
+      mocks.lockContributionParticipantsInTransaction.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(set.mock.invocationCallOrder[0]!);
+  });
+});
+
 describe("post review visibility", () => {
   it("uses the active-ban predicate for review authors and likers", async () => {
     const ratingsQuery = createPaginatedQuery([

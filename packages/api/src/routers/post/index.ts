@@ -1703,6 +1703,9 @@ export default {
         }
 
         const settlements = await db.transaction(async (tx) => {
+          await lockContributionParticipantsInTransaction(tx, [
+            session.user.id,
+          ]);
           const [updatedComment] = await tx
             .update(comment)
             .set({
