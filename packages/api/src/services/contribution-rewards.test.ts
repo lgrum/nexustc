@@ -1702,7 +1702,9 @@ function createDeletionDatabase(reason: "guideline_abuse" | "voluntary") {
       set: vi.fn().mockReturnValue({
         where: vi.fn((_condition) => {
           frozenWalletIds.push(["wallet-user-1"]);
-          return Promise.resolve();
+          return {
+            returning: vi.fn().mockResolvedValue([{ userId: "user-1" }]),
+          };
         }),
       }),
     }),
@@ -1810,7 +1812,10 @@ describe("review removal lifecycle", () => {
         reason: "voluntary",
         userId: review.userId,
       })
-    ).rejects.toThrow("XP_PROJECTION_MISMATCH");
+    ).rejects.toMatchObject({
+      message: "XP_PROJECTION_MISMATCH",
+      profileUserIds: ["user-1"],
+    });
     expect(store.deletedReview).not.toHaveBeenCalled();
     expect(store.subjectUpdateValues).toHaveLength(0);
     expect(store.frozenWalletIds).toEqual([["wallet-user-1"]]);

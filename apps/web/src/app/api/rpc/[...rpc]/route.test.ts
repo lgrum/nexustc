@@ -4,6 +4,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { os } from "@orpc/server";
 import { ADMIN_RPC_BODY_MAX_BYTES } from "@repo/shared/media";
+import { revalidateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as route from "./route";
@@ -37,6 +38,7 @@ const createClient = (headers?: Record<string, string>) =>
 describe("RPC route", () => {
   beforeEach(() => {
     procedure.mockClear();
+    vi.mocked(revalidateTag).mockClear();
   });
 
   it("exports only POST", () => {
@@ -57,6 +59,22 @@ describe("RPC route", () => {
       "ok"
     );
     expect(procedure).toHaveBeenCalledTimes(1);
+  });
+
+  it("revalidates profiles attached to committed mutation failures", async () => {
+    procedure.mockImplementationOnce(() => {
+      throw Object.assign(new Error("XP_PROJECTION_MISMATCH"), {
+        profileUserIds: ["user-1", null, "user-2"],
+      });
+    });
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+
+    await expect(
+      createClient({ "x-csrf-token": "orpc" }).ping()
+    ).rejects.toThrow();
+
+    expect(revalidateTag).toHaveBeenCalledWith("profile:user-1", "max");
+    expect(revalidateTag).toHaveBeenCalledWith("profile:user-2", "max");
   });
 
   it("issues a secure first-party integrity device cookie", async () => {

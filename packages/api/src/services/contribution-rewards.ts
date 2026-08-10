@@ -93,6 +93,7 @@ const EMPTY_INTEGRITY_CORRELATION = {
 } satisfies IntegrityCorrelationEvidence;
 
 export class ContributionProjectionMismatchError extends Error {
+  profileUserIds: string[] = [];
   readonly walletIds: string[];
 
   constructor(walletIds: string[]) {
@@ -125,10 +126,18 @@ export async function runContributionRewardTransaction<T>(
     return await db.transaction(callback);
   } catch (error) {
     if (error instanceof ContributionProjectionMismatchError) {
-      await db
+      const frozenWallets = await db
         .update(eterisWallet)
         .set({ status: "frozen" })
-        .where(inArray(eterisWallet.id, error.walletIds));
+        .where(inArray(eterisWallet.id, error.walletIds))
+        .returning({ userId: eterisWallet.userId });
+      error.profileUserIds = [
+        ...new Set(
+          frozenWallets.flatMap(({ userId }) =>
+            typeof userId === "string" ? [userId] : []
+          )
+        ),
+      ];
     }
     throw error;
   }

@@ -16,6 +16,18 @@ import {
 const rpcHandler = new RPCHandler(appRouter, {
   interceptors: [
     onError((error) => {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "profileUserIds" in error &&
+        Array.isArray(error.profileUserIds)
+      ) {
+        for (const userId of error.profileUserIds) {
+          if (typeof userId === "string") {
+            revalidateTag(`profile:${userId}`, "max");
+          }
+        }
+      }
       console.error(error);
     }),
   ],

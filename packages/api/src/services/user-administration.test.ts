@@ -59,9 +59,11 @@ it("restores rewards when a temporary ban expires", async () => {
   const candidateQuery = {
     from: vi.fn(),
     limit: vi.fn().mockResolvedValue([{ id: "liker-1" }]),
+    orderBy: vi.fn(),
     where: vi.fn(),
   };
   candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.orderBy.mockReturnValue(candidateQuery);
   candidateQuery.where.mockReturnValue(candidateQuery);
   const lockedQuery = {
     for: vi
@@ -125,9 +127,11 @@ it("does not clear a temporary ban extended after the expiry scan", async () => 
   const candidateQuery = {
     from: vi.fn(),
     limit: vi.fn().mockResolvedValue([{ id: "liker-1" }]),
+    orderBy: vi.fn(),
     where: vi.fn(),
   };
   candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.orderBy.mockReturnValue(candidateQuery);
   candidateQuery.where.mockReturnValue(candidateQuery);
   const lockedQuery = {
     for: vi.fn().mockResolvedValue([
@@ -163,9 +167,11 @@ it("reports committed profile invalidations when a later restoration fails", asy
     limit: vi
       .fn()
       .mockResolvedValue([{ id: "restored-user" }, { id: "failed-user" }]),
+    orderBy: vi.fn(),
     where: vi.fn(),
   };
   candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.orderBy.mockReturnValue(candidateQuery);
   candidateQuery.where.mockReturnValue(candidateQuery);
   const db = {
     select: vi.fn().mockReturnValue(candidateQuery),
@@ -177,14 +183,45 @@ it("reports committed profile invalidations when a later restoration fails", asy
           userId: "author-1",
         },
       ])
-      .mockRejectedValueOnce(new Error("notification failure")),
+      .mockRejectedValueOnce(
+        Object.assign(new Error("projection mismatch"), {
+          profileUserIds: ["frozen-user"],
+        })
+      ),
   };
 
   await expect(
     restoreExpiredTemporaryBanRewards(db as never)
   ).rejects.toMatchObject({
-    profileUserIds: ["restored-user", "author-1"],
+    profileUserIds: ["restored-user", "author-1", "frozen-user"],
   });
+});
+
+it("scans every ordered page of expired temporary bans", async () => {
+  const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+    id: `user-${String(index).padStart(4, "0")}`,
+  }));
+  const candidateQuery = {
+    from: vi.fn(),
+    limit: vi
+      .fn()
+      .mockResolvedValueOnce(firstPage)
+      .mockResolvedValueOnce([{ id: "user-1000" }]),
+    orderBy: vi.fn(),
+    where: vi.fn(),
+  };
+  candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.orderBy.mockReturnValue(candidateQuery);
+  candidateQuery.where.mockReturnValue(candidateQuery);
+  const db = { select: vi.fn().mockReturnValue(candidateQuery) };
+  rewards.runTransaction.mockResolvedValue(null);
+
+  await expect(restoreExpiredTemporaryBanRewards(db as never)).resolves.toEqual(
+    { checked: 1001, profileUserIds: [], restored: 0 }
+  );
+  expect(candidateQuery.orderBy).toHaveBeenCalledTimes(2);
+  expect(candidateQuery.limit).toHaveBeenCalledTimes(2);
+  expect(db.select).toHaveBeenCalledTimes(2);
 });
 
 it("bans, revokes sessions, and reconciles liker rewards in one transaction", async () => {

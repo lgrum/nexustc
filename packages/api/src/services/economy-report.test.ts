@@ -77,6 +77,9 @@ test("the current UTC report refreshes under the database lock and exposes only 
   expect(executor.execute).toHaveBeenCalledTimes(4);
   const metricsQuery = JSON.stringify(executor.execute.mock.calls[1]?.[0]);
   expect(metricsQuery).toContain("source_cap_pressure");
+  expect(metricsQuery).toContain("integrity_case_id");
+  expect(metricsQuery).toContain("xpEventId");
+  expect(metricsQuery).toContain("jsonb_array_elements");
   expect(metricsQuery).toContain("daily_transaction_flows");
   expect(metricsQuery).toContain("balance_after");
   expect(metricsQuery).toContain("eteris_wallet_status_event");

@@ -1,4 +1,4 @@
-import { and, eq, lte } from "@repo/db";
+import { and, asc, eq, gt, lte } from "@repo/db";
 import type { db as database } from "@repo/db";
 import { session, user } from "@repo/db/schema/app";
 
@@ -87,71 +87,103 @@ export async function restoreExpiredTemporaryBanRewards(
   db: Database,
   now = new Date()
 ) {
-  const candidates = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(and(eq(user.banned, true), lte(user.banExpires, now)))
-    .limit(1000);
   const profileUserIds = new Set<string>();
   const errors: unknown[] = [];
+  let checked = 0;
   let restored = 0;
-  for (const candidate of candidates) {
-    let results;
-    try {
-      results = await runContributionRewardTransaction(db, async (tx) => {
-        await lockLikerRewardParticipantsInTransaction(tx, candidate.id);
-        const [current] = await tx
-          .select({
-            banExpires: user.banExpires,
-            banned: user.banned,
-            id: user.id,
-          })
-          .from(user)
-          .where(eq(user.id, candidate.id))
-          .for("update");
-        if (
-          !current?.banned ||
-          !current.banExpires ||
-          current.banExpires > now
-        ) {
-          return null;
-        }
-        await tx
-          .update(user)
-          .set({
-            banExpires: null,
-            banReason: null,
-            banned: false,
-            updatedAt: now,
-          })
-          .where(eq(user.id, candidate.id));
-        const settlements = await reconcileRestoredLikerRewardsInTransaction(
-          tx,
-          {
-            likerUserId: candidate.id,
-            now,
+  let cursor: string | undefined;
+  while (true) {
+    const candidates = await db
+      .select({ id: user.id })
+      .from(user)
+      .where(
+        and(
+          eq(user.banned, true),
+          lte(user.banExpires, now),
+          cursor ? gt(user.id, cursor) : undefined
+        )
+      )
+      .orderBy(asc(user.id))
+      .limit(1000);
+    checked += candidates.length;
+    for (const candidate of candidates) {
+      let results;
+      try {
+        results = await runContributionRewardTransaction(db, async (tx) => {
+          await lockLikerRewardParticipantsInTransaction(tx, candidate.id);
+          const [current] = await tx
+            .select({
+              banExpires: user.banExpires,
+              banned: user.banned,
+              id: user.id,
+            })
+            .from(user)
+            .where(eq(user.id, candidate.id))
+            .for("update");
+          if (
+            !current?.banned ||
+            !current.banExpires ||
+            current.banExpires > now
+          ) {
+            return null;
           }
-        );
-        await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
-        return settlements;
-      });
-    } catch (error) {
-      errors.push(error);
-      continue;
-    }
-    if (!results) {
-      continue;
-    }
-    restored += 1;
-    profileUserIds.add(candidate.id);
-    for (const result of results) {
-      if (result.settlements.length > 0) {
-        profileUserIds.add(result.userId);
+          await tx
+            .update(user)
+            .set({
+              banExpires: null,
+              banReason: null,
+              banned: false,
+              updatedAt: now,
+            })
+            .where(eq(user.id, candidate.id));
+          const settlements = await reconcileRestoredLikerRewardsInTransaction(
+            tx,
+            {
+              likerUserId: candidate.id,
+              now,
+            }
+          );
+          await notifyBannedLikerRewardSettlementsInTransaction(
+            tx,
+            settlements
+          );
+          return settlements;
+        });
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "profileUserIds" in error &&
+          Array.isArray(error.profileUserIds)
+        ) {
+          for (const userId of error.profileUserIds) {
+            if (typeof userId === "string") {
+              profileUserIds.add(userId);
+            }
+          }
+        }
+        errors.push(error);
+        continue;
+      }
+      if (!results) {
+        continue;
+      }
+      restored += 1;
+      profileUserIds.add(candidate.id);
+      for (const result of results) {
+        if (result.settlements.length > 0) {
+          profileUserIds.add(result.userId);
+        }
       }
     }
+    const lastCandidate = candidates.at(-1);
+    if (candidates.length < 1000 || !lastCandidate) {
+      break;
+    }
+    cursor = lastCandidate.id;
   }
   const result = {
-    checked: candidates.length,
+    checked,
     profileUserIds: [...profileUserIds],
     restored,
   };

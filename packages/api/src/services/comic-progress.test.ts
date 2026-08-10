@@ -481,16 +481,43 @@ describe("verified comic reading rewards", () => {
   });
 
   it("serializes concurrent updates for the same reading session", async () => {
-    let releaseRead: ((value: string | null) => void) | undefined;
-    const get = vi.fn(
-      () =>
-        new Promise<string | null>((resolve) => {
-          releaseRead = resolve;
-        })
+    let locked = false;
+    let storedState = JSON.stringify(
+      createState({
+        lastPersistedAtMs: Date.now(),
+        startedAtMs: Date.now() - 10_000,
+      })
     );
-    const set = vi.fn().mockResolvedValueOnce("OK").mockResolvedValueOnce(null);
+    let releaseFirstRead: (() => void) | undefined;
+    const firstRead = new Promise<void>((resolve) => {
+      releaseFirstRead = resolve;
+    });
+    let reads = 0;
+    const get = vi.fn(async () => {
+      reads += 1;
+      if (reads === 1) {
+        await firstRead;
+      }
+      return storedState;
+    });
+    const set = vi.fn(
+      (_key: string, value: string, options?: { NX?: boolean }) => {
+        if (options?.NX) {
+          if (locked) {
+            return null;
+          }
+          locked = true;
+          return "OK";
+        }
+        storedState = value;
+        return "OK";
+      }
+    );
     const cache = {
-      eval: vi.fn().mockResolvedValue(1),
+      eval: vi.fn(() => {
+        locked = false;
+        return 1;
+      }),
       get,
       set,
     } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
@@ -498,8 +525,10 @@ describe("verified comic reading rewards", () => {
       cache,
       correlation: { deviceHash: null, ipPrefixHash: null },
       comicId: "comic-1",
-      db: {} as Parameters<typeof trackComicPageView>[0]["db"],
-      evidence,
+      db: { query: createAccessQueries() } as unknown as Parameters<
+        typeof trackComicPageView
+      >[0]["db"],
+      evidence: { ...evidence, documentVisible: false },
       page: 1,
       readingSessionId: "session-1",
       userId: "user-1",
@@ -507,13 +536,17 @@ describe("verified comic reading rewards", () => {
 
     const first = trackComicPageView(input);
     await vi.waitFor(() => expect(get).toHaveBeenCalledOnce());
-    await expect(trackComicPageView(input)).resolves.toMatchObject({
-      accepted: false,
-      reason: "tracking_unavailable",
-      trackingAvailable: false,
+    const second = trackComicPageView({ ...input, page: 2 });
+    await vi.waitFor(() => expect(set).toHaveBeenCalledTimes(2));
+    releaseFirstRead?.();
+
+    await expect(first).resolves.toMatchObject({ accepted: true });
+    await expect(second).resolves.toMatchObject({
+      accepted: true,
+      lastPageRead: 2,
+      trackingAvailable: true,
+      verifiedThroughPage: 2,
     });
-    releaseRead?.(null);
-    await first;
 
     expect(set).toHaveBeenNthCalledWith(
       1,

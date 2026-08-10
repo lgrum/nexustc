@@ -86,7 +86,7 @@ export function getDailyEconomyReport(
           and (user_id is not null or anonymized_at >= ${dayEnd})
       ),
       daily_user_postings as (
-        select w.user_id, t.kind::text as reason, p.amount
+        select w.user_id, t.kind::text as reason, t.metadata, p.amount
         from eteris_posting p
         inner join eteris_wallet w on w.id = p.wallet_id
         inner join eteris_transaction t on t.id = p.transaction_id
@@ -123,13 +123,25 @@ export function getDailyEconomyReport(
         from daily_user_postings p
         where p.amount > 0
           and p.user_id is not null
-          and exists (
-            select 1
-            from xp_risk_signal s
-            where s.user_id = p.user_id
-              and s.kind in ('source_cap_pressure', 'wallet_credit_velocity', 'xp_velocity')
-              and s.occurred_at >= ${dayStart}
-              and s.occurred_at < ${dayEnd}
+          and (
+            exists (
+              select 1
+              from xp_risk_signal s
+              where s.user_id = p.user_id
+                and s.kind in ('source_cap_pressure', 'wallet_credit_velocity', 'xp_velocity')
+                and s.occurred_at >= ${dayStart}
+                and s.occurred_at < ${dayEnd}
+            )
+            or exists (
+              select 1
+              from xp_event e
+              inner join xp_integrity_case c on c.id = e.integrity_case_id
+              cross join lateral jsonb_array_elements(
+                coalesce(c.evidence -> 'signals', '[]'::jsonb)
+              ) signal
+              where e.id = p.metadata ->> 'xpEventId'
+                and signal ->> 'kind' in ('source_cap_pressure', 'wallet_credit_velocity', 'xp_velocity')
+            )
           )
         group by p.user_id
         order by total desc, user_id

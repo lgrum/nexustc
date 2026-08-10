@@ -22,6 +22,8 @@ import {
 
 const COMIC_READING_SESSION_TTL_SECONDS = 60 * 60 * 6;
 const COMIC_READING_SESSION_LOCK_TTL_MS = 30_000;
+const COMIC_READING_SESSION_LOCK_RETRY_ATTEMPTS = 40;
+const COMIC_READING_SESSION_LOCK_RETRY_MS = 50;
 const MIN_PAGE_ADVANCE_INTERVAL_MS = 400;
 const MIN_REWARD_CHECKPOINT_INTERVAL_MS = 2000;
 const MIN_REWARD_VISIBILITY_PERCENTAGE = 60;
@@ -135,12 +137,26 @@ async function acquireReadingSessionLock(
   readingSessionId: string,
   token: string
 ) {
-  return (
-    (await cache.set(getReadingSessionLockKey(readingSessionId), token, {
-      NX: true,
-      PX: COMIC_READING_SESSION_LOCK_TTL_MS,
-    })) === "OK"
-  );
+  for (
+    let attempt = 0;
+    attempt < COMIC_READING_SESSION_LOCK_RETRY_ATTEMPTS;
+    attempt += 1
+  ) {
+    if (
+      (await cache.set(getReadingSessionLockKey(readingSessionId), token, {
+        NX: true,
+        PX: COMIC_READING_SESSION_LOCK_TTL_MS,
+      })) === "OK"
+    ) {
+      return { acquired: true, waited: attempt > 0 };
+    }
+    if (attempt < COMIC_READING_SESSION_LOCK_RETRY_ATTEMPTS - 1) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, COMIC_READING_SESSION_LOCK_RETRY_MS)
+      );
+    }
+  }
+  return { acquired: false, waited: true };
 }
 
 async function releaseReadingSessionLock(
@@ -1155,6 +1171,7 @@ async function trackComicPageViewWithLockHeld(params: {
   readingSessionId: string;
   role?: string | null;
   userId: string;
+  waitedForLock?: boolean;
 }) {
   let state: ReadingSessionState | null;
   try {
@@ -1193,6 +1210,18 @@ async function trackComicPageViewWithLockHeld(params: {
     };
   }
 
+  if (
+    params.waitedForLock &&
+    state.lastAcceptedAtMs !== null &&
+    state.lastAcceptedPage !== null &&
+    params.page > state.lastAcceptedPage
+  ) {
+    const remainingInterval =
+      MIN_PAGE_ADVANCE_INTERVAL_MS - (Date.now() - state.lastAcceptedAtMs);
+    if (remainingInterval > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingInterval));
+    }
+  }
   const now = new Date();
   const [comicMetadata, tier] = await Promise.all([
     getComicMetadata(params.db, params.comicId),
@@ -1311,25 +1340,29 @@ async function trackComicPageViewWithLockHeld(params: {
 }
 
 export async function trackComicPageView(
-  params: Parameters<typeof trackComicPageViewWithLockHeld>[0]
+  params: Omit<
+    Parameters<typeof trackComicPageViewWithLockHeld>[0],
+    "waitedForLock"
+  >
 ) {
   const token = generateId();
+  let waitedForLock = false;
   try {
-    if (
-      !(await acquireReadingSessionLock(
-        params.cache,
-        params.readingSessionId,
-        token
-      ))
-    ) {
+    const lock = await acquireReadingSessionLock(
+      params.cache,
+      params.readingSessionId,
+      token
+    );
+    if (!lock.acquired) {
       return getTrackingUnavailableResult();
     }
+    waitedForLock = lock.waited;
   } catch {
     return getTrackingUnavailableResult();
   }
 
   try {
-    return await trackComicPageViewWithLockHeld(params);
+    return await trackComicPageViewWithLockHeld({ ...params, waitedForLock });
   } finally {
     try {
       await releaseReadingSessionLock(
