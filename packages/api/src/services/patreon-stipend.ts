@@ -28,7 +28,7 @@ function getUtcMonth(now: Date) {
   };
 }
 
-export function grantMonthlyPatreonStipend(
+export async function grantMonthlyPatreonStipend(
   db: Database,
   userId: string,
   now = new Date()
@@ -38,7 +38,7 @@ export function grantMonthlyPatreonStipend(
     return { granted: "0", month: month.key };
   }
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     await ensureProgressionActivationInTransaction(tx, now);
     const [membership] = await tx
       .select({
@@ -98,7 +98,7 @@ export function grantMonthlyPatreonStipend(
     }
 
     const sourceRef = `vip:${wallet.id}:${month.key}:target:${target}`;
-    const result = await postEterisTransactionInTransaction(tx, {
+    const posting = await postEterisTransactionInTransaction(tx, {
       createdAt: now,
       idempotencyKey: sourceRef,
       kind: "vip_stipend",
@@ -114,8 +114,12 @@ export function grantMonthlyPatreonStipend(
       sourceModule: "patreon",
       sourceRef,
     });
-    if ("mismatched" in result) {
-      return { granted: "0", month: month.key };
+    if ("mismatched" in posting) {
+      return {
+        granted: "0",
+        month: month.key,
+        projectionMismatch: true as const,
+      };
     }
 
     return {
@@ -124,6 +128,10 @@ export function grantMonthlyPatreonStipend(
       publicProfileChanged: wallet.publicBalance,
     };
   });
+  if ("projectionMismatch" in result) {
+    throw new Error("ETERIS_PROJECTION_MISMATCH");
+  }
+  return result;
 }
 
 export async function grantMonthlyPatreonStipends(

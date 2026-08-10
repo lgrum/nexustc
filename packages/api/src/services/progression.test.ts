@@ -984,6 +984,24 @@ describe("progression service", () => {
     expect(store.getProgression()).toMatchObject({ level: 1, totalXp: 0 });
   });
 
+  it("rejects an owner adjustment when its level reward detects a projection mismatch", async () => {
+    flags.accrual = true;
+    ledger.mismatchAtCall = 1;
+    const store = createDatabase();
+
+    await expect(
+      adjustXp(store.db, {
+        actorUserId: "owner-1",
+        amount: 67,
+        idempotencyKey: "projection-mismatch-adjustment",
+        reason: "Correccion aprobada por soporte",
+        userId: "user-1",
+      })
+    ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+    expect(store.getEvents()).toHaveLength(0);
+    expect(ledger.notifications).toHaveLength(0);
+  });
+
   it("rejects disabled and out-of-range corrections without changing totals", async () => {
     const store = createDatabase();
     await expect(

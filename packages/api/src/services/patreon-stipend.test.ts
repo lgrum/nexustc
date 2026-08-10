@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   posted: [] as { amount: bigint; month: string }[],
   posts: [] as Record<string, unknown>[],
   publicBalance: false,
+  projectionMismatch: false,
   tier: "level12",
   walletStatus: "active" as "active" | "frozen",
   membershipLocked: false,
@@ -71,6 +72,9 @@ vi.mock("./eteris", () => ({
       ).find(({ walletId }) => walletId === "wallet-user-1")!;
       const month = String(input.sourceRef).split(":").at(-3)!;
       state.posted.push({ amount: userPosting.amount, month });
+      if (state.projectionMismatch) {
+        return Promise.resolve({ mismatched: ["wallet-user-1"] });
+      }
       return Promise.resolve({
         id: `transaction-${state.posts.length}`,
         replayed: false,
@@ -161,6 +165,7 @@ describe(grantMonthlyPatreonStipend, () => {
     state.posted = [];
     state.posts = [];
     state.publicBalance = false;
+    state.projectionMismatch = false;
     state.tier = "level12";
     state.walletStatus = "active";
     state.membershipLocked = false;
@@ -209,6 +214,17 @@ describe(grantMonthlyPatreonStipend, () => {
     ).resolves.toEqual({ granted: "0", month: "2026-06" });
     expect(state.events).toEqual(["activation", "membership-lock", "lock"]);
     expect(state.posts).toEqual([]);
+  });
+
+  it("reports a projection mismatch as a failed stipend batch settlement", async () => {
+    state.projectionMismatch = true;
+
+    await expect(
+      grantMonthlyPatreonStipends(
+        createDatabase() as never,
+        new Date("2026-06-30T23:59:59.999Z")
+      )
+    ).rejects.toThrow("No se pudieron liquidar todos los beneficios VIP.");
   });
 
   it("grants once under retries and concurrent calls", async () => {
@@ -267,16 +283,16 @@ describe(grantMonthlyPatreonStipend, () => {
     expect(state.posts).toHaveLength(1);
   });
 
-  it("does not grant while economy reads are master-hidden", () => {
+  it("does not grant while economy reads are master-hidden", async () => {
     state.economyEnabled = false;
 
-    expect(
+    await expect(
       grantMonthlyPatreonStipend(
         createDatabase() as never,
         "user-1",
         new Date("2026-06-15T12:00:00.000Z")
       )
-    ).toEqual({ granted: "0", month: "2026-06" });
+    ).resolves.toEqual({ granted: "0", month: "2026-06" });
     expect(state.events).toEqual([]);
     expect(state.posts).toEqual([]);
   });

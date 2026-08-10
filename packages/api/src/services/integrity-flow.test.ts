@@ -8,6 +8,7 @@ import {
 } from "./integrity";
 
 const progression = vi.hoisted(() => ({
+  cancelPending: vi.fn(),
   matured: vi.fn(),
   pending: vi.fn(),
   posted: vi.fn(),
@@ -15,6 +16,7 @@ const progression = vi.hoisted(() => ({
 }));
 
 vi.mock("./progression", () => ({
+  cancelPendingXpEventsInTransaction: progression.cancelPending,
   releaseMaturedPendingXpInTransaction: progression.matured,
   createPendingXpEventInTransaction: progression.pending,
   lockUserProgressionInTransaction: vi.fn(),
@@ -58,6 +60,7 @@ function createTransaction() {
 }
 
 beforeEach(() => {
+  progression.cancelPending.mockReset().mockResolvedValue([]);
   progression.matured.mockReset().mockResolvedValue([]);
   progression.pending.mockReset().mockResolvedValue({
     eventId: "event-1",
@@ -145,7 +148,9 @@ describe("integrity settlement", () => {
   });
 
   it("keeps a manually released case open after a projection mismatch", async () => {
-    const update = vi.fn();
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+    }));
     const tx = {
       select: vi.fn(() => {
         const chain = {
@@ -177,6 +182,185 @@ describe("integrity settlement", () => {
     ).resolves.toMatchObject({ status: "open" });
     expect(progression.releaseCase).toHaveBeenCalledOnce();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("keeps a released case retryable when its reversal finds a projection mismatch", async () => {
+    progression.posted.mockResolvedValue({
+      eventId: null,
+      projectionMismatch: true,
+      replayed: false,
+      settledXp: 0,
+    });
+    let selectCall = 0;
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+    }));
+    const tx = {
+      query: { xpEvent: { findFirst: vi.fn() } },
+      select: vi.fn(() => {
+        selectCall += 1;
+        const chain = {
+          for: vi.fn(),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        if (selectCall === 1) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([
+            { id: "case-1", status: "released", userId: "user-1" },
+          ]);
+        } else {
+          chain.where.mockResolvedValue([
+            {
+              amount: 67,
+              id: "event-1",
+              reversesEventId: null,
+              userId: "user-1",
+            },
+          ]);
+        }
+        return chain;
+      }),
+      update,
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "reverse",
+        actorUserId: "moderator-1",
+        caseId: "case-1",
+        reason: "Reversion confirmada",
+      })
+    ).resolves.toMatchObject({ status: "open" });
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("cancels every pending milestone covered by a contribution block", async () => {
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+    }));
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      query: {
+        xpEvent: {
+          findFirst: vi.fn().mockResolvedValue({
+            kind: "review_milestone",
+            subjectId: "subject-1",
+            userId: "user-1",
+          }),
+        },
+        xpRewardSubject: {
+          findFirst: vi.fn().mockResolvedValue({
+            entityId: "review-1",
+            id: "subject-1",
+            kind: "review",
+            parentPostId: "post-1",
+          }),
+        },
+      },
+      select: vi.fn(() => {
+        const chain = {
+          for: vi
+            .fn()
+            .mockResolvedValue([
+              { id: "case-1", status: "open", userId: "user-1" },
+            ]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+      update,
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await decideIntegrityCase(db, {
+      action: "block",
+      actorUserId: "moderator-1",
+      caseId: "case-1",
+      reason: "Contenido coordinado confirmado",
+    });
+
+    expect(progression.cancelPending).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        closeEmptyCases: true,
+        subjectId: "subject-1",
+      })
+    );
+    expect(progression.cancelPending).not.toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ caseId: "case-1" })
+    );
+  });
+
+  it("cancels every pending reading award covered by a comic block", async () => {
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      query: {
+        xpEvent: {
+          findFirst: vi.fn().mockResolvedValue({
+            kind: "comic_reading",
+            sourceRef: "comic:comic-1:pages:1",
+            subjectId: null,
+            userId: "user-1",
+          }),
+        },
+        xpRewardSubject: { findFirst: vi.fn() },
+      },
+      select: vi.fn(() => {
+        const chain = {
+          for: vi
+            .fn()
+            .mockResolvedValue([
+              { id: "case-1", status: "open", userId: "user-1" },
+            ]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await decideIntegrityCase(db, {
+      action: "block",
+      actorUserId: "moderator-1",
+      caseId: "case-1",
+      reason: "Lectura coordinada confirmada",
+    });
+
+    expect(progression.cancelPending).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        closeEmptyCases: true,
+        sourceRefPrefix: "comic:comic-1:",
+        userId: "user-1",
+      })
+    );
   });
 
   it("holds medium risk for 24 hours and persists only its anomaly", async () => {

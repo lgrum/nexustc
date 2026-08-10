@@ -154,26 +154,39 @@ async function reversePostedCaseEvents(
   );
   const settlements: XpSettlement[] = [];
   for (const event of originals) {
-    settlements.push(
-      await postXpEventInTransaction(
-        tx,
-        {
-          amount: -event.amount,
-          createdBy: actorUserId,
-          idempotencyKey: `integrity-reversal:${caseId}:${event.id}`,
-          integrityCaseId: caseId,
-          kind: "reversal",
-          reasonCode: "confirmed_integrity_abuse",
-          reversesEventId: event.id,
-          sourceRef: `integrity-case:${caseId}:reversal:${event.id}`,
-          subjectId: event.subjectId ?? undefined,
-          userId: event.userId,
-        },
-        now
-      )
+    const settlement = await postXpEventInTransaction(
+      tx,
+      {
+        amount: -event.amount,
+        createdBy: actorUserId,
+        idempotencyKey: `integrity-reversal:${caseId}:${event.id}`,
+        integrityCaseId: caseId,
+        kind: "reversal",
+        reasonCode: "confirmed_integrity_abuse",
+        reversesEventId: event.id,
+        sourceRef: `integrity-case:${caseId}:reversal:${event.id}`,
+        subjectId: event.subjectId ?? undefined,
+        userId: event.userId,
+      },
+      now
     );
+    if (
+      "projectionMismatch" in settlement &&
+      settlement.projectionMismatch === true
+    ) {
+      return {
+        completed: false,
+        settlements,
+        userId: originals[0]?.userId ?? null,
+      };
+    }
+    settlements.push(settlement);
   }
-  return { settlements, userId: originals[0]?.userId ?? null };
+  return {
+    completed: true,
+    settlements,
+    userId: originals[0]?.userId ?? null,
+  };
 }
 
 async function blockCaseScope(
@@ -218,6 +231,12 @@ async function blockCaseScope(
       userId: event.userId,
     })
     .onConflictDoNothing();
+  return {
+    kind,
+    scopeKey,
+    subjectId: subject?.id ?? null,
+    userId: event.userId,
+  };
 }
 
 export type IntegrityDecision =
@@ -288,23 +307,40 @@ export async function decideIntegrityCase(
         caseId: input.caseId,
         now,
       });
-      ({ settlements, userId } = await reversePostedCaseEvents(
+      const reversal = await reversePostedCaseEvents(
         tx,
         input.caseId,
         input.actorUserId,
         now
-      ));
-      status = settlements.length ? "reversed" : "dismissed";
+      );
+      ({ settlements, userId } = reversal);
+      status = reversal.completed
+        ? settlements.length
+          ? "reversed"
+          : "dismissed"
+        : "open";
     } else if (input.action === "block") {
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
       }
+      const scope = await blockCaseScope(
+        tx,
+        input.caseId,
+        input.actorUserId,
+        input.reason
+      );
       await cancelPendingXpEventsInTransaction(tx, {
         actorUserId: input.actorUserId,
-        caseId: input.caseId,
+        closeEmptyCases: true,
+        decisionReason: input.reason,
         now,
+        ...(scope.subjectId
+          ? { subjectId: scope.subjectId }
+          : {
+              sourceRefPrefix: `${scope.scopeKey}:`,
+              userId: scope.userId,
+            }),
       });
-      await blockCaseScope(tx, input.caseId, input.actorUserId, input.reason);
     } else {
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");

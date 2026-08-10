@@ -10,6 +10,24 @@ import {
   trackComicPageView,
 } from "./comic-progress";
 
+const integrity = vi.hoisted(() => ({
+  settle: vi.fn(),
+}));
+
+vi.mock("./integrity-settlement", () => ({
+  assessXpSourceCapPressure: vi.fn(() => ({ disposition: "low" })),
+  settleXpWithIntegrityInTransaction: integrity.settle,
+}));
+
+vi.mock("@repo/env", () => ({
+  env: { XP_ACCRUAL_ENABLED: true },
+}));
+
+vi.mock("./progression", () => ({
+  lockUserProgressionInTransaction: vi.fn().mockResolvedValue({}),
+  notifyXpSettlement: vi.fn(),
+}));
+
 function createState(
   overrides?: Partial<Parameters<typeof applyCheckpoint>[0]["state"]>
 ) {
@@ -86,6 +104,18 @@ describe("verified comic reading rewards", () => {
     visibleDurationMs: 2000,
     visiblePercentage: 60,
   };
+
+  beforeEach(() => {
+    integrity.settle.mockReset().mockResolvedValue({
+      outcome: "posted",
+      settlement: {
+        level: 1,
+        previousLevel: 1,
+        replayed: false,
+        settledXp: 1,
+      },
+    });
+  });
 
   it("normalizes sparse processed positions without creating a page row", () => {
     expect(
@@ -338,6 +368,68 @@ describe("verified comic reading rewards", () => {
       rewardedXp: 0,
     });
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("does not settle verified pages after the comic reward scope is blocked", async () => {
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify(
+          createState({
+            startedAtMs: Date.now() - 10_000,
+            verifiedThroughPage: 1,
+          })
+        )
+      ),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    let selectCall = 0;
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      query: {
+        xpRewardBlock: {
+          findFirst: vi.fn().mockResolvedValue({ id: "block-1" }),
+        },
+      },
+      select: vi.fn(() => {
+        selectCall += 1;
+        const chain = {
+          for: vi.fn().mockResolvedValue([{ ranges: [] }]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(
+          selectCall === 1 ? chain : Promise.resolve([{ total: 0 }])
+        );
+        return chain;
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    const db = {
+      query: createAccessQueries(),
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        comicId: "comic-1",
+        db,
+        evidence,
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ processed: true, rewardedXp: 0 });
+    expect(integrity.settle).not.toHaveBeenCalled();
   });
 
   it("rejects checkpoints after the comic becomes inaccessible", async () => {

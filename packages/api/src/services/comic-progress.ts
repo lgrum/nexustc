@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, sql } from "@repo/db";
-import { userComicProgress, xpEvent } from "@repo/db/schema/app";
+import { userComicProgress, xpEvent, xpRewardBlock } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import { getPatronTierRank } from "@repo/shared/constants";
@@ -797,6 +797,14 @@ async function persistProgressRecord(params: {
       }
 
       if (processedPages.length > 0) {
+        const rewardBlock = await tx.query.xpRewardBlock.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(xpRewardBlock.userId, params.state.userId),
+            eq(xpRewardBlock.kind, "comic"),
+            eq(xpRewardBlock.scopeKey, `comic:${params.state.comicId}`)
+          ),
+        });
         const utcDayStart = new Date(
           Date.UTC(
             params.now.getUTCFullYear(),
@@ -804,23 +812,27 @@ async function persistProgressRecord(params: {
             params.now.getUTCDate()
           )
         );
-        const [daily] = await tx
-          .select({
-            total: sql<number>`coalesce(sum(${xpEvent.amount}), 0)`,
-          })
-          .from(xpEvent)
-          .where(
-            and(
-              eq(xpEvent.userId, params.state.userId),
-              eq(xpEvent.kind, "comic_reading"),
-              inArray(xpEvent.state, COMIC_READING_CAP_STATES),
-              gte(xpEvent.createdAt, utcDayStart)
-            )
-          );
-        const rewardCount = getComicReadingRewardCount(
-          processedPages.length,
-          Number(daily?.total ?? 0)
-        );
+        const [daily] = rewardBlock
+          ? []
+          : await tx
+              .select({
+                total: sql<number>`coalesce(sum(${xpEvent.amount}), 0)`,
+              })
+              .from(xpEvent)
+              .where(
+                and(
+                  eq(xpEvent.userId, params.state.userId),
+                  eq(xpEvent.kind, "comic_reading"),
+                  inArray(xpEvent.state, COMIC_READING_CAP_STATES),
+                  gte(xpEvent.createdAt, utcDayStart)
+                )
+              );
+        const rewardCount = rewardBlock
+          ? 0
+          : getComicReadingRewardCount(
+              processedPages.length,
+              Number(daily?.total ?? 0)
+            );
         let projectionMismatch = false;
         rewardedPages = processedPages.slice(0, rewardCount);
         if (rewardCount > 0) {

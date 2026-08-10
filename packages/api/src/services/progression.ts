@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { and, desc, eq, gt, inArray, lt, lte, or, sql } from "@repo/db";
+import { and, desc, eq, gt, inArray, like, lt, lte, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisWallet,
@@ -46,6 +46,7 @@ type ProgressionErrorCode =
   | "IDEMPOTENCY_CONFLICT"
   | "INVALID_TOTAL"
   | "PRE_ACTIVATION_EVENT"
+  | "PROJECTION_MISMATCH"
   | "VISIBILITY_DISABLED";
 
 export class ProgressionError extends Error {
@@ -302,7 +303,10 @@ export async function cancelPendingXpEventsInTransaction(
     closeEmptyCases?: boolean;
     eventId?: string;
     now: Date;
+    decisionReason?: string;
+    sourceRefPrefix?: string;
     subjectId?: string;
+    userId?: string;
   }
 ) {
   const scopeCondition = input.eventId
@@ -311,7 +315,12 @@ export async function cancelPendingXpEventsInTransaction(
       ? eq(xpEvent.integrityCaseId, input.caseId)
       : input.subjectId
         ? eq(xpEvent.subjectId, input.subjectId)
-        : null;
+        : input.sourceRefPrefix && input.userId
+          ? and(
+              eq(xpEvent.userId, input.userId),
+              like(xpEvent.sourceRef, `${input.sourceRefPrefix}%`)
+            )
+          : null;
   if (!scopeCondition) {
     throw new Error("PENDING_XP_SCOPE_REQUIRED");
   }
@@ -385,7 +394,9 @@ export async function cancelPendingXpEventsInTransaction(
           .update(xpIntegrityCase)
           .set({
             decidedAt: input.now,
-            decisionReason: "El contenido de origen fue eliminado.",
+            decidedBy: input.actorUserId,
+            decisionReason:
+              input.decisionReason ?? "El contenido de origen fue eliminado.",
             status: "dismissed",
             updatedAt: input.now,
           })
@@ -856,6 +867,13 @@ export function postXpEvent(
     postXpEventInTransaction(tx, input)
   );
   return settlement.then(async (result) => {
+    if (
+      ownerAdjustment &&
+      "projectionMismatch" in result &&
+      result.projectionMismatch === true
+    ) {
+      throw new ProgressionError("PROJECTION_MISMATCH");
+    }
     await notifyXpSettlement(db, input.userId, result);
     if (!result.replayed && ownerAdjustment) {
       await db.transaction((tx) =>

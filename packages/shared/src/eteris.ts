@@ -50,8 +50,8 @@ export const ETERIS_SYSTEM_WALLETS = [
   { code: "write-off", id: "eteris-system-write-off", kind: "write_off" },
 ] as const;
 
-export const ETERIS_MIN_AMOUNT = BigInt("-9223372036854775808");
 export const ETERIS_MAX_AMOUNT = 9_223_372_036_854_775_807n;
+export const ETERIS_MIN_AMOUNT = -ETERIS_MAX_AMOUNT;
 
 export const eterisAmountSchema = z
   .string()

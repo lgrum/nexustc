@@ -149,7 +149,7 @@ test("public lookup returns only the opt-in serialized balance", async () => {
 
 test("owner adjustment accepts a signed decimal string and requires owner", async () => {
   const input = {
-    amount: "-9223372036854775808",
+    amount: "-9223372036854775807",
     idempotencyKey: "support-ticket-123456",
     reason: "Correcci\u00F3n aprobada por soporte",
     userId: "target-user",
@@ -161,8 +161,15 @@ test("owner adjustment accepts a signed decimal string and requires owner", asyn
   expect(mocks.adjust).toHaveBeenCalledWith(expect.anything(), {
     ...input,
     actorUserId: "user-1",
-    amount: -9_223_372_036_854_775_808n,
+    amount: -9_223_372_036_854_775_807n,
   });
+  await expect(
+    call(
+      eterisRouter.owner.adjust,
+      { ...input, amount: "-9223372036854775808" },
+      { context: createContext("owner") }
+    )
+  ).rejects.toThrow("Input validation failed");
   await expect(
     call(eterisRouter.owner.adjust, input, {
       context: createContext("admin"),
