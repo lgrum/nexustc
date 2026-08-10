@@ -2,7 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const report = vi.hoisted(() => vi.fn());
 
@@ -17,7 +17,13 @@ vi.mock("@repo/env", () => ({
 const { GET } = await import("./route");
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-10T03:10:00.000Z"));
   report.mockReset().mockResolvedValue({ day: "2026-08-10" });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 test("rejects requests without the cron secret", async () => {
@@ -37,7 +43,10 @@ test("materializes the daily economy snapshot with the cron secret", async () =>
   );
 
   await expect(response.json()).resolves.toEqual({ day: "2026-08-10" });
-  expect(report).toHaveBeenCalledWith({ name: "database" });
+  expect(report).toHaveBeenCalledWith(
+    { name: "database" },
+    new Date("2026-08-09T03:10:00.000Z")
+  );
 });
 
 test("schedules daily snapshot materialization independently of admin traffic", async () => {

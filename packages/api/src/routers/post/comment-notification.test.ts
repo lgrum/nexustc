@@ -10,6 +10,9 @@ const rewards = vi.hoisted(() => ({
   saveCommentRewardSubjectInTransaction: vi.fn(),
   settleCommentMilestonesInTransaction: vi.fn(),
 }));
+const bans = vi.hoisted(() => ({
+  userIsNotActivelyBanned: vi.fn(),
+}));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
 vi.mock("@repo/env", () => ({ env: { XP_ACCRUAL_ENABLED: false } }));
@@ -35,6 +38,9 @@ vi.mock("../../services/contribution-rewards", () => ({
 vi.mock("../../services/progression", () => ({
   notifyXpSettlement: vi.fn(),
   notifyXpSettlementInTransaction: rewards.notifyXpSettlementInTransaction,
+}));
+vi.mock("../../utils/user-ban", () => ({
+  userIsNotActivelyBanned: bans.userIsNotActivelyBanned,
 }));
 
 function createContext({
@@ -388,6 +394,7 @@ describe("comment reward likes", () => {
       userId: "liker-1",
       xpAccrualEnabledAtCreation: false,
     });
+    expect(bans.userIsNotActivelyBanned).toHaveBeenCalledWith(expect.any(Date));
   });
 
   it("reconciles unsupported milestones after removing a like", async () => {

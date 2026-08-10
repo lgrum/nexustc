@@ -111,8 +111,12 @@ describe("verified comic reading rewards", () => {
   };
 
   beforeEach(() => {
-    notifications.notify.mockReset().mockResolvedValue();
-    notifications.notifyInTransaction.mockReset().mockResolvedValue();
+    notifications.notify
+      .mockReset()
+      .mockImplementation(() => Promise.resolve());
+    notifications.notifyInTransaction
+      .mockReset()
+      .mockImplementation(() => Promise.resolve());
     integrity.settle.mockReset().mockResolvedValue({
       outcome: "posted",
       settlement: {

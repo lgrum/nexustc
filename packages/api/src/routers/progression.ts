@@ -43,16 +43,20 @@ export default {
     .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .handler(async ({ context: { db, session, ...context } }) => {
       let progression = await getUserProgression(db, session.user.id);
-      const settlements = progression.accrualEnabled
+      const release = progression.accrualEnabled
         ? await releaseMaturedPendingXp(db, session.user.id)
-        : [];
+        : { completed: true, settlements: [] };
+      const { settlements } = release;
       if (settlements.length > 0) {
         progression = await getUserProgression(db, session.user.id);
       }
-      let publicProfileChanged = settlements.some(
-        (settlement) =>
-          !settlement.replayed && settlement.level !== settlement.previousLevel
-      );
+      let publicProfileChanged =
+        !release.completed ||
+        settlements.some(
+          (settlement) =>
+            !settlement.replayed &&
+            settlement.level !== settlement.previousLevel
+        );
       try {
         const stipend = await grantMonthlyPatreonStipend(db, session.user.id);
         publicProfileChanged ||=

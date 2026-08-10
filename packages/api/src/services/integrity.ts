@@ -506,7 +506,7 @@ export async function releaseMaturedPendingXp(
     }
     return released;
   });
-  return result.settlements;
+  return result;
 }
 
 export async function listIntegrityCases(

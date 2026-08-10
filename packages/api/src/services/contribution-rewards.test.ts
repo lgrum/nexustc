@@ -540,8 +540,10 @@ beforeEach(() => {
   progression.calls = [];
   progression.deferred = false;
   progression.fail = false;
-  progression.notify.mockReset().mockResolvedValue();
-  progression.notifyInTransaction.mockReset().mockResolvedValue();
+  progression.notify.mockReset().mockImplementation(() => Promise.resolve());
+  progression.notifyInTransaction
+    .mockReset()
+    .mockImplementation(() => Promise.resolve());
   progression.projectionMismatch = false;
   progression.replayed = false;
 });

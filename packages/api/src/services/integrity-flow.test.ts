@@ -135,6 +135,21 @@ describe("integrity settlement", () => {
     expect(progression.notify).not.toHaveBeenCalled();
   });
 
+  it("preserves an incomplete matured release for cache invalidation", async () => {
+    progression.matured.mockResolvedValueOnce({
+      completed: false,
+      settlements: [],
+    });
+    const db = {
+      transaction: vi.fn((callback) => callback({} as Transaction)),
+    } as unknown as Database;
+
+    await expect(releaseMaturedPendingXp(db, "user-1")).resolves.toEqual({
+      completed: false,
+      settlements: [],
+    });
+  });
+
   it("rejects invalid proof without recording or penalizing the account", async () => {
     const store = createTransaction();
     await expect(

@@ -70,7 +70,7 @@ beforeEach(() => {
     publicBalance: false,
     status: "active",
   });
-  mocks.releasePending.mockResolvedValue([]);
+  mocks.releasePending.mockResolvedValue({ completed: true, settlements: [] });
   mocks.grantStipend.mockResolvedValue({ granted: "0", month: "2026-08" });
   mocks.listHistory.mockResolvedValue({ items: [], nextCursor: null });
   mocks.listCases.mockResolvedValue([]);
@@ -141,9 +141,10 @@ describe("progression router", () => {
       totalXp: 0,
       xpForNextLevel: 67,
     });
-    mocks.releasePending.mockResolvedValueOnce([
-      { level: 2, previousLevel: 1, replayed: false },
-    ]);
+    mocks.releasePending.mockResolvedValueOnce({
+      completed: true,
+      settlements: [{ level: 2, previousLevel: 1, replayed: false }],
+    });
     await expect(
       call(progressionRouter.getMine, undefined, { context: createContext() })
     ).resolves.toMatchObject({ publicProfileChanged: true });
@@ -153,6 +154,27 @@ describe("progression router", () => {
       month: "2026-08",
       publicProfileChanged: true,
     });
+    await expect(
+      call(progressionRouter.getMine, undefined, { context: createContext() })
+    ).resolves.toMatchObject({ publicProfileChanged: true });
+  });
+
+  it("invalidates a public wallet frozen by an incomplete matured release", async () => {
+    mocks.getMine.mockResolvedValueOnce({
+      accrualEnabled: true,
+      enabled: true,
+      level: 1,
+      nextLevelTotalXp: 67,
+      pendingXp: 5,
+      progress: 0,
+      totalXp: 0,
+      xpForNextLevel: 67,
+    });
+    mocks.releasePending.mockResolvedValueOnce({
+      completed: false,
+      settlements: [],
+    });
+
     await expect(
       call(progressionRouter.getMine, undefined, { context: createContext() })
     ).resolves.toMatchObject({ publicProfileChanged: true });

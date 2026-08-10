@@ -88,6 +88,7 @@ import {
   POST_VIEW_DEDUPE_TTL_SECONDS,
 } from "../../utils/post-views";
 import { assertTextIsNotSpammy } from "../../utils/spam-detection";
+import { userIsNotActivelyBanned } from "../../utils/user-ban";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -1938,10 +1939,7 @@ export default {
             .innerJoin(user, eq(user.id, comment.authorId))
             .leftJoin(post, eq(post.id, comment.postId))
             .where(
-              and(
-                eq(comment.id, input.commentId),
-                sql`${user.banned} IS DISTINCT FROM true`
-              )
+              and(eq(comment.id, input.commentId), userIsNotActivelyBanned(now))
             )
             .limit(1);
 

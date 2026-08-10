@@ -46,7 +46,7 @@ beforeEach(() => {
 
 test("keeps a successful membership sync when stipend settlement fails", async () => {
   mocks.grantStipend.mockRejectedValueOnce(new Error("wallet mismatch"));
-  const onConflictDoUpdate = vi.fn().mockResolvedValue();
+  const onConflictDoUpdate = vi.fn(() => Promise.resolve());
   const db = {
     insert: vi.fn(() => ({
       values: vi.fn(() => ({ onConflictDoUpdate })),
