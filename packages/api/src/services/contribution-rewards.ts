@@ -26,6 +26,7 @@ import { ratingReviewSchema } from "@repo/shared/schemas";
 
 import { findForbiddenContentMatch } from "../utils/forbidden-content";
 import { detectSpammyText } from "../utils/spam-detection";
+import { isUserBanActive, userIsNotActivelyBanned } from "../utils/user-ban";
 import {
   cleanupExpiredRiskSignals,
   settleXpWithIntegrityInTransaction,
@@ -93,6 +94,7 @@ export function isEligibleLike(input: {
   activatedAt?: Date;
   authorUserId: string;
   likeCreatedAt: Date;
+  likerBanExpires: Date | null;
   likerBanned: boolean | null;
   likerCreatedAt: Date;
   likerEmailVerified: boolean;
@@ -104,7 +106,10 @@ export function isEligibleLike(input: {
     input.xpAccrualEnabledAtCreation &&
     (!input.activatedAt || input.likeCreatedAt >= input.activatedAt) &&
     input.likerEmailVerified &&
-    !input.likerBanned &&
+    !isUserBanActive(
+      { banExpires: input.likerBanExpires, banned: input.likerBanned },
+      input.likeCreatedAt
+    ) &&
     input.likerCreatedAt.getTime() <=
       input.likeCreatedAt.getTime() - 7 * 86_400_000
   );
@@ -113,7 +118,8 @@ export function isEligibleLike(input: {
 async function countEligibleLikesInTransaction(
   tx: Transaction,
   subject: RewardSubjectIdentity,
-  activatedAt?: Date
+  activatedAt: Date | undefined,
+  now: Date
 ) {
   const [row] =
     subject.kind === "review"
@@ -130,7 +136,7 @@ async function countEligibleLikesInTransaction(
                 : undefined,
               eq(postRatingLikes.emailVerifiedAtCreation, true),
               eq(postRatingLikes.xpAccrualEnabledAtCreation, true),
-              sql`${user.banned} is distinct from true`,
+              userIsNotActivelyBanned(now),
               sql`${user.createdAt} <= ${postRatingLikes.createdAt} - interval '7 days'`,
               sql`not exists (
                 select 1
@@ -153,7 +159,7 @@ async function countEligibleLikesInTransaction(
                 : undefined,
               eq(commentLikes.emailVerifiedAtCreation, true),
               eq(commentLikes.xpAccrualEnabledAtCreation, true),
-              sql`${user.banned} is distinct from true`,
+              userIsNotActivelyBanned(now),
               sql`${user.createdAt} <= ${commentLikes.createdAt} - interval '7 days'`,
               sql`not exists (
                 select 1
@@ -174,6 +180,7 @@ async function isEligibleTriggeringReviewLike(
   const [like] = await tx
     .select({
       likeCreatedAt: postRatingLikes.createdAt,
+      likerBanExpires: user.banExpires,
       likerBanned: user.banned,
       likerCreatedAt: user.createdAt,
       likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
@@ -202,6 +209,7 @@ async function isEligibleTriggeringCommentLike(
   const [like] = await tx
     .select({
       likeCreatedAt: commentLikes.createdAt,
+      likerBanExpires: user.banExpires,
       likerBanned: user.banned,
       likerCreatedAt: user.createdAt,
       likerEmailVerified: commentLikes.emailVerifiedAtCreation,
@@ -599,7 +607,7 @@ export async function reconcileEditedReviewRewardsInTransaction(
     return { reversedXp: 0, settlements: [] };
   }
   const author = await tx.query.user.findFirst({
-    columns: { banned: true },
+    columns: { banExpires: true, banned: true },
     where: eq(user.id, review.userId),
   });
   return reconcileEditedContributionRewardsInTransaction(tx, {
@@ -608,7 +616,8 @@ export async function reconcileEditedReviewRewardsInTransaction(
         executor,
         review,
         lockedSubject,
-        author?.banned ?? null
+        author ?? { banExpires: null, banned: null },
+        now
       ),
     kind: "review",
     now,
@@ -626,7 +635,7 @@ export async function reconcileEditedCommentRewardsInTransaction(
     return { reversedXp: 0, settlements: [] };
   }
   const author = await tx.query.user.findFirst({
-    columns: { banned: true },
+    columns: { banExpires: true, banned: true },
     where: eq(user.id, snapshot.userId),
   });
   return reconcileEditedContributionRewardsInTransaction(tx, {
@@ -635,7 +644,8 @@ export async function reconcileEditedCommentRewardsInTransaction(
         executor,
         snapshot,
         lockedSubject,
-        author?.banned ?? null
+        author ?? { banExpires: null, banned: null },
+        now
       ),
     kind: "comment",
     now,
@@ -646,16 +656,20 @@ export async function reconcileEditedCommentRewardsInTransaction(
 async function isContributionCurrentlyEligible(
   tx: Transaction,
   input: {
-    authorBanned: boolean | null;
+    authorBan: { banExpires: Date | null; banned: boolean | null };
     content: string;
     contentEligible: boolean;
     kind: "comment" | "review";
+    now: Date;
     scopeKey: string;
     subject: typeof xpRewardSubject.$inferSelect;
     userId: string;
   }
 ) {
-  if (!(input.subject.dailyCapEligible && !input.authorBanned)) {
+  if (
+    !input.subject.dailyCapEligible ||
+    isUserBanActive(input.authorBan, input.now)
+  ) {
     return false;
   }
   if (!input.contentEligible) {
@@ -704,13 +718,15 @@ function isReviewCurrentlyEligible(
   tx: Transaction,
   review: ReviewSnapshot,
   subject: typeof xpRewardSubject.$inferSelect,
-  authorBanned: boolean | null
+  authorBan: { banExpires: Date | null; banned: boolean | null },
+  now: Date
 ) {
   return isContributionCurrentlyEligible(tx, {
-    authorBanned,
+    authorBan,
     content: review.review,
     contentEligible: ratingReviewSchema.safeParse(review.review).success,
     kind: "review",
+    now,
     scopeKey: `post:${review.postId}`,
     subject,
     userId: review.userId,
@@ -721,13 +737,15 @@ function isCommentCurrentlyEligible(
   tx: Transaction,
   snapshot: CommentSnapshot,
   subject: typeof xpRewardSubject.$inferSelect,
-  authorBanned: boolean | null
+  authorBan: { banExpires: Date | null; banned: boolean | null },
+  now: Date
 ) {
   return isContributionCurrentlyEligible(tx, {
-    authorBanned,
+    authorBan,
     content: snapshot.content,
     contentEligible: normalizeContributionText(snapshot.content).length >= 40,
     kind: "comment",
+    now,
     scopeKey: `comment:${snapshot.id}`,
     subject,
     userId: snapshot.userId,
@@ -952,6 +970,7 @@ export async function settleReviewMilestonesInTransaction(
 ) {
   const [review] = await tx
     .select({
+      authorBanExpires: user.banExpires,
       authorBanned: user.banned,
       createdAt: postRating.createdAt,
       id: postRating.id,
@@ -983,7 +1002,13 @@ export async function settleReviewMilestonesInTransaction(
     .for("update");
   if (
     !env.XP_ACCRUAL_ENABLED ||
-    !(await isReviewCurrentlyEligible(tx, review, subject, review.authorBanned))
+    !(await isReviewCurrentlyEligible(
+      tx,
+      review,
+      subject,
+      { banExpires: review.authorBanExpires, banned: review.authorBanned },
+      now
+    ))
   ) {
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
   }
@@ -991,7 +1016,8 @@ export async function settleReviewMilestonesInTransaction(
   const eligibleLikes = await countEligibleLikesInTransaction(
     tx,
     subject,
-    activatedAt
+    activatedAt,
+    now
   );
   return postContributionMilestonesInTransaction(tx, {
     assessment: await assessContributionMilestoneIntegrity(tx, {
@@ -1018,6 +1044,7 @@ export async function settleCommentMilestonesInTransaction(
 ) {
   const [snapshot] = await tx
     .select({
+      authorBanExpires: user.banExpires,
       authorBanned: user.banned,
       content: comment.content,
       createdAt: comment.createdAt,
@@ -1053,7 +1080,11 @@ export async function settleCommentMilestonesInTransaction(
       tx,
       snapshot,
       subject,
-      snapshot.authorBanned
+      {
+        banExpires: snapshot.authorBanExpires,
+        banned: snapshot.authorBanned,
+      },
+      now
     ))
   ) {
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
@@ -1062,7 +1093,8 @@ export async function settleCommentMilestonesInTransaction(
   const eligibleLikes = await countEligibleLikesInTransaction(
     tx,
     subject,
-    activatedAt
+    activatedAt,
+    now
   );
   return postContributionMilestonesInTransaction(tx, {
     assessment: await assessContributionMilestoneIntegrity(tx, {
@@ -1099,7 +1131,8 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
   const eligibleLikes = await countEligibleLikesInTransaction(
     tx,
     subject,
-    activatedAt ?? undefined
+    activatedAt ?? undefined,
+    input.now
   );
 
   return reverseUnsupportedMilestonesForCount(tx, {
@@ -1258,7 +1291,8 @@ export async function reconcileBannedLikerRewardsInTransaction(
     const eligibleLikes = await countEligibleLikesInTransaction(
       tx,
       subject,
-      activatedAt ?? undefined
+      activatedAt ?? undefined,
+      input.now
     );
     reconciled.push(
       await reverseUnsupportedMilestonesForCount(tx, {

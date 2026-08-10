@@ -278,6 +278,7 @@ describe("comment edit reward reconciliation", () => {
 describe("comment reward likes", () => {
   it("settles milestones only when a like row is newly inserted", async () => {
     const query = {
+      for: vi.fn(),
       from: vi.fn(),
       innerJoin: vi.fn(),
       leftJoin: vi.fn(),
@@ -298,6 +299,7 @@ describe("comment reward likes", () => {
       where: vi.fn(),
     };
     query.from.mockReturnValue(query);
+    query.for.mockReturnValue(query);
     query.innerJoin.mockReturnValue(query);
     query.leftJoin.mockReturnValue(query);
     query.where.mockReturnValue(query);
@@ -345,6 +347,10 @@ describe("comment reward likes", () => {
       { deviceHash: null, ipPrefixHash: null }
     );
     expect(rewards.settleCommentMilestonesInTransaction).toHaveBeenCalledOnce();
+    expect(query.for).toHaveBeenCalledWith("update");
+    expect(query.for.mock.invocationCallOrder[0]).toBeLessThan(
+      values.mock.invocationCallOrder[0]!
+    );
     expect(values).toHaveBeenCalledWith({
       commentId: "comment-1",
       createdAt: expect.any(Date),
@@ -356,6 +362,7 @@ describe("comment reward likes", () => {
 
   it("rejects a like when the comment's parent post is not viewable", async () => {
     const query = {
+      for: vi.fn(),
       from: vi.fn(),
       innerJoin: vi.fn(),
       leftJoin: vi.fn(),
@@ -376,6 +383,7 @@ describe("comment reward likes", () => {
       where: vi.fn(),
     };
     query.from.mockReturnValue(query);
+    query.for.mockReturnValue(query);
     query.innerJoin.mockReturnValue(query);
     query.leftJoin.mockReturnValue(query);
     query.where.mockReturnValue(query);

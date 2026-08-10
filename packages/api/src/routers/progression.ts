@@ -107,22 +107,32 @@ export default {
     inspectUser: permissionProcedure({ economy: ["view"] })
       .use(fixedWindowRatelimitMiddleware({ limit: 60, windowSeconds: 60 }))
       .input(historyInputSchema.extend({ userId: z.string().min(1) }))
-      .handler(async ({ context: { db }, input }) => {
-        const [progression, history] = await Promise.all([
-          getUserProgression(db, input.userId),
-          listUserXpHistory(db, {
-            authorizedStaff: true,
-            cursor: input.cursor
-              ? {
-                  createdAt: new Date(input.cursor.createdAt),
-                  id: input.cursor.id,
-                }
-              : undefined,
-            limit: input.limit,
-            userId: input.userId,
-          }),
-        ]);
-        return { ...progression, history };
+      .handler(async ({ context: { db }, errors, input }) => {
+        try {
+          const [progression, history] = await Promise.all([
+            getUserProgression(db, input.userId),
+            listUserXpHistory(db, {
+              authorizedStaff: true,
+              cursor: input.cursor
+                ? {
+                    createdAt: new Date(input.cursor.createdAt),
+                    id: input.cursor.id,
+                  }
+                : undefined,
+              limit: input.limit,
+              userId: input.userId,
+            }),
+          ]);
+          return { ...progression, history };
+        } catch (error) {
+          if (
+            error instanceof ProgressionError &&
+            error.code === "PROGRESSION_NOT_FOUND"
+          ) {
+            throw errors.NOT_FOUND({ message: "Cuenta no encontrada." });
+          }
+          throw error;
+        }
       }),
 
     decideCase: permissionProcedure({ progressionIntegrity: ["decide"] })

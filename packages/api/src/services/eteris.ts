@@ -24,6 +24,7 @@ import type {
 } from "@repo/shared/eteris";
 import { z } from "zod";
 
+import { isUserBanActive } from "../utils/user-ban";
 import { createUserNotification } from "./notification";
 import { ensureProgressionActivationInTransaction } from "./progression-activation";
 
@@ -131,6 +132,13 @@ export async function getOrCreateUserWalletInTransaction(
   userId: string,
   now = new Date()
 ) {
+  const account = await executor.query.user.findFirst({
+    columns: { id: true },
+    where: eq(user.id, userId),
+  });
+  if (!account) {
+    throw new EterisError("WALLET_NOT_FOUND");
+  }
   await ensureSystemWallets(executor, now);
   await executor
     .insert(eterisWallet)
@@ -159,7 +167,7 @@ export async function getUserWallet(db: Database, userId: string) {
   const [wallet, account] = await Promise.all([
     db.transaction((tx) => getOrCreateUserWalletInTransaction(tx, userId)),
     db.query.user.findFirst({
-      columns: { banned: true },
+      columns: { banExpires: true, banned: true },
       where: eq(user.id, userId),
     }),
   ]);
@@ -168,7 +176,7 @@ export async function getUserWallet(db: Database, userId: string) {
     canSpend:
       env.XP_ECONOMY_ENABLED &&
       env.ETERIS_SPENDING_ENABLED &&
-      !account?.banned &&
+      Boolean(account && !isUserBanActive(account)) &&
       wallet.status === "active" &&
       wallet.balance >= ZERO,
     debt: wallet.balance < ZERO,
@@ -201,15 +209,19 @@ export function setPublicWalletBalance(
   });
 }
 
-export async function getPublicWalletBalance(db: Database, userId: string) {
+export async function getPublicWalletBalance(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
   if (!env.XP_ECONOMY_ENABLED) {
     return null;
   }
   const account = await db.query.user.findFirst({
-    columns: { banned: true },
+    columns: { banExpires: true, banned: true },
     where: eq(user.id, userId),
   });
-  if (!account || account.banned) {
+  if (!account || isUserBanActive(account, now)) {
     return null;
   }
   const wallet = await db.query.eterisWallet.findFirst({
@@ -289,6 +301,7 @@ async function settleEterisTransaction(
 
   const metadata = metadataSchema.parse(input.metadata ?? {});
   const postings = consolidatePostings(input.postings);
+  const now = new Date();
   if (
     input.debtPolicy === "trusted-recovery" &&
     !(
@@ -384,10 +397,10 @@ async function settleEterisTransaction(
           continue;
         }
         const account = await tx.query.user.findFirst({
-          columns: { banned: true },
+          columns: { banExpires: true, banned: true },
           where: eq(user.id, wallet.userId),
         });
-        if (!account || account.banned) {
+        if (!account || isUserBanActive(account, now)) {
           throw new EterisError("CLOSED_OR_FROZEN");
         }
       }
@@ -439,7 +452,6 @@ async function settleEterisTransaction(
         walletId: posting.walletId,
       }))
     );
-    const now = new Date();
     for (const posting of balances) {
       await tx
         .update(eterisWalletBalance)

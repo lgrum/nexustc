@@ -34,6 +34,7 @@ import {
   getAccountLevelReward,
 } from "@repo/shared/progression";
 
+import { isUserBanActive } from "../utils/user-ban";
 import {
   getOrCreateUserWalletInTransaction,
   postEterisTransactionInTransaction,
@@ -57,6 +58,7 @@ type ProgressionErrorCode =
   | "IDEMPOTENCY_CONFLICT"
   | "INVALID_TOTAL"
   | "PRE_ACTIVATION_EVENT"
+  | "PROGRESSION_NOT_FOUND"
   | "PROJECTION_MISMATCH"
   | "VISIBILITY_DISABLED";
 
@@ -75,6 +77,13 @@ async function getOrCreateUserProgression(
   userId: string,
   now = new Date()
 ) {
+  const account = await executor.query.user.findFirst({
+    columns: { id: true },
+    where: eq(user.id, userId),
+  });
+  if (!account) {
+    throw new ProgressionError("PROGRESSION_NOT_FOUND");
+  }
   await executor
     .insert(userProgression)
     .values({ updatedAt: now, userId })
@@ -128,15 +137,19 @@ export async function getUserProgression(db: Database, userId: string) {
   };
 }
 
-export async function getPublicAccountLevel(db: Database, userId: string) {
+export async function getPublicAccountLevel(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
   if (!env.XP_ECONOMY_ENABLED) {
     return null;
   }
   const account = await db.query.user.findFirst({
-    columns: { banned: true, id: true },
+    columns: { banExpires: true, banned: true, id: true },
     where: eq(user.id, userId),
   });
-  if (!account || account.banned) {
+  if (!account || isUserBanActive(account, now)) {
     return null;
   }
 
@@ -598,10 +611,10 @@ export async function postXpEventInTransaction(
 
   if (input.amount > 0) {
     const account = await tx.query.user.findFirst({
-      columns: { banned: true },
+      columns: { banExpires: true, banned: true },
       where: eq(user.id, input.userId),
     });
-    if (!account || account.banned) {
+    if (!account || isUserBanActive(account, now)) {
       throw new ProgressionError("ACCOUNT_BANNED");
     }
   }
@@ -791,10 +804,10 @@ export async function createPendingXpEventInTransaction(
     };
   }
   const account = await tx.query.user.findFirst({
-    columns: { banned: true },
+    columns: { banExpires: true, banned: true },
     where: eq(user.id, input.userId),
   });
-  if (!account || account.banned) {
+  if (!account || isUserBanActive(account, now)) {
     throw new ProgressionError("ACCOUNT_BANNED");
   }
   const wallet = await tx.query.eterisWallet.findFirst({

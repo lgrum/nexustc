@@ -33,6 +33,7 @@ import type {
 } from "@repo/shared/profile";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 import { getPublicWalletBalance } from "./eteris";
 import { getPublicAccountLevel } from "./progression";
 
@@ -252,7 +253,7 @@ export async function getPublicProfileActivityCounts(
             eq(postBookmark.userId, userId),
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(now),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned(now)
           )
         )
     : null;
@@ -267,7 +268,7 @@ export async function getPublicProfileActivityCounts(
             eq(postRating.userId, userId),
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(now),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned(now)
           )
         )
     : null;
@@ -339,7 +340,11 @@ function getMediaAssetsByIds(db: Database, ids: string[]) {
   });
 }
 
-export async function buildProfileSummaries(db: Database, userIds: string[]) {
+export async function buildProfileSummaries(
+  db: Database,
+  userIds: string[],
+  asOf = new Date()
+) {
   if (userIds.length === 0) {
     return [] satisfies ProfileSummary[];
   }
@@ -357,7 +362,7 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
         },
         where: and(
           inArray(user.id, uniqueUserIds),
-          sql`${user.banned} IS DISTINCT FROM true`
+          userIsNotActivelyBanned(asOf)
         ),
       }),
       getOrCreateProfileSystemConfig(db),
@@ -633,8 +638,12 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
   });
 }
 
-export async function getPublicProfile(db: Database, userId: string) {
-  const [summary] = await buildProfileSummaries(db, [userId]);
+export async function getPublicProfile(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
+  const [summary] = await buildProfileSummaries(db, [userId], now);
 
   if (!summary) {
     return null;
@@ -644,10 +653,7 @@ export async function getPublicProfile(db: Database, userId: string) {
     getOrCreateProfileSettings(db, userId),
     db.query.user.findFirst({
       columns: { createdAt: true },
-      where: and(
-        eq(user.id, userId),
-        sql`${user.banned} IS DISTINCT FROM true`
-      ),
+      where: and(eq(user.id, userId), userIsNotActivelyBanned(now)),
     }),
     getOrCreateProfileSystemConfig(db),
   ]);
@@ -664,9 +670,9 @@ export async function getPublicProfile(db: Database, userId: string) {
             where: eq(profileMediaAsset.id, settings.bannerAssetId),
           })
         : null,
-      getPublicProfileActivityCounts(db, userId, visibility),
-      getPublicAccountLevel(db, userId),
-      getPublicWalletBalance(db, userId),
+      getPublicProfileActivityCounts(db, userId, visibility, now),
+      getPublicAccountLevel(db, userId, now),
+      getPublicWalletBalance(db, userId, now),
     ]);
 
   return {

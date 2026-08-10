@@ -329,14 +329,14 @@ describe("verified comic reading rewards", () => {
     const tx = {
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
-          onConflictDoNothing: vi.fn().mockResolvedValue(),
+          onConflictDoNothing: vi.fn(() => Promise.resolve()),
         })),
       })),
       select: vi.fn().mockReturnValue(selectChain),
       update: vi.fn(() => ({
         set: vi.fn((values: Record<string, unknown>) => {
           updateValues = values;
-          return { where: vi.fn().mockResolvedValue() };
+          return { where: vi.fn(() => Promise.resolve()) };
         }),
       })),
     };

@@ -93,8 +93,14 @@ function sqlValues(value: unknown, seen = new WeakSet<object>()): unknown[] {
   return Object.values(value).flatMap((entry) => sqlValues(entry, seen));
 }
 
-function createDatabase() {
-  let banned = false;
+function createDatabase(options?: {
+  banExpires?: Date | null;
+  banned?: boolean;
+  userExists?: boolean;
+}) {
+  let banExpires = options?.banExpires ?? null;
+  let banned = options?.banned ?? false;
+  const userExists = options?.userExists ?? true;
   let transactionSequence = 0n;
   const wallets = new Map<string, Wallet>();
   const balances = new Map<string, bigint>();
@@ -219,7 +225,11 @@ function createDatabase() {
         }),
       },
       user: {
-        findFirst: vi.fn(() => Promise.resolve({ banned })),
+        findFirst: vi.fn(() =>
+          Promise.resolve(
+            userExists ? { banExpires, banned, id: "user-1" } : null
+          )
+        ),
       },
     },
     select: vi.fn((shape: Record<string, unknown>) => ({
@@ -432,8 +442,9 @@ function createDatabase() {
     lockOrders,
     postings,
     reconciliations,
-    setBanned: (value: boolean) => {
+    setBanned: (value: boolean, expires: Date | null = null) => {
       banned = value;
+      banExpires = expires;
     },
     transactions,
     wallets,
@@ -542,6 +553,45 @@ test("a user wallet and all system wallets are created once at zero", async () =
   expect(second).toEqual(first);
   expect(store.wallets.size).toBe(5);
   expect(store.balances.size).toBe(5);
+});
+
+test("does not create wallets for an unknown account", async () => {
+  const store = createDatabase({ userExists: false });
+
+  await expect(getUserWallet(store.db, "missing-user")).rejects.toMatchObject({
+    code: "WALLET_NOT_FOUND",
+  });
+  expect(store.wallets.size).toBe(0);
+});
+
+test("allows spending after a temporary ban has expired", async () => {
+  flags.economy = true;
+  flags.spending = true;
+  const store = createDatabase({
+    banExpires: new Date("2000-01-01T00:00:00.000Z"),
+    banned: true,
+  });
+  await getUserWallet(store.db, "user-1");
+  const wallet = [...store.wallets.values()].find(
+    ({ userId }) => userId === "user-1"
+  )!;
+
+  await expect(getUserWallet(store.db, "user-1")).resolves.toMatchObject({
+    canSpend: true,
+  });
+  await expect(
+    postEterisTransaction(store.db, {
+      idempotencyKey: "expired-ban-spend",
+      kind: "purchase",
+      postings: [
+        { amount: -1n, walletId: wallet.id },
+        { amount: 1n, walletId: "eteris-system-sink" },
+      ],
+      sourceModule: "commerce",
+      sourceRef: "purchase:expired-ban",
+      spending: true,
+    })
+  ).rejects.toMatchObject({ code: "INSUFFICIENT_FUNDS" });
 });
 
 test("server gates reject spending and owner issuance while disabled", async () => {

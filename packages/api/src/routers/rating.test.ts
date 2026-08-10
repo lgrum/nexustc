@@ -52,6 +52,7 @@ const { default: ratingRouter } = await import("./rating");
 
 function createPaginatedQuery(rows: unknown[]) {
   const query = {
+    for: vi.fn(),
     from: vi.fn(),
     innerJoin: vi.fn(),
     limit: vi.fn().mockResolvedValue(rows),
@@ -59,6 +60,7 @@ function createPaginatedQuery(rows: unknown[]) {
     where: vi.fn(),
   };
   query.from.mockReturnValue(query);
+  query.for.mockReturnValue(query);
   query.innerJoin.mockReturnValue(query);
   query.orderBy.mockReturnValue(query);
   query.where.mockReturnValue(query);
@@ -247,6 +249,10 @@ describe("stable review likes", () => {
     });
     expect(onConflictDoNothing).toHaveBeenCalledOnce();
     expect(returning).toHaveBeenCalledOnce();
+    expect(ratingQuery.for).toHaveBeenCalledWith("update");
+    expect(ratingQuery.for.mock.invocationCallOrder[0]).toBeLessThan(
+      values.mock.invocationCallOrder[0]!
+    );
     expect(mocks.settleReviewMilestonesInTransaction).toHaveBeenCalledWith(
       executor,
       "review-current",

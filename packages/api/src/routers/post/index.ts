@@ -1905,6 +1905,11 @@ export default {
           : "none";
 
         const result = await db.transaction(async (tx) => {
+          await tx
+            .select({ id: user.id })
+            .from(user)
+            .where(eq(user.id, session.user.id))
+            .for("update");
           const [existingComment] = await tx
             .select({
               authorId: comment.authorId,

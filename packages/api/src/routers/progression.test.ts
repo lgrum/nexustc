@@ -4,6 +4,15 @@ import type { Context } from "../context";
 import progressionRouter from "./progression";
 
 const mocks = vi.hoisted(() => ({
+  ProgressionError: class ProgressionError extends Error {
+    code: string;
+
+    constructor(code: string) {
+      super(code);
+      this.name = "ProgressionError";
+      this.code = code;
+    }
+  },
   adjustXp: vi.fn(),
   getMine: vi.fn(),
   getPublic: vi.fn(),
@@ -17,6 +26,7 @@ vi.mock("@repo/auth", () => ({
   auth: { api: { userHasPermission: vi.fn(() => ({ success: true })) } },
 }));
 vi.mock("../services/progression", () => ({
+  ProgressionError: mocks.ProgressionError,
   adjustXp: mocks.adjustXp,
   getUserProgression: mocks.getMine,
   getPublicAccountLevel: mocks.getPublic,
@@ -232,6 +242,20 @@ describe("progression router", () => {
     });
     expect(result).toMatchObject({ history: { nextCursor: null } });
     expect(result).not.toHaveProperty("evidence");
+  });
+
+  it("returns not found when staff inspect an unknown account", async () => {
+    mocks.getMine.mockRejectedValueOnce(
+      new mocks.ProgressionError("PROGRESSION_NOT_FOUND")
+    );
+
+    await expect(
+      call(
+        progressionRouter.admin.inspectUser,
+        { userId: "missing-user" },
+        { context: createContext("admin") }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("allows only the owner to append a reasoned signed correction", async () => {

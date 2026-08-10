@@ -133,8 +133,14 @@ function sqlValues(value: unknown, seen = new WeakSet<object>()): unknown[] {
   return Object.values(value).flatMap((entry) => sqlValues(entry, seen));
 }
 
-function createDatabase(options?: { banned?: boolean }) {
+function createDatabase(options?: {
+  banExpires?: Date | null;
+  banned?: boolean;
+  userExists?: boolean;
+}) {
+  let banExpires = options?.banExpires ?? null;
   let banned = options?.banned ?? false;
+  const userExists = options?.userExists ?? true;
   let activation: { activatedAt: Date; curveVersion: string } | null = null;
   let progression: {
     level: number;
@@ -233,7 +239,11 @@ function createDatabase(options?: { banned?: boolean }) {
         findFirst: vi.fn(() => Promise.resolve(activation)),
       },
       user: {
-        findFirst: vi.fn(() => Promise.resolve({ banned, id: "user-1" })),
+        findFirst: vi.fn(() =>
+          Promise.resolve(
+            userExists ? { banExpires, banned, id: "user-1" } : null
+          )
+        ),
       },
       userProgression: {
         findFirst: vi.fn(() => Promise.resolve(progression)),
@@ -341,8 +351,9 @@ function createDatabase(options?: { banned?: boolean }) {
     spend: (amount: bigint) => {
       ledger.balance -= amount;
     },
-    setBanned: (value: boolean) => {
+    setBanned: (value: boolean, expires: Date | null = null) => {
       banned = value;
+      banExpires = expires;
     },
     setProgression: (value: {
       level: number;
@@ -721,6 +732,15 @@ describe("progression service", () => {
     });
     expect(store.getProgression()).toMatchObject({ level: 1, totalXp: 0 });
     expect(store.getActivation()).toBeNull();
+  });
+
+  it("does not create a progression projection for an unknown account", async () => {
+    const store = createDatabase({ userExists: false });
+
+    await expect(
+      getUserProgression(store.db, "missing-user")
+    ).rejects.toMatchObject({ code: "PROGRESSION_NOT_FOUND" });
+    expect(store.getProgression()).toBeNull();
   });
 
   it("returns only public Account Level and keeps history metadata private", async () => {
@@ -1116,6 +1136,25 @@ describe("progression service", () => {
     ).rejects.toMatchObject({ code: "ACCOUNT_BANNED" });
     expect(store.getProgression()).toMatchObject({ level: 2, totalXp: 67 });
     expect(store.getEvents()).toHaveLength(1);
+  });
+
+  it("allows new XP after a temporary ban has expired", async () => {
+    flags.accrual = true;
+    const store = createDatabase({
+      banExpires: new Date("2000-01-01T00:00:00.000Z"),
+      banned: true,
+    });
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: 1,
+        idempotencyKey: "expired-ban-xp",
+        kind: "comic_reading",
+        reasonCode: "verified_pages",
+        sourceRef: "comic:expired-ban",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ settledXp: 1 });
   });
 
   it("clips positive XP at the published cap without aborting the source action", async () => {

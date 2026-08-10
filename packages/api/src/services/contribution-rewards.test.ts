@@ -377,10 +377,10 @@ function createSettlementTransaction(options?: {
     return chain;
   });
   const tx = {
-    delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue() })),
-    execute: vi.fn().mockResolvedValue(),
+    delete: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
+    execute: vi.fn(() => Promise.resolve()),
     insert: vi.fn(() => ({
-      values: vi.fn().mockResolvedValue(),
+      values: vi.fn(() => Promise.resolve()),
     })),
     query: {
       forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
@@ -389,7 +389,7 @@ function createSettlementTransaction(options?: {
     },
     select,
     update: vi.fn(() => ({
-      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue() })),
+      set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
     })),
   } as unknown as Transaction;
   return { lock, sourceLock, tx };
@@ -411,6 +411,7 @@ describe("Eligible Like", () => {
   const eligible = {
     authorUserId: "author-1",
     likeCreatedAt: new Date("2026-08-08T00:00:00.000Z"),
+    likerBanExpires: null,
     likerBanned: false,
     likerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
     likerEmailVerified: true,
@@ -427,6 +428,13 @@ describe("Eligible Like", () => {
       false
     );
     expect(isEligibleLike({ ...eligible, likerBanned: true })).toBe(false);
+    expect(
+      isEligibleLike({
+        ...eligible,
+        likerBanExpires: new Date("2026-08-07T23:59:59.999Z"),
+        likerBanned: true,
+      })
+    ).toBe(true);
     expect(
       isEligibleLike({ ...eligible, xpAccrualEnabledAtCreation: false })
     ).toBe(false);
@@ -924,7 +932,7 @@ function createCommentSettlementTransaction(
       },
       select,
       update: vi.fn(() => ({
-        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue() })),
+        set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
       })),
     } as unknown as Transaction,
   };
