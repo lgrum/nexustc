@@ -17,7 +17,7 @@ import { getUserPatronTier } from "./profile";
 import type { postXpEventInTransaction } from "./progression";
 import {
   lockUserProgressionInTransaction,
-  notifyXpSettlement,
+  notifyXpSettlementInTransaction,
 } from "./progression";
 
 const COMIC_READING_SESSION_TTL_SECONDS = 60 * 60 * 6;
@@ -972,6 +972,20 @@ async function persistProgressRecord(params: {
         !candidate.replayed &&
         candidate.level !== candidate.previousLevel
     );
+    if (settlement) {
+      await notifyXpSettlementInTransaction(
+        tx,
+        params.state.userId,
+        settlement
+      );
+    }
+    for (const releasedSettlement of releasedSettlements) {
+      await notifyXpSettlementInTransaction(
+        tx,
+        params.state.userId,
+        releasedSettlement
+      );
+    }
     return {
       processedPages,
       publicProfileChanged,
@@ -980,17 +994,6 @@ async function persistProgressRecord(params: {
       settlement,
     };
   });
-
-  if (result.settlement) {
-    await notifyXpSettlement(params.db, params.state.userId, result.settlement);
-  }
-  for (const releasedSettlement of result.releasedSettlements) {
-    await notifyXpSettlement(
-      params.db,
-      params.state.userId,
-      releasedSettlement
-    );
-  }
   return result;
 }
 

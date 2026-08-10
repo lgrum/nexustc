@@ -495,12 +495,17 @@ export async function releaseMaturedPendingXp(
   userId: string,
   now = new Date()
 ) {
-  const result = await db.transaction((tx) =>
-    releaseMaturedPendingXpInTransaction(tx, userId, now)
-  );
-  for (const settlement of result.settlements) {
-    await notifyXpSettlement(db, userId, settlement);
-  }
+  const result = await db.transaction(async (tx) => {
+    const released = await releaseMaturedPendingXpInTransaction(
+      tx,
+      userId,
+      now
+    );
+    for (const settlement of released.settlements) {
+      await notifyXpSettlementInTransaction(tx, userId, settlement);
+    }
+    return released;
+  });
   return result.settlements;
 }
 

@@ -8,7 +8,10 @@ import {
   assertCompatibleAccountLevelThresholds,
 } from "@repo/shared/progression";
 
-type ActivationExecutor = Pick<typeof database, "insert" | "select" | "update">;
+type ActivationExecutor = Pick<
+  typeof database,
+  "insert" | "query" | "select" | "update"
+>;
 type ActivationReader = Pick<typeof database, "select">;
 
 export async function readProgressionActivationDate(
@@ -26,6 +29,17 @@ export async function ensureProgressionActivationInTransaction(
   executor: ActivationExecutor,
   now: Date
 ) {
+  const current = await executor.query.progressionSystem.findFirst({
+    columns: { activatedAt: true, curveVersion: true },
+    where: eq(progressionSystem.id, "account-progression"),
+  });
+  if (
+    current?.activatedAt &&
+    current.curveVersion === ACCOUNT_LEVEL_CURVE_VERSION
+  ) {
+    return current.activatedAt;
+  }
+
   await executor
     .insert(progressionSystem)
     .values({

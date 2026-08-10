@@ -291,7 +291,14 @@ export default {
           },
           target: patron.userId,
         });
-      await grantMonthlyPatreonStipend(db, session.user.id);
+      try {
+        await grantMonthlyPatreonStipend(db, session.user.id);
+      } catch (error) {
+        logger?.warn(
+          { err: error },
+          "Monthly Patreon stipend settlement did not block membership sync"
+        );
+      }
 
       logger?.info(
         `Patron sync complete for user ${session.user.id}, tier: ${patronStatus.tier}`

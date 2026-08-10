@@ -30,6 +30,8 @@ const progression = vi.hoisted(() => ({
   calls: [] as Record<string, unknown>[],
   deferred: false,
   fail: false,
+  notify: vi.fn(),
+  notifyInTransaction: vi.fn(),
   projectionMismatch: false,
   replayed: false,
 }));
@@ -86,7 +88,8 @@ vi.mock("./progression", () => ({
     progression.cancelledPending.push(input);
     return Promise.resolve([]);
   }),
-  notifyXpSettlement: vi.fn(),
+  notifyXpSettlement: progression.notify,
+  notifyXpSettlementInTransaction: progression.notifyInTransaction,
   postXpEventInTransaction: vi.fn((_tx, input) => {
     progression.calls.push(input);
     if (progression.fail) {
@@ -537,6 +540,8 @@ beforeEach(() => {
   progression.calls = [];
   progression.deferred = false;
   progression.fail = false;
+  progression.notify.mockReset().mockResolvedValue();
+  progression.notifyInTransaction.mockReset().mockResolvedValue();
   progression.projectionMismatch = false;
   progression.replayed = false;
 });
@@ -1749,5 +1754,76 @@ describe("comment removal lifecycle", () => {
         expect.objectContaining({ subjectId: "nested-subject" }),
       ])
     );
+  });
+
+  it("keeps deletion debt notifications in the deletion transaction", async () => {
+    progression.notify.mockRejectedValueOnce(new Error("notification failure"));
+    progression.notifyInTransaction.mockRejectedValueOnce(
+      new Error("notification failure")
+    );
+    const tx = {
+      delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      execute: vi.fn().mockResolvedValue({ rows: [] }),
+      query: {
+        xpRewardSubject: {
+          findFirst: vi.fn().mockResolvedValue(commentSubject),
+        },
+      },
+      select: vi.fn((shape: Record<string, unknown>) => {
+        if ("userId" in shape) {
+          const chain = {
+            for: vi
+              .fn()
+              .mockResolvedValue([
+                { id: commentSnapshot.id, userId: commentSnapshot.userId },
+              ]),
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([
+              {
+                amount: 10,
+                id: "comment-xp-2",
+                kind: "comment_milestone",
+                milestone: 2,
+                reversesEventId: null,
+              },
+            ]),
+          }),
+        };
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    let committed = false;
+    const db = {
+      transaction: vi.fn(async (callback) => {
+        const result = await callback(tx);
+        committed = true;
+        return result;
+      }),
+    } as unknown as Database;
+
+    await expect(
+      deleteCommentWithRewards(db, {
+        commentId: commentSnapshot.id,
+        reason: "voluntary",
+      })
+    ).rejects.toThrow("notification failure");
+
+    expect(committed).toBe(false);
+    expect(progression.notifyInTransaction).toHaveBeenCalledWith(
+      tx,
+      commentSnapshot.userId,
+      expect.objectContaining({ eventId: expect.any(String) })
+    );
+    expect(progression.notify).not.toHaveBeenCalled();
   });
 });

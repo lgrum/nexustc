@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   decideIntegrityCase,
+  releaseMaturedPendingXp,
   settleXpWithIntegrityInTransaction,
 } from "./integrity";
 
@@ -96,6 +97,44 @@ beforeEach(() => {
 });
 
 describe("integrity settlement", () => {
+  it("keeps matured release notifications in the release transaction", async () => {
+    const settlement = {
+      debtCreated: false,
+      eventId: "released-event-1",
+      level: 2,
+      previousLevel: 1,
+      replayed: false,
+    };
+    progression.matured.mockResolvedValueOnce({
+      completed: true,
+      settlements: [settlement],
+    });
+    progression.notifyInTransaction.mockRejectedValueOnce(
+      new Error("notification failure")
+    );
+    let committed = false;
+    const tx = {} as Transaction;
+    const db = {
+      transaction: vi.fn(async (callback) => {
+        const result = await callback(tx);
+        committed = true;
+        return result;
+      }),
+    } as unknown as Database;
+
+    await expect(releaseMaturedPendingXp(db, "user-1")).rejects.toThrow(
+      "notification failure"
+    );
+
+    expect(committed).toBe(false);
+    expect(progression.notifyInTransaction).toHaveBeenCalledWith(
+      tx,
+      "user-1",
+      settlement
+    );
+    expect(progression.notify).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid proof without recording or penalizing the account", async () => {
     const store = createTransaction();
     await expect(

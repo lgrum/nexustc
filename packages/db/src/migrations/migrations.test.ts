@@ -100,6 +100,20 @@ test("Eteris uses an immutable balanced-ledger schema", async () => {
   );
 });
 
+test("Eteris transaction anonymization cannot rewrite ledger sequence", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0066_immutable_eteris_sequence.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(
+    'OLD."sequence" IS NOT DISTINCT FROM NEW."sequence"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE OR REPLACE FUNCTION "prevent_eteris_transaction_mutation"'
+  );
+});
+
 test("comic reading XP uses compact ranges on existing progress", async () => {
   const migrationSql = await readFile(
     path.join(migrationsDirectory, "0059_thin_vanisher.sql"),

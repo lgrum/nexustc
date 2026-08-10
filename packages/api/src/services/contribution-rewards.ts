@@ -47,6 +47,7 @@ import type { IntegrityCorrelationEvidence } from "./integrity-settlement";
 import {
   cancelPendingXpEventsInTransaction,
   notifyXpSettlement,
+  notifyXpSettlementInTransaction,
   postXpEventInTransaction,
 } from "./progression";
 import {
@@ -1793,39 +1794,38 @@ export function deleteCommentWithRewards(
     reason: "guideline_abuse" | "voluntary";
   }
 ) {
-  return db
-    .transaction(async (tx) => {
-      const now = new Date();
-      const [snapshot] = await tx
-        .select({ id: comment.id, userId: comment.authorId })
-        .from(comment)
-        .where(eq(comment.id, input.commentId))
-        .for("update");
-      if (!snapshot?.userId) {
-        return { reversedXp: 0, settlements: [], userId: null };
-      }
-      const subject = await tx.query.xpRewardSubject.findFirst({
-        where: and(
-          eq(xpRewardSubject.kind, "comment"),
-          eq(xpRewardSubject.entityId, snapshot.id)
-        ),
-      });
-      let reversedXp = 0;
-      let settlements: XpSettlement[] = [];
-      if (subject) {
-        ({ reversedXp, settlements } =
-          await reverseContributionRewardsInTransaction(
-            tx,
-            subject,
-            "comment",
-            now
-          ));
-        await tx
-          .update(xpRewardSubject)
-          .set({ deletedAt: now, deletionReason: input.reason })
-          .where(eq(xpRewardSubject.id, subject.id));
-      }
-      const descendants = await tx.execute(sql`
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const [snapshot] = await tx
+      .select({ id: comment.id, userId: comment.authorId })
+      .from(comment)
+      .where(eq(comment.id, input.commentId))
+      .for("update");
+    if (!snapshot?.userId) {
+      return { reversedXp: 0 };
+    }
+    const subject = await tx.query.xpRewardSubject.findFirst({
+      where: and(
+        eq(xpRewardSubject.kind, "comment"),
+        eq(xpRewardSubject.entityId, snapshot.id)
+      ),
+    });
+    let reversedXp = 0;
+    let settlements: XpSettlement[] = [];
+    if (subject) {
+      ({ reversedXp, settlements } =
+        await reverseContributionRewardsInTransaction(
+          tx,
+          subject,
+          "comment",
+          now
+        ));
+      await tx
+        .update(xpRewardSubject)
+        .set({ deletedAt: now, deletionReason: input.reason })
+        .where(eq(xpRewardSubject.id, subject.id));
+    }
+    const descendants = await tx.execute(sql`
         with recursive descendants as (
           select ${comment.id}
           from ${comment}
@@ -1842,39 +1842,30 @@ export function deleteCommentWithRewards(
         where ${xpRewardSubject.kind} = 'comment'
           and ${xpRewardSubject.deletedAt} is null
       `);
-      const descendantSubjectIds = descendants.rows.flatMap((row) =>
-        row && typeof row === "object" && typeof row.id === "string"
-          ? [row.id]
-          : []
-      );
-      await markCommentRewardSubjectsParentRemoved(
-        tx,
-        descendantSubjectIds,
-        now
-      );
-      if (input.reason === "guideline_abuse") {
-        await tx
-          .insert(xpRewardBlock)
-          .values({
-            createdBy: input.actorUserId,
-            kind: "comment",
-            reason: "comment_guideline_abuse",
-            scopeKey: `comment:${snapshot.id}`,
-            userId: snapshot.userId,
-          })
-          .onConflictDoNothing();
-      }
-      await tx.delete(comment).where(eq(comment.id, snapshot.id));
-      return { reversedXp, settlements, userId: snapshot.userId };
-    })
-    .then(async (result) => {
-      if (result.userId) {
-        for (const settlement of result.settlements) {
-          await notifyXpSettlement(db, result.userId, settlement);
-        }
-      }
-      return { reversedXp: result.reversedXp };
-    });
+    const descendantSubjectIds = descendants.rows.flatMap((row) =>
+      row && typeof row === "object" && typeof row.id === "string"
+        ? [row.id]
+        : []
+    );
+    await markCommentRewardSubjectsParentRemoved(tx, descendantSubjectIds, now);
+    if (input.reason === "guideline_abuse") {
+      await tx
+        .insert(xpRewardBlock)
+        .values({
+          createdBy: input.actorUserId,
+          kind: "comment",
+          reason: "comment_guideline_abuse",
+          scopeKey: `comment:${snapshot.id}`,
+          userId: snapshot.userId,
+        })
+        .onConflictDoNothing();
+    }
+    await tx.delete(comment).where(eq(comment.id, snapshot.id));
+    for (const settlement of settlements) {
+      await notifyXpSettlementInTransaction(tx, snapshot.userId, settlement);
+    }
+    return { reversedXp };
+  });
 }
 
 async function markCommentRewardSubjectsParentRemoved(
