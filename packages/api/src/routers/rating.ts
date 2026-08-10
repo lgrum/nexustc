@@ -35,6 +35,7 @@ import { assertContentHasNoForbiddenTerms } from "../utils/forbidden-content";
 import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { assertTextIsNotSpammy } from "../utils/spam-detection";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 
 const ratingsByUserPaginationSchema = z.object({
   cursor: z
@@ -99,7 +100,7 @@ async function getRatingsByUser({
         eq(postRating.userId, userId),
         eq(post.status, "publish"),
         publicCatalogVisibilityCondition(),
-        sql`${user.banned} IS DISTINCT FROM true`
+        userIsNotActivelyBanned()
       )
     : eq(postRating.userId, userId);
   const cursorCondition = cursor

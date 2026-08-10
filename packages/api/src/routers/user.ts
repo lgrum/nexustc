@@ -46,6 +46,7 @@ import {
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 
 const RECENT_USERS_WINDOW_SECONDS = 60 * 10;
 const RECENT_USERS_LIMIT = 24;
@@ -680,7 +681,7 @@ export default {
             eq(post.status, "publish"),
             eq(postBookmark.userId, input.userId),
             publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`,
+            userIsNotActivelyBanned(),
             cursorCondition
           )
         )

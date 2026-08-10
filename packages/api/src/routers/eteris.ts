@@ -111,10 +111,14 @@ export default {
             { err: error },
             "Monthly Patreon stipend settlement did not block wallet read"
           );
+          const refreshedWallet = await getUserWallet(db, session.user.id);
           return {
-            ...wallet,
+            ...refreshedWallet,
             profileUserId: session.user.id,
-            publicProfileChanged: false,
+            publicProfileChanged:
+              wallet.publicBalance &&
+              (refreshedWallet.balance !== wallet.balance ||
+                refreshedWallet.status !== wallet.status),
           };
         }
       } catch (error) {

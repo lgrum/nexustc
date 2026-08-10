@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getRedis: vi.fn().mockResolvedValue({}),
   unbanUserAndReconcileRewards: vi.fn(),
   userHasPermission: vi.fn().mockResolvedValue({ success: true }),
+  userIsNotActivelyBanned: vi.fn(),
 }));
 
 vi.mock("@repo/db", async (importOriginal) => ({
@@ -41,6 +42,9 @@ vi.mock("../services/user-administration", () => ({
   banUserAndReconcileRewards: mocks.banUserAndReconcileRewards,
   unbanUserAndReconcileRewards: mocks.unbanUserAndReconcileRewards,
   UserAdministrationError: class extends Error {},
+}));
+vi.mock("../utils/user-ban", () => ({
+  userIsNotActivelyBanned: mocks.userIsNotActivelyBanned,
 }));
 
 const { default: userRouter } = await import("./user");
@@ -80,6 +84,44 @@ describe("public bookmark privacy", () => {
     );
     expect(db.select).not.toHaveBeenCalled();
     expect(mocks.attachComicCatalogProgress).not.toHaveBeenCalled();
+  });
+
+  it("uses the active-ban predicate when public favorites are visible", async () => {
+    mocks.canReadPublicProfileActivity.mockResolvedValue(true);
+    mocks.attachComicCatalogProgress.mockResolvedValue([]);
+    const query = {
+      from: vi.fn(),
+      groupBy: vi.fn(),
+      innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
+      limit: vi.fn().mockResolvedValue([]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    for (const method of [
+      "from",
+      "groupBy",
+      "innerJoin",
+      "leftJoin",
+      "orderBy",
+      "where",
+    ] as const) {
+      query[method].mockReturnValue(query);
+    }
+    Object.assign(query, { as: vi.fn(() => query) });
+    const context = {
+      db: { select: vi.fn(() => query) },
+      headers: new Headers(),
+      session: null,
+    } as unknown as Context;
+
+    await call(
+      userRouter.getUserBookmarks,
+      { limit: 12, userId: "user-1" },
+      { context }
+    );
+
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledOnce();
   });
 });
 

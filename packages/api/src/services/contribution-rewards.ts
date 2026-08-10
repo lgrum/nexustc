@@ -57,6 +57,11 @@ import {
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type XpSettlement = Awaited<ReturnType<typeof postXpEventInTransaction>>;
+type ContributionMilestoneResult = {
+  eligibleLikes: number;
+  grantedXp: number;
+  settlements: XpSettlement[];
+};
 type RewardSubjectIdentity = Pick<
   typeof xpRewardSubject.$inferSelect,
   "entityId" | "id" | "kind" | "userId"
@@ -1075,7 +1080,7 @@ export async function settleReviewMilestonesInTransaction(
   now = new Date(),
   triggeringLikerUserId?: string,
   correlation?: IntegrityCorrelationEvidence
-) {
+): Promise<ContributionMilestoneResult> {
   const [review] = await tx
     .select({
       authorBanExpires: user.banExpires,
@@ -1149,7 +1154,7 @@ export async function settleCommentMilestonesInTransaction(
   now = new Date(),
   triggeringLikerUserId?: string,
   correlation?: IntegrityCorrelationEvidence
-) {
+): Promise<ContributionMilestoneResult> {
   const [snapshot] = await tx
     .select({
       authorBanExpires: user.banExpires,

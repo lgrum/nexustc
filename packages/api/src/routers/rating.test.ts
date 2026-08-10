@@ -6,6 +6,7 @@ import type { publicCatalogVisibilityCondition } from "../utils/early-access";
 const mocks = vi.hoisted(() => ({
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  userIsNotActivelyBanned: vi.fn(),
   publicCatalogVisibilityCondition: vi.fn(),
   reconcileEditedReviewRewardsInTransaction: vi.fn(),
   reconcileRemovedContributionLikeInTransaction: vi.fn(),
@@ -34,6 +35,9 @@ vi.mock("../services/contribution-rewards", () => ({
     mocks.reconcileRemovedContributionLikeInTransaction,
   settleReviewMilestonesInTransaction:
     mocks.settleReviewMilestonesInTransaction,
+}));
+vi.mock("../utils/user-ban", () => ({
+  userIsNotActivelyBanned: mocks.userIsNotActivelyBanned,
 }));
 vi.mock("../services/progression", () => ({
   notifyXpSettlement: vi.fn(),
@@ -163,6 +167,7 @@ describe("profile review privacy", () => {
     });
 
     expect(mocks.publicCatalogVisibilityCondition).toHaveBeenCalledOnce();
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledOnce();
     expect(select.mock.calls[1]?.[0]).toHaveProperty("slug");
   });
 

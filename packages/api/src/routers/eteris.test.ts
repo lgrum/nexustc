@@ -74,7 +74,7 @@ function createContext(role = "user") {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getMine.mockResolvedValue({
+  mocks.getMine.mockReset().mockResolvedValue({
     balance: "0",
     canSpend: false,
     debt: false,
@@ -116,10 +116,32 @@ test("wallet reads and history are scoped to the authenticated account", async (
 
 test("wallet reads survive a stipend settlement failure", async () => {
   mocks.grantStipend.mockRejectedValueOnce(new EterisError("CLOSED_OR_FROZEN"));
+  mocks.getMine
+    .mockResolvedValueOnce({
+      balance: "100",
+      canSpend: true,
+      debt: false,
+      enabled: true,
+      publicBalance: true,
+      spendingEnabled: true,
+      status: "active",
+    })
+    .mockResolvedValueOnce({
+      balance: "100",
+      canSpend: false,
+      debt: false,
+      enabled: true,
+      publicBalance: true,
+      spendingEnabled: false,
+      status: "frozen",
+    });
 
   await expect(
     call(eterisRouter.getMine, undefined, { context: createContext() })
-  ).resolves.toMatchObject({ status: "active" });
+  ).resolves.toMatchObject({
+    publicProfileChanged: true,
+    status: "frozen",
+  });
 });
 
 test("signals only a stipend change to an opted-in public balance", async () => {

@@ -187,14 +187,28 @@ async function reversePostedCaseEvents(
     .where(
       and(eq(xpEvent.integrityCaseId, caseId), eq(xpEvent.state, "posted"))
     );
+  const caseOriginals = events.filter((event) => event.amount > 0);
+  const globalReversals =
+    caseOriginals.length === 0
+      ? []
+      : await tx
+          .select({ reversesEventId: xpEvent.reversesEventId })
+          .from(xpEvent)
+          .where(
+            and(
+              eq(xpEvent.state, "posted"),
+              inArray(
+                xpEvent.reversesEventId,
+                caseOriginals.map(({ id }) => id)
+              )
+            )
+          );
   const reversed = new Set(
-    events.flatMap(({ reversesEventId }) =>
+    [...events, ...globalReversals].flatMap(({ reversesEventId }) =>
       reversesEventId ? [reversesEventId] : []
     )
   );
-  const originals = events.filter(
-    (event) => event.amount > 0 && !reversed.has(event.id)
-  );
+  const originals = caseOriginals.filter((event) => !reversed.has(event.id));
   const settlements: XpSettlement[] = [];
   for (const event of originals) {
     const settlement = await postXpEventInTransaction(
@@ -220,7 +234,7 @@ async function reversePostedCaseEvents(
       return {
         completed: false,
         settlements,
-        userId: originals[0]?.userId ?? null,
+        userId: caseOriginals[0]?.userId ?? null,
       };
     }
     settlements.push(settlement);
@@ -228,7 +242,7 @@ async function reversePostedCaseEvents(
   return {
     completed: true,
     settlements,
-    userId: originals[0]?.userId ?? null,
+    userId: caseOriginals[0]?.userId ?? null,
   };
 }
 

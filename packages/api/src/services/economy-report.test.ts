@@ -78,6 +78,11 @@ test("the current UTC report refreshes under the database lock and exposes only 
   expect(metricsQuery).toContain("source_cap_pressure");
   expect(metricsQuery).toContain("daily_transaction_flows");
   expect(metricsQuery).toContain("user_delta");
+  expect(metricsQuery).toContain("status = 'frozen'");
+  expect(metricsQuery).toContain("from eteris_wallet");
+  expect(metricsQuery).not.toContain(
+    "from user_wallets where status = 'frozen'"
+  );
   expect(JSON.stringify(first)).not.toMatch(
     /"(?:email|deviceHash|ipPrefixHash|metadata)"/
   );

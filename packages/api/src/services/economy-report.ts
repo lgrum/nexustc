@@ -109,7 +109,7 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
         coalesce((select sum(total)::text from sources), '0') as issued,
         coalesce((select sum(total)::text from sinks), '0') as burned,
         (select count(*)::int from user_wallets where balance < 0) as negative_wallet_count,
-        (select count(*)::int from user_wallets where status = 'frozen') as frozen_wallet_count,
+        (select count(*)::int from eteris_wallet where status = 'frozen') as frozen_wallet_count,
         coalesce(
           (select jsonb_object_agg(reason, total::text) from sources),
           '{}'::jsonb

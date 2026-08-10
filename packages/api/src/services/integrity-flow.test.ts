@@ -496,6 +496,59 @@ describe("integrity settlement", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it("does not reverse a case event twice after an unrelated workflow reversed it", async () => {
+    let selectCall = 0;
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+    }));
+    const tx = {
+      query: { xpEvent: { findFirst: vi.fn() } },
+      select: vi.fn(() => {
+        selectCall += 1;
+        const chain = {
+          for: vi.fn(),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        if (selectCall === 1) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([
+            { id: "case-1", status: "released", userId: "user-1" },
+          ]);
+        } else if (selectCall === 2) {
+          chain.where.mockResolvedValue([
+            {
+              amount: 25,
+              id: "original-event",
+              reversesEventId: null,
+              userId: "user-1",
+            },
+          ]);
+        } else {
+          chain.where.mockResolvedValue([
+            { reversesEventId: "original-event" },
+          ]);
+        }
+        return chain;
+      }),
+      update,
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "reverse",
+        actorUserId: "moderator-1",
+        caseId: "case-1",
+        reason: "Reversion ya aplicada por otra correccion",
+      })
+    ).resolves.toMatchObject({ status: "dismissed" });
+    expect(progression.posted).not.toHaveBeenCalled();
+  });
+
   it("cancels every pending milestone covered by a contribution block", async () => {
     const update = vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
