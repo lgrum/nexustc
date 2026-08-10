@@ -469,6 +469,15 @@ describe("stable review likes", () => {
 
 describe("review edit locking", () => {
   it("locks the author before updating the review source", async () => {
+    const settlement = {
+      level: 2,
+      previousLevel: 1,
+      replayed: false,
+      settledXp: 25,
+    };
+    mocks.reconcileEditedReviewRewardsInTransaction.mockResolvedValueOnce({
+      settlements: [settlement],
+    });
     const returning = vi.fn().mockResolvedValue([
       {
         createdAt: new Date("2026-08-10T12:00:00.000Z"),
@@ -523,6 +532,12 @@ describe("review edit locking", () => {
       mocks.lockContributionParticipantsInTransaction.mock
         .invocationCallOrder[0]
     ).toBeLessThan(set.mock.invocationCallOrder[0]!);
+    expect(mocks.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      tx,
+      "owner-1",
+      settlement
+    );
+    expect(mocks.notifyXpSettlement).not.toHaveBeenCalled();
   });
 });
 

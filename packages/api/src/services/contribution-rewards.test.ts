@@ -1615,7 +1615,12 @@ function createDeletionDatabase(reason: "guideline_abuse" | "voluntary") {
       values: vi.fn().mockReturnValue({ onConflictDoNothing: insertedBlock }),
     }),
     query: {
-      xpRewardSubject: { findFirst: vi.fn().mockResolvedValue(subject) },
+      xpRewardSubject: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(subject)
+          .mockImplementation(() => Promise.resolve()),
+      },
     },
     select: vi.fn((shape: Record<string, unknown>) => {
       if (Object.keys(shape).length === 1) {
@@ -1663,6 +1668,41 @@ function createDeletionDatabase(reason: "guideline_abuse" | "voluntary") {
 }
 
 describe("review removal lifecycle", () => {
+  it("promotes the next duplicate when deleting the canonical review", async () => {
+    const promoted = {
+      ...subject,
+      createdAt: new Date("2026-08-08T13:00:00.000Z"),
+      entityId: "review-2",
+      id: "subject-2",
+    };
+    const { tx } = createSettlementTransaction();
+    vi.mocked(tx.query.xpRewardSubject.findFirst)
+      .mockReset()
+      .mockResolvedValueOnce(subject)
+      .mockResolvedValueOnce(null as never)
+      .mockResolvedValueOnce(promoted)
+      .mockResolvedValueOnce(promoted)
+      .mockResolvedValueOnce(promoted)
+      .mockResolvedValueOnce(null as never);
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await deleteReviewWithRewards(db, {
+      postId: review.postId,
+      reason: "voluntary",
+      userId: review.userId,
+    });
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: 25,
+        kind: "review_milestone",
+        subjectId: promoted.id,
+      })
+    );
+  });
+
   it.each(["voluntary", "guideline_abuse"] as const)(
     "atomically reverses %s removal and permanently blocks abuse",
     async (reason) => {
@@ -1848,7 +1888,10 @@ describe("comment removal lifecycle", () => {
       }),
       query: {
         xpRewardSubject: {
-          findFirst: vi.fn().mockResolvedValue(commentSubject),
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce(commentSubject)
+            .mockImplementation(() => Promise.resolve()),
         },
       },
       select,
@@ -1902,7 +1945,10 @@ describe("comment removal lifecycle", () => {
       execute: vi.fn().mockResolvedValue({ rows: [] }),
       query: {
         xpRewardSubject: {
-          findFirst: vi.fn().mockResolvedValue(commentSubject),
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce(commentSubject)
+            .mockImplementation(() => Promise.resolve()),
         },
       },
       select: vi.fn((shape: Record<string, unknown>) => {

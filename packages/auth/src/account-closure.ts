@@ -6,6 +6,7 @@ import {
   eterisTransaction,
   eterisWallet,
   eterisWalletBalance,
+  patron,
   user,
   userComicProgress,
   userProgression,
@@ -98,6 +99,11 @@ export function closeAccountAndDeleteUser(
 ) {
   return db.transaction(async (tx) => {
     const now = new Date();
+    await tx
+      .select({ userId: patron.userId })
+      .from(patron)
+      .where(eq(patron.userId, userId))
+      .for("update");
     const [account] = await tx
       .select({ id: user.id })
       .from(user)

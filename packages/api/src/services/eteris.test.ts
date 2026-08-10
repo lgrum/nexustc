@@ -5,6 +5,7 @@ import {
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
+  patron,
   eterisDailySnapshot,
   eterisTransaction,
   eterisWallet,
@@ -249,6 +250,16 @@ function createDatabase(options?: {
             where: vi.fn(() => ({
               for: vi.fn(() => Promise.resolve([])),
             })),
+          };
+        }
+        if (table === patron) {
+          return {
+            where: vi.fn().mockReturnValue({
+              for: vi.fn(() => {
+                operations.push("lock-patron");
+                return Promise.resolve([{ userId: "user-1" }]);
+              }),
+            }),
           };
         }
         if (table === user) {
@@ -1235,6 +1246,7 @@ test("account closure deletes the identity in the same transaction", async () =>
     expect.objectContaining({ userId: "user-1" })
   );
   expect(store.operations).toEqual([
+    "lock-patron",
     "lock-user",
     "reconcile-likes",
     "reconcile-comments",

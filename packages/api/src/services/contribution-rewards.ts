@@ -46,7 +46,6 @@ import {
 import type { IntegrityCorrelationEvidence } from "./integrity-settlement";
 import {
   cancelPendingXpEventsInTransaction,
-  notifyXpSettlement,
   notifyXpSettlementInTransaction,
   postXpEventInTransaction,
 } from "./progression";
@@ -715,6 +714,78 @@ async function settleFormerCanonicalContributionInTransaction(
       : await settleCommentMilestonesInTransaction(
           tx,
           formerCanonical.entityId,
+          input.now
+        );
+  return result.settlements;
+}
+
+async function settleNextCanonicalContributionInTransaction(
+  tx: Transaction,
+  input: {
+    deletedSubject: typeof xpRewardSubject.$inferSelect;
+    kind: "comment" | "review";
+    now: Date;
+  }
+) {
+  if (!input.deletedSubject.normalizedContentHash) {
+    return [];
+  }
+  const earlierCanonical = await tx.query.xpRewardSubject.findFirst({
+    columns: { id: true },
+    where: and(
+      eq(xpRewardSubject.userId, input.deletedSubject.userId),
+      eq(xpRewardSubject.kind, input.kind),
+      eq(
+        xpRewardSubject.normalizedContentHash,
+        input.deletedSubject.normalizedContentHash
+      ),
+      isNull(xpRewardSubject.deletedAt),
+      ne(xpRewardSubject.id, input.deletedSubject.id),
+      or(
+        lt(xpRewardSubject.createdAt, input.deletedSubject.createdAt),
+        and(
+          eq(xpRewardSubject.createdAt, input.deletedSubject.createdAt),
+          lt(xpRewardSubject.id, input.deletedSubject.id)
+        )
+      )
+    ),
+  });
+  if (earlierCanonical) {
+    return [];
+  }
+  const nextCanonical = await tx.query.xpRewardSubject.findFirst({
+    orderBy: [asc(xpRewardSubject.createdAt), asc(xpRewardSubject.id)],
+    where: and(
+      eq(xpRewardSubject.userId, input.deletedSubject.userId),
+      eq(xpRewardSubject.kind, input.kind),
+      eq(
+        xpRewardSubject.normalizedContentHash,
+        input.deletedSubject.normalizedContentHash
+      ),
+      isNull(xpRewardSubject.deletedAt),
+      ne(xpRewardSubject.id, input.deletedSubject.id),
+      or(
+        gt(xpRewardSubject.createdAt, input.deletedSubject.createdAt),
+        and(
+          eq(xpRewardSubject.createdAt, input.deletedSubject.createdAt),
+          gt(xpRewardSubject.id, input.deletedSubject.id)
+        )
+      )
+    ),
+  });
+  if (!nextCanonical) {
+    return [];
+  }
+  const result =
+    input.kind === "review"
+      ? await settleReviewMilestonesInTransaction(
+          tx,
+          nextCanonical.entityId,
+          input.now
+        )
+      : await settleCommentMilestonesInTransaction(
+          tx,
+          nextCanonical.entityId,
           input.now
         );
   return result.settlements;
@@ -1762,64 +1833,67 @@ export function deleteReviewWithRewards(
     userId: string;
   }
 ) {
-  return db
-    .transaction(async (tx) => {
-      const now = new Date();
-      const [review] = await tx
-        .select({ id: postRating.id })
-        .from(postRating)
-        .where(
-          and(
-            eq(postRating.postId, input.postId),
-            eq(postRating.userId, input.userId)
-          )
+  return db.transaction(async (tx) => {
+    const now = new Date();
+    const [review] = await tx
+      .select({ id: postRating.id })
+      .from(postRating)
+      .where(
+        and(
+          eq(postRating.postId, input.postId),
+          eq(postRating.userId, input.userId)
         )
-        .for("update");
-      if (!review) {
-        return { reversedXp: 0, settlements: [] };
-      }
-      const subject = await tx.query.xpRewardSubject.findFirst({
-        where: and(
-          eq(xpRewardSubject.kind, "review"),
-          eq(xpRewardSubject.entityId, review.id)
-        ),
-      });
-      let reversedXp = 0;
-      let settlements: XpSettlement[] = [];
-      if (subject) {
-        ({ reversedXp, settlements } =
-          await reverseContributionRewardsInTransaction(
-            tx,
-            subject,
-            "review",
-            now
-          ));
-        await tx
-          .update(xpRewardSubject)
-          .set({ deletedAt: now, deletionReason: input.reason })
-          .where(eq(xpRewardSubject.id, subject.id));
-      }
-      if (input.reason === "guideline_abuse") {
-        await tx
-          .insert(xpRewardBlock)
-          .values({
-            createdBy: input.actorUserId,
-            kind: "review",
-            reason: "review_guideline_abuse",
-            scopeKey: `post:${input.postId}`,
-            userId: input.userId,
-          })
-          .onConflictDoNothing();
-      }
-      await tx.delete(postRating).where(eq(postRating.id, review.id));
-      return { reversedXp, settlements };
-    })
-    .then(async (result) => {
-      for (const settlement of result.settlements) {
-        await notifyXpSettlement(db, input.userId, settlement);
-      }
-      return { reversedXp: result.reversedXp };
+      )
+      .for("update");
+    if (!review) {
+      return { reversedXp: 0 };
+    }
+    const subject = await tx.query.xpRewardSubject.findFirst({
+      where: and(
+        eq(xpRewardSubject.kind, "review"),
+        eq(xpRewardSubject.entityId, review.id)
+      ),
     });
+    let reversedXp = 0;
+    let settlements: XpSettlement[] = [];
+    if (subject) {
+      ({ reversedXp, settlements } =
+        await reverseContributionRewardsInTransaction(
+          tx,
+          subject,
+          "review",
+          now
+        ));
+      await tx
+        .update(xpRewardSubject)
+        .set({ deletedAt: now, deletionReason: input.reason })
+        .where(eq(xpRewardSubject.id, subject.id));
+      settlements.push(
+        ...(await settleNextCanonicalContributionInTransaction(tx, {
+          deletedSubject: subject,
+          kind: "review",
+          now,
+        }))
+      );
+    }
+    if (input.reason === "guideline_abuse") {
+      await tx
+        .insert(xpRewardBlock)
+        .values({
+          createdBy: input.actorUserId,
+          kind: "review",
+          reason: "review_guideline_abuse",
+          scopeKey: `post:${input.postId}`,
+          userId: input.userId,
+        })
+        .onConflictDoNothing();
+    }
+    await tx.delete(postRating).where(eq(postRating.id, review.id));
+    for (const settlement of settlements) {
+      await notifyXpSettlementInTransaction(tx, input.userId, settlement);
+    }
+    return { reversedXp };
+  });
 }
 
 export function deleteCommentWithRewards(
@@ -1884,6 +1958,15 @@ export function deleteCommentWithRewards(
         : []
     );
     await markCommentRewardSubjectsParentRemoved(tx, descendantSubjectIds, now);
+    if (subject) {
+      settlements.push(
+        ...(await settleNextCanonicalContributionInTransaction(tx, {
+          deletedSubject: subject,
+          kind: "comment",
+          now,
+        }))
+      );
+    }
     if (input.reason === "guideline_abuse") {
       await tx
         .insert(xpRewardBlock)

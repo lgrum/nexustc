@@ -25,10 +25,7 @@ import {
   buildProfileSummaries,
   canReadPublicProfileActivity,
 } from "../services/profile";
-import {
-  notifyXpSettlement,
-  notifyXpSettlementInTransaction,
-} from "../services/progression";
+import { notifyXpSettlementInTransaction } from "../services/progression";
 import {
   canViewPost,
   getPostEarlyAccessView,
@@ -193,7 +190,7 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      const settlements = await db.transaction(async (tx) => {
+      await db.transaction(async (tx) => {
         await lockContributionParticipantsInTransaction(tx, [session.user.id]);
         const [savedReview] = await tx
           .insert(postRating)
@@ -224,13 +221,15 @@ export default {
             tx,
             savedReview
           );
-          return result.settlements;
+          for (const settlement of result.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              session.user.id,
+              settlement
+            );
+          }
         }
-        return [];
       });
-      for (const settlement of settlements) {
-        await notifyXpSettlement(db, session.user.id, settlement);
-      }
 
       logger?.debug(
         `Rating upserted for user ${session.user.id} on post ${input.postId}`
@@ -261,7 +260,7 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      const settlements = await db.transaction(async (tx) => {
+      await db.transaction(async (tx) => {
         await lockContributionParticipantsInTransaction(tx, [session.user.id]);
         const [savedReview] = await tx
           .update(postRating)
@@ -289,13 +288,15 @@ export default {
             tx,
             savedReview
           );
-          return result.settlements;
+          for (const settlement of result.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              session.user.id,
+              settlement
+            );
+          }
         }
-        return [];
       });
-      for (const settlement of settlements) {
-        await notifyXpSettlement(db, session.user.id, settlement);
-      }
 
       logger?.debug(
         `Rating updated for user ${session.user.id} on post ${input.postId}`
