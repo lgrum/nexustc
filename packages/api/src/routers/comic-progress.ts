@@ -52,6 +52,7 @@ export default {
     }),
 
   startSession: protectedProcedure
+    .use(slidingWindowRatelimitMiddleware(10, 60))
     .input(comicProgressComicSchema)
     .handler(async ({ context: { db, session }, input, errors }) => {
       const cache = await getRedis();
