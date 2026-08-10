@@ -1,9 +1,17 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { EconomyClient } from "./economy-client";
 
 const state = vi.hoisted(() => ({
+  invalidateQueries: vi.fn(),
   mutate: vi.fn(),
+  refetch: vi.fn(),
   report: {
     anomalousEarners: [{ total: "900", userId: "user-fast" }],
     balancePercentiles: { p50: "10", p90: "75", p99: "250" },
@@ -27,7 +35,13 @@ vi.mock("@tanstack/react-query", () => ({
     mutate: state.mutate,
     mutateAsync: state.mutate,
   }),
-  useQuery: () => ({ data: state.report, isError: false, isPending: false }),
+  useQuery: () => ({
+    data: state.report,
+    isError: false,
+    isPending: false,
+    refetch: state.refetch,
+  }),
+  useQueryClient: () => ({ invalidateQueries: state.invalidateQueries }),
 }));
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
@@ -40,7 +54,11 @@ vi.mock("@/lib/orpc", () => ({
   orpc: {
     eteris: {
       admin: {
-        inspectWallet: { queryOptions: vi.fn() },
+        inspectWallet: {
+          queryOptions: vi.fn(({ input }) => ({
+            queryKey: ["wallet-audit", input.userId],
+          })),
+        },
         report: { queryOptions: vi.fn() },
       },
       owner: {
@@ -49,14 +67,22 @@ vi.mock("@/lib/orpc", () => ({
       },
     },
     progression: {
-      admin: { inspectUser: { queryOptions: vi.fn() } },
+      admin: {
+        inspectUser: {
+          queryOptions: vi.fn(({ input }) => ({
+            queryKey: ["xp-audit", input.userId],
+          })),
+        },
+      },
       owner: { adjustXp: { mutationOptions: vi.fn() } },
     },
   },
 }));
 
 beforeEach(() => {
+  state.invalidateQueries.mockReset().mockResolvedValue();
   state.mutate.mockReset();
+  state.refetch.mockReset().mockResolvedValue();
   state.role = "admin";
 });
 
@@ -101,6 +127,37 @@ it("lets only an owner request wallet reconciliation", async () => {
       repair: true,
       userId: "user-123",
     })
+  );
+  await waitFor(() =>
+    expect(state.invalidateQueries.mock.calls).toEqual([
+      [{ queryKey: ["xp-audit", "user-123"] }],
+      [{ queryKey: ["wallet-audit", "user-123"] }],
+    ])
+  );
+});
+
+it("refreshes audited data after an owner adjustment", async () => {
+  state.role = "owner";
+  render(<EconomyClient initialReport={state.report} />);
+
+  const xpCard = screen
+    .getByRole("heading", { name: "Ajustar Account XP" })
+    .closest('[data-slot="card"]')!;
+  const xpUserInput = within(xpCard).getByLabelText(/ID de usuario/i);
+  fireEvent.change(xpUserInput, { target: { value: "user-adjusted" } });
+  fireEvent.change(within(xpCard).getByLabelText(/Cantidad firmada/i), {
+    target: { value: "25" },
+  });
+  fireEvent.change(within(xpCard).getByLabelText(/Motivo de auditoría/i), {
+    target: { value: "Ajuste de prueba autorizado" },
+  });
+  fireEvent.submit(xpUserInput.closest("form")!);
+
+  await waitFor(() =>
+    expect(state.invalidateQueries.mock.calls).toEqual([
+      [{ queryKey: ["xp-audit", "user-adjusted"] }],
+      [{ queryKey: ["wallet-audit", "user-adjusted"] }],
+    ])
   );
 });
 

@@ -61,6 +61,16 @@ type CommentSnapshot = {
 const REVIEW_DAILY_CAP = 2;
 const COMMENT_DAILY_CAP = 5;
 
+function requireProjectedXpSettlement(settlement: XpSettlement) {
+  if (
+    "projectionMismatch" in settlement &&
+    settlement.projectionMismatch === true
+  ) {
+    throw new Error("XP_PROJECTION_MISMATCH");
+  }
+  return settlement;
+}
+
 export function getContributionContentHash(content: string) {
   return createHash("sha256")
     .update(normalizeContributionText(content))
@@ -955,22 +965,24 @@ async function reverseUnsupportedMilestonesForCount(
   const settlements: XpSettlement[] = [];
   for (const event of unsupported) {
     settlements.push(
-      await postXpEventInTransaction(
-        tx,
-        {
-          amount: -event.amount,
-          createdBy: input.actorUserId,
-          idempotencyKey: `${input.idempotencyPrefix}:${event.id}`,
-          integrityCaseId: input.integrityCaseId,
-          kind: "reversal",
-          milestone: event.milestone ?? undefined,
-          reasonCode: input.reasonCode,
-          reversesEventId: event.id,
-          sourceRef: `${input.sourcePrefix}:${event.id}`,
-          subjectId: input.subject.id,
-          userId: input.subject.userId,
-        },
-        input.now
+      requireProjectedXpSettlement(
+        await postXpEventInTransaction(
+          tx,
+          {
+            amount: -event.amount,
+            createdBy: input.actorUserId,
+            idempotencyKey: `${input.idempotencyPrefix}:${event.id}`,
+            integrityCaseId: input.integrityCaseId,
+            kind: "reversal",
+            milestone: event.milestone ?? undefined,
+            reasonCode: input.reasonCode,
+            reversesEventId: event.id,
+            sourceRef: `${input.sourcePrefix}:${event.id}`,
+            subjectId: input.subject.id,
+            userId: input.subject.userId,
+          },
+          input.now
+        )
       )
     );
   }
@@ -1100,20 +1112,22 @@ async function reverseContributionRewardsInTransaction(
   const settlements: XpSettlement[] = [];
   for (const event of activeMilestones) {
     settlements.push(
-      await postXpEventInTransaction(
-        tx,
-        {
-          amount: -event.amount,
-          idempotencyKey: `${kind}-${reason}-reversal:${subject.id}:${event.id}`,
-          kind: "reversal",
-          milestone: event.milestone ?? undefined,
-          reasonCode: `${kind}_${reason}`,
-          reversesEventId: event.id,
-          sourceRef: `${kind}:${subject.id}:${reason}-reversal:${event.id}`,
-          subjectId: subject.id,
-          userId: subject.userId,
-        },
-        now
+      requireProjectedXpSettlement(
+        await postXpEventInTransaction(
+          tx,
+          {
+            amount: -event.amount,
+            idempotencyKey: `${kind}-${reason}-reversal:${subject.id}:${event.id}`,
+            kind: "reversal",
+            milestone: event.milestone ?? undefined,
+            reasonCode: `${kind}_${reason}`,
+            reversesEventId: event.id,
+            sourceRef: `${kind}:${subject.id}:${reason}-reversal:${event.id}`,
+            subjectId: subject.id,
+            userId: subject.userId,
+          },
+          now
+        )
       )
     );
   }

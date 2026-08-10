@@ -320,7 +320,7 @@ export function applyRewardCheckpoint(params: {
   state: ReadingSessionState;
 }): ApplyRewardCheckpointResult {
   const { evidence, nowMs, page, state } = params;
-  if (page < 1 || page > state.totalPages) {
+  if (page < 1 || page > state.totalPages || page > state.verifiedThroughPage) {
     return {
       nextState: {
         ...state,

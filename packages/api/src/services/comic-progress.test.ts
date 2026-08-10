@@ -127,19 +127,19 @@ describe("verified comic reading rewards", () => {
       evidence: { ...evidence, documentVisible: false },
       nowMs: 2000,
       page: 1,
-      state: createState(),
+      state: createState({ verifiedThroughPage: 1 }),
     });
     const short = applyRewardCheckpoint({
       evidence: { ...evidence, visibleDurationMs: 1999 },
       nowMs: 2000,
       page: 1,
-      state: createState(),
+      state: createState({ verifiedThroughPage: 1 }),
     });
     const fast = applyRewardCheckpoint({
       evidence,
       nowMs: 1000,
       page: 1,
-      state: createState(),
+      state: createState({ verifiedThroughPage: 1 }),
     });
 
     expect(hidden.reason).toBe("invalid_evidence");
@@ -148,12 +148,27 @@ describe("verified comic reading rewards", () => {
     expect(fast.nextState.fastRewardCheckpoints).toBe(true);
   });
 
+  it("rejects reward checkpoints beyond contiguous verified progress", () => {
+    const result = applyRewardCheckpoint({
+      evidence,
+      nowMs: 2000,
+      page: 3,
+      state: createState({ verifiedThroughPage: 1 }),
+    });
+
+    expect(result).toMatchObject({
+      reason: "invalid_page",
+      rewardValid: false,
+    });
+    expect(result.nextState.pendingRewardPages).toEqual([]);
+  });
+
   it("restores eligibility only after three consecutive plausible checkpoints", () => {
     const fast = applyRewardCheckpoint({
       evidence,
       nowMs: 1000,
       page: 4,
-      state: createState(),
+      state: createState({ verifiedThroughPage: 4 }),
     });
     const first = applyRewardCheckpoint({
       evidence,

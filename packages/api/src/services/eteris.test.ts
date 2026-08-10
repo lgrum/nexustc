@@ -910,6 +910,9 @@ test.each([
       userId: "user-1",
     });
     expect(wallet.anonymizedAt).toBeInstanceOf(Date);
+    expect(store.lockOrders.at(-1)).toEqual(
+      [userWalletId, ...(systemWalletId ? [systemWalletId] : [])].toSorted()
+    );
     if (systemWalletId) {
       const closurePosting = store.postings.findLast(
         (posting) =>

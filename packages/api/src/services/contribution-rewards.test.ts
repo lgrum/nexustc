@@ -23,6 +23,7 @@ const progression = vi.hoisted(() => ({
   cancelledPending: [] as Record<string, unknown>[],
   calls: [] as Record<string, unknown>[],
   fail: false,
+  projectionMismatch: false,
   replayed: false,
 }));
 
@@ -78,6 +79,18 @@ vi.mock("./progression", () => ({
     progression.calls.push(input);
     if (progression.fail) {
       return Promise.reject(new Error("atomic progression failure"));
+    }
+    if (progression.projectionMismatch) {
+      return Promise.resolve({
+        debtCreated: false,
+        eventId: null,
+        level: 1,
+        previousLevel: 1,
+        projectionMismatch: true,
+        replayed: false,
+        settledXp: 0,
+        totalXp: 75,
+      });
     }
     return Promise.resolve({
       debtCreated: false,
@@ -318,6 +331,7 @@ beforeEach(() => {
   progression.cancelledPending = [];
   progression.calls = [];
   progression.fail = false;
+  progression.projectionMismatch = false;
   progression.replayed = false;
 });
 
@@ -1000,6 +1014,21 @@ describe("review removal lifecycle", () => {
       })
     ).rejects.toThrow("atomic progression failure");
     expect(store.deletedReview).not.toHaveBeenCalled();
+  });
+
+  it("does not delete the review when reward reversal finds a projection mismatch", async () => {
+    progression.projectionMismatch = true;
+    const store = createDeletionDatabase("voluntary");
+
+    await expect(
+      deleteReviewWithRewards(store.db, {
+        postId: review.postId,
+        reason: "voluntary",
+        userId: review.userId,
+      })
+    ).rejects.toThrow("XP_PROJECTION_MISMATCH");
+    expect(store.deletedReview).not.toHaveBeenCalled();
+    expect(store.subjectUpdateValues).toHaveLength(0);
   });
 
   it("cancels pending milestone XP before deleting its reward subject", async () => {

@@ -23,11 +23,6 @@ import {
 
 type Database = typeof database;
 
-const CLOSURE_SYSTEM_WALLET_IDS = [
-  "eteris-system-sink",
-  "eteris-system-write-off",
-] as const;
-
 function assertSignedBigint(value: bigint) {
   if (value < ETERIS_MIN_AMOUNT || value > ETERIS_MAX_AMOUNT) {
     throw new Error("El cierre excede el rango Eteris permitido.");
@@ -77,7 +72,23 @@ export function closeAccount(db: Database, userId: string) {
       .values({ updatedAt: now, walletId: wallet.id })
       .onConflictDoNothing({ target: eterisWalletBalance.walletId });
 
-    const walletIds = [wallet.id, ...CLOSURE_SYSTEM_WALLET_IDS].toSorted();
+    const balanceSnapshot = await tx.query.eterisWalletBalance.findFirst({
+      columns: { balance: true },
+      where: eq(eterisWalletBalance.walletId, wallet.id),
+    });
+    if (!balanceSnapshot) {
+      throw new Error("No se pudo leer el saldo de la Billetera Eteris.");
+    }
+    const requiredSystemWalletId =
+      balanceSnapshot.balance > 0n
+        ? "eteris-system-sink"
+        : balanceSnapshot.balance < 0n
+          ? "eteris-system-write-off"
+          : null;
+    const walletIds = [
+      wallet.id,
+      ...(requiredSystemWalletId ? [requiredSystemWalletId] : []),
+    ].toSorted();
     const locked = await tx
       .select({
         balance: eterisWalletBalance.balance,
@@ -130,7 +141,12 @@ export function closeAccount(db: Database, userId: string) {
         userWallet.balance > 0n
           ? "eteris-system-sink"
           : "eteris-system-write-off";
-      const systemWallet = lockedById.get(systemWalletId)!;
+      const systemWallet = lockedById.get(systemWalletId);
+      if (!systemWallet) {
+        throw new Error(
+          "El saldo de la Billetera Eteris cambio durante el cierre."
+        );
+      }
       const userBalanceAfter = 0n;
       const systemBalanceAfter = systemWallet.balance + userWallet.balance;
       assertSignedBigint(systemBalanceAfter);

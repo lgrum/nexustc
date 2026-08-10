@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -185,6 +185,7 @@ export function EconomyClient({ initialReport }: { initialReport: Report }) {
 }
 
 function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
+  const queryClient = useQueryClient();
   const xpIdempotencyKey = useRef<string | null>(null);
   const eterisIdempotencyKey = useRef<string | null>(null);
   const xpAdjustment = useMutation(
@@ -196,17 +197,32 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
   const reconciliation = useMutation(
     orpc.eteris.owner.reconcileWallet.mutationOptions()
   );
+  const refreshAudit = (userId: string) =>
+    Promise.all([
+      queryClient.invalidateQueries(
+        orpc.progression.admin.inspectUser.queryOptions({
+          input: { limit: 20, userId },
+        })
+      ),
+      queryClient.invalidateQueries(
+        orpc.eteris.admin.inspectWallet.queryOptions({
+          input: { limit: 20, userId },
+        })
+      ),
+    ]);
   const xpForm = useAppForm({
     defaultValues: { xpAmount: "", xpReason: "", xpUserId: "" },
     onSubmit: async ({ value }) => {
       xpIdempotencyKey.current ??= `owner-xp-${crypto.randomUUID()}`;
       try {
+        const userId = value.xpUserId.trim();
         await xpAdjustment.mutateAsync({
           amount: Number(value.xpAmount),
           idempotencyKey: xpIdempotencyKey.current,
           reason: value.xpReason.trim(),
-          userId: value.xpUserId.trim(),
+          userId,
         });
+        await refreshAudit(userId);
         xpIdempotencyKey.current = null;
         toast.success("Account XP ajustado.");
         xpForm.reset();
@@ -225,12 +241,14 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
     onSubmit: async ({ value }) => {
       eterisIdempotencyKey.current ??= `owner-eteris-${crypto.randomUUID()}`;
       try {
+        const userId = value.eterisUserId.trim();
         await eterisAdjustment.mutateAsync({
           amount: value.eterisAmount,
           idempotencyKey: eterisIdempotencyKey.current,
           reason: value.eterisReason.trim(),
-          userId: value.eterisUserId.trim(),
+          userId,
         });
+        await refreshAudit(userId);
         eterisIdempotencyKey.current = null;
         toast.success("Eteris ajustado.");
         eterisForm.reset();
@@ -244,13 +262,14 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
     defaultValues: { reconciliationUserId: "" },
     onSubmit: async ({ value }) => {
       try {
+        const userId = value.reconciliationUserId.trim();
         await reconciliation.mutateAsync({
           repair: true,
-          userId: value.reconciliationUserId.trim(),
+          userId,
         });
         toast.success("Billetera reconciliada.");
         reconciliationForm.reset();
-        await onReconciled();
+        await Promise.all([onReconciled(), refreshAudit(userId)]);
       } catch {
         toast.error("No se pudo reconciliar la billetera.");
       }
