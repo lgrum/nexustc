@@ -281,6 +281,14 @@ async function existingSubjectRequiresEligibleTrigger(
   return !activatedAt || subject.createdAt <= activatedAt;
 }
 
+function lockContributionAuthor(tx: Transaction, userId: string) {
+  return tx
+    .select({ id: user.id })
+    .from(user)
+    .where(eq(user.id, userId))
+    .for("update");
+}
+
 export async function saveReviewRewardSubjectInTransaction(
   tx: Transaction,
   review: ReviewSnapshot,
@@ -295,25 +303,35 @@ export async function saveReviewRewardSubjectInTransaction(
   });
 
   if (existing) {
+    await lockContributionAuthor(tx, review.userId);
+    const lockedExisting = await tx.query.xpRewardSubject.findFirst({
+      where: and(
+        eq(xpRewardSubject.kind, "review"),
+        eq(xpRewardSubject.entityId, review.id)
+      ),
+    });
+    if (!lockedExisting) {
+      return null;
+    }
     if (
       triggeringLikerUserId &&
-      (await existingSubjectRequiresEligibleTrigger(tx, existing)) &&
+      (await existingSubjectRequiresEligibleTrigger(tx, lockedExisting)) &&
       !(await isEligibleTriggeringReviewLike(tx, review, triggeringLikerUserId))
     ) {
       return null;
     }
-    if (existing.normalizedContentHash !== normalizedContentHash) {
+    if (lockedExisting.normalizedContentHash !== normalizedContentHash) {
       await tx
         .update(xpRewardSubject)
         .set({ normalizedContentHash })
-        .where(eq(xpRewardSubject.id, existing.id));
+        .where(eq(xpRewardSubject.id, lockedExisting.id));
     }
-    return existing.normalizedContentHash === normalizedContentHash
-      ? { ...existing, normalizedContentHash }
+    return lockedExisting.normalizedContentHash === normalizedContentHash
+      ? { ...lockedExisting, normalizedContentHash }
       : {
-          ...existing,
+          ...lockedExisting,
           normalizedContentHash,
-          previousNormalizedContentHash: existing.normalizedContentHash,
+          previousNormalizedContentHash: lockedExisting.normalizedContentHash,
         };
   }
 
@@ -324,11 +342,7 @@ export async function saveReviewRewardSubjectInTransaction(
     return null;
   }
 
-  await tx
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.id, review.userId))
-    .for("update");
+  await lockContributionAuthor(tx, review.userId);
   const concurrentlyCreated = await tx.query.xpRewardSubject.findFirst({
     where: and(
       eq(xpRewardSubject.kind, "review"),
@@ -436,9 +450,19 @@ export async function saveCommentRewardSubjectInTransaction(
   });
 
   if (existing) {
+    await lockContributionAuthor(tx, snapshot.userId);
+    const lockedExisting = await tx.query.xpRewardSubject.findFirst({
+      where: and(
+        eq(xpRewardSubject.kind, "comment"),
+        eq(xpRewardSubject.entityId, snapshot.id)
+      ),
+    });
+    if (!lockedExisting) {
+      return null;
+    }
     if (
       triggeringLikerUserId &&
-      (await existingSubjectRequiresEligibleTrigger(tx, existing)) &&
+      (await existingSubjectRequiresEligibleTrigger(tx, lockedExisting)) &&
       !(await isEligibleTriggeringCommentLike(
         tx,
         snapshot,
@@ -447,18 +471,18 @@ export async function saveCommentRewardSubjectInTransaction(
     ) {
       return null;
     }
-    if (existing.normalizedContentHash !== normalizedContentHash) {
+    if (lockedExisting.normalizedContentHash !== normalizedContentHash) {
       await tx
         .update(xpRewardSubject)
         .set({ normalizedContentHash })
-        .where(eq(xpRewardSubject.id, existing.id));
+        .where(eq(xpRewardSubject.id, lockedExisting.id));
     }
-    return existing.normalizedContentHash === normalizedContentHash
-      ? { ...existing, normalizedContentHash }
+    return lockedExisting.normalizedContentHash === normalizedContentHash
+      ? { ...lockedExisting, normalizedContentHash }
       : {
-          ...existing,
+          ...lockedExisting,
           normalizedContentHash,
-          previousNormalizedContentHash: existing.normalizedContentHash,
+          previousNormalizedContentHash: lockedExisting.normalizedContentHash,
         };
   }
 
@@ -473,11 +497,7 @@ export async function saveCommentRewardSubjectInTransaction(
     return null;
   }
 
-  await tx
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.id, snapshot.userId))
-    .for("update");
+  await lockContributionAuthor(tx, snapshot.userId);
   const concurrentlyCreated = await tx.query.xpRewardSubject.findFirst({
     where: and(
       eq(xpRewardSubject.kind, "comment"),
@@ -1568,29 +1588,29 @@ export function reconcileClosedLikerRewardsInTransaction(
   });
 }
 
-export async function notifyBannedLikerRewardSettlements(
-  db: Database,
+export async function notifyBannedLikerRewardSettlementsInTransaction(
+  tx: Transaction,
   results: Awaited<ReturnType<typeof reconcileBannedLikerRewardsInTransaction>>
 ) {
   for (const result of results) {
     for (const settlement of result.settlements) {
-      await notifyXpSettlement(db, result.userId, settlement);
+      await notifyXpSettlementInTransaction(tx, result.userId, settlement);
     }
   }
 }
 
-export async function reconcileBannedLikerRewards(
+export function reconcileBannedLikerRewards(
   db: Database,
   input: { actorUserId: string; likerUserId: string; now?: Date }
 ) {
-  const results = await db.transaction((tx) =>
-    reconcileBannedLikerRewardsInTransaction(tx, {
+  return db.transaction(async (tx) => {
+    const results = await reconcileBannedLikerRewardsInTransaction(tx, {
       ...input,
       now: input.now ?? new Date(),
-    })
-  );
-  await notifyBannedLikerRewardSettlements(db, results);
-  return results;
+    });
+    await notifyBannedLikerRewardSettlementsInTransaction(tx, results);
+    return results;
+  });
 }
 
 async function reverseContributionRewardsInTransaction(

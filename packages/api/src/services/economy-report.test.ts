@@ -77,6 +77,9 @@ test("the current UTC report refreshes under the database lock and exposes only 
   const metricsQuery = JSON.stringify(executor.execute.mock.calls[1]?.[0]);
   expect(metricsQuery).toContain("source_cap_pressure");
   expect(metricsQuery).toContain("daily_transaction_flows");
+  expect(metricsQuery).toContain("balance_after");
+  expect(metricsQuery).toContain("eteris_wallet_status_event");
+  expect(metricsQuery).toContain("wallets_at_cutoff");
   expect(metricsQuery).toContain("user_delta");
   expect(metricsQuery).toContain("status = 'frozen'");
   expect(metricsQuery).toContain("from eteris_wallet");

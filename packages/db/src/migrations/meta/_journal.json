@@ -470,6 +470,13 @@
       "when": 1786383987164,
       "tag": "0066_immutable_eteris_sequence",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1786388093331,
+      "tag": "0067_eteris_wallet_status_history",
+      "breakpoints": true
     }
   ]
 }

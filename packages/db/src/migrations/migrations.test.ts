@@ -114,6 +114,19 @@ test("Eteris transaction anonymization cannot rewrite ledger sequence", async ()
   );
 });
 
+test("Eteris records wallet status history for cutoff reports", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0067_eteris_wallet_status_history.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain('CREATE TABLE "eteris_wallet_status_event"');
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "eteris_wallet_status_history"'
+  );
+  expect(migrationSql).toContain('INSERT INTO "eteris_wallet_status_event"');
+});
+
 test("comic reading XP uses compact ranges on existing progress", async () => {
   const migrationSql = await readFile(
     path.join(migrationsDirectory, "0059_thin_vanisher.sql"),

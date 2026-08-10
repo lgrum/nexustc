@@ -51,11 +51,33 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
       sql`select pg_advisory_xact_lock(${ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID})`
     );
     const result = await tx.execute(sql`
-      with user_wallets as (
-        select w.id, w.user_id, w.status, b.balance
+      with wallets_at_cutoff as (
+        select
+          w.id,
+          w.kind,
+          w.user_id,
+          coalesce((
+            select p.balance_after
+            from eteris_posting p
+            inner join eteris_transaction t on t.id = p.transaction_id
+            where p.wallet_id = w.id and t.created_at < ${dayEnd}
+            order by t.sequence desc
+            limit 1
+          ), 0) as balance,
+          coalesce((
+            select history.status
+            from eteris_wallet_status_event history
+            where history.wallet_id = w.id and history.created_at < ${dayEnd}
+            order by history.created_at desc, history.sequence desc
+            limit 1
+          ), 'active'::eteris_wallet_status) as status
         from eteris_wallet w
-        inner join eteris_wallet_balance b on b.wallet_id = w.id
-        where w.kind = 'user' and w.user_id is not null
+        where w.created_at < ${dayEnd}
+      ),
+      user_wallets as (
+        select id, user_id, status, balance
+        from wallets_at_cutoff
+        where kind = 'user' and user_id is not null
       ),
       daily_user_postings as (
         select w.user_id, t.kind::text as reason, p.amount
@@ -112,7 +134,7 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
         coalesce((select sum(total)::text from sources), '0') as issued,
         coalesce((select sum(total)::text from sinks), '0') as burned,
         (select count(*)::int from user_wallets where balance < 0) as negative_wallet_count,
-        (select count(*)::int from eteris_wallet where status = 'frozen') as frozen_wallet_count,
+        (select count(*)::int from wallets_at_cutoff where status = 'frozen') as frozen_wallet_count,
         coalesce(
           (select jsonb_object_agg(reason, total::text) from sources),
           '{}'::jsonb

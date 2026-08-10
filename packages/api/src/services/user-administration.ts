@@ -3,7 +3,7 @@ import type { db as database } from "@repo/db";
 import { session, user } from "@repo/db/schema/app";
 
 import {
-  notifyBannedLikerRewardSettlements,
+  notifyBannedLikerRewardSettlementsInTransaction,
   reconcileBannedLikerRewardsInTransaction,
   reconcileRestoredLikerRewardsInTransaction,
 } from "./contribution-rewards";
@@ -57,13 +57,14 @@ export async function banUserAndReconcileRewards(
       })
       .where(eq(user.id, input.userId));
     await tx.delete(session).where(eq(session.userId, input.userId));
-    return reconcileBannedLikerRewardsInTransaction(tx, {
+    const settlements = await reconcileBannedLikerRewardsInTransaction(tx, {
       actorUserId: input.actorUserId,
       likerUserId: input.userId,
       now,
     });
+    await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
+    return settlements;
   });
-  await notifyBannedLikerRewardSettlements(db, results);
   return results;
 }
 
@@ -101,17 +102,18 @@ export async function restoreExpiredTemporaryBanRewards(
           updatedAt: now,
         })
         .where(eq(user.id, candidate.id));
-      return reconcileRestoredLikerRewardsInTransaction(tx, {
+      const settlements = await reconcileRestoredLikerRewardsInTransaction(tx, {
         likerUserId: candidate.id,
         now,
       });
+      await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
+      return settlements;
     });
     if (!results) {
       continue;
     }
     restored += 1;
     profileUserIds.add(candidate.id);
-    await notifyBannedLikerRewardSettlements(db, results);
     for (const result of results) {
       if (result.settlements.length > 0) {
         profileUserIds.add(result.userId);
@@ -148,11 +150,12 @@ export async function unbanUserAndReconcileRewards(
         updatedAt: now,
       })
       .where(eq(user.id, input.userId));
-    return reconcileRestoredLikerRewardsInTransaction(tx, {
+    const settlements = await reconcileRestoredLikerRewardsInTransaction(tx, {
       likerUserId: input.userId,
       now,
     });
+    await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
+    return settlements;
   });
-  await notifyBannedLikerRewardSettlements(db, results);
   return results;
 }

@@ -1214,6 +1214,27 @@ export const eterisWalletBalance = pgTable("eteris_wallet_balance", {
     .references(() => eterisWallet.id, { onDelete: "restrict" }),
 });
 
+export const eterisWalletStatusEvent = pgTable(
+  "eteris_wallet_status_event",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    sequence: bigserial("sequence", { mode: "bigint" }).primaryKey(),
+    status: eterisWalletStatusEnum("status").notNull(),
+    walletId: text("wallet_id")
+      .notNull()
+      .references(() => eterisWallet.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    index("eteris_wallet_status_event_wallet_created_idx").on(
+      table.walletId,
+      table.createdAt,
+      table.sequence
+    ),
+  ]
+);
+
 export const eterisTransaction = pgTable(
   "eteris_transaction",
   {

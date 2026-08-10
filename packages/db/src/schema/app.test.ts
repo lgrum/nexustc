@@ -7,6 +7,7 @@ import {
   eterisTransaction,
   eterisWallet,
   eterisWalletBalance,
+  eterisWalletStatusEvent,
   postRating,
   postRatingLikes,
   user,
@@ -112,6 +113,19 @@ test("account deletion anonymizes wallets without deleting ledger postings", () 
       (foreignKey) => foreignKey.reference().foreignTable === eterisWallet
     )?.onDelete
   ).toBe("restrict");
+});
+
+test("wallet status history remains attached to the immutable wallet ledger", () => {
+  const historyConfig = getTableConfig(eterisWalletStatusEvent);
+
+  expect(
+    historyConfig.foreignKeys.find(
+      (foreignKey) => foreignKey.reference().foreignTable === eterisWallet
+    )?.onDelete
+  ).toBe("restrict");
+  expect(historyConfig.indexes.map(({ config }) => config.name)).toContain(
+    "eteris_wallet_status_event_wallet_created_idx"
+  );
 });
 
 test("contribution reward subjects retain opaque review identities", () => {

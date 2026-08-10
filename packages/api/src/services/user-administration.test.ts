@@ -7,13 +7,13 @@ import {
 } from "./user-administration";
 
 const rewards = vi.hoisted(() => ({
-  notify: vi.fn(),
+  notifyInTransaction: vi.fn(),
   reconcile: vi.fn(),
   restore: vi.fn(),
 }));
 
 vi.mock("./contribution-rewards", () => ({
-  notifyBannedLikerRewardSettlements: rewards.notify,
+  notifyBannedLikerRewardSettlementsInTransaction: rewards.notifyInTransaction,
   reconcileBannedLikerRewardsInTransaction: rewards.reconcile,
   reconcileRestoredLikerRewardsInTransaction: rewards.restore,
 }));
@@ -42,7 +42,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   rewards.reconcile.mockResolvedValue([]);
   rewards.restore.mockResolvedValue([]);
-  rewards.notify.mockImplementation(() => Promise.resolve());
+  rewards.notifyInTransaction.mockImplementation(() => Promise.resolve());
 });
 
 it("restores rewards when a temporary ban expires", async () => {
@@ -102,7 +102,10 @@ it("restores rewards when a temporary ban expires", async () => {
     likerUserId: "liker-1",
     now,
   });
-  expect(rewards.notify).toHaveBeenCalledWith(db, expect.any(Array));
+  expect(rewards.notifyInTransaction).toHaveBeenCalledWith(
+    tx,
+    expect.any(Array)
+  );
 });
 
 it("does not clear a temporary ban extended after the expiry scan", async () => {
@@ -167,7 +170,7 @@ it("bans, revokes sessions, and reconciles liker rewards in one transaction", as
     likerUserId: "liker-1",
     now,
   });
-  expect(rewards.notify).toHaveBeenCalledWith(db, []);
+  expect(rewards.notifyInTransaction).toHaveBeenCalledWith(tx, []);
 });
 
 it("manually unbans and restores supported liker rewards atomically", async () => {
@@ -195,7 +198,10 @@ it("manually unbans and restores supported liker rewards atomically", async () =
     likerUserId: "liker-1",
     now,
   });
-  expect(rewards.notify).toHaveBeenCalledWith(db, expect.any(Array));
+  expect(rewards.notifyInTransaction).toHaveBeenCalledWith(
+    tx,
+    expect.any(Array)
+  );
 });
 
 it("does not report success when reward reconciliation aborts the ban transaction", async () => {
@@ -212,5 +218,38 @@ it("does not report success when reward reconciliation aborts the ban transactio
 
   expect(db.transaction).toHaveBeenCalledOnce();
   expect(rewards.reconcile).toHaveBeenCalledWith(tx, expect.anything());
-  expect(rewards.notify).not.toHaveBeenCalled();
+  expect(rewards.notifyInTransaction).not.toHaveBeenCalled();
+});
+
+it("rolls back a ban when a reward notification cannot be persisted", async () => {
+  const { db, tx } = createDatabase();
+  rewards.reconcile.mockResolvedValueOnce([
+    {
+      settlements: [{ level: 1, previousLevel: 2 }],
+      userId: "author-1",
+    },
+  ]);
+  rewards.notifyInTransaction.mockRejectedValueOnce(
+    new Error("notification failure")
+  );
+  let committed = false;
+  db.transaction.mockImplementationOnce(async (callback) => {
+    const result = await callback(tx);
+    committed = true;
+    return result;
+  });
+
+  await expect(
+    banUserAndReconcileRewards(db as never, {
+      actorUserId: "owner-1",
+      now: new Date("2026-08-10T00:00:00.000Z"),
+      userId: "liker-1",
+    })
+  ).rejects.toThrow("notification failure");
+
+  expect(committed).toBe(false);
+  expect(rewards.notifyInTransaction).toHaveBeenCalledWith(
+    tx,
+    expect.any(Array)
+  );
 });

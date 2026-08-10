@@ -1250,4 +1250,22 @@ describe("progression service", () => {
     expect(store.getEvents()).toHaveLength(0);
     expect(ledger.notifications).toHaveLength(0);
   });
+
+  it("rolls back activation when an owner adjustment settles to zero", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+
+    await expect(
+      adjustXp(store.db, {
+        actorUserId: "owner-1",
+        amount: -1,
+        idempotencyKey: "owner-adjustment-before-activation",
+        reason: "Correccion aprobada por soporte",
+        userId: "user-1",
+      })
+    ).rejects.toMatchObject({ code: "INVALID_TOTAL" });
+
+    expect(store.getActivation()).toBeNull();
+    expect(store.getEvents()).toHaveLength(0);
+  });
 });

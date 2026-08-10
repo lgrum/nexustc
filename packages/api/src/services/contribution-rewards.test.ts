@@ -196,6 +196,7 @@ function createEditedContributionTransaction(
         findFirst: vi
           .fn()
           .mockResolvedValueOnce(editedSubject)
+          .mockResolvedValueOnce(editedSubject)
           .mockResolvedValue(null),
         findMany: vi.fn().mockResolvedValue(laterDuplicates),
       },
@@ -211,7 +212,9 @@ function createFormerCanonicalReviewTransaction(
   const subjectFindFirst = vi
     .fn()
     .mockResolvedValueOnce(subject)
+    .mockResolvedValueOnce(subject)
     .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce(formerCanonical)
     .mockResolvedValueOnce(formerCanonical)
     .mockResolvedValueOnce(formerCanonical)
     .mockResolvedValueOnce(null);
@@ -405,6 +408,7 @@ function createSettlementTransaction(options?: {
 }) {
   const subjectFindFirst = vi
     .fn()
+    .mockResolvedValueOnce(subject)
     .mockResolvedValueOnce(subject)
     .mockResolvedValueOnce(options?.duplicate ? { id: "older" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: subject.id }]);
@@ -648,11 +652,23 @@ describe("Eligible Like", () => {
     query.from.mockReturnValue(query);
     query.innerJoin.mockReturnValue(query);
     query.where.mockReturnValue(query);
+    const authorLockQuery = {
+      for: vi.fn().mockResolvedValue([{ id: review.userId }]),
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    authorLockQuery.from.mockReturnValue(authorLockQuery);
+    authorLockQuery.where.mockReturnValue(authorLockQuery);
     const legacyTx = {
       query: {
         xpRewardSubject: { findFirst: vi.fn().mockResolvedValue(subject) },
       },
-      select: vi.fn().mockReturnValue(query),
+      select: vi
+        .fn()
+        .mockReturnValueOnce(authorLockQuery)
+        .mockReturnValueOnce(query)
+        .mockReturnValueOnce(authorLockQuery)
+        .mockReturnValueOnce(query),
     } as unknown as Transaction;
 
     await expect(
@@ -665,16 +681,23 @@ describe("Eligible Like", () => {
     ).resolves.toBeNull();
 
     activation.date = new Date("2026-08-01T00:00:00.000Z");
+    const activeAuthorLockQuery = {
+      for: vi.fn().mockResolvedValue([{ id: review.userId }]),
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    activeAuthorLockQuery.from.mockReturnValue(activeAuthorLockQuery);
+    activeAuthorLockQuery.where.mockReturnValue(activeAuthorLockQuery);
     const activeTx = {
       query: {
         xpRewardSubject: { findFirst: vi.fn().mockResolvedValue(subject) },
       },
-      select: vi.fn(),
+      select: vi.fn().mockReturnValue(activeAuthorLockQuery),
     } as unknown as Transaction;
     await expect(
       saveReviewRewardSubjectInTransaction(activeTx, review, "ineligible-liker")
     ).resolves.toEqual(subject);
-    expect(activeTx.select).not.toHaveBeenCalled();
+    expect(activeAuthorLockQuery.for).toHaveBeenCalledWith("update");
   });
 });
 
@@ -1192,6 +1215,10 @@ function createCommentSettlementTransaction(
       ...commentSubject,
       normalizedContentHash: getContributionContentHash(content),
     })
+    .mockResolvedValueOnce({
+      ...commentSubject,
+      normalizedContentHash: getContributionContentHash(content),
+    })
     .mockResolvedValueOnce(duplicate ? { id: "older-comment" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: commentSubject.id }]);
   let sourceLocked = false;
@@ -1362,6 +1389,44 @@ describe("comment milestone settlement", () => {
 });
 
 describe("review daily cap", () => {
+  it("re-reads an existing review subject after locking its author", async () => {
+    const stale = { ...subject, normalizedContentHash: "stale-hash" };
+    const locked = { ...subject, normalizedContentHash: "locked-hash" };
+    const lock = vi.fn().mockResolvedValue([{ id: review.userId }]);
+    const set = vi.fn().mockReturnValue({
+      where: vi.fn().mockImplementation(() => Promise.resolve()),
+    });
+    const selectQuery = {
+      for: lock,
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    selectQuery.from.mockReturnValue(selectQuery);
+    selectQuery.where.mockReturnValue(selectQuery);
+    const tx = {
+      query: {
+        xpRewardSubject: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce(stale)
+            .mockResolvedValueOnce(locked),
+        },
+      },
+      select: vi.fn().mockReturnValue(selectQuery),
+      update: vi.fn().mockReturnValue({ set }),
+    } as unknown as Transaction;
+
+    const result = await saveReviewRewardSubjectInTransaction(tx, review);
+
+    expect(lock).toHaveBeenCalledWith("update");
+    expect(set).toHaveBeenCalledWith({
+      normalizedContentHash: getContributionContentHash(review.review),
+    });
+    expect(result).toMatchObject({
+      previousNormalizedContentHash: "locked-hash",
+    });
+  });
+
   it.each([
     [0, true],
     [1, true],
@@ -1404,6 +1469,49 @@ describe("review daily cap", () => {
 });
 
 describe("comment daily cap", () => {
+  it("re-reads an existing comment subject after locking its author", async () => {
+    const stale = { ...commentSubject, normalizedContentHash: "stale-hash" };
+    const locked = { ...commentSubject, normalizedContentHash: "locked-hash" };
+    const lock = vi.fn().mockResolvedValue([{ id: commentSnapshot.userId }]);
+    const set = vi.fn().mockReturnValue({
+      where: vi.fn().mockImplementation(() => Promise.resolve()),
+    });
+    const selectQuery = {
+      for: lock,
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    selectQuery.from.mockReturnValue(selectQuery);
+    selectQuery.where.mockReturnValue(selectQuery);
+    const tx = {
+      query: {
+        xpRewardSubject: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce(stale)
+            .mockResolvedValueOnce(locked),
+        },
+      },
+      select: vi.fn().mockReturnValue(selectQuery),
+      update: vi.fn().mockReturnValue({ set }),
+    } as unknown as Transaction;
+
+    const result = await saveCommentRewardSubjectInTransaction(
+      tx,
+      commentSnapshot
+    );
+
+    expect(lock).toHaveBeenCalledWith("update");
+    expect(set).toHaveBeenCalledWith({
+      normalizedContentHash: getContributionContentHash(
+        commentSnapshot.content
+      ),
+    });
+    expect(result).toMatchObject({
+      previousNormalizedContentHash: "locked-hash",
+    });
+  });
+
   it.each([
     [4, true],
     [5, false],
