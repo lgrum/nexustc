@@ -844,7 +844,7 @@ export async function createPendingXpEventInTransaction(
   return { eventId, pendingXp, replayed: false };
 }
 
-async function notifyXpSettlementInTransaction(
+export async function notifyXpSettlementInTransaction(
   tx: Parameters<typeof createUserNotification>[0],
   userId: string,
   result: Awaited<ReturnType<typeof postXpEventInTransaction>>

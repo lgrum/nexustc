@@ -21,6 +21,7 @@ import type { XpEventCommand } from "./progression";
 import {
   cancelPendingXpEventsInTransaction,
   notifyXpSettlement,
+  notifyXpSettlementInTransaction,
   postXpEventInTransaction,
   releaseMaturedPendingXpInTransaction,
   releasePendingXpCaseInTransaction,
@@ -187,6 +188,17 @@ async function reversePostedCaseEvents(
     settlements,
     userId: originals[0]?.userId ?? null,
   };
+}
+
+async function hasPendingCaseEvents(tx: Transaction, caseId: string) {
+  const [pendingEvent] = await tx
+    .select({ id: xpEvent.id })
+    .from(xpEvent)
+    .where(
+      and(eq(xpEvent.integrityCaseId, caseId), eq(xpEvent.state, "pending"))
+    )
+    .limit(1);
+  return Boolean(pendingEvent);
 }
 
 async function blockCaseScope(
@@ -379,7 +391,11 @@ export async function decideIntegrityCase(
         });
       ({ settlements } = reversal);
       ({ userId } = reversal);
-      status = settlements.length ? "reversed" : "dismissed";
+      status = (await hasPendingCaseEvents(tx, input.caseId))
+        ? "open"
+        : settlements.length
+          ? "reversed"
+          : "dismissed";
     }
     if (status !== "open") {
       await tx
@@ -393,16 +409,13 @@ export async function decideIntegrityCase(
         })
         .where(eq(xpIntegrityCase.id, input.caseId));
     }
-    return { replayed: false, settlements, status, userId };
-  });
 
-  if (!result.replayed && result.userId) {
-    for (const settlement of result.settlements) {
-      await notifyXpSettlement(db, result.userId, settlement);
-    }
-    if (result.status === "reversed") {
-      await db.transaction((tx) =>
-        createUserNotification(tx, {
+    if (userId) {
+      for (const settlement of settlements) {
+        await notifyXpSettlementInTransaction(tx, userId, settlement);
+      }
+      if (status === "reversed") {
+        await createUserNotification(tx, {
           description:
             "Una investigacion confirmada revirtio Account XP no valido. Consulta tu historial para ver el ajuste.",
           metadata: {
@@ -410,12 +423,13 @@ export async function decideIntegrityCase(
             linkPath: "/profile?section=progression",
           },
           sourceUserId: input.actorUserId,
-          targetUserId: result.userId!,
+          targetUserId: userId,
           title: "Se revirtio Account XP",
-        })
-      );
+        });
+      }
     }
-  }
+    return { replayed: false, settlements, status, userId };
+  });
   return result;
 }
 

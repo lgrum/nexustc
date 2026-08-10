@@ -10,23 +10,31 @@ import {
 const progression = vi.hoisted(() => ({
   cancelPending: vi.fn(),
   matured: vi.fn(),
+  notify: vi.fn(),
+  notifyInTransaction: vi.fn(),
   pending: vi.fn(),
   posted: vi.fn(),
   releaseCase: vi.fn(),
 }));
+const contribution = vi.hoisted(() => ({ reverseUnsupported: vi.fn() }));
+const notification = vi.hoisted(() => ({ create: vi.fn() }));
 
 vi.mock("./progression", () => ({
   cancelPendingXpEventsInTransaction: progression.cancelPending,
   releaseMaturedPendingXpInTransaction: progression.matured,
   createPendingXpEventInTransaction: progression.pending,
   lockUserProgressionInTransaction: vi.fn(),
-  notifyXpSettlement: vi.fn(),
+  notifyXpSettlement: progression.notify,
+  notifyXpSettlementInTransaction: progression.notifyInTransaction,
   postXpEventInTransaction: progression.posted,
   releasePendingXpCaseInTransaction: progression.releaseCase,
 }));
-vi.mock("./notification", () => ({ createUserNotification: vi.fn() }));
+vi.mock("./notification", () => ({
+  createUserNotification: notification.create,
+}));
 vi.mock("./contribution-rewards", () => ({
-  reverseUnsupportedContributionMilestonesInTransaction: vi.fn(),
+  reverseUnsupportedContributionMilestonesInTransaction:
+    contribution.reverseUnsupported,
 }));
 
 type Database = typeof database;
@@ -62,6 +70,8 @@ function createTransaction() {
 beforeEach(() => {
   progression.cancelPending.mockReset().mockResolvedValue([]);
   progression.matured.mockReset().mockResolvedValue([]);
+  progression.notify.mockReset().mockResolvedValue();
+  progression.notifyInTransaction.mockReset().mockResolvedValue();
   progression.pending.mockReset().mockResolvedValue({
     eventId: "event-1",
     pendingXp: 25,
@@ -73,6 +83,11 @@ beforeEach(() => {
     settlements: [],
     userId: "user-1",
   });
+  contribution.reverseUnsupported.mockReset().mockResolvedValue({
+    settlements: [],
+    userId: "user-1",
+  });
+  notification.create.mockReset().mockResolvedValue("notification-1");
 });
 
 describe("integrity settlement", () => {
@@ -145,6 +160,137 @@ describe("integrity settlement", () => {
       })
     ).rejects.toThrow("INTEGRITY_SUBJECT_MISMATCH");
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("keeps a like-disqualification case open while supported XP remains pending", async () => {
+    let shapedSelectCall = 0;
+    const update = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+    }));
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      select: vi.fn((shape?: Record<string, unknown>) => {
+        if (!shape) {
+          const chain = {
+            for: vi
+              .fn()
+              .mockResolvedValue([
+                { id: "case-1", status: "open", userId: "user-1" },
+              ]),
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        shapedSelectCall += 1;
+        const chain = {
+          from: vi.fn(),
+          limit: vi.fn().mockResolvedValue([
+            {
+              id: shapedSelectCall === 1 ? "case-event" : "pending-event",
+            },
+          ]),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+      update,
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "disqualify_likes",
+        actorUserId: "moderator-1",
+        caseId: "case-1",
+        likerUserIds: ["liker-1"],
+        reason: "Se descartaron solo los likes coordinados",
+        subjectId: "subject-1",
+      })
+    ).resolves.toMatchObject({ status: "open" });
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  it("persists reversal notifications in the integrity decision transaction", async () => {
+    contribution.reverseUnsupported.mockResolvedValue({
+      settlements: [{ eventId: "reversal-1" }],
+      userId: "user-1",
+    });
+    notification.create.mockRejectedValue(new Error("notification failure"));
+    let shapedSelectCall = 0;
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      select: vi.fn((shape?: Record<string, unknown>) => {
+        if (!shape) {
+          const chain = {
+            for: vi
+              .fn()
+              .mockResolvedValue([
+                { id: "case-1", status: "open", userId: "user-1" },
+              ]),
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        shapedSelectCall += 1;
+        const chain = {
+          from: vi.fn(),
+          limit: vi
+            .fn()
+            .mockResolvedValue(
+              shapedSelectCall === 1 ? [{ id: "case-event" }] : []
+            ),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "disqualify_likes",
+        actorUserId: "moderator-1",
+        caseId: "case-1",
+        likerUserIds: ["liker-1"],
+        reason: "Likes coordinados confirmados",
+        subjectId: "subject-1",
+      })
+    ).rejects.toThrow("notification failure");
+
+    expect(db.transaction).toHaveBeenCalledOnce();
+    expect(progression.notifyInTransaction).toHaveBeenCalledWith(tx, "user-1", {
+      eventId: "reversal-1",
+    });
+    expect(notification.create).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ targetUserId: "user-1" })
+    );
   });
 
   it("keeps a manually released case open after a projection mismatch", async () => {
