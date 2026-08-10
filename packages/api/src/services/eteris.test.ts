@@ -22,6 +22,7 @@ import {
   xpRiskSignal,
 } from "@repo/db/schema/app";
 
+import { ContributionProjectionMismatchError } from "./contribution-rewards";
 import {
   adjustEteris,
   EterisError,
@@ -1294,12 +1295,16 @@ test("account deletion rolls back when outgoing-like reconciliation fails", asyn
     anomalousEarners: [{ total: "900", userId: "user-1" }],
   });
   await getUserWallet(store.db, "user-1");
+  const wallet = [...store.wallets.values()].find(
+    (candidate) => candidate.userId === "user-1"
+  )!;
 
   await expect(
     closeAccountAndDeleteUser(
       store.db,
       "user-1",
-      () => Promise.reject(new Error("XP_PROJECTION_MISMATCH")),
+      () =>
+        Promise.reject(new ContributionProjectionMismatchError([wallet.id])),
       () => Promise.resolve()
     )
   ).rejects.toThrow("XP_PROJECTION_MISMATCH");
@@ -1308,6 +1313,7 @@ test("account deletion rolls back when outgoing-like reconciliation fails", asyn
   expect(store.dailySnapshots[0]?.anomalousEarners).toEqual([
     { total: "900", userId: "user-1" },
   ]);
+  expect(store.wallets.get(wallet.id)?.status).toBe("frozen");
 });
 
 test("a frozen wallet can turn off public balance and is never exposed publicly", async () => {

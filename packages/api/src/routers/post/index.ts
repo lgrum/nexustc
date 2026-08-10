@@ -59,6 +59,7 @@ import {
   lockContributionParticipantsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
+  runContributionRewardTransaction,
   saveCommentRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction,
 } from "../../services/contribution-rewards";
@@ -1700,48 +1701,51 @@ export default {
           }
         }
 
-        const settlements = await db.transaction(async (tx) => {
-          await lockContributionParticipantsInTransaction(tx, [
-            session.user.id,
-          ]);
-          const [updatedComment] = await tx
-            .update(comment)
-            .set({
-              content: input.content,
-              editedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(comment.id, input.commentId),
-                eq(comment.authorId, session.user.id)
+        const settlements = await runContributionRewardTransaction(
+          db,
+          async (tx) => {
+            await lockContributionParticipantsInTransaction(tx, [
+              session.user.id,
+            ]);
+            const [updatedComment] = await tx
+              .update(comment)
+              .set({
+                content: input.content,
+                editedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(comment.id, input.commentId),
+                  eq(comment.authorId, session.user.id)
+                )
               )
-            )
-            .returning({
-              content: comment.content,
-              createdAt: comment.createdAt,
-              id: comment.id,
-              postId: comment.postId,
-              userId: comment.authorId,
-            });
-          if (updatedComment?.userId) {
-            const result = await reconcileEditedCommentRewardsInTransaction(
-              tx,
-              {
-                ...updatedComment,
-                userId: updatedComment.userId,
-              }
-            );
-            for (const settlement of result.settlements) {
-              await notifyXpSettlementInTransaction(
+              .returning({
+                content: comment.content,
+                createdAt: comment.createdAt,
+                id: comment.id,
+                postId: comment.postId,
+                userId: comment.authorId,
+              });
+            if (updatedComment?.userId) {
+              const result = await reconcileEditedCommentRewardsInTransaction(
                 tx,
-                session.user.id,
-                settlement
+                {
+                  ...updatedComment,
+                  userId: updatedComment.userId,
+                }
               );
+              for (const settlement of result.settlements) {
+                await notifyXpSettlementInTransaction(
+                  tx,
+                  session.user.id,
+                  settlement
+                );
+              }
+              return result.settlements;
             }
-            return result.settlements;
+            return [];
           }
-          return [];
-        });
+        );
         logger?.debug(`Own comment ${input.commentId} edited`);
         return {
           profileUserId: session.user.id,
@@ -1921,7 +1925,7 @@ export default {
         const result: {
           authorId: string;
           settlements: CommentMilestoneSettlement[];
-        } = await db.transaction(async (tx) => {
+        } = await runContributionRewardTransaction(db, async (tx) => {
           const [existingComment] = await tx
             .select({
               authorId: comment.authorId,

@@ -20,6 +20,7 @@ import {
   lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
+  runContributionRewardTransaction,
   settleReviewMilestonesInTransaction,
 } from "../services/contribution-rewards";
 import {
@@ -191,7 +192,7 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await db.transaction(async (tx) => {
+      await runContributionRewardTransaction(db, async (tx) => {
         await lockContributionParticipantsInTransaction(tx, [session.user.id]);
         const [savedReview] = await tx
           .insert(postRating)
@@ -261,7 +262,7 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await db.transaction(async (tx) => {
+      await runContributionRewardTransaction(db, async (tx) => {
         await lockContributionParticipantsInTransaction(tx, [session.user.id]);
         const [savedReview] = await tx
           .update(postRating)
@@ -376,7 +377,7 @@ export default {
       const result: {
         authorId: string;
         settlements: ReviewMilestoneSettlement[];
-      } = await db.transaction(async (tx) => {
+      } = await runContributionRewardTransaction(db, async (tx) => {
         const [existingRating] = await tx
           .select({
             earlyAccessEnabled: post.earlyAccessEnabled,

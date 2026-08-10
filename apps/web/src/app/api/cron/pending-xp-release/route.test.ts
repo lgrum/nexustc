@@ -53,6 +53,23 @@ test("releases matured Pending XP and revalidates affected profiles", async () =
   expect(revalidateTag).toHaveBeenCalledWith("profile:user-2", "max");
 });
 
+test("revalidates committed releases before reporting a batch failure", async () => {
+  release.mockRejectedValueOnce(
+    Object.assign(new Error("release failure"), {
+      profileUserIds: ["released-user"],
+    })
+  );
+
+  await expect(
+    GET(
+      new Request("http://localhost/api/cron/pending-xp-release", {
+        headers: { authorization: "Bearer test-cron-secret-value" },
+      })
+    )
+  ).rejects.toThrow("release failure");
+  expect(revalidateTag).toHaveBeenCalledWith("profile:released-user", "max");
+});
+
 test("schedules matured Pending XP release independently of user activity", async () => {
   const config = JSON.parse(
     await readFile(

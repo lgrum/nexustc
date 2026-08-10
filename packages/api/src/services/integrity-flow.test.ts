@@ -18,7 +18,10 @@ const progression = vi.hoisted(() => ({
   posted: vi.fn(),
   releaseCase: vi.fn(),
 }));
-const contribution = vi.hoisted(() => ({ reverseUnsupported: vi.fn() }));
+const contribution = vi.hoisted(() => ({
+  reverseUnsupported: vi.fn(),
+  runTransaction: vi.fn(),
+}));
 const notification = vi.hoisted(() => ({ create: vi.fn() }));
 
 vi.mock("./progression", () => ({
@@ -37,6 +40,7 @@ vi.mock("./notification", () => ({
 vi.mock("./contribution-rewards", () => ({
   reverseUnsupportedContributionMilestonesInTransaction:
     contribution.reverseUnsupported,
+  runContributionRewardTransaction: contribution.runTransaction,
 }));
 
 type Database = typeof database;
@@ -70,6 +74,9 @@ function createTransaction() {
 }
 
 beforeEach(() => {
+  contribution.runTransaction
+    .mockReset()
+    .mockImplementation((db, callback) => db.transaction(callback));
   progression.cancelPending.mockReset().mockResolvedValue([]);
   progression.matured.mockReset().mockResolvedValue({
     completed: true,
@@ -228,6 +235,39 @@ describe("integrity settlement", () => {
       "ready-user",
       settlement
     );
+  });
+
+  it("reports committed profile invalidations when a later release fails", async () => {
+    progression.matured
+      .mockResolvedValueOnce({
+        completed: true,
+        settlements: [{ eventId: "released-before-failure" }],
+      })
+      .mockRejectedValueOnce(new Error("notification failure"));
+    const candidates = {
+      from: vi.fn(),
+      groupBy: vi.fn(),
+      limit: vi
+        .fn()
+        .mockResolvedValue([
+          { userId: "released-user" },
+          { userId: "failed-user" },
+        ]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    candidates.from.mockReturnValue(candidates);
+    candidates.where.mockReturnValue(candidates);
+    candidates.groupBy.mockReturnValue(candidates);
+    candidates.orderBy.mockReturnValue(candidates);
+    const db = {
+      select: vi.fn().mockReturnValue(candidates),
+      transaction: vi.fn((callback) => callback({} as Transaction)),
+    } as unknown as Database;
+
+    await expect(releaseMaturedPendingXpBatch(db)).rejects.toMatchObject({
+      profileUserIds: ["released-user"],
+    });
   });
 
   it("paginates past unreleasable Pending XP users", async () => {

@@ -12,7 +12,10 @@ import {
 import { xpRiskSignalKindSchema } from "@repo/shared/xp-integrity";
 
 import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
-import { reverseUnsupportedContributionMilestonesInTransaction } from "./contribution-rewards";
+import {
+  reverseUnsupportedContributionMilestonesInTransaction,
+  runContributionRewardTransaction,
+} from "./contribution-rewards";
 import {
   cleanupExpiredRiskSignals,
   settleXpWithIntegrityInTransaction,
@@ -32,6 +35,16 @@ import {
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type XpSettlement = Awaited<ReturnType<typeof postXpEventInTransaction>>;
+
+export class PendingXpReleaseBatchError extends AggregateError {
+  readonly profileUserIds: string[];
+
+  constructor(errors: unknown[], profileUserIds: string[]) {
+    super(errors, "No se pudo liberar todo el Account XP pendiente.");
+    this.name = "PendingXpReleaseBatchError";
+    this.profileUserIds = profileUserIds;
+  }
+}
 
 async function assertCurrentSubjectLikes(
   tx: Transaction,
@@ -324,7 +337,7 @@ export async function decideIntegrityCase(
   input: IntegrityDecision & { actorUserId?: string; caseId: string },
   now = new Date()
 ) {
-  const result = await db.transaction(async (tx) => {
+  const result = await runContributionRewardTransaction(db, async (tx) => {
     const [integrityCase] = await tx
       .select()
       .from(xpIntegrityCase)
@@ -517,6 +530,7 @@ export async function releaseMaturedPendingXpBatch(
   const profileUserIds = new Set<string>();
   let checked = 0;
   let cursor: string | undefined;
+  const errors: unknown[] = [];
   let released = 0;
   while (true) {
     const candidates = await db
@@ -553,7 +567,7 @@ export async function releaseMaturedPendingXpBatch(
         ) {
           continue;
         }
-        throw error;
+        errors.push(error);
       }
     }
     const lastCandidate = candidates.at(-1);
@@ -562,11 +576,15 @@ export async function releaseMaturedPendingXpBatch(
     }
     cursor = lastCandidate.userId;
   }
-  return {
+  const result = {
     checked,
     profileUserIds: [...profileUserIds],
     released,
   };
+  if (errors.length > 0) {
+    throw new PendingXpReleaseBatchError(errors, result.profileUserIds);
+  }
+  return result;
 }
 
 export async function listIntegrityCases(

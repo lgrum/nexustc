@@ -154,6 +154,7 @@ vi.mock("./progression", () => ({
         level: 1,
         previousLevel: 1,
         projectionMismatch: true,
+        projectionMismatchWalletIds: ["wallet-user-1"],
         replayed: false,
         settledXp: 0,
         totalXp: 75,
@@ -1642,6 +1643,7 @@ function createDeletionDatabase(reason: "guideline_abuse" | "voluntary") {
   const subjectUpdateValues: Record<string, unknown>[] = [];
   const deletedReview = vi.fn().mockResolvedValue(null);
   const insertedBlock = vi.fn().mockResolvedValue(null);
+  const frozenWalletIds: string[][] = [];
   const tx = {
     delete: vi.fn().mockReturnValue({ where: deletedReview }),
     insert: vi.fn().mockReturnValue({
@@ -1696,8 +1698,23 @@ function createDeletionDatabase(reason: "guideline_abuse" | "voluntary") {
   };
   const db = {
     transaction: vi.fn((callback) => callback(tx)),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn((_condition) => {
+          frozenWalletIds.push(["wallet-user-1"]);
+          return Promise.resolve();
+        }),
+      }),
+    }),
   } as unknown as Database;
-  return { db, deletedReview, insertedBlock, reason, subjectUpdateValues };
+  return {
+    db,
+    deletedReview,
+    frozenWalletIds,
+    insertedBlock,
+    reason,
+    subjectUpdateValues,
+  };
 }
 
 describe("review removal lifecycle", () => {
@@ -1796,6 +1813,7 @@ describe("review removal lifecycle", () => {
     ).rejects.toThrow("XP_PROJECTION_MISMATCH");
     expect(store.deletedReview).not.toHaveBeenCalled();
     expect(store.subjectUpdateValues).toHaveLength(0);
+    expect(store.frozenWalletIds).toEqual([["wallet-user-1"]]);
   });
 
   it("cancels pending milestone XP before deleting its reward subject", async () => {

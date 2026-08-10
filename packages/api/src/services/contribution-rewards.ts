@@ -17,6 +17,7 @@ import type { db as database } from "@repo/db";
 import {
   comment,
   commentLikes,
+  eterisWallet,
   postRating,
   postRatingLikes,
   user,
@@ -91,14 +92,46 @@ const EMPTY_INTEGRITY_CORRELATION = {
   ipPrefixHash: null,
 } satisfies IntegrityCorrelationEvidence;
 
+export class ContributionProjectionMismatchError extends Error {
+  readonly walletIds: string[];
+
+  constructor(walletIds: string[]) {
+    super("XP_PROJECTION_MISMATCH");
+    this.name = "ContributionProjectionMismatchError";
+    this.walletIds = walletIds;
+  }
+}
+
 function requireProjectedXpSettlement(settlement: XpSettlement) {
   if (
     "projectionMismatch" in settlement &&
     settlement.projectionMismatch === true
   ) {
-    throw new Error("XP_PROJECTION_MISMATCH");
+    if (!settlement.projectionMismatchWalletIds) {
+      throw new Error("XP_PROJECTION_MISMATCH");
+    }
+    throw new ContributionProjectionMismatchError(
+      settlement.projectionMismatchWalletIds
+    );
   }
   return settlement;
+}
+
+export async function runContributionRewardTransaction<T>(
+  db: Database,
+  callback: (tx: Transaction) => Promise<T>
+) {
+  try {
+    return await db.transaction(callback);
+  } catch (error) {
+    if (error instanceof ContributionProjectionMismatchError) {
+      await db
+        .update(eterisWallet)
+        .set({ status: "frozen" })
+        .where(inArray(eterisWallet.id, error.walletIds));
+    }
+    throw error;
+  }
 }
 
 export function getContributionContentHash(content: string) {
@@ -1713,7 +1746,7 @@ export function reconcileBannedLikerRewards(
   db: Database,
   input: { actorUserId: string; likerUserId: string; now?: Date }
 ) {
-  return db.transaction(async (tx) => {
+  return runContributionRewardTransaction(db, async (tx) => {
     const results = await reconcileBannedLikerRewardsInTransaction(tx, {
       ...input,
       now: input.now ?? new Date(),
@@ -1856,7 +1889,7 @@ export function deleteReviewWithRewards(
     userId: string;
   }
 ) {
-  return db.transaction(async (tx) => {
+  return runContributionRewardTransaction(db, async (tx) => {
     const now = new Date();
     await lockContributionAuthor(tx, input.userId);
     const [review] = await tx
@@ -1928,7 +1961,7 @@ export function deleteCommentWithRewards(
     reason: "guideline_abuse" | "voluntary";
   }
 ) {
-  return db.transaction(async (tx) => {
+  return runContributionRewardTransaction(db, async (tx) => {
     const now = new Date();
     const [candidate] = await tx
       .select({ userId: comment.authorId })

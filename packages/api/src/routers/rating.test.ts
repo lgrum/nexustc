@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   publicCatalogVisibilityCondition: vi.fn(),
   reconcileEditedReviewRewardsInTransaction: vi.fn(),
   reconcileRemovedContributionLikeInTransaction: vi.fn(),
+  runContributionRewardTransaction: vi.fn(),
   settleReviewMilestonesInTransaction: vi.fn(),
 }));
 
@@ -41,6 +42,7 @@ vi.mock("../services/contribution-rewards", () => ({
     mocks.reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction:
     mocks.reconcileRemovedContributionLikeInTransaction,
+  runContributionRewardTransaction: mocks.runContributionRewardTransaction,
   settleReviewMilestonesInTransaction:
     mocks.settleReviewMilestonesInTransaction,
 }));
@@ -107,6 +109,9 @@ function createContext(select = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.runContributionRewardTransaction.mockImplementation((db, callback) =>
+    db.transaction(callback)
+  );
   mocks.settleReviewMilestonesInTransaction.mockResolvedValue({
     settlements: [],
   });

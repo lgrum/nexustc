@@ -11,6 +11,7 @@ const rewards = vi.hoisted(() => ({
   notifyInTransaction: vi.fn(),
   reconcile: vi.fn(),
   restore: vi.fn(),
+  runTransaction: vi.fn(),
 }));
 
 vi.mock("./contribution-rewards", () => ({
@@ -18,6 +19,7 @@ vi.mock("./contribution-rewards", () => ({
   notifyBannedLikerRewardSettlementsInTransaction: rewards.notifyInTransaction,
   reconcileBannedLikerRewardsInTransaction: rewards.reconcile,
   reconcileRestoredLikerRewardsInTransaction: rewards.restore,
+  runContributionRewardTransaction: rewards.runTransaction,
 }));
 
 function createDatabase() {
@@ -42,6 +44,9 @@ function createDatabase() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  rewards.runTransaction.mockImplementation((db, callback) =>
+    db.transaction(callback)
+  );
   rewards.lockLikerParticipants.mockImplementation(() => Promise.resolve());
   rewards.reconcile.mockResolvedValue([]);
   rewards.restore.mockResolvedValue([]);
@@ -150,6 +155,36 @@ it("does not clear a temporary ban extended after the expiry scan", async () => 
   ).resolves.toEqual({ checked: 1, profileUserIds: [], restored: 0 });
   expect(tx.update).not.toHaveBeenCalled();
   expect(rewards.restore).not.toHaveBeenCalled();
+});
+
+it("reports committed profile invalidations when a later restoration fails", async () => {
+  const candidateQuery = {
+    from: vi.fn(),
+    limit: vi
+      .fn()
+      .mockResolvedValue([{ id: "restored-user" }, { id: "failed-user" }]),
+    where: vi.fn(),
+  };
+  candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.where.mockReturnValue(candidateQuery);
+  const db = {
+    select: vi.fn().mockReturnValue(candidateQuery),
+    transaction: vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          settlements: [{ level: 2, previousLevel: 1 }],
+          userId: "author-1",
+        },
+      ])
+      .mockRejectedValueOnce(new Error("notification failure")),
+  };
+
+  await expect(
+    restoreExpiredTemporaryBanRewards(db as never)
+  ).rejects.toMatchObject({
+    profileUserIds: ["restored-user", "author-1"],
+  });
 });
 
 it("bans, revokes sessions, and reconciles liker rewards in one transaction", async () => {

@@ -97,31 +97,49 @@ export function closeAccountAndDeleteUser(
   reconcileOutgoingLikes = requireLikeReconciler(),
   reconcileAuthoredCommentRewards = requireCommentReconciler()
 ) {
-  return db.transaction(async (tx) => {
-    const now = new Date();
-    await tx
-      .select({ userId: patron.userId })
-      .from(patron)
-      .where(eq(patron.userId, userId))
-      .for("update");
-    const [account] = await tx
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.id, userId))
-      .for("update");
-    if (!account) {
-      throw new Error("ACCOUNT_CLOSURE_USER_NOT_FOUND");
+  return (async () => {
+    try {
+      return await db.transaction(async (tx) => {
+        const now = new Date();
+        await tx
+          .select({ userId: patron.userId })
+          .from(patron)
+          .where(eq(patron.userId, userId))
+          .for("update");
+        const [account] = await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.id, userId))
+          .for("update");
+        if (!account) {
+          throw new Error("ACCOUNT_CLOSURE_USER_NOT_FOUND");
+        }
+        const result = await closeAccountInTransaction(tx, userId, now);
+        await reconcileOutgoingLikes(tx, {
+          actorUserId: userId,
+          likerUserId: userId,
+          now,
+        });
+        await reconcileAuthoredCommentRewards(tx, { now, userId });
+        await tx.delete(user).where(eq(user.id, userId));
+        return result;
+      });
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.name === "ContributionProjectionMismatchError" &&
+        "walletIds" in error &&
+        Array.isArray(error.walletIds) &&
+        error.walletIds.every((walletId) => typeof walletId === "string")
+      ) {
+        await db
+          .update(eterisWallet)
+          .set({ status: "frozen" })
+          .where(inArray(eterisWallet.id, error.walletIds));
+      }
+      throw error;
     }
-    const result = await closeAccountInTransaction(tx, userId, now);
-    await reconcileOutgoingLikes(tx, {
-      actorUserId: userId,
-      likerUserId: userId,
-      now,
-    });
-    await reconcileAuthoredCommentRewards(tx, { now, userId });
-    await tx.delete(user).where(eq(user.id, userId));
-    return result;
-  });
+  })();
 }
 
 async function closeAccountInTransaction(

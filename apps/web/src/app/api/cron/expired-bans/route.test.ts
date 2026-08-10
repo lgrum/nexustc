@@ -49,3 +49,20 @@ test("restores expired bans and revalidates affected profiles", async () => {
   expect(restore).toHaveBeenCalledOnce();
   expect(revalidateTag).toHaveBeenCalledWith("profile:author-1", "max");
 });
+
+test("revalidates committed restorations before reporting a batch failure", async () => {
+  restore.mockRejectedValueOnce(
+    Object.assign(new Error("restoration failure"), {
+      profileUserIds: ["restored-user"],
+    })
+  );
+
+  await expect(
+    GET(
+      new Request("http://localhost/api/cron/expired-bans", {
+        headers: { authorization: "Bearer test-cron-secret-value" },
+      })
+    )
+  ).rejects.toThrow("restoration failure");
+  expect(revalidateTag).toHaveBeenCalledWith("profile:restored-user", "max");
+});

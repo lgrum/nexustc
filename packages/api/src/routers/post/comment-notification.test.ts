@@ -9,6 +9,7 @@ const rewards = vi.hoisted(() => ({
   notifyXpSettlementInTransaction: vi.fn(),
   reconcileEditedCommentRewardsInTransaction: vi.fn(),
   reconcileRemovedContributionLikeInTransaction: vi.fn(),
+  runContributionRewardTransaction: vi.fn(),
   saveCommentRewardSubjectInTransaction: vi.fn(),
   settleCommentMilestonesInTransaction: vi.fn(),
 }));
@@ -36,6 +37,7 @@ vi.mock("../../services/contribution-rewards", () => ({
     rewards.reconcileEditedCommentRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction:
     rewards.reconcileRemovedContributionLikeInTransaction,
+  runContributionRewardTransaction: rewards.runContributionRewardTransaction,
   saveCommentRewardSubjectInTransaction:
     rewards.saveCommentRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction:
@@ -142,6 +144,9 @@ function createContext({
 describe("comment reply notifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rewards.runContributionRewardTransaction.mockImplementation(
+      (db, callback) => db.transaction(callback)
+    );
     rewards.settleCommentMilestonesInTransaction.mockResolvedValue({
       settlements: [],
     });
@@ -307,6 +312,9 @@ describe("comment edit reward reconciliation", () => {
 describe("comment reward likes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    rewards.runContributionRewardTransaction.mockImplementation(
+      (db, callback) => db.transaction(callback)
+    );
     rewards.lockContributionParticipantsInTransaction.mockImplementation(() =>
       Promise.resolve()
     );

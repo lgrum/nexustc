@@ -7,6 +7,7 @@ import {
   notifyBannedLikerRewardSettlementsInTransaction,
   reconcileBannedLikerRewardsInTransaction,
   reconcileRestoredLikerRewardsInTransaction,
+  runContributionRewardTransaction,
 } from "./contribution-rewards";
 
 type Database = typeof database;
@@ -23,6 +24,19 @@ export class UserAdministrationError extends Error {
   }
 }
 
+function createExpiredBanRestorationBatchError(
+  errors: unknown[],
+  profileUserIds: string[]
+) {
+  return Object.assign(
+    new AggregateError(
+      errors,
+      "No se pudieron restaurar todas las cuentas suspendidas."
+    ),
+    { profileUserIds }
+  );
+}
+
 export async function banUserAndReconcileRewards(
   db: Database,
   input: {
@@ -37,7 +51,7 @@ export async function banUserAndReconcileRewards(
     throw new UserAdministrationError("SELF_BAN");
   }
   const now = input.now ?? new Date();
-  const results = await db.transaction(async (tx) => {
+  const results = await runContributionRewardTransaction(db, async (tx) => {
     const [target] = await tx
       .select({ id: user.id })
       .from(user)
@@ -79,38 +93,52 @@ export async function restoreExpiredTemporaryBanRewards(
     .where(and(eq(user.banned, true), lte(user.banExpires, now)))
     .limit(1000);
   const profileUserIds = new Set<string>();
+  const errors: unknown[] = [];
   let restored = 0;
   for (const candidate of candidates) {
-    const results = await db.transaction(async (tx) => {
-      await lockLikerRewardParticipantsInTransaction(tx, candidate.id);
-      const [current] = await tx
-        .select({
-          banExpires: user.banExpires,
-          banned: user.banned,
-          id: user.id,
-        })
-        .from(user)
-        .where(eq(user.id, candidate.id))
-        .for("update");
-      if (!current?.banned || !current.banExpires || current.banExpires > now) {
-        return null;
-      }
-      await tx
-        .update(user)
-        .set({
-          banExpires: null,
-          banReason: null,
-          banned: false,
-          updatedAt: now,
-        })
-        .where(eq(user.id, candidate.id));
-      const settlements = await reconcileRestoredLikerRewardsInTransaction(tx, {
-        likerUserId: candidate.id,
-        now,
+    let results;
+    try {
+      results = await runContributionRewardTransaction(db, async (tx) => {
+        await lockLikerRewardParticipantsInTransaction(tx, candidate.id);
+        const [current] = await tx
+          .select({
+            banExpires: user.banExpires,
+            banned: user.banned,
+            id: user.id,
+          })
+          .from(user)
+          .where(eq(user.id, candidate.id))
+          .for("update");
+        if (
+          !current?.banned ||
+          !current.banExpires ||
+          current.banExpires > now
+        ) {
+          return null;
+        }
+        await tx
+          .update(user)
+          .set({
+            banExpires: null,
+            banReason: null,
+            banned: false,
+            updatedAt: now,
+          })
+          .where(eq(user.id, candidate.id));
+        const settlements = await reconcileRestoredLikerRewardsInTransaction(
+          tx,
+          {
+            likerUserId: candidate.id,
+            now,
+          }
+        );
+        await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
+        return settlements;
       });
-      await notifyBannedLikerRewardSettlementsInTransaction(tx, settlements);
-      return settlements;
-    });
+    } catch (error) {
+      errors.push(error);
+      continue;
+    }
     if (!results) {
       continue;
     }
@@ -122,11 +150,15 @@ export async function restoreExpiredTemporaryBanRewards(
       }
     }
   }
-  return {
+  const result = {
     checked: candidates.length,
     profileUserIds: [...profileUserIds],
     restored,
   };
+  if (errors.length > 0) {
+    throw createExpiredBanRestorationBatchError(errors, result.profileUserIds);
+  }
+  return result;
 }
 
 export async function unbanUserAndReconcileRewards(
@@ -134,7 +166,7 @@ export async function unbanUserAndReconcileRewards(
   input: { now?: Date; userId: string }
 ) {
   const now = input.now ?? new Date();
-  const results = await db.transaction(async (tx) => {
+  const results = await runContributionRewardTransaction(db, async (tx) => {
     await lockLikerRewardParticipantsInTransaction(tx, input.userId);
     const [target] = await tx
       .select({ id: user.id })
