@@ -411,7 +411,7 @@ describe("verified comic reading rewards", () => {
     expect(notifications.notify).not.toHaveBeenCalled();
   });
 
-  it("merges a delayed session snapshot under the progress row lock", async () => {
+  it("keeps the latest page while retaining monotonic verified progress", async () => {
     const state = createState({
       canUseResume: true,
       lastPageRead: 1,
@@ -474,7 +474,7 @@ describe("verified comic reading rewards", () => {
     expect(selectChain.for).toHaveBeenCalledWith("update");
     expect(updateValues).toMatchObject({
       completed: true,
-      lastPageRead: 4,
+      lastPageRead: 2,
       totalPagesAtLastRead: 4,
       verifiedThroughPage: 4,
     });

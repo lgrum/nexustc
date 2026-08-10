@@ -792,21 +792,21 @@ async function persistProgressRecord(params: {
       incomingProgressValues.completed &&
       incomingProgressValues.totalPagesAtLastRead >
         storedProgress.totalPagesAtLastRead;
+    const incomingProgressIsLatest =
+      incomingProgressValues.lastReadTimestamp >=
+      storedProgress.lastReadTimestamp;
     const progressValues = {
       ...incomingProgressValues,
       completed: storedProgress.completed || incomingProgressValues.completed,
       completedAt: incomingCompletedNewerSnapshot
         ? incomingProgressValues.completedAt
         : (storedProgress.completedAt ?? incomingProgressValues.completedAt),
-      lastPageRead: Math.max(
-        storedProgress.lastPageRead,
-        incomingProgressValues.lastPageRead
-      ),
-      lastReadTimestamp:
-        storedProgress.lastReadTimestamp >
-        incomingProgressValues.lastReadTimestamp
-          ? storedProgress.lastReadTimestamp
-          : incomingProgressValues.lastReadTimestamp,
+      lastPageRead: incomingProgressIsLatest
+        ? incomingProgressValues.lastPageRead
+        : storedProgress.lastPageRead,
+      lastReadTimestamp: incomingProgressIsLatest
+        ? incomingProgressValues.lastReadTimestamp
+        : storedProgress.lastReadTimestamp,
       totalPagesAtLastRead: Math.max(
         storedProgress.totalPagesAtLastRead,
         incomingProgressValues.totalPagesAtLastRead

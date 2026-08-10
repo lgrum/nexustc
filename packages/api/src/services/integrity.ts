@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, lte, or } from "@repo/db";
+import { and, asc, desc, eq, gt, inArray, lt, lte, or } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   commentLikes,
@@ -511,40 +511,56 @@ export async function releaseMaturedPendingXp(
 
 export function releaseMaturedPendingXpBatch(db: Database, now = new Date()) {
   return db.transaction(async (tx) => {
-    const candidates = await tx
-      .select({ userId: xpIntegrityCase.userId })
-      .from(xpIntegrityCase)
-      .where(
-        and(
-          eq(xpIntegrityCase.riskLevel, "medium"),
-          eq(xpIntegrityCase.status, "open"),
-          lte(xpIntegrityCase.autoReleaseAt, now)
-        )
-      )
-      .groupBy(xpIntegrityCase.userId)
-      .orderBy(asc(xpIntegrityCase.userId))
-      .limit(100);
+    const pageSize = 100;
     const profileUserIds = new Set<string>();
+    let checked = 0;
+    let cursor: string | undefined;
     let released = 0;
-    for (const candidate of candidates) {
-      if (!candidate.userId) {
-        continue;
+    while (true) {
+      const candidates = await tx
+        .select({ userId: xpIntegrityCase.userId })
+        .from(xpIntegrityCase)
+        .where(
+          and(
+            eq(xpIntegrityCase.riskLevel, "medium"),
+            eq(xpIntegrityCase.status, "open"),
+            lte(xpIntegrityCase.autoReleaseAt, now),
+            cursor ? gt(xpIntegrityCase.userId, cursor) : undefined
+          )
+        )
+        .groupBy(xpIntegrityCase.userId)
+        .orderBy(asc(xpIntegrityCase.userId))
+        .limit(pageSize);
+      checked += candidates.length;
+      for (const candidate of candidates) {
+        if (!candidate.userId) {
+          continue;
+        }
+        const result = await releaseMaturedPendingXpInTransaction(
+          tx,
+          candidate.userId,
+          now
+        );
+        for (const settlement of result.settlements) {
+          await notifyXpSettlementInTransaction(
+            tx,
+            candidate.userId,
+            settlement
+          );
+        }
+        released += result.settlements.length;
+        if (!result.completed || result.settlements.length > 0) {
+          profileUserIds.add(candidate.userId);
+        }
       }
-      const result = await releaseMaturedPendingXpInTransaction(
-        tx,
-        candidate.userId,
-        now
-      );
-      for (const settlement of result.settlements) {
-        await notifyXpSettlementInTransaction(tx, candidate.userId, settlement);
+      const lastCandidate = candidates.at(-1);
+      if (candidates.length < pageSize || !lastCandidate?.userId) {
+        break;
       }
-      released += result.settlements.length;
-      if (!result.completed || result.settlements.length > 0) {
-        profileUserIds.add(candidate.userId);
-      }
+      cursor = lastCandidate.userId;
     }
     return {
-      checked: candidates.length,
+      checked,
       profileUserIds: [...profileUserIds],
       released,
     };

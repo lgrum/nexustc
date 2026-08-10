@@ -190,6 +190,46 @@ describe("integrity settlement", () => {
     );
   });
 
+  it("paginates past unreleasable Pending XP users", async () => {
+    const blockedCandidates = Array.from({ length: 100 }, (_, index) => ({
+      userId: `blocked-${index.toString().padStart(3, "0")}`,
+    }));
+    progression.matured.mockImplementation((_tx, userId: string) =>
+      Promise.resolve(
+        userId === "ready-101"
+          ? { completed: true, settlements: [{ eventId: "released-101" }] }
+          : { completed: true, settlements: [] }
+      )
+    );
+    const candidates = {
+      from: vi.fn(),
+      groupBy: vi.fn(),
+      limit: vi
+        .fn()
+        .mockResolvedValueOnce(blockedCandidates)
+        .mockResolvedValueOnce([{ userId: "ready-101" }]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    candidates.from.mockReturnValue(candidates);
+    candidates.where.mockReturnValue(candidates);
+    candidates.groupBy.mockReturnValue(candidates);
+    candidates.orderBy.mockReturnValue(candidates);
+    const tx = {
+      select: vi.fn().mockReturnValue(candidates),
+    } as unknown as Transaction;
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(releaseMaturedPendingXpBatch(db)).resolves.toEqual({
+      checked: 101,
+      profileUserIds: ["ready-101"],
+      released: 1,
+    });
+    expect(candidates.limit).toHaveBeenCalledTimes(2);
+  });
+
   it("rejects invalid proof without recording or penalizing the account", async () => {
     const store = createTransaction();
     await expect(
