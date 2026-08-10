@@ -76,6 +76,7 @@ import {
   redactEarlyAccessMedia,
 } from "../../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../../utils/forbidden-content";
+import { buildIntegrityCorrelationEvidence } from "../../utils/integrity-evidence";
 import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
 import {
   getPostViewDedupeKey,
@@ -1985,7 +1986,8 @@ export default {
             tx,
             input.commentId,
             now,
-            session.user.id
+            session.user.id,
+            buildIntegrityCorrelationEvidence(context.headers)
           );
           return {
             authorId: existingComment.authorId,

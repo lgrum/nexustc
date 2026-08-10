@@ -31,6 +31,7 @@ import {
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../utils/forbidden-content";
+import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { assertTextIsNotSpammy } from "../utils/spam-detection";
 
@@ -423,7 +424,8 @@ export default {
           tx,
           existingRating.id,
           now,
-          session.user.id
+          session.user.id,
+          buildIntegrityCorrelationEvidence(ctx.headers)
         );
         return {
           authorId: input.ratingUserId,

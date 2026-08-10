@@ -16,9 +16,9 @@ function createDatabase() {
   const forUpdate = vi.fn().mockResolvedValue([{ id: "liker-1" }]);
   const selectWhere = vi.fn().mockReturnValue({ for: forUpdate });
   const selectFrom = vi.fn().mockReturnValue({ where: selectWhere });
-  const updateWhere = vi.fn().mockResolvedValue();
+  const updateWhere = vi.fn().mockImplementation(() => Promise.resolve());
   const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
-  const deleteWhere = vi.fn().mockResolvedValue();
+  const deleteWhere = vi.fn().mockImplementation(() => Promise.resolve());
   const tx = {
     delete: vi.fn().mockReturnValue({ where: deleteWhere }),
     select: vi.fn().mockReturnValue({ from: selectFrom }),
@@ -35,7 +35,7 @@ function createDatabase() {
 beforeEach(() => {
   vi.clearAllMocks();
   rewards.reconcile.mockResolvedValue([]);
-  rewards.notify.mockResolvedValue();
+  rewards.notify.mockImplementation(() => Promise.resolve());
 });
 
 it("bans, revokes sessions, and reconciles liker rewards in one transaction", async () => {

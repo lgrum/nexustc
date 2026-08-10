@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   publicBalance: false,
   tier: "level12",
   walletStatus: "active" as "active" | "frozen",
+  membershipLocked: false,
 }));
 
 vi.mock("@repo/env", () => ({
@@ -94,20 +95,38 @@ function createDatabase() {
         ),
       },
     },
-    select: vi.fn((_fields: Record<string, unknown>) => ({
-      from: () => ({
-        innerJoin: () => ({
-          where: () => {
-            state.events.push("sum");
-            return Promise.resolve(
-              state.posted
-                .filter(({ month }) => month === state.month)
-                .map(({ amount }) => ({ amount }))
-            );
-          },
+    select: vi.fn((fields: Record<string, unknown>) => {
+      if ("isActivePatron" in fields) {
+        const chain = {
+          for: vi.fn(() => {
+            state.membershipLocked = true;
+            state.events.push("membership-lock");
+            return Promise.resolve([
+              { isActivePatron: state.active, tier: state.tier },
+            ]);
+          }),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }
+      return {
+        from: () => ({
+          innerJoin: () => ({
+            where: () => {
+              state.events.push("sum");
+              return Promise.resolve(
+                state.posted
+                  .filter(({ month }) => month === state.month)
+                  .map(({ amount }) => ({ amount }))
+              );
+            },
+          }),
         }),
-      }),
-    })),
+      };
+    }),
   };
 
   return {
@@ -144,6 +163,7 @@ describe(grantMonthlyPatreonStipend, () => {
     state.publicBalance = false;
     state.tier = "level12";
     state.walletStatus = "active";
+    state.membershipLocked = false;
   });
 
   it("locks before summing and posts the safe monthly Mint to User grant", async () => {
@@ -153,7 +173,14 @@ describe(grantMonthlyPatreonStipend, () => {
       new Date("2026-06-30T23:59:59.999Z")
     );
 
-    expect(state.events).toEqual(["activation", "lock", "sum", "post"]);
+    expect(state.events).toEqual([
+      "activation",
+      "membership-lock",
+      "lock",
+      "sum",
+      "post",
+    ]);
+    expect(state.membershipLocked).toBe(true);
     expect(result).toMatchObject({ granted: "600", month: "2026-06" });
     expect(state.posts).toEqual([
       expect.objectContaining({
@@ -180,7 +207,7 @@ describe(grantMonthlyPatreonStipend, () => {
         new Date("2026-06-30T23:59:59.999Z")
       )
     ).resolves.toEqual({ granted: "0", month: "2026-06" });
-    expect(state.events).toEqual(["activation", "lock"]);
+    expect(state.events).toEqual(["activation", "membership-lock", "lock"]);
     expect(state.posts).toEqual([]);
   });
 

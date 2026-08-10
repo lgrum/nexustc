@@ -251,7 +251,8 @@ describe("stable review likes", () => {
       executor,
       "review-current",
       expect.any(Date),
-      "owner-1"
+      "owner-1",
+      { deviceHash: null, ipPrefixHash: null }
     );
   });
 

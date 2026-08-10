@@ -1,4 +1,7 @@
-import { closeAccount } from "@repo/auth/account-closure";
+import {
+  closeAccount,
+  closeAccountAndDeleteUser,
+} from "@repo/auth/account-closure";
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
@@ -8,6 +11,7 @@ import {
   eterisWalletReconciliation,
   userComicProgress,
   userProgression,
+  user,
   xpEvent,
   xpIntegrityCase,
   xpLikeDisqualification,
@@ -989,6 +993,17 @@ test("account closure is idempotent and blocks concurrent wallet writes", async 
     setPublicWalletBalance(store.db, "user-1", true)
   ).rejects.toMatchObject({ code: "CLOSED_OR_FROZEN" });
   expect(store.wallets.get(first.walletId)?.publicBalance).toBe(false);
+});
+
+test("account closure deletes the identity in the same transaction", async () => {
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  vi.mocked(store.db.transaction).mockClear();
+
+  await closeAccountAndDeleteUser(store.db, "user-1");
+
+  expect(store.deletedTables).toContain(user);
+  expect(store.db.transaction).toHaveBeenCalledOnce();
 });
 
 test("a frozen wallet can turn off public balance and is never exposed publicly", async () => {

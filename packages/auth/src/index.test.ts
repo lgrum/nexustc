@@ -3,7 +3,7 @@ import { expect, test, vi } from "vitest";
 import { auth } from "./index";
 
 const mocks = vi.hoisted(() => ({
-  closeAccount: vi.fn(),
+  closeAccountAndDeleteUser: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({ db: { marker: "db" } }));
@@ -47,7 +47,9 @@ vi.mock("@repo/transactional/emails/reset-password", () => ({
 vi.mock("@repo/transactional/emails/two-factor-code", () => ({
   TwoFactorCode: vi.fn(),
 }));
-vi.mock("./account-closure", () => ({ closeAccount: mocks.closeAccount }));
+vi.mock("./account-closure", () => ({
+  closeAccountAndDeleteUser: mocks.closeAccountAndDeleteUser,
+}));
 vi.mock("./email", () => ({ resend: {} }));
 vi.mock("./patreon-sync", () => ({
   deactivatePatreonMembershipAfterAccountDelete: vi.fn(),
@@ -63,7 +65,7 @@ vi.mock("./two-factor-delivery", () => ({
   markTwoFactorOtpDeliveryFailed: vi.fn(),
 }));
 
-test("the database user-delete hook closes the account before identity deletion", async () => {
+test("the database user-delete hook closes the account with identity deletion", async () => {
   const beforeDelete = (
     auth as unknown as {
       options: {
@@ -76,5 +78,8 @@ test("the database user-delete hook closes the account before identity deletion"
 
   await beforeDelete({ id: "user-1" });
 
-  expect(mocks.closeAccount).toHaveBeenCalledWith({ marker: "db" }, "user-1");
+  expect(mocks.closeAccountAndDeleteUser).toHaveBeenCalledWith(
+    { marker: "db" },
+    "user-1"
+  );
 });

@@ -341,7 +341,8 @@ describe("comment reward likes", () => {
       tx,
       "comment-1",
       expect.any(Date),
-      "liker-1"
+      "liker-1",
+      { deviceHash: null, ipPrefixHash: null }
     );
     expect(rewards.settleCommentMilestonesInTransaction).toHaveBeenCalledOnce();
     expect(values).toHaveBeenCalledWith({

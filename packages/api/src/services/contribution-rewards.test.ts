@@ -20,6 +20,7 @@ import {
 const flags = vi.hoisted(() => ({ accrual: true }));
 const progression = vi.hoisted(() => ({
   assessments: [] as string[],
+  assessmentDetails: [] as Record<string, unknown>[],
   cancelledPending: [] as Record<string, unknown>[],
   calls: [] as Record<string, unknown>[],
   fail: false,
@@ -32,6 +33,7 @@ vi.mock("./integrity-settlement", () => ({
     (_tx, input, assessment: { disposition: string }) => {
       progression.calls.push(input);
       progression.assessments.push(assessment.disposition);
+      progression.assessmentDetails.push(assessment);
       if (progression.fail) {
         return Promise.reject(new Error("atomic progression failure"));
       }
@@ -293,6 +295,20 @@ function createSettlementTransaction(options?: {
       chain.where.mockReturnValue(chain);
       return chain;
     }
+    if (Object.keys(shape).length === 1 && "createdAt" in shape) {
+      const chain = {
+        from: vi.fn(),
+        limit: vi
+          .fn()
+          .mockResolvedValue(
+            Array.from({ length: 10 }, () => ({ createdAt: new Date() }))
+          ),
+        where: vi.fn(),
+      };
+      chain.from.mockReturnValue(chain);
+      chain.where.mockReturnValue(chain);
+      return chain;
+    }
     const chain = {
       from: vi.fn(),
       innerJoin: vi.fn(),
@@ -328,6 +344,7 @@ beforeEach(() => {
   activation.date = null;
   flags.accrual = true;
   progression.assessments = [];
+  progression.assessmentDetails = [];
   progression.cancelledPending = [];
   progression.calls = [];
   progression.fail = false;
@@ -579,6 +596,30 @@ describe("review milestone settlement", () => {
       "low",
       "low",
     ]);
+  });
+
+  it("holds milestone awards when the triggering liker has burst activity", async () => {
+    await expect(
+      settleReviewMilestonesInTransaction(
+        createSettlementTransaction().tx,
+        review.id,
+        new Date("2026-08-10T12:00:00.000Z"),
+        "liker-1",
+        { deviceHash: "device-hash", ipPrefixHash: "ip-hash" }
+      )
+    ).resolves.toMatchObject({ grantedXp: 0 });
+
+    expect(progression.assessments).toEqual([
+      "medium",
+      "medium",
+      "medium",
+      "medium",
+      "medium",
+    ]);
+    expect(progression.assessmentDetails[0]).toMatchObject({
+      correlation: { deviceHash: "device-hash", ipPrefixHash: "ip-hash" },
+      signals: [{ kind: "like_toggle_velocity" }],
+    });
   });
 
   it("pauses duplicate content and treats replayed milestones as settled", async () => {

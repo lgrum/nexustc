@@ -4,6 +4,7 @@ import {
   applyCheckpoint,
   applyRewardCheckpoint,
   getComicReadingRewardCount,
+  getPersistedProcessedPageRanges,
   getPersistedProgressStatus,
   normalizeProcessedPageRanges,
   trackComicPageView,
@@ -120,6 +121,28 @@ describe("verified comic reading rewards", () => {
     expect(COMIC_READING_CAP_STATES).toEqual(["pending", "posted"]);
     expect(getComicReadingRewardCount(3, 198)).toBe(2);
     expect(getComicReadingRewardCount(3, 200)).toBe(0);
+  });
+
+  it("keeps rewardable pages retryable after a projection mismatch", () => {
+    expect(
+      getPersistedProcessedPageRanges({
+        currentRanges: [[1, 2]],
+        processedPages: [3, 4, 5],
+        projectionMismatch: true,
+        rewardCount: 2,
+      })
+    ).toEqual([
+      [1, 2],
+      [5, 5],
+    ]);
+    expect(
+      getPersistedProcessedPageRanges({
+        currentRanges: [[1, 2]],
+        processedPages: [3, 4, 5],
+        projectionMismatch: false,
+        rewardCount: 2,
+      })
+    ).toEqual([[1, 5]]);
   });
 
   it("requires visible evidence and plausible server time", () => {

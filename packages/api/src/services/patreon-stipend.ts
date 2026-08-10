@@ -40,10 +40,14 @@ export function grantMonthlyPatreonStipend(
 
   return db.transaction(async (tx) => {
     await ensureProgressionActivationInTransaction(tx, now);
-    const membership = await tx.query.patron.findFirst({
-      columns: { isActivePatron: true, tier: true },
-      where: eq(patron.userId, userId),
-    });
+    const [membership] = await tx
+      .select({
+        isActivePatron: patron.isActivePatron,
+        tier: patron.tier,
+      })
+      .from(patron)
+      .where(eq(patron.userId, userId))
+      .for("update");
     if (!membership?.isActivePatron) {
       return { granted: "0", month: month.key };
     }

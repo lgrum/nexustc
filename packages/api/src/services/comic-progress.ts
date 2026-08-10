@@ -230,6 +230,22 @@ export function addProcessedPage(
   };
 }
 
+export function getPersistedProcessedPageRanges(input: {
+  currentRanges: [number, number][];
+  processedPages: number[];
+  projectionMismatch: boolean;
+  rewardCount: number;
+}) {
+  const pages = input.projectionMismatch
+    ? input.processedPages.slice(input.rewardCount)
+    : input.processedPages;
+  let ranges = input.currentRanges;
+  for (const page of pages) {
+    ({ ranges } = addProcessedPage(ranges, page));
+  }
+  return ranges;
+}
+
 export function getComicReadingRewardCount(
   newlyProcessedPageCount: number,
   rewardedToday: number
@@ -768,7 +784,8 @@ async function persistProgressRecord(params: {
         throw new Error("No se pudo bloquear el progreso del comic.");
       }
 
-      processedPageRanges = stored.ranges;
+      const currentProcessedPageRanges = stored.ranges;
+      processedPageRanges = currentProcessedPageRanges;
       for (const page of [...new Set(params.state.pendingRewardPages)].toSorted(
         (left, right) => left - right
       )) {
@@ -804,6 +821,7 @@ async function persistProgressRecord(params: {
           processedPages.length,
           Number(daily?.total ?? 0)
         );
+        let projectionMismatch = false;
         rewardedPages = processedPages.slice(0, rewardCount);
         if (rewardCount > 0) {
           const batchKey = processedPages.join(",");
@@ -841,11 +859,20 @@ async function persistProgressRecord(params: {
             "settlement" in integrityResult
           ) {
             ({ settlement } = integrityResult);
+            projectionMismatch =
+              "projectionMismatch" in settlement &&
+              settlement.projectionMismatch === true;
             rewardedPages = rewardedPages.slice(0, settlement.settledXp);
           } else {
             rewardedPages = [];
           }
         }
+        processedPageRanges = getPersistedProcessedPageRanges({
+          currentRanges: currentProcessedPageRanges,
+          processedPages,
+          projectionMismatch,
+          rewardCount,
+        });
       }
     }
 

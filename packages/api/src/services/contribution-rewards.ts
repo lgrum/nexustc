@@ -26,6 +26,7 @@ import { ratingReviewSchema } from "@repo/shared/schemas";
 import { findForbiddenContentMatch } from "../utils/forbidden-content";
 import { detectSpammyText } from "../utils/spam-detection";
 import { settleXpWithIntegrityInTransaction } from "./integrity-settlement";
+import type { IntegrityCorrelationEvidence } from "./integrity-settlement";
 import {
   cancelPendingXpEventsInTransaction,
   notifyXpSettlement,
@@ -60,6 +61,12 @@ type CommentSnapshot = {
 
 const REVIEW_DAILY_CAP = 2;
 const COMMENT_DAILY_CAP = 5;
+const CONTRIBUTION_LIKE_BURST_LIMIT = 10;
+const CONTRIBUTION_LIKE_BURST_WINDOW_MS = 5 * 60_000;
+const EMPTY_INTEGRITY_CORRELATION = {
+  deviceHash: null,
+  ipPrefixHash: null,
+} satisfies IntegrityCorrelationEvidence;
 
 function requireProjectedXpSettlement(settlement: XpSettlement) {
   if (
@@ -725,6 +732,7 @@ function isCommentCurrentlyEligible(
 async function postContributionMilestonesInTransaction(
   tx: Transaction,
   input: {
+    assessment: Parameters<typeof settleXpWithIntegrityInTransaction>[2];
     eligibleLikes: number;
     kind: "comment" | "review";
     milestones: readonly { likes: number; xp: number }[];
@@ -752,7 +760,7 @@ async function postContributionMilestonesInTransaction(
         subjectId: input.subject.id,
         userId: input.userId,
       },
-      { disposition: "low" },
+      input.assessment,
       input.now
     );
     if (
@@ -777,11 +785,67 @@ async function postContributionMilestonesInTransaction(
   return { eligibleLikes: input.eligibleLikes, grantedXp, settlements };
 }
 
+async function assessContributionMilestoneIntegrity(
+  tx: Transaction,
+  input: {
+    correlation: IntegrityCorrelationEvidence;
+    kind: "comment" | "review";
+    now: Date;
+    triggeringLikerUserId?: string;
+  }
+): Promise<Parameters<typeof settleXpWithIntegrityInTransaction>[2]> {
+  if (!input.triggeringLikerUserId) {
+    return { disposition: "low" };
+  }
+  const since = new Date(
+    input.now.getTime() - CONTRIBUTION_LIKE_BURST_WINDOW_MS
+  );
+  const recent =
+    input.kind === "review"
+      ? await tx
+          .select({ createdAt: postRatingLikes.createdAt })
+          .from(postRatingLikes)
+          .where(
+            and(
+              eq(postRatingLikes.userId, input.triggeringLikerUserId),
+              gte(postRatingLikes.createdAt, since)
+            )
+          )
+          .limit(CONTRIBUTION_LIKE_BURST_LIMIT)
+      : await tx
+          .select({ createdAt: commentLikes.createdAt })
+          .from(commentLikes)
+          .where(
+            and(
+              eq(commentLikes.userId, input.triggeringLikerUserId),
+              gte(commentLikes.createdAt, since)
+            )
+          )
+          .limit(CONTRIBUTION_LIKE_BURST_LIMIT);
+  const observed = recent.length;
+  if (observed < CONTRIBUTION_LIKE_BURST_LIMIT) {
+    return { disposition: "low" };
+  }
+  return {
+    correlation: input.correlation,
+    disposition: "medium",
+    signals: [
+      {
+        count: observed,
+        evidence: { source: `${input.kind}_like` },
+        kind: "like_toggle_velocity",
+      },
+    ],
+    summary: "Actividad de Me gusta inusualmente rapida.",
+  };
+}
+
 export async function settleReviewMilestonesInTransaction(
   tx: Transaction,
   ratingId: string,
   now = new Date(),
-  triggeringLikerUserId?: string
+  triggeringLikerUserId?: string,
+  correlation?: IntegrityCorrelationEvidence
 ) {
   const [review] = await tx
     .select({
@@ -826,6 +890,12 @@ export async function settleReviewMilestonesInTransaction(
     activatedAt
   );
   return postContributionMilestonesInTransaction(tx, {
+    assessment: await assessContributionMilestoneIntegrity(tx, {
+      correlation: correlation ?? EMPTY_INTEGRITY_CORRELATION,
+      kind: "review",
+      now,
+      triggeringLikerUserId,
+    }),
     eligibleLikes,
     kind: "review",
     milestones: REVIEW_MILESTONES,
@@ -839,7 +909,8 @@ export async function settleCommentMilestonesInTransaction(
   tx: Transaction,
   commentId: string,
   now = new Date(),
-  triggeringLikerUserId?: string
+  triggeringLikerUserId?: string,
+  correlation?: IntegrityCorrelationEvidence
 ) {
   const [snapshot] = await tx
     .select({
@@ -889,6 +960,12 @@ export async function settleCommentMilestonesInTransaction(
     activatedAt
   );
   return postContributionMilestonesInTransaction(tx, {
+    assessment: await assessContributionMilestoneIntegrity(tx, {
+      correlation: correlation ?? EMPTY_INTEGRITY_CORRELATION,
+      kind: "comment",
+      now,
+      triggeringLikerUserId,
+    }),
     eligibleLikes,
     kind: "comment",
     milestones: COMMENT_MILESTONES,
