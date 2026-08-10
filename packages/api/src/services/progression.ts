@@ -4,7 +4,6 @@ import { and, desc, eq, gt, inArray, like, lt, lte, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisWallet,
-  eterisWalletBalance,
   eterisTransaction,
   eterisPosting,
   user,
@@ -692,14 +691,10 @@ export async function postXpEventInTransaction(
             totalXp: progression.totalXp,
           };
         }
+        if ("debtCreated" in reversal && reversal.debtCreated) {
+          debtCreated = true;
+        }
       }
-      const settledBalance = await tx.query.eterisWalletBalance.findFirst({
-        where: eq(eterisWalletBalance.walletId, wallet.id),
-      });
-      if (!settledBalance) {
-        throw new Error("No se pudo leer el saldo Eteris asentado.");
-      }
-      debtCreated = wallet.balance >= 0n && settledBalance.balance < 0n;
     }
   }
   await tx.insert(xpEvent).values({

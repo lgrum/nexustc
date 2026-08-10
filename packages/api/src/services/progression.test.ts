@@ -28,6 +28,7 @@ const ledger = vi.hoisted(() => ({
   failAtCall: 0,
   mismatchAtCall: 0,
   notifications: [] as { metadata?: Record<string, unknown>; title: string }[],
+  reversalDebtCreated: null as boolean | null,
   transactions: new Map<
     string,
     {
@@ -87,6 +88,7 @@ vi.mock("./eteris", () => ({
       if (!original) {
         throw new Error("missing original reward");
       }
+      const balanceBefore = ledger.balance;
       ledger.balance -= original.amount;
       const id = `ledger-${ledger.transactions.size + 1}`;
       ledger.transactions.set(input.idempotencyKey, {
@@ -97,7 +99,13 @@ vi.mock("./eteris", () => ({
         reversesTransactionId: original.id,
         sourceModule: "progression",
       });
-      return Promise.resolve({ id, replayed: false });
+      return Promise.resolve({
+        debtCreated:
+          ledger.reversalDebtCreated ??
+          (balanceBefore >= 0n && ledger.balance < 0n),
+        id,
+        replayed: false,
+      });
     }
   ),
 }));
@@ -350,6 +358,7 @@ beforeEach(() => {
   ledger.failAtCall = 0;
   ledger.mismatchAtCall = 0;
   ledger.notifications = [];
+  ledger.reversalDebtCreated = null;
   ledger.transactions = new Map();
 });
 
@@ -876,6 +885,33 @@ describe("progression service", () => {
       ledger.calls.filter(({ kind }) => kind === "level_reward")
     ).toHaveLength(3);
     expect(ledger.calls.at(-1)?.idempotencyKey).toMatch(/^level-reward:.+:3$/);
+  });
+
+  it("uses the locked level-reward reversal to detect newly created debt", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    await adjustXp(store.db, {
+      actorUserId: "owner-1",
+      amount: 67,
+      idempotencyKey: "grant-level-two-before-concurrent-debt",
+      reason: "Correccion aprobada por soporte",
+      userId: "user-1",
+    });
+    store.spend(15n);
+    ledger.notifications = [];
+    ledger.reversalDebtCreated = true;
+
+    await adjustXp(store.db, {
+      actorUserId: "owner-1",
+      amount: -1,
+      idempotencyKey: "lose-level-two-after-concurrent-adjustment",
+      reason: "Reversion aprobada por soporte",
+      userId: "user-1",
+    });
+
+    expect(ledger.notifications.map(({ title }) => title)).toContain(
+      "Tu Billetera Eteris tiene deuda"
+    );
   });
 
   it("reverses the reward actually posted by a backdated Pending release", async () => {

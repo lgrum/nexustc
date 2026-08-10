@@ -743,20 +743,52 @@ async function postContributionMilestonesInTransaction(
 ) {
   let grantedXp = 0;
   const settlements: XpSettlement[] = [];
+  const milestoneEvents = await tx
+    .select({
+      id: xpEvent.id,
+      idempotencyKey: xpEvent.idempotencyKey,
+      kind: xpEvent.kind,
+      milestone: xpEvent.milestone,
+      reversesEventId: xpEvent.reversesEventId,
+      state: xpEvent.state,
+    })
+    .from(xpEvent)
+    .where(eq(xpEvent.subjectId, input.subject.id));
+  const reversedEventIds = new Set(
+    milestoneEvents.flatMap(({ reversesEventId, state }) =>
+      state === "posted" && reversesEventId ? [reversesEventId] : []
+    )
+  );
   for (const milestone of getReachedContributionMilestones(
     input.milestones,
     input.eligibleLikes
   )) {
+    const awards = milestoneEvents.filter(
+      (event) =>
+        event.kind === `${input.kind}_milestone` &&
+        event.milestone === milestone.likes
+    );
+    const hasActiveAward = awards.some(
+      (event) =>
+        event.state === "pending" ||
+        (event.state === "posted" && !reversedEventIds.has(event.id))
+    );
+    if (hasActiveAward) {
+      continue;
+    }
+    const generation = awards.length + 1;
+    const generationSuffix =
+      generation === 1 ? "" : `:generation:${generation}`;
     const result = await settleXpWithIntegrityInTransaction(
       tx,
       {
         amount: milestone.xp,
-        idempotencyKey: `${input.kind}-milestone:${input.subject.id}:${milestone.likes}`,
+        idempotencyKey: `${input.kind}-milestone:${input.subject.id}:${milestone.likes}${generationSuffix}`,
         kind: `${input.kind}_milestone` as const,
         metadata: { eligibleLikeCount: input.eligibleLikes },
         milestone: milestone.likes,
         reasonCode: `eligible_likes_${milestone.likes}`,
-        sourceRef: `${input.kind}:${input.subject.id}:milestone:${milestone.likes}`,
+        sourceRef: `${input.kind}:${input.subject.id}:milestone:${milestone.likes}${generationSuffix}`,
         subjectId: input.subject.id,
         userId: input.userId,
       },

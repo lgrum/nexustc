@@ -261,6 +261,7 @@ const commentSubject = {
 } satisfies typeof xpRewardSubject.$inferSelect;
 
 function createSettlementTransaction(options?: {
+  awardEvents?: Record<string, unknown>[];
   duplicate?: boolean;
   events?: Record<string, unknown>[];
 }) {
@@ -270,6 +271,13 @@ function createSettlementTransaction(options?: {
     .mockResolvedValueOnce(options?.duplicate ? { id: "older" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: subject.id }]);
   const select = vi.fn((shape: Record<string, unknown>) => {
+    if ("idempotencyKey" in shape) {
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(options?.awardEvents ?? []),
+        }),
+      };
+    }
     if ("amount" in shape && options?.events) {
       return {
         from: vi.fn().mockReturnValue({
@@ -697,6 +705,39 @@ describe("review milestone settlement", () => {
           idempotencyKey: expect.stringContaining("integrity-like-reversal"),
         }),
       ])
+    );
+  });
+
+  it("uses a new award generation when eligible likes restore a reversed milestone", async () => {
+    const baseKey = `review-milestone:${subject.id}:3`;
+    const { tx } = createSettlementTransaction({
+      awardEvents: [
+        {
+          id: "milestone-3-award-1",
+          idempotencyKey: baseKey,
+          kind: "review_milestone",
+          milestone: 3,
+          reversesEventId: null,
+          state: "posted",
+        },
+        {
+          id: "milestone-3-reversal-1",
+          idempotencyKey: "review-unlike-reversal:milestone-3-award-1",
+          kind: "reversal",
+          milestone: 3,
+          reversesEventId: "milestone-3-award-1",
+          state: "posted",
+        },
+      ],
+    });
+
+    await settleReviewMilestonesInTransaction(tx, review.id);
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        idempotencyKey: `${baseKey}:generation:2`,
+        milestone: 3,
+      })
     );
   });
 
