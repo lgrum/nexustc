@@ -94,7 +94,12 @@ export async function restoreExpiredTemporaryBanRewards(
       }
       await tx
         .update(user)
-        .set({ banExpires: null, banned: false, updatedAt: now })
+        .set({
+          banExpires: null,
+          banReason: null,
+          banned: false,
+          updatedAt: now,
+        })
         .where(eq(user.id, candidate.id));
       return reconcileRestoredLikerRewardsInTransaction(tx, {
         likerUserId: candidate.id,
@@ -105,6 +110,7 @@ export async function restoreExpiredTemporaryBanRewards(
       continue;
     }
     restored += 1;
+    profileUserIds.add(candidate.id);
     await notifyBannedLikerRewardSettlements(db, results);
     for (const result of results) {
       if (result.settlements.length > 0) {
@@ -117,4 +123,36 @@ export async function restoreExpiredTemporaryBanRewards(
     profileUserIds: [...profileUserIds],
     restored,
   };
+}
+
+export async function unbanUserAndReconcileRewards(
+  db: Database,
+  input: { now?: Date; userId: string }
+) {
+  const now = input.now ?? new Date();
+  const results = await db.transaction(async (tx) => {
+    const [target] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, input.userId))
+      .for("update");
+    if (!target) {
+      throw new UserAdministrationError("USER_NOT_FOUND");
+    }
+    await tx
+      .update(user)
+      .set({
+        banExpires: null,
+        banReason: null,
+        banned: false,
+        updatedAt: now,
+      })
+      .where(eq(user.id, input.userId));
+    return reconcileRestoredLikerRewardsInTransaction(tx, {
+      likerUserId: input.userId,
+      now,
+    });
+  });
+  await notifyBannedLikerRewardSettlements(db, results);
+  return results;
 }

@@ -17,6 +17,7 @@ import {
   deleteReviewWithRewards,
   getReviewDeletionWarning,
   reconcileEditedReviewRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction,
   settleReviewMilestonesInTransaction,
 } from "../services/contribution-rewards";
 import {
@@ -401,15 +402,29 @@ export default {
           throw errors.NOT_FOUND();
         }
         if (!input.liked) {
-          await tx
+          const deleted = await tx
             .delete(postRatingLikes)
             .where(
               and(
                 eq(postRatingLikes.ratingId, existingRating.id),
                 eq(postRatingLikes.userId, session.user.id)
               )
-            );
-          return { authorId: input.ratingUserId, settlements: [] };
+            )
+            .returning({ ratingId: postRatingLikes.ratingId });
+          if (deleted.length === 0) {
+            return { authorId: input.ratingUserId, settlements: [] };
+          }
+          const reconciliation =
+            await reconcileRemovedContributionLikeInTransaction(tx, {
+              actorUserId: session.user.id,
+              entityId: existingRating.id,
+              kind: "review",
+              now,
+            });
+          return {
+            authorId: input.ratingUserId,
+            settlements: reconciliation.settlements,
+          };
         }
         const inserted = await tx
           .insert(postRatingLikes)

@@ -101,18 +101,35 @@ export async function settleXpWithIntegrityInTransaction(
       },
   now = new Date()
 ) {
-  const releasedSettlements = await releaseMaturedPendingXpInTransaction(
+  const released = await releaseMaturedPendingXpInTransaction(
     tx,
     input.userId,
     now
   );
-  const released = releasedSettlements.length ? { releasedSettlements } : {};
+  const releasedSettlements = released.settlements.length
+    ? { releasedSettlements: released.settlements }
+    : {};
   if (assessment.disposition === "invalid") {
-    return { outcome: "rejected" as const, replayed: false, ...released };
+    return {
+      outcome: "rejected" as const,
+      replayed: false,
+      ...releasedSettlements,
+    };
+  }
+  if (!released.completed) {
+    return {
+      outcome: "deferred" as const,
+      releasedSettlements: released.settlements,
+      replayed: false,
+    };
   }
   if (assessment.disposition === "low") {
     const settlement = await postXpEventInTransaction(tx, input, now);
-    return { outcome: "posted" as const, settlement, ...released };
+    return {
+      outcome: "posted" as const,
+      settlement,
+      ...releasedSettlements,
+    };
   }
 
   const existing = await tx.query.xpEvent.findFirst({
@@ -128,7 +145,7 @@ export async function settleXpWithIntegrityInTransaction(
           ? ("pending" as const)
           : ("posted" as const),
       replayed: true,
-      ...released,
+      ...releasedSettlements,
     };
   }
 
@@ -164,5 +181,10 @@ export async function settleXpWithIntegrityInTransaction(
     },
     now
   );
-  return { caseId, outcome: "pending" as const, ...pending, ...released };
+  return {
+    caseId,
+    outcome: "pending" as const,
+    ...pending,
+    ...releasedSettlements,
+  };
 }

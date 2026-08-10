@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   canReadPublicProfileActivity: vi.fn(),
   publicCatalogVisibilityCondition: vi.fn(),
   reconcileEditedReviewRewardsInTransaction: vi.fn(),
+  reconcileRemovedContributionLikeInTransaction: vi.fn(),
   settleReviewMilestonesInTransaction: vi.fn(),
 }));
 
@@ -29,6 +30,8 @@ vi.mock("../services/contribution-rewards", () => ({
   getReviewDeletionWarning: vi.fn(),
   reconcileEditedReviewRewardsInTransaction:
     mocks.reconcileEditedReviewRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction:
+    mocks.reconcileRemovedContributionLikeInTransaction,
   settleReviewMilestonesInTransaction:
     mocks.settleReviewMilestonesInTransaction,
 }));
@@ -95,6 +98,9 @@ beforeEach(() => {
     settlements: [],
   });
   mocks.reconcileEditedReviewRewardsInTransaction.mockResolvedValue({
+    settlements: [],
+  });
+  mocks.reconcileRemovedContributionLikeInTransaction.mockResolvedValue({
     settlements: [],
   });
 });
@@ -300,6 +306,53 @@ describe("stable review likes", () => {
     );
 
     expect(mocks.settleReviewMilestonesInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("reconciles unsupported milestones after removing a like", async () => {
+    const ratingQuery = createPaginatedQuery([
+      {
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "review-current",
+        releasedAt: null,
+        status: "publish",
+        type: "post",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]);
+    const returning = vi
+      .fn()
+      .mockResolvedValue([{ ratingId: "review-current" }]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const executor = {
+      delete: vi.fn().mockReturnValue({ where }),
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select: vi.fn().mockReturnValue(ratingQuery),
+    };
+    const context = {
+      ...createContext(executor.select),
+      db: {
+        ...executor,
+        transaction: vi.fn((callback) => callback(executor)),
+      },
+    } as unknown as Context;
+
+    await call(
+      ratingRouter.toggleReviewLike,
+      { liked: false, postId: "post-1", ratingUserId: "author-1" },
+      { context }
+    );
+
+    expect(returning).toHaveBeenCalledOnce();
+    expect(
+      mocks.reconcileRemovedContributionLikeInTransaction
+    ).toHaveBeenCalledWith(executor, {
+      actorUserId: "owner-1",
+      entityId: "review-current",
+      kind: "review",
+      now: expect.any(Date),
+    });
   });
 
   it("rejects a like when the parent post is not viewable", async () => {

@@ -69,7 +69,10 @@ function createTransaction() {
 
 beforeEach(() => {
   progression.cancelPending.mockReset().mockResolvedValue([]);
-  progression.matured.mockReset().mockResolvedValue([]);
+  progression.matured.mockReset().mockResolvedValue({
+    completed: true,
+    settlements: [],
+  });
   progression.notify.mockReset().mockImplementation(() => Promise.resolve());
   progression.notifyInTransaction
     .mockReset()
@@ -116,6 +119,24 @@ describe("integrity settlement", () => {
       command.userId,
       expect.any(Date)
     );
+  });
+
+  it("defers the current award when automatic release freezes the wallet", async () => {
+    progression.matured.mockResolvedValueOnce({
+      completed: false,
+      settlements: [],
+    });
+
+    await expect(
+      settleXpWithIntegrityInTransaction(createTransaction().tx, command, {
+        disposition: "low",
+      })
+    ).resolves.toEqual({
+      outcome: "deferred",
+      releasedSettlements: [],
+      replayed: false,
+    });
+    expect(progression.posted).not.toHaveBeenCalled();
   });
 
   it("rejects like disqualification for a subject unrelated to the case", async () => {

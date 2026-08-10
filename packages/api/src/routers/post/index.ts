@@ -56,6 +56,7 @@ import {
   deleteCommentWithRewards,
   getCommentDeletionWarning,
   reconcileEditedCommentRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction,
   saveCommentRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction,
 } from "../../services/contribution-rewards";
@@ -1962,15 +1963,29 @@ export default {
             throw errors.NOT_FOUND();
           }
           if (!input.liked) {
-            await tx
+            const deleted = await tx
               .delete(commentLikes)
               .where(
                 and(
                   eq(commentLikes.commentId, input.commentId),
                   eq(commentLikes.userId, session.user.id)
                 )
-              );
-            return { authorId: existingComment.authorId, settlements: [] };
+              )
+              .returning({ commentId: commentLikes.commentId });
+            if (deleted.length === 0) {
+              return { authorId: existingComment.authorId, settlements: [] };
+            }
+            const reconciliation =
+              await reconcileRemovedContributionLikeInTransaction(tx, {
+                actorUserId: session.user.id,
+                entityId: input.commentId,
+                kind: "comment",
+                now,
+              });
+            return {
+              authorId: existingComment.authorId,
+              settlements: reconciliation.settlements,
+            };
           }
 
           const inserted = await tx

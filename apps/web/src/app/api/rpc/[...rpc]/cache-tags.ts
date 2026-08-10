@@ -58,6 +58,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["term/delete", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/edit", ["catalog:comics", "catalog:games", "content", "home"]],
   ["user/admin/banUser", ["profiles"]],
+  ["user/admin/unbanUser", ["profiles"]],
   ["user/toggleBookmark", ["profiles"]],
 ]);
 

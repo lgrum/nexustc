@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   attachComicCatalogProgress: vi.fn(),
   banUserAndReconcileRewards: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  unbanUserAndReconcileRewards: vi.fn(),
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
@@ -24,6 +25,7 @@ vi.mock("../services/profile", () => ({
 }));
 vi.mock("../services/user-administration", () => ({
   banUserAndReconcileRewards: mocks.banUserAndReconcileRewards,
+  unbanUserAndReconcileRewards: mocks.unbanUserAndReconcileRewards,
   UserAdministrationError: class extends Error {},
 }));
 
@@ -86,6 +88,24 @@ describe("user administration", () => {
         actorUserId: "owner-1",
         userId: "liker-1",
       })
+    );
+  });
+
+  it("delegates manual unbanning and reward restoration to one atomic service", async () => {
+    const context = {
+      db: {},
+      headers: new Headers({ cookie: "session=test" }),
+      session: { user: { id: "owner-1", role: "owner" } },
+    } as unknown as Context;
+    mocks.unbanUserAndReconcileRewards.mockResolvedValue([]);
+
+    await expect(
+      call(userRouter.admin.unbanUser, { userId: "liker-1" }, { context })
+    ).resolves.toEqual({ success: true });
+
+    expect(mocks.unbanUserAndReconcileRewards).toHaveBeenCalledWith(
+      context.db,
+      { userId: "liker-1" }
     );
   });
 });

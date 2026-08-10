@@ -12,6 +12,7 @@ import {
   reconcileClosedLikerRewardsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction,
   reconcileRestoredLikerRewardsInTransaction,
   reverseUnsupportedContributionMilestonesInTransaction,
   saveCommentRewardSubjectInTransaction,
@@ -26,6 +27,7 @@ const progression = vi.hoisted(() => ({
   assessmentDetails: [] as Record<string, unknown>[],
   cancelledPending: [] as Record<string, unknown>[],
   calls: [] as Record<string, unknown>[],
+  deferred: false,
   fail: false,
   projectionMismatch: false,
   replayed: false,
@@ -40,6 +42,9 @@ vi.mock("./integrity-settlement", () => ({
       progression.assessmentDetails.push(assessment);
       if (progression.fail) {
         return Promise.reject(new Error("atomic progression failure"));
+      }
+      if (progression.deferred) {
+        return Promise.resolve({ outcome: "deferred", replayed: false });
       }
       if (assessment.disposition === "medium") {
         return Promise.resolve({ outcome: "pending", replayed: false });
@@ -529,6 +534,7 @@ beforeEach(() => {
   progression.assessmentDetails = [];
   progression.cancelledPending = [];
   progression.calls = [];
+  progression.deferred = false;
   progression.fail = false;
   progression.projectionMismatch = false;
   progression.replayed = false;
@@ -665,6 +671,77 @@ describe("Eligible Like", () => {
 });
 
 describe("banned liker reconciliation", () => {
+  it("reverses an unsupported milestone when its eligible like is removed", async () => {
+    const select = vi.fn((shape: Record<string, unknown>) => {
+      if (Object.keys(shape).length === 1 && "id" in shape) {
+        const chain = {
+          for: vi.fn().mockResolvedValue([{ id: subject.id }]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }
+      return {
+        from: vi.fn().mockReturnValue({
+          innerJoin: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(
+              "count" in shape
+                ? [{ count: 2 }]
+                : [
+                    {
+                      amount: 25,
+                      id: "milestone-3",
+                      kind: "review_milestone",
+                      milestone: 3,
+                      reversesEventId: null,
+                      state: "posted",
+                    },
+                  ]
+            ),
+          }),
+          where: vi.fn().mockResolvedValue(
+            "count" in shape
+              ? [{ count: 2 }]
+              : [
+                  {
+                    amount: 25,
+                    id: "milestone-3",
+                    kind: "review_milestone",
+                    milestone: 3,
+                    reversesEventId: null,
+                    state: "posted",
+                  },
+                ]
+          ),
+        }),
+      };
+    });
+    const tx = {
+      query: {
+        xpRewardSubject: { findFirst: vi.fn().mockResolvedValue(subject) },
+      },
+      select,
+    } as unknown as Transaction;
+
+    await reconcileRemovedContributionLikeInTransaction(tx, {
+      actorUserId: "liker-1",
+      entityId: review.id,
+      kind: "review",
+      now: new Date("2026-08-10T00:00:00.000Z"),
+    });
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: -25,
+        idempotencyKey: "removed-like:liker-1:milestone-3",
+        reasonCode: "eligible_like_removed",
+        reversesEventId: "milestone-3",
+      })
+    );
+  });
+
   it("reverses milestones that no longer have enough eligible likes", async () => {
     const select = vi.fn((shape: Record<string, unknown>) => {
       if (Object.keys(shape).length === 1 && "id" in shape) {
@@ -881,6 +958,16 @@ describe("review milestone settlement", () => {
       "low",
       "low",
     ]);
+  });
+
+  it("stops after an automatic release freezes the reward wallet", async () => {
+    progression.deferred = true;
+    const { tx } = createSettlementTransaction();
+
+    await expect(
+      settleReviewMilestonesInTransaction(tx, review.id)
+    ).resolves.toMatchObject({ grantedXp: 0, settlements: [] });
+    expect(progression.calls).toHaveLength(1);
   });
 
   it("holds milestone awards when the triggering liker has burst activity", async () => {

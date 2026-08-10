@@ -3,6 +3,7 @@ import { session, user } from "@repo/db/schema/app";
 import {
   banUserAndReconcileRewards,
   restoreExpiredTemporaryBanRewards,
+  unbanUserAndReconcileRewards,
 } from "./user-administration";
 
 const rewards = vi.hoisted(() => ({
@@ -88,11 +89,12 @@ it("restores rewards when a temporary ban expires", async () => {
     restoreExpiredTemporaryBanRewards(db as never, now)
   ).resolves.toEqual({
     checked: 1,
-    profileUserIds: ["author-1"],
+    profileUserIds: ["liker-1", "author-1"],
     restored: 1,
   });
   expect(updateSet).toHaveBeenCalledWith({
     banExpires: null,
+    banReason: null,
     banned: false,
     updatedAt: now,
   });
@@ -166,6 +168,34 @@ it("bans, revokes sessions, and reconciles liker rewards in one transaction", as
     now,
   });
   expect(rewards.notify).toHaveBeenCalledWith(db, []);
+});
+
+it("manually unbans and restores supported liker rewards atomically", async () => {
+  const { db, tx, updateSet } = createDatabase();
+  const now = new Date("2026-08-10T00:00:00.000Z");
+  rewards.restore.mockResolvedValueOnce([
+    { settlements: [], userId: "author-1" },
+  ]);
+
+  await expect(
+    unbanUserAndReconcileRewards(db as never, {
+      now,
+      userId: "liker-1",
+    })
+  ).resolves.toEqual([{ settlements: [], userId: "author-1" }]);
+
+  expect(tx.update).toHaveBeenCalledWith(user);
+  expect(updateSet).toHaveBeenCalledWith({
+    banExpires: null,
+    banReason: null,
+    banned: false,
+    updatedAt: now,
+  });
+  expect(rewards.restore).toHaveBeenCalledWith(tx, {
+    likerUserId: "liker-1",
+    now,
+  });
+  expect(rewards.notify).toHaveBeenCalledWith(db, expect.any(Array));
 });
 
 it("does not report success when reward reconciliation aborts the ban transaction", async () => {

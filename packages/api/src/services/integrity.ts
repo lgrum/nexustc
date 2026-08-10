@@ -438,13 +438,13 @@ export async function releaseMaturedPendingXp(
   userId: string,
   now = new Date()
 ) {
-  const settlements = await db.transaction((tx) =>
+  const result = await db.transaction((tx) =>
     releaseMaturedPendingXpInTransaction(tx, userId, now)
   );
-  for (const settlement of settlements) {
+  for (const settlement of result.settlements) {
     await notifyXpSettlement(db, userId, settlement);
   }
-  return settlements;
+  return result.settlements;
 }
 
 export async function listIntegrityCases(

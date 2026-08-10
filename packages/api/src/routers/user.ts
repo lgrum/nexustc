@@ -37,6 +37,7 @@ import { attachComicCatalogProgress } from "../services/comic-progress";
 import { canReadPublicProfileActivity } from "../services/profile";
 import {
   banUserAndReconcileRewards,
+  unbanUserAndReconcileRewards,
   UserAdministrationError,
 } from "../services/user-administration";
 import {
@@ -748,6 +749,25 @@ export default {
             throw errors.BAD_REQUEST({
               message: "No puedes banear tu propia cuenta.",
             });
+          }
+          throw error;
+        }
+      }),
+
+    unbanUser: permissionProcedure({
+      user: ["ban"],
+    })
+      .input(z.object({ userId: z.string() }))
+      .handler(async ({ context: { db }, errors, input }) => {
+        try {
+          await unbanUserAndReconcileRewards(db, input);
+          return { success: true };
+        } catch (error) {
+          if (
+            error instanceof UserAdministrationError &&
+            error.code === "USER_NOT_FOUND"
+          ) {
+            throw errors.NOT_FOUND({ message: "Usuario no encontrado." });
           }
           throw error;
         }

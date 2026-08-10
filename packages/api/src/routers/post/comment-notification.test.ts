@@ -5,6 +5,7 @@ import type { Context } from "../../context";
 
 const rewards = vi.hoisted(() => ({
   reconcileEditedCommentRewardsInTransaction: vi.fn(),
+  reconcileRemovedContributionLikeInTransaction: vi.fn(),
   saveCommentRewardSubjectInTransaction: vi.fn(),
   settleCommentMilestonesInTransaction: vi.fn(),
 }));
@@ -23,6 +24,8 @@ vi.mock("../../services/contribution-rewards", () => ({
   getCommentDeletionWarning: vi.fn(),
   reconcileEditedCommentRewardsInTransaction:
     rewards.reconcileEditedCommentRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction:
+    rewards.reconcileRemovedContributionLikeInTransaction,
   saveCommentRewardSubjectInTransaction:
     rewards.saveCommentRewardSubjectInTransaction,
   settleCommentMilestonesInTransaction:
@@ -276,6 +279,16 @@ describe("comment edit reward reconciliation", () => {
 });
 
 describe("comment reward likes", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rewards.reconcileRemovedContributionLikeInTransaction.mockResolvedValue({
+      settlements: [],
+    });
+    rewards.settleCommentMilestonesInTransaction.mockResolvedValue({
+      settlements: [],
+    });
+  });
+
   it("settles milestones only when a like row is newly inserted", async () => {
     const query = {
       for: vi.fn(),
@@ -357,6 +370,68 @@ describe("comment reward likes", () => {
       emailVerifiedAtCreation: true,
       userId: "liker-1",
       xpAccrualEnabledAtCreation: false,
+    });
+  });
+
+  it("reconciles unsupported milestones after removing a like", async () => {
+    const query = {
+      for: vi.fn(),
+      from: vi.fn(),
+      innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
+      limit: vi.fn().mockResolvedValue([
+        {
+          authorId: "comment-author",
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          id: "comment-1",
+          postId: "post-1",
+          releasedAt: null,
+          status: "publish",
+          type: "post",
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+        },
+      ]),
+      where: vi.fn(),
+    };
+    query.from.mockReturnValue(query);
+    query.for.mockReturnValue(query);
+    query.innerJoin.mockReturnValue(query);
+    query.leftJoin.mockReturnValue(query);
+    query.where.mockReturnValue(query);
+    const returning = vi.fn().mockResolvedValue([{ commentId: "comment-1" }]);
+    const deleteWhere = vi.fn().mockReturnValue({ returning });
+    const tx = {
+      delete: vi.fn().mockReturnValue({ where: deleteWhere }),
+      select: vi.fn().mockReturnValue(query),
+    };
+    const context = {
+      db: {
+        ...tx,
+        query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+        transaction: vi.fn((callback) => callback(tx)),
+      },
+      headers: new Headers(),
+      session: {
+        user: { emailVerified: true, id: "liker-1", role: "user" },
+      },
+    } as unknown as Context;
+
+    await call(
+      postRouter.toggleCommentLike,
+      { commentId: "comment-1", liked: false },
+      { context }
+    );
+
+    expect(returning).toHaveBeenCalledOnce();
+    expect(
+      rewards.reconcileRemovedContributionLikeInTransaction
+    ).toHaveBeenCalledWith(tx, {
+      actorUserId: "liker-1",
+      entityId: "comment-1",
+      kind: "comment",
+      now: expect.any(Date),
     });
   });
 

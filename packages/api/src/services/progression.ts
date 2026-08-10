@@ -527,7 +527,7 @@ export async function releaseMaturedPendingXpInTransaction(
     });
     settlements.push(...released.settlements);
     if (!released.completed) {
-      continue;
+      return { completed: false, settlements };
     }
     await tx
       .update(xpIntegrityCase)
@@ -540,7 +540,7 @@ export async function releaseMaturedPendingXpInTransaction(
       })
       .where(eq(xpIntegrityCase.id, integrityCase.id));
   }
-  return settlements;
+  return { completed: true, settlements };
 }
 
 export async function postXpEventInTransaction(
@@ -562,14 +562,6 @@ export async function postXpEventInTransaction(
     input.userId,
     now
   );
-  const existingWallet = await tx.query.eterisWallet.findFirst({
-    columns: { status: true },
-    where: eq(eterisWallet.userId, input.userId),
-  });
-  if (existingWallet && existingWallet.status !== "active") {
-    throw new ProgressionError("ACCOUNT_CLOSED");
-  }
-
   const existing = await tx.query.xpEvent.findFirst({
     where: eq(xpEvent.idempotencyKey, input.idempotencyKey),
   });
@@ -610,6 +602,14 @@ export async function postXpEventInTransaction(
       settledXp: existing.amount,
       totalXp: progression.totalXp,
     };
+  }
+
+  const existingWallet = await tx.query.eterisWallet.findFirst({
+    columns: { status: true },
+    where: eq(eterisWallet.userId, input.userId),
+  });
+  if (existingWallet && existingWallet.status !== "active") {
+    throw new ProgressionError("ACCOUNT_CLOSED");
   }
 
   if (input.amount > 0) {

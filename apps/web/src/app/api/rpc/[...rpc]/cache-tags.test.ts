@@ -31,6 +31,7 @@ test.each([
   "rating/deleteAny",
   "rating/update",
   "user/admin/banUser",
+  "user/admin/unbanUser",
   "user/toggleBookmark",
 ])("invalidates profile tags for %s", (procedurePath) => {
   expect(getCacheTagsForProcedure(procedurePath)).toEqual(["profiles"]);

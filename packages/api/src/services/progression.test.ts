@@ -137,10 +137,12 @@ function createDatabase(options?: {
   banExpires?: Date | null;
   banned?: boolean;
   userExists?: boolean;
+  walletStatus?: "active" | "closed" | "frozen" | null;
 }) {
   let banExpires = options?.banExpires ?? null;
   let banned = options?.banned ?? false;
   const userExists = options?.userExists ?? true;
+  let walletStatus = options?.walletStatus ?? null;
   let activation: { activatedAt: Date; curveVersion: string } | null = null;
   let progression: {
     level: number;
@@ -225,7 +227,9 @@ function createDatabase(options?: {
     })),
     query: {
       eterisWallet: {
-        findFirst: vi.fn(() => Promise.resolve(null)),
+        findFirst: vi.fn(() =>
+          Promise.resolve(walletStatus ? { status: walletStatus } : null)
+        ),
       },
       eterisWalletBalance: {
         findFirst: vi.fn(() =>
@@ -354,6 +358,9 @@ function createDatabase(options?: {
     setBanned: (value: boolean, expires: Date | null = null) => {
       banned = value;
       banExpires = expires;
+    },
+    setWalletStatus: (value: typeof walletStatus) => {
+      walletStatus = value;
     },
     setProgression: (value: {
       level: number;
@@ -821,6 +828,25 @@ describe("progression service", () => {
       "Subiste al nivel 2",
       "Tu Account XP fue ajustado",
     ]);
+  });
+
+  it("replays a committed XP event after the wallet is later frozen", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    const command = {
+      amount: 10,
+      idempotencyKey: "review-retry-after-wallet-freeze",
+      kind: "review_milestone" as const,
+      reasonCode: "eligible_likes_3",
+      sourceRef: "review:review-1:milestone:3",
+      userId: "user-1",
+    };
+
+    const first = await postXpEvent(store.db, command);
+    store.setWalletStatus("frozen");
+
+    await expect(postXpEvent(store.db, command)).resolves.toEqual(first);
+    expect(store.getEvents()).toHaveLength(1);
   });
 
   it("settles every crossed level once with versioned ledger metadata", async () => {

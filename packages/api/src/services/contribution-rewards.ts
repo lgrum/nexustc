@@ -941,6 +941,9 @@ async function postContributionMilestonesInTransaction(
     if ("releasedSettlements" in result && result.releasedSettlements) {
       settlements.push(...result.releasedSettlements);
     }
+    if (result.outcome === "deferred") {
+      break;
+    }
   }
   return { eligibleLikes: input.eligibleLikes, grantedXp, settlements };
 }
@@ -1248,6 +1251,51 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
     now: input.now,
     reasonCode: "coordinated_likes_disqualified",
     sourcePrefix: `integrity-case:${input.integrityCaseId}:like-reversal`,
+    subject,
+  });
+}
+
+export async function reconcileRemovedContributionLikeInTransaction(
+  tx: Transaction,
+  input: {
+    actorUserId: string;
+    entityId: string;
+    kind: "comment" | "review";
+    now: Date;
+  }
+) {
+  const subject = await tx.query.xpRewardSubject.findFirst({
+    where: and(
+      eq(xpRewardSubject.entityId, input.entityId),
+      eq(xpRewardSubject.kind, input.kind),
+      isNull(xpRewardSubject.deletedAt)
+    ),
+  });
+  if (!subject) {
+    return { eligibleLikes: 0, settlements: [], userId: null };
+  }
+  const [locked] = await tx
+    .select({ id: xpRewardSubject.id })
+    .from(xpRewardSubject)
+    .where(eq(xpRewardSubject.id, subject.id))
+    .for("update");
+  if (!locked) {
+    return { eligibleLikes: 0, settlements: [], userId: null };
+  }
+  const activatedAt = await readProgressionActivationDate(tx);
+  const eligibleLikes = await countEligibleLikesInTransaction(
+    tx,
+    subject,
+    activatedAt ?? undefined,
+    input.now
+  );
+  return reverseUnsupportedMilestonesForCount(tx, {
+    actorUserId: input.actorUserId,
+    eligibleLikes,
+    idempotencyPrefix: `removed-like:${input.actorUserId}`,
+    now: input.now,
+    reasonCode: "eligible_like_removed",
+    sourcePrefix: `removed-like:${input.actorUserId}:reversal`,
     subject,
   });
 }
