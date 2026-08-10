@@ -70,8 +70,10 @@ function createTransaction() {
 beforeEach(() => {
   progression.cancelPending.mockReset().mockResolvedValue([]);
   progression.matured.mockReset().mockResolvedValue([]);
-  progression.notify.mockReset().mockResolvedValue();
-  progression.notifyInTransaction.mockReset().mockResolvedValue();
+  progression.notify.mockReset().mockImplementation(() => Promise.resolve());
+  progression.notifyInTransaction
+    .mockReset()
+    .mockImplementation(() => Promise.resolve());
   progression.pending.mockReset().mockResolvedValue({
     eventId: "event-1",
     pendingXp: 25,
