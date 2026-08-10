@@ -80,6 +80,8 @@ test("the current UTC report refreshes under the database lock and exposes only 
   expect(metricsQuery).toContain("balance_after");
   expect(metricsQuery).toContain("eteris_wallet_status_event");
   expect(metricsQuery).toContain("wallets_at_cutoff");
+  expect(metricsQuery).toContain("anonymized_at");
+  expect(metricsQuery).toContain("anonymized_at >=");
   expect(metricsQuery).toContain("user_delta");
   expect(metricsQuery).toContain("status = 'frozen'");
   expect(metricsQuery).toContain("from eteris_wallet");

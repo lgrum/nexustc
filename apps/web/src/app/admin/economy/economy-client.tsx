@@ -242,12 +242,15 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
       eterisIdempotencyKey.current ??= `owner-eteris-${crypto.randomUUID()}`;
       try {
         const userId = value.eterisUserId.trim();
-        await eterisAdjustment.mutateAsync({
+        const result = await eterisAdjustment.mutateAsync({
           amount: value.eterisAmount,
           idempotencyKey: eterisIdempotencyKey.current,
           reason: value.eterisReason.trim(),
           userId,
         });
+        if (result.projectionMismatch) {
+          throw new Error("ETERIS_PROJECTION_MISMATCH");
+        }
         await refreshAudit(userId);
         eterisIdempotencyKey.current = null;
         toast.success("Eteris ajustado.");

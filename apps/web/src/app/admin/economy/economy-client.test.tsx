@@ -161,6 +161,32 @@ it("refreshes audited data after an owner adjustment", async () => {
   );
 });
 
+it("treats a committed Eteris projection freeze as a failed adjustment", async () => {
+  state.role = "owner";
+  state.mutate.mockResolvedValueOnce({
+    id: null,
+    projectionMismatch: true,
+    replayed: false,
+  });
+  render(<EconomyClient initialReport={state.report} />);
+
+  const eterisCard = screen
+    .getByRole("heading", { name: "Ajustar Eteris" })
+    .closest('[data-slot="card"]')!;
+  const userInput = within(eterisCard).getByLabelText(/ID de usuario/i);
+  fireEvent.change(userInput, { target: { value: "user-frozen" } });
+  fireEvent.change(within(eterisCard).getByLabelText(/Cantidad firmada/i), {
+    target: { value: "25" },
+  });
+  fireEvent.change(within(eterisCard).getByLabelText(/Motivo de auditor/i), {
+    target: { value: "Ajuste de prueba autorizado" },
+  });
+  fireEvent.submit(userInput.closest("form")!);
+
+  await waitFor(() => expect(state.mutate).toHaveBeenCalledOnce());
+  expect(state.invalidateQueries).not.toHaveBeenCalled();
+});
+
 it("shows owner-only signed XP and Eteris adjustment forms", () => {
   state.role = "owner";
   render(<EconomyClient initialReport={state.report} />);

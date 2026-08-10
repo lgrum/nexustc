@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or } from "@repo/db";
+import { and, asc, desc, eq, inArray, lt, lte, or } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   commentLikes,
@@ -507,6 +507,48 @@ export async function releaseMaturedPendingXp(
     return released;
   });
   return result;
+}
+
+export function releaseMaturedPendingXpBatch(db: Database, now = new Date()) {
+  return db.transaction(async (tx) => {
+    const candidates = await tx
+      .select({ userId: xpIntegrityCase.userId })
+      .from(xpIntegrityCase)
+      .where(
+        and(
+          eq(xpIntegrityCase.riskLevel, "medium"),
+          eq(xpIntegrityCase.status, "open"),
+          lte(xpIntegrityCase.autoReleaseAt, now)
+        )
+      )
+      .groupBy(xpIntegrityCase.userId)
+      .orderBy(asc(xpIntegrityCase.userId))
+      .limit(100);
+    const profileUserIds = new Set<string>();
+    let released = 0;
+    for (const candidate of candidates) {
+      if (!candidate.userId) {
+        continue;
+      }
+      const result = await releaseMaturedPendingXpInTransaction(
+        tx,
+        candidate.userId,
+        now
+      );
+      for (const settlement of result.settlements) {
+        await notifyXpSettlementInTransaction(tx, candidate.userId, settlement);
+      }
+      released += result.settlements.length;
+      if (!result.completed || result.settlements.length > 0) {
+        profileUserIds.add(candidate.userId);
+      }
+    }
+    return {
+      checked: candidates.length,
+      profileUserIds: [...profileUserIds],
+      released,
+    };
+  });
 }
 
 export async function listIntegrityCases(

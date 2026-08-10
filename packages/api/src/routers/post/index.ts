@@ -55,6 +55,7 @@ import { attachComicCatalogProgress } from "../../services/comic-progress";
 import {
   deleteCommentWithRewards,
   getCommentDeletionWarning,
+  lockContributionParticipantsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
   saveCommentRewardSubjectInTransaction,
@@ -1917,11 +1918,6 @@ export default {
           authorId: string;
           settlements: CommentMilestoneSettlement[];
         } = await db.transaction(async (tx) => {
-          await tx
-            .select({ id: user.id })
-            .from(user)
-            .where(eq(user.id, session.user.id))
-            .for("update");
           const [existingComment] = await tx
             .select({
               authorId: comment.authorId,
@@ -1970,6 +1966,10 @@ export default {
           ) {
             throw errors.NOT_FOUND();
           }
+          await lockContributionParticipantsInTransaction(tx, [
+            session.user.id,
+            existingComment.authorId,
+          ]);
           if (!input.liked) {
             const deleted = await tx
               .delete(commentLikes)

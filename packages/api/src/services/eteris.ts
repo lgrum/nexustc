@@ -578,9 +578,13 @@ export async function adjustEteris(
     return settlement;
   });
   if ("mismatched" in result) {
-    throw new EterisError("PROJECTION_MISMATCH");
+    return { id: null, projectionMismatch: true, replayed: false } as const;
   }
-  return { id: result.id, replayed: result.replayed };
+  return {
+    id: result.id,
+    projectionMismatch: false,
+    replayed: result.replayed,
+  } as const;
 }
 
 export async function reverseEterisTransaction(

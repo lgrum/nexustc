@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/economy-snapshot",
       "schedule": "10 3 * * *"
+    },
+    {
+      "path": "/api/cron/pending-xp-release",
+      "schedule": "15 * * * *"
     }
   ]
 }

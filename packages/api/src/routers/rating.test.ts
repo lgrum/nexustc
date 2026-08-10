@@ -6,6 +6,7 @@ import type { publicCatalogVisibilityCondition } from "../utils/early-access";
 const mocks = vi.hoisted(() => ({
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  lockContributionParticipantsInTransaction: vi.fn(),
   notifyXpSettlement: vi.fn(),
   notifyXpSettlementInTransaction: vi.fn(),
   userIsNotActivelyBanned: vi.fn(),
@@ -31,6 +32,8 @@ vi.mock("../services/profile", () => ({
 vi.mock("../services/contribution-rewards", () => ({
   deleteReviewWithRewards: vi.fn(),
   getReviewDeletionWarning: vi.fn(),
+  lockContributionParticipantsInTransaction:
+    mocks.lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction:
     mocks.reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction:
@@ -110,6 +113,9 @@ beforeEach(() => {
   mocks.reconcileRemovedContributionLikeInTransaction.mockResolvedValue({
     settlements: [],
   });
+  mocks.lockContributionParticipantsInTransaction.mockImplementation(() =>
+    Promise.resolve()
+  );
 });
 
 describe("profile review privacy", () => {
@@ -320,10 +326,13 @@ describe("stable review likes", () => {
     });
     expect(onConflictDoNothing).toHaveBeenCalledOnce();
     expect(returning).toHaveBeenCalledOnce();
-    expect(ratingQuery.for).toHaveBeenCalledWith("update");
-    expect(ratingQuery.for.mock.invocationCallOrder[0]).toBeLessThan(
-      values.mock.invocationCallOrder[0]!
-    );
+    expect(
+      mocks.lockContributionParticipantsInTransaction
+    ).toHaveBeenCalledWith(executor, ["owner-1", "author-1"]);
+    expect(
+      mocks.lockContributionParticipantsInTransaction.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(values.mock.invocationCallOrder[0]!);
     expect(mocks.settleReviewMilestonesInTransaction).toHaveBeenCalledWith(
       executor,
       "review-current",

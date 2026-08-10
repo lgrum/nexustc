@@ -559,6 +559,43 @@ test("rolls back an owner Eteris adjustment when its notification fails", async 
   ).toBe(BigInt(wallet.balance));
 });
 
+test("reports a committed owner-adjustment freeze for cache revalidation", async () => {
+  flags.accrual = true;
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  const userWallet = [...store.wallets.values()].find(
+    (wallet) => wallet.userId === "user-1"
+  )!;
+  await postEterisTransaction(store.db, {
+    debtPolicy: "trusted-recovery",
+    idempotencyKey: "seed-owner-mismatch",
+    kind: "admin_adjustment",
+    postings: [
+      { amount: 10n, walletId: userWallet.id },
+      { amount: -10n, walletId: "eteris-system-mint" },
+    ],
+    reason: "Saldo de prueba",
+    sourceModule: "owner",
+    sourceRef: "seed-owner-mismatch",
+  });
+  store.corruptBalance(userWallet.id, 999n);
+
+  await expect(
+    adjustEteris(store.db, {
+      actorUserId: "owner-1",
+      amount: 1n,
+      idempotencyKey: "owner-mismatch",
+      reason: "Correccion revisada por soporte",
+      userId: "user-1",
+    })
+  ).resolves.toEqual({
+    id: null,
+    projectionMismatch: true,
+    replayed: false,
+  });
+  expect(store.wallets.get(userWallet.id)?.status).toBe("frozen");
+});
+
 test("banning freezes Eteris spending without confiscating the balance", async () => {
   flags.economy = true;
   flags.spending = true;

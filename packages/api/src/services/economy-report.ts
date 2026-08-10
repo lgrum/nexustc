@@ -56,6 +56,7 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
           w.id,
           w.kind,
           w.user_id,
+          w.anonymized_at,
           coalesce((
             select p.balance_after
             from eteris_posting p
@@ -77,7 +78,8 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
       user_wallets as (
         select id, user_id, status, balance
         from wallets_at_cutoff
-        where kind = 'user' and user_id is not null
+        where kind = 'user'
+          and (user_id is not null or anonymized_at >= ${dayEnd})
       ),
       daily_user_postings as (
         select w.user_id, t.kind::text as reason, p.amount

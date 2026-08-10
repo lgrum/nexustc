@@ -7,6 +7,7 @@ import {
   deleteReviewWithRewards,
   getContributionContentHash,
   isEligibleLike,
+  lockContributionParticipantsInTransaction,
   markParentPostContributionSubjectsRemovedInTransaction,
   reconcileBannedLikerRewards,
   reconcileClosedLikerRewardsInTransaction,
@@ -21,6 +22,31 @@ import {
   settleCommentMilestonesInTransaction,
   settleReviewMilestonesInTransaction,
 } from "./contribution-rewards";
+
+test("locks contribution participants in stable database order", async () => {
+  const chain = {
+    for: vi.fn().mockResolvedValue([]),
+    from: vi.fn(),
+    orderBy: vi.fn(),
+    where: vi.fn(),
+  };
+  chain.from.mockReturnValue(chain);
+  chain.where.mockReturnValue(chain);
+  chain.orderBy.mockReturnValue(chain);
+  const tx = { select: vi.fn().mockReturnValue(chain) };
+
+  await lockContributionParticipantsInTransaction(tx as never, [
+    "user-b",
+    "user-a",
+    "user-b",
+  ]);
+
+  expect(chain.orderBy).toHaveBeenCalledOnce();
+  expect(chain.for).toHaveBeenCalledWith("update");
+  expect(chain.orderBy.mock.invocationCallOrder[0]).toBeLessThan(
+    chain.for.mock.invocationCallOrder[0]!
+  );
+});
 
 const flags = vi.hoisted(() => ({ accrual: true }));
 const progression = vi.hoisted(() => ({

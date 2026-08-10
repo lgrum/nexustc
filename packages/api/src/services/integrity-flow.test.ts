@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   decideIntegrityCase,
   releaseMaturedPendingXp,
+  releaseMaturedPendingXpBatch,
   settleXpWithIntegrityInTransaction,
 } from "./integrity";
 
@@ -148,6 +149,45 @@ describe("integrity settlement", () => {
       completed: false,
       settlements: [],
     });
+  });
+
+  it("releases matured Pending XP in a scheduled atomic batch", async () => {
+    const settlement = { eventId: "released-event-1" };
+    progression.matured
+      .mockResolvedValueOnce({ completed: true, settlements: [settlement] })
+      .mockResolvedValueOnce({ completed: false, settlements: [] });
+    const candidates = {
+      from: vi.fn(),
+      groupBy: vi.fn(),
+      limit: vi
+        .fn()
+        .mockResolvedValue([{ userId: "user-1" }, { userId: "user-2" }]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    candidates.from.mockReturnValue(candidates);
+    candidates.where.mockReturnValue(candidates);
+    candidates.groupBy.mockReturnValue(candidates);
+    candidates.orderBy.mockReturnValue(candidates);
+    const tx = {
+      select: vi.fn().mockReturnValue(candidates),
+    } as unknown as Transaction;
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      releaseMaturedPendingXpBatch(db, new Date("2026-08-10T12:00:00.000Z"))
+    ).resolves.toEqual({
+      checked: 2,
+      profileUserIds: ["user-1", "user-2"],
+      released: 1,
+    });
+    expect(progression.notifyInTransaction).toHaveBeenCalledWith(
+      tx,
+      "user-1",
+      settlement
+    );
   });
 
   it("rejects invalid proof without recording or penalizing the account", async () => {

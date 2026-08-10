@@ -281,6 +281,22 @@ async function existingSubjectRequiresEligibleTrigger(
   return !activatedAt || subject.createdAt <= activatedAt;
 }
 
+export async function lockContributionParticipantsInTransaction(
+  tx: Transaction,
+  userIds: string[]
+) {
+  const participantIds = [...new Set(userIds)].toSorted();
+  if (participantIds.length === 0) {
+    return;
+  }
+  await tx
+    .select({ id: user.id })
+    .from(user)
+    .where(inArray(user.id, participantIds))
+    .orderBy(asc(user.id))
+    .for("update");
+}
+
 function lockContributionAuthor(tx: Transaction, userId: string) {
   return tx
     .select({ id: user.id })

@@ -16,6 +16,7 @@ import {
 import {
   deleteReviewWithRewards,
   getReviewDeletionWarning,
+  lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
   settleReviewMilestonesInTransaction,
@@ -372,11 +373,6 @@ export default {
         authorId: string;
         settlements: ReviewMilestoneSettlement[];
       } = await db.transaction(async (tx) => {
-        await tx
-          .select({ id: user.id })
-          .from(user)
-          .where(eq(user.id, session.user.id))
-          .for("update");
         const [existingRating] = await tx
           .select({
             earlyAccessEnabled: post.earlyAccessEnabled,
@@ -412,6 +408,10 @@ export default {
         ) {
           throw errors.NOT_FOUND();
         }
+        await lockContributionParticipantsInTransaction(tx, [
+          session.user.id,
+          input.ratingUserId,
+        ]);
         if (!input.liked) {
           const deleted = await tx
             .delete(postRatingLikes)
