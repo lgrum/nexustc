@@ -29,6 +29,7 @@ const progression = vi.hoisted(() => ({
 }));
 
 vi.mock("./integrity-settlement", () => ({
+  cleanupExpiredRiskSignals: vi.fn(),
   settleXpWithIntegrityInTransaction: vi.fn(
     (_tx, input, assessment: { disposition: string }) => {
       progression.calls.push(input);
@@ -262,14 +263,43 @@ const commentSubject = {
 
 function createSettlementTransaction(options?: {
   awardEvents?: Record<string, unknown>[];
+  correlatedAccount?: boolean;
   duplicate?: boolean;
   events?: Record<string, unknown>[];
+  recentLikes?: number;
+  reviewAfterSourceLock?: string;
 }) {
   const subjectFindFirst = vi
     .fn()
     .mockResolvedValueOnce(subject)
     .mockResolvedValueOnce(options?.duplicate ? { id: "older" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: subject.id }]);
+  let sourceLocked = false;
+  const sourceLock = vi.fn(() => {
+    sourceLocked = true;
+    return sourceQuery;
+  });
+  const sourceQuery = {
+    for: sourceLock,
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    limit: vi.fn(() =>
+      Promise.resolve([
+        {
+          authorBanned: false,
+          ...review,
+          review:
+            sourceLocked && options?.reviewAfterSourceLock
+              ? options.reviewAfterSourceLock
+              : review.review,
+        },
+      ])
+    ),
+    where: vi.fn(),
+  };
+  sourceQuery.from.mockReturnValue(sourceQuery);
+  sourceQuery.innerJoin.mockReturnValue(sourceQuery);
+  sourceQuery.where.mockReturnValue(sourceQuery);
   const select = vi.fn((shape: Record<string, unknown>) => {
     if ("idempotencyKey" in shape) {
       return {
@@ -286,14 +316,21 @@ function createSettlementTransaction(options?: {
       };
     }
     if ("authorBanned" in shape) {
+      return sourceQuery;
+    }
+    if ("id" in shape && "userId" in shape) {
       const chain = {
         from: vi.fn(),
-        innerJoin: vi.fn(),
-        limit: vi.fn().mockResolvedValue([{ authorBanned: false, ...review }]),
+        limit: vi
+          .fn()
+          .mockResolvedValue(
+            options?.correlatedAccount
+              ? [{ id: "correlated", userId: "other-liker" }]
+              : []
+          ),
         where: vi.fn(),
       };
       chain.from.mockReturnValue(chain);
-      chain.innerJoin.mockReturnValue(chain);
       chain.where.mockReturnValue(chain);
       return chain;
     }
@@ -309,7 +346,10 @@ function createSettlementTransaction(options?: {
         limit: vi
           .fn()
           .mockResolvedValue(
-            Array.from({ length: 10 }, () => ({ createdAt: new Date() }))
+            Array.from({ length: 10 }, () => ({ createdAt: new Date() })).slice(
+              0,
+              options?.recentLikes ?? 10
+            )
           ),
         where: vi.fn(),
       };
@@ -337,15 +377,22 @@ function createSettlementTransaction(options?: {
     return chain;
   });
   const tx = {
+    delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue() })),
+    execute: vi.fn().mockResolvedValue(),
+    insert: vi.fn(() => ({
+      values: vi.fn().mockResolvedValue(),
+    })),
     query: {
       forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
       xpRewardBlock: { findFirst: vi.fn().mockResolvedValue(null) },
       xpRewardSubject: { findFirst: subjectFindFirst },
     },
     select,
-    update: vi.fn(),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn().mockResolvedValue() })),
+    })),
   } as unknown as Transaction;
-  return { lock, tx };
+  return { lock, sourceLock, tx };
 }
 
 beforeEach(() => {
@@ -632,6 +679,39 @@ describe("review milestone settlement", () => {
     });
   });
 
+  it("holds milestones when another account shares the triggering correlation", async () => {
+    await expect(
+      settleReviewMilestonesInTransaction(
+        createSettlementTransaction({
+          correlatedAccount: true,
+          recentLikes: 1,
+        }).tx,
+        review.id,
+        new Date("2026-08-10T12:00:00.000Z"),
+        "liker-1",
+        { deviceHash: "device-hash", ipPrefixHash: "ip-hash" }
+      )
+    ).resolves.toMatchObject({ grantedXp: 0 });
+
+    expect(progression.assessmentDetails[0]).toMatchObject({
+      disposition: "medium",
+      signals: [{ kind: "account_correlation" }],
+    });
+  });
+
+  it("evaluates the review snapshot acquired under the source lock", async () => {
+    const { sourceLock, tx } = createSettlementTransaction({
+      recentLikes: 1,
+      reviewAfterSourceLock: "Demasiado corta",
+    });
+
+    await expect(
+      settleReviewMilestonesInTransaction(tx, review.id)
+    ).resolves.toMatchObject({ grantedXp: 0 });
+    expect(sourceLock).toHaveBeenCalledWith("update");
+    expect(progression.calls).toHaveLength(0);
+  });
+
   it("pauses duplicate content and treats replayed milestones as settled", async () => {
     await expect(
       settleReviewMilestonesInTransaction(
@@ -777,7 +857,8 @@ describe("review milestone settlement", () => {
 
 function createCommentSettlementTransaction(
   content = commentText,
-  duplicate = false
+  duplicate = false,
+  contentAfterSourceLock?: string
 ) {
   const subjectFindFirst = vi
     .fn()
@@ -787,22 +868,35 @@ function createCommentSettlementTransaction(
     })
     .mockResolvedValueOnce(duplicate ? { id: "older-comment" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: commentSubject.id }]);
+  let sourceLocked = false;
+  const sourceLock = vi.fn(() => {
+    sourceLocked = true;
+    return sourceQuery;
+  });
+  const sourceQuery = {
+    for: sourceLock,
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    limit: vi.fn(() =>
+      Promise.resolve([
+        {
+          authorBanned: false,
+          ...commentSnapshot,
+          content:
+            sourceLocked && contentAfterSourceLock
+              ? contentAfterSourceLock
+              : content,
+        },
+      ])
+    ),
+    where: vi.fn(),
+  };
+  sourceQuery.from.mockReturnValue(sourceQuery);
+  sourceQuery.innerJoin.mockReturnValue(sourceQuery);
+  sourceQuery.where.mockReturnValue(sourceQuery);
   const select = vi.fn((shape: Record<string, unknown>) => {
     if ("authorBanned" in shape) {
-      const chain = {
-        from: vi.fn(),
-        innerJoin: vi.fn(),
-        limit: vi
-          .fn()
-          .mockResolvedValue([
-            { authorBanned: false, ...commentSnapshot, content },
-          ]),
-        where: vi.fn(),
-      };
-      chain.from.mockReturnValue(chain);
-      chain.innerJoin.mockReturnValue(chain);
-      chain.where.mockReturnValue(chain);
-      return chain;
+      return sourceQuery;
     }
     if (Object.keys(shape).length === 1 && "id" in shape) {
       const chain = { for: lock, from: vi.fn(), where: vi.fn() };
@@ -821,6 +915,7 @@ function createCommentSettlementTransaction(
   });
   return {
     lock,
+    sourceLock,
     tx: {
       query: {
         forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
@@ -828,7 +923,9 @@ function createCommentSettlementTransaction(
         xpRewardSubject: { findFirst: subjectFindFirst },
       },
       select,
-      update: vi.fn(),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue() })),
+      })),
     } as unknown as Transaction,
   };
 }
@@ -910,6 +1007,20 @@ describe("comment milestone settlement", () => {
         commentSnapshot.id
       )
     ).resolves.toMatchObject({ eligibleLikes: 100, grantedXp: 0 });
+  });
+
+  it("evaluates the comment snapshot acquired under the source lock", async () => {
+    const { sourceLock, tx } = createCommentSettlementTransaction(
+      commentText,
+      false,
+      "Muy corto"
+    );
+
+    await expect(
+      settleCommentMilestonesInTransaction(tx, commentSnapshot.id)
+    ).resolves.toMatchObject({ grantedXp: 0 });
+    expect(sourceLock).toHaveBeenCalledWith("update");
+    expect(progression.calls).toHaveLength(0);
   });
 
   it("does not activate legacy likes while accrual is disabled", async () => {

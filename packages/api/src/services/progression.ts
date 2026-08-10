@@ -1,6 +1,18 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { and, desc, eq, gt, inArray, like, lt, lte, or, sql } from "@repo/db";
+import {
+  and,
+  desc,
+  eq,
+  gt,
+  inArray,
+  like,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+} from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisWallet,
@@ -484,6 +496,7 @@ export async function releaseMaturedPendingXpInTransaction(
       .where(
         and(
           eq(xpRiskSignal.userId, userId),
+          ne(xpRiskSignal.kind, "like_correlation_observation"),
           gt(xpRiskSignal.occurredAt, integrityCase.createdAt),
           gt(xpRiskSignal.expiresAt, now)
         )

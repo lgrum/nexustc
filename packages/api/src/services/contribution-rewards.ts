@@ -10,6 +10,7 @@ import {
   user,
   xpEvent,
   xpLikeDisqualification,
+  xpRiskSignal,
   xpRewardBlock,
   xpRewardSubject,
 } from "@repo/db/schema/app";
@@ -25,7 +26,10 @@ import { ratingReviewSchema } from "@repo/shared/schemas";
 
 import { findForbiddenContentMatch } from "../utils/forbidden-content";
 import { detectSpammyText } from "../utils/spam-detection";
-import { settleXpWithIntegrityInTransaction } from "./integrity-settlement";
+import {
+  cleanupExpiredRiskSignals,
+  settleXpWithIntegrityInTransaction,
+} from "./integrity-settlement";
 import type { IntegrityCorrelationEvidence } from "./integrity-settlement";
 import {
   cancelPendingXpEventsInTransaction,
@@ -63,6 +67,7 @@ const REVIEW_DAILY_CAP = 2;
 const COMMENT_DAILY_CAP = 5;
 const CONTRIBUTION_LIKE_BURST_LIMIT = 10;
 const CONTRIBUTION_LIKE_BURST_WINDOW_MS = 5 * 60_000;
+const CONTRIBUTION_LIKE_CORRELATION_WINDOW_MS = 5 * 60_000;
 const EMPTY_INTEGRITY_CORRELATION = {
   deviceHash: null,
   ipPrefixHash: null,
@@ -832,6 +837,57 @@ async function assessContributionMilestoneIntegrity(
   const since = new Date(
     input.now.getTime() - CONTRIBUTION_LIKE_BURST_WINDOW_MS
   );
+  const correlationKeys = [
+    input.correlation.deviceHash
+      ? `device:${input.correlation.deviceHash}`
+      : null,
+    input.correlation.ipPrefixHash
+      ? `ip:${input.correlation.ipPrefixHash}`
+      : null,
+  ]
+    .filter((key): key is string => Boolean(key))
+    .toSorted();
+  let correlatedAccount = false;
+  if (correlationKeys.length > 0) {
+    for (const key of correlationKeys) {
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`contribution-like:${key}`}, 0))`
+      );
+    }
+    await cleanupExpiredRiskSignals(tx, input.now);
+    const [correlated] = await tx
+      .select({ id: xpRiskSignal.id, userId: xpRiskSignal.userId })
+      .from(xpRiskSignal)
+      .where(
+        and(
+          eq(xpRiskSignal.kind, "like_correlation_observation"),
+          ne(xpRiskSignal.userId, input.triggeringLikerUserId),
+          gte(xpRiskSignal.occurredAt, since),
+          or(
+            input.correlation.deviceHash
+              ? eq(xpRiskSignal.deviceHash, input.correlation.deviceHash)
+              : undefined,
+            input.correlation.ipPrefixHash
+              ? eq(xpRiskSignal.ipPrefixHash, input.correlation.ipPrefixHash)
+              : undefined
+          )
+        )
+      )
+      .limit(1);
+    correlatedAccount = Boolean(correlated);
+    await tx.insert(xpRiskSignal).values({
+      deviceHash: input.correlation.deviceHash,
+      evidence: { source: `${input.kind}_like` },
+      expiresAt: new Date(
+        input.now.getTime() + CONTRIBUTION_LIKE_CORRELATION_WINDOW_MS
+      ),
+      id: generateId(),
+      ipPrefixHash: input.correlation.ipPrefixHash,
+      kind: "like_correlation_observation",
+      occurredAt: input.now,
+      userId: input.triggeringLikerUserId,
+    });
+  }
   const recent =
     input.kind === "review"
       ? await tx
@@ -855,20 +911,35 @@ async function assessContributionMilestoneIntegrity(
           )
           .limit(CONTRIBUTION_LIKE_BURST_LIMIT);
   const observed = recent.length;
-  if (observed < CONTRIBUTION_LIKE_BURST_LIMIT) {
+  if (!(correlatedAccount || observed >= CONTRIBUTION_LIKE_BURST_LIMIT)) {
     return { disposition: "low" };
+  }
+  const signals = [] as {
+    count: number;
+    evidence: { source: string };
+    kind: "account_correlation" | "like_toggle_velocity";
+  }[];
+  if (correlatedAccount) {
+    signals.push({
+      count: 2,
+      evidence: { source: `${input.kind}_like` },
+      kind: "account_correlation",
+    });
+  }
+  if (observed >= CONTRIBUTION_LIKE_BURST_LIMIT) {
+    signals.push({
+      count: observed,
+      evidence: { source: `${input.kind}_like` },
+      kind: "like_toggle_velocity",
+    });
   }
   return {
     correlation: input.correlation,
     disposition: "medium",
-    signals: [
-      {
-        count: observed,
-        evidence: { source: `${input.kind}_like` },
-        kind: "like_toggle_velocity",
-      },
-    ],
-    summary: "Actividad de Me gusta inusualmente rapida.",
+    signals,
+    summary: correlatedAccount
+      ? "Actividad coordinada de Me gusta entre cuentas relacionadas."
+      : "Actividad de Me gusta inusualmente rapida.",
   };
 }
 
@@ -891,6 +962,7 @@ export async function settleReviewMilestonesInTransaction(
     .from(postRating)
     .innerJoin(user, eq(user.id, postRating.userId))
     .where(eq(postRating.id, ratingId))
+    .for("update")
     .limit(1);
   if (!review) {
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
@@ -956,6 +1028,7 @@ export async function settleCommentMilestonesInTransaction(
     .from(comment)
     .innerJoin(user, eq(user.id, comment.authorId))
     .where(eq(comment.id, commentId))
+    .for("update")
     .limit(1);
   if (!snapshot) {
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };

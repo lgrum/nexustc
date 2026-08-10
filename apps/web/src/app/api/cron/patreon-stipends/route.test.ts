@@ -49,3 +49,20 @@ test("runs the recurring stipend batch with the configured bearer secret", async
   expect(grant).toHaveBeenCalledOnce();
   expect(revalidateTag).toHaveBeenCalledWith("profile:user-1", "max");
 });
+
+test("revalidates successful stipends before reporting a partial batch failure", async () => {
+  const error = Object.assign(
+    new AggregateError([new Error("stipend failure")], "partial batch failure"),
+    { profileUserIds: ["user-1"] }
+  );
+  grant.mockRejectedValueOnce(error);
+
+  await expect(
+    GET(
+      new Request("http://localhost/api/cron/patreon-stipends", {
+        headers: { authorization: "Bearer test-cron-secret-value" },
+      })
+    )
+  ).rejects.toBe(error);
+  expect(revalidateTag).toHaveBeenCalledWith("profile:user-1", "max");
+});

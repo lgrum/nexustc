@@ -3,6 +3,7 @@ import { z } from "zod";
 export const XP_RISK_SIGNAL_KINDS = [
   "account_correlation",
   "idempotency_conflict",
+  "like_correlation_observation",
   "like_toggle_velocity",
   "rejected_sequence",
   "source_cap_pressure",

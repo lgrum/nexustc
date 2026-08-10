@@ -8,7 +8,23 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const result = await grantMonthlyPatreonStipends(db);
+  let result: Awaited<ReturnType<typeof grantMonthlyPatreonStipends>>;
+  try {
+    result = await grantMonthlyPatreonStipends(db);
+  } catch (error) {
+    if (
+      error instanceof AggregateError &&
+      "profileUserIds" in error &&
+      Array.isArray(error.profileUserIds)
+    ) {
+      for (const userId of error.profileUserIds) {
+        if (typeof userId === "string") {
+          revalidateTag(`profile:${userId}`, "max");
+        }
+      }
+    }
+    throw error;
+  }
   for (const userId of result.profileUserIds) {
     revalidateTag(`profile:${userId}`, "max");
   }

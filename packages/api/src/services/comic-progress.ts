@@ -733,7 +733,7 @@ async function persistProgressRecord(params: {
 }) {
   const completed = params.state.completedSnapshot;
   const completedAt = parseCompletedAt(params.state.completedAtIso);
-  const progressValues = {
+  const incomingProgressValues = {
     comicId: params.state.comicId,
     completed,
     completedAt,
@@ -749,10 +749,60 @@ async function persistProgressRecord(params: {
   const result = await params.db.transaction(async (tx) => {
     await tx
       .insert(userComicProgress)
-      .values(progressValues)
+      .values(incomingProgressValues)
       .onConflictDoNothing({
         target: [userComicProgress.userId, userComicProgress.comicId],
       });
+
+    const [storedProgress] = await tx
+      .select({
+        completed: userComicProgress.completed,
+        completedAt: userComicProgress.completedAt,
+        lastPageRead: userComicProgress.lastPageRead,
+        lastReadTimestamp: userComicProgress.lastReadTimestamp,
+        ranges: userComicProgress.xpProcessedPageRanges,
+        totalPagesAtLastRead: userComicProgress.totalPagesAtLastRead,
+        verifiedThroughPage: userComicProgress.verifiedThroughPage,
+      })
+      .from(userComicProgress)
+      .where(
+        and(
+          eq(userComicProgress.userId, params.state.userId),
+          eq(userComicProgress.comicId, params.state.comicId)
+        )
+      )
+      .for("update");
+    if (!storedProgress) {
+      throw new Error("No se pudo bloquear el progreso del comic.");
+    }
+    const incomingCompletedNewerSnapshot =
+      incomingProgressValues.completed &&
+      incomingProgressValues.totalPagesAtLastRead >
+        storedProgress.totalPagesAtLastRead;
+    const progressValues = {
+      ...incomingProgressValues,
+      completed: storedProgress.completed || incomingProgressValues.completed,
+      completedAt: incomingCompletedNewerSnapshot
+        ? incomingProgressValues.completedAt
+        : (storedProgress.completedAt ?? incomingProgressValues.completedAt),
+      lastPageRead: Math.max(
+        storedProgress.lastPageRead,
+        incomingProgressValues.lastPageRead
+      ),
+      lastReadTimestamp:
+        storedProgress.lastReadTimestamp >
+        incomingProgressValues.lastReadTimestamp
+          ? storedProgress.lastReadTimestamp
+          : incomingProgressValues.lastReadTimestamp,
+      totalPagesAtLastRead: Math.max(
+        storedProgress.totalPagesAtLastRead,
+        incomingProgressValues.totalPagesAtLastRead
+      ),
+      verifiedThroughPage: Math.max(
+        storedProgress.verifiedThroughPage,
+        incomingProgressValues.verifiedThroughPage
+      ),
+    };
 
     let processedPageRanges: [number, number][] | undefined;
     const processedPages: number[] = [];
@@ -770,21 +820,7 @@ async function persistProgressRecord(params: {
         params.state.userId,
         params.now
       );
-      const [stored] = await tx
-        .select({ ranges: userComicProgress.xpProcessedPageRanges })
-        .from(userComicProgress)
-        .where(
-          and(
-            eq(userComicProgress.userId, params.state.userId),
-            eq(userComicProgress.comicId, params.state.comicId)
-          )
-        )
-        .for("update");
-      if (!stored) {
-        throw new Error("No se pudo bloquear el progreso del comic.");
-      }
-
-      const currentProcessedPageRanges = stored.ranges;
+      const currentProcessedPageRanges = storedProgress.ranges;
       processedPageRanges = currentProcessedPageRanges;
       for (const page of [...new Set(params.state.pendingRewardPages)].toSorted(
         (left, right) => left - right

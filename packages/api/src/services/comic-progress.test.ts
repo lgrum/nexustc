@@ -296,6 +296,75 @@ describe("verified comic reading rewards", () => {
     });
   });
 
+  it("merges a delayed session snapshot under the progress row lock", async () => {
+    const state = createState({
+      canUseResume: true,
+      lastPageRead: 1,
+      startedAtMs: Date.now() - 10_000,
+      verifiedThroughPage: 1,
+    });
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(JSON.stringify(state)),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const stored = {
+      completed: true,
+      completedAt: new Date("2026-08-09T00:00:00.000Z"),
+      lastPageRead: 4,
+      lastReadTimestamp: new Date("2026-08-09T00:00:00.000Z"),
+      totalPagesAtLastRead: 4,
+      updatedAt: new Date("2026-08-09T00:00:00.000Z"),
+      verifiedThroughPage: 4,
+      xpProcessedPageRanges: [],
+    };
+    let updateValues: Record<string, unknown> | undefined;
+    const selectChain = {
+      for: vi.fn().mockResolvedValue([stored]),
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    selectChain.from.mockReturnValue(selectChain);
+    selectChain.where.mockReturnValue(selectChain);
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(),
+        })),
+      })),
+      select: vi.fn().mockReturnValue(selectChain),
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updateValues = values;
+          return { where: vi.fn().mockResolvedValue() };
+        }),
+      })),
+    };
+    const db = {
+      query: createAccessQueries(),
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await trackComicPageView({
+      cache,
+      comicId: "comic-1",
+      correlation: { deviceHash: null, ipPrefixHash: null },
+      db,
+      evidence: { ...evidence, documentVisible: false },
+      page: 2,
+      readingSessionId: "session-1",
+      userId: "user-1",
+    });
+
+    expect(selectChain.for).toHaveBeenCalledWith("update");
+    expect(updateValues).toMatchObject({
+      completed: true,
+      lastPageRead: 4,
+      totalPagesAtLastRead: 4,
+      verifiedThroughPage: 4,
+    });
+  });
+
   it("serializes concurrent updates for the same reading session", async () => {
     let releaseRead: ((value: string | null) => void) | undefined;
     const get = vi.fn(

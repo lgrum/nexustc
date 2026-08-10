@@ -18,6 +18,16 @@ import { ensureProgressionActivationInTransaction } from "./progression-activati
 type Database = typeof database;
 const ZERO = 0n;
 
+export class PatreonStipendBatchError extends AggregateError {
+  readonly profileUserIds: string[];
+
+  constructor(errors: unknown[], profileUserIds: string[]) {
+    super(errors, "No se pudieron liquidar todos los beneficios VIP.");
+    this.name = "PatreonStipendBatchError";
+    this.profileUserIds = profileUserIds;
+  }
+}
+
 function getUtcMonth(now: Date) {
   const year = now.getUTCFullYear();
   const monthIndex = now.getUTCMonth();
@@ -167,10 +177,7 @@ export async function grantMonthlyPatreonStipends(
     }
   }
   if (errors.length > 0) {
-    throw new AggregateError(
-      errors,
-      "No se pudieron liquidar todos los beneficios VIP."
-    );
+    throw new PatreonStipendBatchError(errors, profileUserIds);
   }
   return { checked: memberships.length, granted, profileUserIds };
 }
