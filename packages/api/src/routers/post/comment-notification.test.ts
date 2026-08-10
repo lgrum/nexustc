@@ -4,6 +4,7 @@ import postRouter from ".";
 import type { Context } from "../../context";
 
 const rewards = vi.hoisted(() => ({
+  isContributionLikerEligibleInTransaction: vi.fn(),
   lockContributionParticipantsInTransaction: vi.fn(),
   notifyXpSettlementInTransaction: vi.fn(),
   reconcileEditedCommentRewardsInTransaction: vi.fn(),
@@ -27,6 +28,8 @@ vi.mock("@repo/auth", () => ({
 vi.mock("../../services/contribution-rewards", () => ({
   deleteCommentWithRewards: vi.fn(),
   getCommentDeletionWarning: vi.fn(),
+  isContributionLikerEligibleInTransaction:
+    rewards.isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction:
     rewards.lockContributionParticipantsInTransaction,
   reconcileEditedCommentRewardsInTransaction:
@@ -307,6 +310,7 @@ describe("comment reward likes", () => {
     rewards.lockContributionParticipantsInTransaction.mockImplementation(() =>
       Promise.resolve()
     );
+    rewards.isContributionLikerEligibleInTransaction.mockResolvedValue(true);
     rewards.reconcileRemovedContributionLikeInTransaction.mockResolvedValue({
       settlements: [],
     });
@@ -406,6 +410,20 @@ describe("comment reward likes", () => {
     ).toHaveBeenCalledWith(tx, ["liker-1", "comment-author"]);
     expect(
       rewards.lockContributionParticipantsInTransaction.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(values.mock.invocationCallOrder[0]!);
+    expect(
+      rewards.isContributionLikerEligibleInTransaction
+    ).toHaveBeenCalledWith(tx, "liker-1", expect.any(Date));
+    expect(
+      rewards.lockContributionParticipantsInTransaction.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(
+      rewards.isContributionLikerEligibleInTransaction.mock
+        .invocationCallOrder[0]!
+    );
+    expect(
+      rewards.isContributionLikerEligibleInTransaction.mock
         .invocationCallOrder[0]
     ).toBeLessThan(values.mock.invocationCallOrder[0]!);
     expect(values).toHaveBeenCalledWith({

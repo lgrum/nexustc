@@ -12,6 +12,7 @@ import {
   deleteReviewWithRewards,
   getContributionContentHash,
   isEligibleLike,
+  isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction,
   markParentPostContributionSubjectsRemovedInTransaction,
   reconcileBannedLikerRewards,
@@ -51,6 +52,26 @@ test("locks contribution participants in stable database order", async () => {
   expect(chain.orderBy.mock.invocationCallOrder[0]).toBeLessThan(
     chain.for.mock.invocationCallOrder[0]!
   );
+});
+
+test("rejects a liker who became banned while waiting for participant locks", async () => {
+  const tx = {
+    query: {
+      user: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue({ banExpires: null, banned: true }),
+      },
+    },
+  };
+
+  await expect(
+    isContributionLikerEligibleInTransaction(
+      tx as never,
+      "banned-liker",
+      new Date("2026-08-10T00:00:00.000Z")
+    )
+  ).resolves.toBe(false);
 });
 
 const flags = vi.hoisted(() => ({ accrual: true }));

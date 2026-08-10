@@ -53,16 +53,17 @@ test("the current UTC report refreshes under the database lock and exposes only 
     ),
   } as unknown as Database;
   const now = new Date("2026-08-07T23:59:59.000Z");
+  const generatedAt = new Date("2026-08-08T00:01:00.000Z");
 
-  const first = await getDailyEconomyReport(db, now);
-  const repeated = await getDailyEconomyReport(db, now);
+  const first = await getDailyEconomyReport(db, now, generatedAt);
+  const repeated = await getDailyEconomyReport(db, now, generatedAt);
 
   expect(first).toEqual({
     anomalousEarners: [{ total: "600", userId: "account-1" }],
     balancePercentiles: { p50: "50", p90: "500", p99: "590" },
     burned: "100",
     burnedByReason: { purchase: "100" },
-    createdAt: expect.any(String),
+    createdAt: generatedAt.toISOString(),
     day: "2026-08-07",
     frozenWalletCount: 1,
     issued: "700",

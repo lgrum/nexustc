@@ -55,6 +55,7 @@ import { attachComicCatalogProgress } from "../../services/comic-progress";
 import {
   deleteCommentWithRewards,
   getCommentDeletionWarning,
+  isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
@@ -1973,6 +1974,16 @@ export default {
             session.user.id,
             existingComment.authorId,
           ]);
+          if (
+            input.liked &&
+            !(await isContributionLikerEligibleInTransaction(
+              tx,
+              session.user.id,
+              now
+            ))
+          ) {
+            throw errors.FORBIDDEN();
+          }
           if (!input.liked) {
             const deleted = await tx
               .delete(commentLikes)

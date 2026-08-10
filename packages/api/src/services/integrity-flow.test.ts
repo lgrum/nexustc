@@ -151,7 +151,7 @@ describe("integrity settlement", () => {
     });
   });
 
-  it("releases matured Pending XP in a scheduled atomic batch", async () => {
+  it("releases matured Pending XP in independent scheduled transactions", async () => {
     const settlement = { eventId: "released-event-1" };
     progression.matured
       .mockResolvedValueOnce({ completed: true, settlements: [settlement] })
@@ -169,10 +169,9 @@ describe("integrity settlement", () => {
     candidates.where.mockReturnValue(candidates);
     candidates.groupBy.mockReturnValue(candidates);
     candidates.orderBy.mockReturnValue(candidates);
-    const tx = {
-      select: vi.fn().mockReturnValue(candidates),
-    } as unknown as Transaction;
+    const tx = {} as Transaction;
     const db = {
+      select: vi.fn().mockReturnValue(candidates),
       transaction: vi.fn((callback) => callback(tx)),
     } as unknown as Database;
 
@@ -186,6 +185,47 @@ describe("integrity settlement", () => {
     expect(progression.notifyInTransaction).toHaveBeenCalledWith(
       tx,
       "user-1",
+      settlement
+    );
+  });
+
+  it("continues releasing other users when a matured account is banned", async () => {
+    const settlement = { eventId: "released-event-ready" };
+    progression.matured
+      .mockRejectedValueOnce(
+        Object.assign(new Error("ACCOUNT_BANNED"), { code: "ACCOUNT_BANNED" })
+      )
+      .mockResolvedValueOnce({ completed: true, settlements: [settlement] });
+    const candidates = {
+      from: vi.fn(),
+      groupBy: vi.fn(),
+      limit: vi
+        .fn()
+        .mockResolvedValue([
+          { userId: "banned-user" },
+          { userId: "ready-user" },
+        ]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    candidates.from.mockReturnValue(candidates);
+    candidates.where.mockReturnValue(candidates);
+    candidates.groupBy.mockReturnValue(candidates);
+    candidates.orderBy.mockReturnValue(candidates);
+    const db = {
+      select: vi.fn().mockReturnValue(candidates),
+      transaction: vi.fn((callback) => callback({} as Transaction)),
+    } as unknown as Database;
+
+    await expect(releaseMaturedPendingXpBatch(db)).resolves.toEqual({
+      checked: 2,
+      profileUserIds: ["ready-user"],
+      released: 1,
+    });
+    expect(progression.matured).toHaveBeenCalledTimes(2);
+    expect(progression.notifyInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      "ready-user",
       settlement
     );
   });
@@ -215,10 +255,9 @@ describe("integrity settlement", () => {
     candidates.where.mockReturnValue(candidates);
     candidates.groupBy.mockReturnValue(candidates);
     candidates.orderBy.mockReturnValue(candidates);
-    const tx = {
-      select: vi.fn().mockReturnValue(candidates),
-    } as unknown as Transaction;
+    const tx = {} as Transaction;
     const db = {
+      select: vi.fn().mockReturnValue(candidates),
       transaction: vi.fn((callback) => callback(tx)),
     } as unknown as Database;
 

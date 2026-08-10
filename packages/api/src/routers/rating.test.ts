@@ -6,6 +6,7 @@ import type { publicCatalogVisibilityCondition } from "../utils/early-access";
 const mocks = vi.hoisted(() => ({
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  isContributionLikerEligibleInTransaction: vi.fn(),
   lockContributionParticipantsInTransaction: vi.fn(),
   notifyXpSettlement: vi.fn(),
   notifyXpSettlementInTransaction: vi.fn(),
@@ -32,6 +33,8 @@ vi.mock("../services/profile", () => ({
 vi.mock("../services/contribution-rewards", () => ({
   deleteReviewWithRewards: vi.fn(),
   getReviewDeletionWarning: vi.fn(),
+  isContributionLikerEligibleInTransaction:
+    mocks.isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction:
     mocks.lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction:
@@ -116,6 +119,7 @@ beforeEach(() => {
   mocks.lockContributionParticipantsInTransaction.mockImplementation(() =>
     Promise.resolve()
   );
+  mocks.isContributionLikerEligibleInTransaction.mockResolvedValue(true);
 });
 
 describe("profile review privacy", () => {
@@ -332,6 +336,21 @@ describe("stable review likes", () => {
     expect(
       mocks.lockContributionParticipantsInTransaction.mock
         .invocationCallOrder[0]
+    ).toBeLessThan(values.mock.invocationCallOrder[0]!);
+    expect(mocks.isContributionLikerEligibleInTransaction).toHaveBeenCalledWith(
+      executor,
+      "owner-1",
+      expect.any(Date)
+    );
+    expect(
+      mocks.lockContributionParticipantsInTransaction.mock
+        .invocationCallOrder[0]
+    ).toBeLessThan(
+      mocks.isContributionLikerEligibleInTransaction.mock
+        .invocationCallOrder[0]!
+    );
+    expect(
+      mocks.isContributionLikerEligibleInTransaction.mock.invocationCallOrder[0]
     ).toBeLessThan(values.mock.invocationCallOrder[0]!);
     expect(mocks.settleReviewMilestonesInTransaction).toHaveBeenCalledWith(
       executor,

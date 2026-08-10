@@ -16,6 +16,7 @@ import {
 import {
   deleteReviewWithRewards,
   getReviewDeletionWarning,
+  isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
@@ -415,6 +416,16 @@ export default {
           session.user.id,
           input.ratingUserId,
         ]);
+        if (
+          input.liked &&
+          !(await isContributionLikerEligibleInTransaction(
+            tx,
+            session.user.id,
+            now
+          ))
+        ) {
+          throw errors.FORBIDDEN();
+        }
         if (!input.liked) {
           const deleted = await tx
             .delete(postRatingLikes)

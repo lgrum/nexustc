@@ -7,6 +7,9 @@ export async function GET(request: Request) {
     return new Response("Unauthorized", { status: 401 });
   }
 
-  const completedUtcDay = new Date(Date.now() - 86_400_000);
-  return Response.json(await getDailyEconomyReport(db, completedUtcDay));
+  const generatedAt = new Date();
+  const completedUtcDay = new Date(generatedAt.getTime() - 86_400_000);
+  return Response.json(
+    await getDailyEconomyReport(db, completedUtcDay, generatedAt)
+  );
 }

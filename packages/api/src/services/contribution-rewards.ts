@@ -296,6 +296,18 @@ export async function lockContributionParticipantsInTransaction(
     .for("update");
 }
 
+export async function isContributionLikerEligibleInTransaction(
+  tx: Transaction,
+  userId: string,
+  now: Date
+) {
+  const account = await tx.query.user.findFirst({
+    columns: { banExpires: true, banned: true },
+    where: eq(user.id, userId),
+  });
+  return Boolean(account && !isUserBanActive(account, now));
+}
+
 function lockContributionAuthor(tx: Transaction, userId: string) {
   return tx
     .select({ id: user.id })

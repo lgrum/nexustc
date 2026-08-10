@@ -45,7 +45,8 @@ test("materializes the daily economy snapshot with the cron secret", async () =>
   await expect(response.json()).resolves.toEqual({ day: "2026-08-10" });
   expect(report).toHaveBeenCalledWith(
     { name: "database" },
-    new Date("2026-08-09T03:10:00.000Z")
+    new Date("2026-08-09T03:10:00.000Z"),
+    new Date("2026-08-10T03:10:00.000Z")
   );
 });
 

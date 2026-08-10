@@ -509,62 +509,64 @@ export async function releaseMaturedPendingXp(
   return result;
 }
 
-export function releaseMaturedPendingXpBatch(db: Database, now = new Date()) {
-  return db.transaction(async (tx) => {
-    const pageSize = 100;
-    const profileUserIds = new Set<string>();
-    let checked = 0;
-    let cursor: string | undefined;
-    let released = 0;
-    while (true) {
-      const candidates = await tx
-        .select({ userId: xpIntegrityCase.userId })
-        .from(xpIntegrityCase)
-        .where(
-          and(
-            eq(xpIntegrityCase.riskLevel, "medium"),
-            eq(xpIntegrityCase.status, "open"),
-            lte(xpIntegrityCase.autoReleaseAt, now),
-            cursor ? gt(xpIntegrityCase.userId, cursor) : undefined
-          )
+export async function releaseMaturedPendingXpBatch(
+  db: Database,
+  now = new Date()
+) {
+  const pageSize = 100;
+  const profileUserIds = new Set<string>();
+  let checked = 0;
+  let cursor: string | undefined;
+  let released = 0;
+  while (true) {
+    const candidates = await db
+      .select({ userId: xpIntegrityCase.userId })
+      .from(xpIntegrityCase)
+      .where(
+        and(
+          eq(xpIntegrityCase.riskLevel, "medium"),
+          eq(xpIntegrityCase.status, "open"),
+          lte(xpIntegrityCase.autoReleaseAt, now),
+          cursor ? gt(xpIntegrityCase.userId, cursor) : undefined
         )
-        .groupBy(xpIntegrityCase.userId)
-        .orderBy(asc(xpIntegrityCase.userId))
-        .limit(pageSize);
-      checked += candidates.length;
-      for (const candidate of candidates) {
-        if (!candidate.userId) {
-          continue;
-        }
-        const result = await releaseMaturedPendingXpInTransaction(
-          tx,
-          candidate.userId,
-          now
-        );
-        for (const settlement of result.settlements) {
-          await notifyXpSettlementInTransaction(
-            tx,
-            candidate.userId,
-            settlement
-          );
-        }
+      )
+      .groupBy(xpIntegrityCase.userId)
+      .orderBy(asc(xpIntegrityCase.userId))
+      .limit(pageSize);
+    checked += candidates.length;
+    for (const candidate of candidates) {
+      if (!candidate.userId) {
+        continue;
+      }
+      try {
+        const result = await releaseMaturedPendingXp(db, candidate.userId, now);
         released += result.settlements.length;
         if (!result.completed || result.settlements.length > 0) {
           profileUserIds.add(candidate.userId);
         }
+      } catch (error) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "ACCOUNT_BANNED"
+        ) {
+          continue;
+        }
+        throw error;
       }
-      const lastCandidate = candidates.at(-1);
-      if (candidates.length < pageSize || !lastCandidate?.userId) {
-        break;
-      }
-      cursor = lastCandidate.userId;
     }
-    return {
-      checked,
-      profileUserIds: [...profileUserIds],
-      released,
-    };
-  });
+    const lastCandidate = candidates.at(-1);
+    if (candidates.length < pageSize || !lastCandidate?.userId) {
+      break;
+    }
+    cursor = lastCandidate.userId;
+  }
+  return {
+    checked,
+    profileUserIds: [...profileUserIds],
+    released,
+  };
 }
 
 export async function listIntegrityCases(

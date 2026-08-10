@@ -42,8 +42,12 @@ function serializeSnapshot(snapshot: typeof eterisDailySnapshot.$inferSelect) {
   };
 }
 
-export function getDailyEconomyReport(db: Database, now = new Date()) {
-  const day = now.toISOString().slice(0, 10);
+export function getDailyEconomyReport(
+  db: Database,
+  reportDate = new Date(),
+  generatedAt = new Date()
+) {
+  const day = reportDate.toISOString().slice(0, 10);
   const dayStart = new Date(`${day}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
   return db.transaction(async (tx) => {
@@ -163,7 +167,7 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
       anomalousEarners: metrics.anomalous_earners,
       balancePercentiles: metrics.balance_percentiles,
       burned: BigInt(metrics.burned),
-      createdAt: now,
+      createdAt: generatedAt,
       day,
       frozenWalletCount: metrics.frozen_wallet_count,
       issued: BigInt(metrics.issued),
