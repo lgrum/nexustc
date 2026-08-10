@@ -848,6 +848,23 @@ describe("progression service", () => {
     expect(store.getEvents()).toHaveLength(1);
   });
 
+  it("rejects owner adjustments that cross too many levels in one transaction", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+
+    await expect(
+      adjustXp(store.db, {
+        actorUserId: "owner-1",
+        amount: 365_000,
+        idempotencyKey: "oversized-level-adjustment",
+        reason: "Correccion masiva que debe dividirse en operaciones menores",
+        userId: "user-1",
+      })
+    ).rejects.toMatchObject({ code: "ADJUSTMENT_TOO_LARGE" });
+    expect(ledger.calls).toHaveLength(0);
+    expect(store.getEvents()).toHaveLength(0);
+  });
+
   it("applies automatic rewards through the shared posted-XP command", async () => {
     flags.accrual = true;
     const store = createDatabase();

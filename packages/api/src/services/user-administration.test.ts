@@ -1,15 +1,20 @@
 import { session, user } from "@repo/db/schema/app";
 
-import { banUserAndReconcileRewards } from "./user-administration";
+import {
+  banUserAndReconcileRewards,
+  restoreExpiredTemporaryBanRewards,
+} from "./user-administration";
 
 const rewards = vi.hoisted(() => ({
   notify: vi.fn(),
   reconcile: vi.fn(),
+  restore: vi.fn(),
 }));
 
 vi.mock("./contribution-rewards", () => ({
   notifyBannedLikerRewardSettlements: rewards.notify,
   reconcileBannedLikerRewardsInTransaction: rewards.reconcile,
+  reconcileRestoredLikerRewardsInTransaction: rewards.restore,
 }));
 
 function createDatabase() {
@@ -35,7 +40,104 @@ function createDatabase() {
 beforeEach(() => {
   vi.clearAllMocks();
   rewards.reconcile.mockResolvedValue([]);
+  rewards.restore.mockResolvedValue([]);
   rewards.notify.mockImplementation(() => Promise.resolve());
+});
+
+it("restores rewards when a temporary ban expires", async () => {
+  const now = new Date("2026-08-10T02:00:00.000Z");
+  const expiredAt = new Date("2026-08-10T01:00:00.000Z");
+  const candidateQuery = {
+    from: vi.fn(),
+    limit: vi.fn().mockResolvedValue([{ id: "liker-1" }]),
+    where: vi.fn(),
+  };
+  candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.where.mockReturnValue(candidateQuery);
+  const lockedQuery = {
+    for: vi
+      .fn()
+      .mockResolvedValue([
+        { banExpires: expiredAt, banned: true, id: "liker-1" },
+      ]),
+    from: vi.fn(),
+    where: vi.fn(),
+  };
+  lockedQuery.from.mockReturnValue(lockedQuery);
+  lockedQuery.where.mockReturnValue(lockedQuery);
+  const updateWhere = vi.fn().mockImplementation(() => Promise.resolve());
+  const updateSet = vi.fn().mockReturnValue({ where: updateWhere });
+  const tx = {
+    select: vi.fn().mockReturnValue(lockedQuery),
+    update: vi.fn().mockReturnValue({ set: updateSet }),
+  };
+  const db = {
+    select: vi.fn().mockReturnValue(candidateQuery),
+    transaction: vi.fn((callback: (executor: typeof tx) => unknown) =>
+      callback(tx)
+    ),
+  };
+  rewards.restore.mockResolvedValueOnce([
+    {
+      settlements: [{ level: 2, previousLevel: 1 }],
+      userId: "author-1",
+    },
+  ]);
+
+  await expect(
+    restoreExpiredTemporaryBanRewards(db as never, now)
+  ).resolves.toEqual({
+    checked: 1,
+    profileUserIds: ["author-1"],
+    restored: 1,
+  });
+  expect(updateSet).toHaveBeenCalledWith({
+    banExpires: null,
+    banned: false,
+    updatedAt: now,
+  });
+  expect(rewards.restore).toHaveBeenCalledWith(tx, {
+    likerUserId: "liker-1",
+    now,
+  });
+  expect(rewards.notify).toHaveBeenCalledWith(db, expect.any(Array));
+});
+
+it("does not clear a temporary ban extended after the expiry scan", async () => {
+  const now = new Date("2026-08-10T02:00:00.000Z");
+  const candidateQuery = {
+    from: vi.fn(),
+    limit: vi.fn().mockResolvedValue([{ id: "liker-1" }]),
+    where: vi.fn(),
+  };
+  candidateQuery.from.mockReturnValue(candidateQuery);
+  candidateQuery.where.mockReturnValue(candidateQuery);
+  const lockedQuery = {
+    for: vi.fn().mockResolvedValue([
+      {
+        banExpires: new Date("2026-08-10T03:00:00.000Z"),
+        banned: true,
+        id: "liker-1",
+      },
+    ]),
+    from: vi.fn(),
+    where: vi.fn(),
+  };
+  lockedQuery.from.mockReturnValue(lockedQuery);
+  lockedQuery.where.mockReturnValue(lockedQuery);
+  const tx = { select: vi.fn().mockReturnValue(lockedQuery), update: vi.fn() };
+  const db = {
+    select: vi.fn().mockReturnValue(candidateQuery),
+    transaction: vi.fn((callback: (executor: typeof tx) => unknown) =>
+      callback(tx)
+    ),
+  };
+
+  await expect(
+    restoreExpiredTemporaryBanRewards(db as never, now)
+  ).resolves.toEqual({ checked: 1, profileUserIds: [], restored: 0 });
+  expect(tx.update).not.toHaveBeenCalled();
+  expect(rewards.restore).not.toHaveBeenCalled();
 });
 
 it("bans, revokes sessions, and reconciles liker rewards in one transaction", async () => {

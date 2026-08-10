@@ -105,6 +105,49 @@ describe(reconcilePatreonMemberships, () => {
     expect(mocks.grantStipend).toHaveBeenCalledWith(database, "user-1", now);
   });
 
+  it("continues reconciling patrons after one stipend settlement fails", async () => {
+    const secondPatron = {
+      ...activePatron,
+      id: "patron-2",
+      patreonUserId: "patreon-user-2",
+      userId: "user-2",
+    };
+    const database = createDatabase({
+      accountRecord: linkedAccount,
+      patronRecords: [activePatron, secondPatron],
+    });
+    const now = new Date("2026-05-29T12:00:00.000Z");
+    mocks.grantStipend
+      .mockRejectedValueOnce(new Error("wallet projection mismatch"))
+      .mockResolvedValueOnce({ granted: "0", month: "2026-05" });
+
+    const summary = await reconcilePatreonMemberships({
+      db: database as never,
+      dependencies: {
+        fetchMembership: vi.fn().mockResolvedValue({
+          entitledTierIds: ["25898869"],
+          isActive: true,
+          patronSince: "2026-04-21T04:55:03.130Z",
+          pledgeAmountCents: 1200,
+        }),
+        now: () => now,
+      },
+      dryRun: false,
+    });
+
+    expect(mocks.grantStipend).toHaveBeenCalledTimes(2);
+    expect(summary.failed).toBe(1);
+    expect(summary.keptActive).toBe(1);
+    expect(summary.results).toEqual([
+      expect.objectContaining({
+        action: "failed",
+        reason: "stipend_settlement_failed",
+        userId: "user-1",
+      }),
+      expect.objectContaining({ action: "kept_active", userId: "user-2" }),
+    ]);
+  });
+
   it("deactivates expired non-permanent patrons and clears patronSince", async () => {
     const database = createDatabase({
       accountRecord: linkedAccount,

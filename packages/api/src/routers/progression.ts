@@ -38,8 +38,9 @@ const adjustXpInputSchema = z.object({
 });
 
 export default {
-  getMine: protectedProcedure.handler(
-    async ({ context: { db, session, ...context } }) => {
+  getMine: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
+    .handler(async ({ context: { db, session, ...context } }) => {
       let progression = await getUserProgression(db, session.user.id);
       const settlements = progression.accrualEnabled
         ? await releaseMaturedPendingXp(db, session.user.id)
@@ -67,8 +68,7 @@ export default {
         profileUserId: session.user.id,
         publicProfileChanged,
       };
-    }
-  ),
+    }),
 
   getPublic: publicProcedure
     .input(z.object({ userId: z.string().min(1) }))
@@ -232,6 +232,12 @@ export default {
           if (error.code === "ACCRUAL_DISABLED") {
             throw errors.FORBIDDEN({
               message: "La acumulación de Account XP está desactivada.",
+            });
+          }
+          if (error.code === "ADJUSTMENT_TOO_LARGE") {
+            throw errors.BAD_REQUEST({
+              message:
+                "El ajuste cruza demasiados niveles; dividilo en operaciones menores.",
             });
           }
           throw errors.BAD_REQUEST({ message: error.message });

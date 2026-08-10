@@ -12,6 +12,7 @@ import {
   reconcileClosedLikerRewardsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
+  reconcileRestoredLikerRewardsInTransaction,
   reverseUnsupportedContributionMilestonesInTransaction,
   saveCommentRewardSubjectInTransaction,
   saveReviewRewardSubjectInTransaction,
@@ -195,6 +196,101 @@ function createEditedContributionTransaction(
   } as unknown as Transaction;
 }
 
+function createFormerCanonicalReviewTransaction(
+  formerCanonical: typeof xpRewardSubject.$inferSelect
+) {
+  const subjectFindFirst = vi
+    .fn()
+    .mockResolvedValueOnce(subject)
+    .mockResolvedValueOnce(null)
+    .mockResolvedValueOnce(formerCanonical)
+    .mockResolvedValueOnce(formerCanonical)
+    .mockResolvedValueOnce(null);
+  const sourceQuery = {
+    for: vi.fn(),
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    limit: vi.fn().mockResolvedValue([
+      {
+        authorBanExpires: null,
+        authorBanned: false,
+        ...review,
+        id: formerCanonical.entityId,
+      },
+    ]),
+    where: vi.fn(),
+  };
+  sourceQuery.for.mockReturnValue(sourceQuery);
+  sourceQuery.from.mockReturnValue(sourceQuery);
+  sourceQuery.innerJoin.mockReturnValue(sourceQuery);
+  sourceQuery.where.mockReturnValue(sourceQuery);
+  const select = vi.fn((shape: Record<string, unknown>) => {
+    if ("authorBanned" in shape) {
+      return sourceQuery;
+    }
+    if ("idempotencyKey" in shape) {
+      return {
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue([]),
+        }),
+      };
+    }
+    if ("count" in shape) {
+      const chain = {
+        from: vi.fn(),
+        innerJoin: vi.fn(),
+        where: vi.fn().mockResolvedValue([{ count: 3 }]),
+      };
+      chain.from.mockReturnValue(chain);
+      chain.innerJoin.mockReturnValue(chain);
+      return chain;
+    }
+    if ("id" in shape && "userId" in shape) {
+      const chain = {
+        from: vi.fn(),
+        limit: vi.fn().mockResolvedValue([]),
+        where: vi.fn(),
+      };
+      chain.from.mockReturnValue(chain);
+      chain.where.mockReturnValue(chain);
+      return chain;
+    }
+    if (Object.keys(shape).length === 1 && "createdAt" in shape) {
+      const chain = {
+        from: vi.fn(),
+        limit: vi.fn().mockResolvedValue([]),
+        where: vi.fn(),
+      };
+      chain.from.mockReturnValue(chain);
+      chain.where.mockReturnValue(chain);
+      return chain;
+    }
+    const chain = {
+      for: vi.fn().mockResolvedValue([{ id: subject.id }]),
+      from: vi.fn(),
+      where: vi.fn(),
+    };
+    chain.from.mockReturnValue(chain);
+    chain.where.mockReturnValue(chain);
+    return chain;
+  });
+  return {
+    query: {
+      forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
+      user: { findFirst: vi.fn().mockResolvedValue({ banned: false }) },
+      xpRewardBlock: { findFirst: vi.fn().mockResolvedValue(null) },
+      xpRewardSubject: {
+        findFirst: subjectFindFirst,
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+    },
+    select,
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(null) }),
+    }),
+  } as unknown as Transaction;
+}
+
 describe("edited contribution eligibility", () => {
   it("reverses a posted review milestone when the edit becomes ineligible", async () => {
     const tx = createEditedContributionTransaction(subject);
@@ -253,6 +349,32 @@ describe("edited contribution eligibility", () => {
       })
     );
   });
+
+  it("restores the former canonical review after the earliest review changes", async () => {
+    const formerCanonical = {
+      ...subject,
+      createdAt: new Date("2026-08-08T13:00:00.000Z"),
+      entityId: "review-2",
+      id: "subject-2",
+    };
+
+    await reconcileEditedReviewRewardsInTransaction(
+      createFormerCanonicalReviewTransaction(formerCanonical),
+      {
+        ...review,
+        review:
+          "Esta reseÃ±a ahora analiza otra obra con suficiente detalle, ejemplos concretos y una conclusiÃ³n claramente diferente.",
+      }
+    );
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: 25,
+        kind: "review_milestone",
+        subjectId: formerCanonical.id,
+      })
+    );
+  });
 });
 const commentSubject = {
   ...subject,
@@ -268,6 +390,7 @@ function createSettlementTransaction(options?: {
   correlatedAccount?: boolean;
   duplicate?: boolean;
   events?: Record<string, unknown>[];
+  likedSubjects?: Record<string, unknown>[];
   recentLikes?: number;
   reviewAfterSourceLock?: string;
 }) {
@@ -380,7 +503,9 @@ function createSettlementTransaction(options?: {
   });
   const tx = {
     delete: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
-    execute: vi.fn(() => Promise.resolve()),
+    execute: vi.fn(() =>
+      Promise.resolve({ rows: options?.likedSubjects ?? [] })
+    ),
     insert: vi.fn(() => ({
       values: vi.fn(() => Promise.resolve()),
     })),
@@ -681,6 +806,26 @@ describe("banned liker reconciliation", () => {
     );
     expect(tx.delete).toHaveBeenCalledWith(postRatingLikes);
     expect(tx.delete).toHaveBeenCalledWith(commentLikes);
+  });
+
+  it("restores supported milestones when a temporary liker ban expires", async () => {
+    const { tx } = createSettlementTransaction({ likedSubjects: [subject] });
+
+    const results = await reconcileRestoredLikerRewardsInTransaction(tx, {
+      likerUserId: "restored-liker",
+      now: new Date("2026-08-10T02:00:00.000Z"),
+    });
+
+    expect(results).toEqual([
+      expect.objectContaining({ userId: subject.userId }),
+    ]);
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: 25,
+        kind: "review_milestone",
+        subjectId: subject.id,
+      })
+    );
   });
 });
 

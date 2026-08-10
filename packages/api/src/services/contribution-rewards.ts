@@ -1,6 +1,18 @@
 import { createHash } from "node:crypto";
 
-import { and, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "@repo/db";
+import {
+  and,
+  asc,
+  eq,
+  gt,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  or,
+  sql,
+} from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   comment,
@@ -290,7 +302,13 @@ export async function saveReviewRewardSubjectInTransaction(
         .set({ normalizedContentHash })
         .where(eq(xpRewardSubject.id, existing.id));
     }
-    return { ...existing, normalizedContentHash };
+    return existing.normalizedContentHash === normalizedContentHash
+      ? { ...existing, normalizedContentHash }
+      : {
+          ...existing,
+          normalizedContentHash,
+          previousNormalizedContentHash: existing.normalizedContentHash,
+        };
   }
 
   if (
@@ -325,7 +343,14 @@ export async function saveReviewRewardSubjectInTransaction(
         .set({ normalizedContentHash })
         .where(eq(xpRewardSubject.id, concurrentlyCreated.id));
     }
-    return { ...concurrentlyCreated, normalizedContentHash };
+    return concurrentlyCreated.normalizedContentHash === normalizedContentHash
+      ? { ...concurrentlyCreated, normalizedContentHash }
+      : {
+          ...concurrentlyCreated,
+          normalizedContentHash,
+          previousNormalizedContentHash:
+            concurrentlyCreated.normalizedContentHash,
+        };
   }
   const { end, start } = getUtcDayRange(review.createdAt);
   const [activeEarlier] = await tx
@@ -422,7 +447,13 @@ export async function saveCommentRewardSubjectInTransaction(
         .set({ normalizedContentHash })
         .where(eq(xpRewardSubject.id, existing.id));
     }
-    return { ...existing, normalizedContentHash };
+    return existing.normalizedContentHash === normalizedContentHash
+      ? { ...existing, normalizedContentHash }
+      : {
+          ...existing,
+          normalizedContentHash,
+          previousNormalizedContentHash: existing.normalizedContentHash,
+        };
   }
 
   if (
@@ -465,7 +496,14 @@ export async function saveCommentRewardSubjectInTransaction(
         .set({ normalizedContentHash })
         .where(eq(xpRewardSubject.id, concurrentlyCreated.id));
     }
-    return { ...concurrentlyCreated, normalizedContentHash };
+    return concurrentlyCreated.normalizedContentHash === normalizedContentHash
+      ? { ...concurrentlyCreated, normalizedContentHash }
+      : {
+          ...concurrentlyCreated,
+          normalizedContentHash,
+          previousNormalizedContentHash:
+            concurrentlyCreated.normalizedContentHash,
+        };
   }
   const { end, start } = getUtcDayRange(snapshot.createdAt);
   const [activeEarlier] = await tx
@@ -597,6 +635,49 @@ async function reconcileEditedContributionRewardsInTransaction(
   return { reversedXp, settlements };
 }
 
+async function settleFormerCanonicalContributionInTransaction(
+  tx: Transaction,
+  input: {
+    kind: "comment" | "review";
+    now: Date;
+    previousNormalizedContentHash: string | null;
+    subject: typeof xpRewardSubject.$inferSelect;
+  }
+) {
+  if (!input.previousNormalizedContentHash) {
+    return [];
+  }
+  const formerCanonical = await tx.query.xpRewardSubject.findFirst({
+    orderBy: [asc(xpRewardSubject.createdAt), asc(xpRewardSubject.id)],
+    where: and(
+      eq(xpRewardSubject.userId, input.subject.userId),
+      eq(xpRewardSubject.kind, input.kind),
+      eq(
+        xpRewardSubject.normalizedContentHash,
+        input.previousNormalizedContentHash
+      ),
+      isNull(xpRewardSubject.deletedAt),
+      ne(xpRewardSubject.id, input.subject.id)
+    ),
+  });
+  if (!formerCanonical) {
+    return [];
+  }
+  const result =
+    input.kind === "review"
+      ? await settleReviewMilestonesInTransaction(
+          tx,
+          formerCanonical.entityId,
+          input.now
+        )
+      : await settleCommentMilestonesInTransaction(
+          tx,
+          formerCanonical.entityId,
+          input.now
+        );
+  return result.settlements;
+}
+
 export async function reconcileEditedReviewRewardsInTransaction(
   tx: Transaction,
   review: ReviewSnapshot,
@@ -610,7 +691,7 @@ export async function reconcileEditedReviewRewardsInTransaction(
     columns: { banExpires: true, banned: true },
     where: eq(user.id, review.userId),
   });
-  return reconcileEditedContributionRewardsInTransaction(tx, {
+  const result = await reconcileEditedContributionRewardsInTransaction(tx, {
     eligible: (executor, lockedSubject) =>
       isReviewCurrentlyEligible(
         executor,
@@ -623,6 +704,18 @@ export async function reconcileEditedReviewRewardsInTransaction(
     now,
     subject,
   });
+  result.settlements.push(
+    ...(await settleFormerCanonicalContributionInTransaction(tx, {
+      kind: "review",
+      now,
+      previousNormalizedContentHash:
+        "previousNormalizedContentHash" in subject
+          ? subject.previousNormalizedContentHash
+          : null,
+      subject,
+    }))
+  );
+  return result;
 }
 
 export async function reconcileEditedCommentRewardsInTransaction(
@@ -638,7 +731,7 @@ export async function reconcileEditedCommentRewardsInTransaction(
     columns: { banExpires: true, banned: true },
     where: eq(user.id, snapshot.userId),
   });
-  return reconcileEditedContributionRewardsInTransaction(tx, {
+  const result = await reconcileEditedContributionRewardsInTransaction(tx, {
     eligible: (executor, lockedSubject) =>
       isCommentCurrentlyEligible(
         executor,
@@ -651,6 +744,18 @@ export async function reconcileEditedCommentRewardsInTransaction(
     now,
     subject,
   });
+  result.settlements.push(
+    ...(await settleFormerCanonicalContributionInTransaction(tx, {
+      kind: "comment",
+      now,
+      previousNormalizedContentHash:
+        "previousNormalizedContentHash" in subject
+          ? subject.previousNormalizedContentHash
+          : null,
+      subject,
+    }))
+  );
+  return result;
 }
 
 async function isContributionCurrentlyEligible(
@@ -1246,29 +1351,7 @@ async function reconcileIneligibleLikerRewardsInTransaction(
     sourcePrefix: string;
   }
 ) {
-  const result = await tx.execute(sql`
-      select distinct
-        subject.id,
-        subject.entity_id as "entityId",
-        subject.kind,
-        subject.user_id as "userId"
-      from xp_reward_subject subject
-      inner join post_rating_like likes
-        on subject.kind = 'review' and subject.entity_id = likes.rating_id
-      where likes.user_id = ${input.likerUserId}
-        and subject.deleted_at is null
-      union
-      select distinct
-        subject.id,
-        subject.entity_id as "entityId",
-        subject.kind,
-        subject.user_id as "userId"
-      from xp_reward_subject subject
-      inner join comment_like likes
-        on subject.kind = 'comment' and subject.entity_id = likes.comment_id
-      where likes.user_id = ${input.likerUserId}
-        and subject.deleted_at is null
-  `);
+  const subjects = await getRewardSubjectsLikedByUser(tx, input.likerUserId);
   if (input.removeLikesBeforeRecount) {
     await tx
       .delete(postRatingLikes)
@@ -1279,31 +1362,15 @@ async function reconcileIneligibleLikerRewardsInTransaction(
   }
   const activatedAt = await readProgressionActivationDate(tx);
   const reconciled: { settlements: XpSettlement[]; userId: string }[] = [];
-  for (const row of result.rows) {
-    if (
-      !row ||
-      typeof row !== "object" ||
-      typeof row.id !== "string" ||
-      typeof row.entityId !== "string" ||
-      (row.kind !== "comment" && row.kind !== "review") ||
-      typeof row.userId !== "string"
-    ) {
-      continue;
-    }
+  for (const subject of subjects) {
     const [locked] = await tx
       .select({ id: xpRewardSubject.id })
       .from(xpRewardSubject)
-      .where(eq(xpRewardSubject.id, row.id))
+      .where(eq(xpRewardSubject.id, subject.id))
       .for("update");
     if (!locked) {
       continue;
     }
-    const subject: RewardSubjectIdentity = {
-      entityId: row.entityId,
-      id: row.id,
-      kind: row.kind,
-      userId: row.userId,
-    };
     const eligibleLikes = await countEligibleLikesInTransaction(
       tx,
       subject,
@@ -1321,6 +1388,82 @@ async function reconcileIneligibleLikerRewardsInTransaction(
         subject,
       })
     );
+  }
+  return reconciled;
+}
+
+async function getRewardSubjectsLikedByUser(
+  tx: Transaction,
+  likerUserId: string
+) {
+  const result = await tx.execute(sql`
+      select distinct
+        subject.id,
+        subject.entity_id as "entityId",
+        subject.kind,
+        subject.user_id as "userId"
+      from xp_reward_subject subject
+      inner join post_rating_like likes
+        on subject.kind = 'review' and subject.entity_id = likes.rating_id
+      where likes.user_id = ${likerUserId}
+        and subject.deleted_at is null
+      union
+      select distinct
+        subject.id,
+        subject.entity_id as "entityId",
+        subject.kind,
+        subject.user_id as "userId"
+      from xp_reward_subject subject
+      inner join comment_like likes
+        on subject.kind = 'comment' and subject.entity_id = likes.comment_id
+      where likes.user_id = ${likerUserId}
+        and subject.deleted_at is null
+  `);
+  const subjects: RewardSubjectIdentity[] = [];
+  for (const row of result.rows) {
+    if (
+      !row ||
+      typeof row !== "object" ||
+      typeof row.id !== "string" ||
+      typeof row.entityId !== "string" ||
+      (row.kind !== "comment" && row.kind !== "review") ||
+      typeof row.userId !== "string"
+    ) {
+      continue;
+    }
+    subjects.push({
+      entityId: row.entityId,
+      id: row.id,
+      kind: row.kind,
+      userId: row.userId,
+    });
+  }
+  return subjects;
+}
+
+export async function reconcileRestoredLikerRewardsInTransaction(
+  tx: Transaction,
+  input: { likerUserId: string; now: Date }
+) {
+  const subjects = await getRewardSubjectsLikedByUser(tx, input.likerUserId);
+  const reconciled: { settlements: XpSettlement[]; userId: string }[] = [];
+  for (const subject of subjects) {
+    const result =
+      subject.kind === "review"
+        ? await settleReviewMilestonesInTransaction(
+            tx,
+            subject.entityId,
+            input.now
+          )
+        : await settleCommentMilestonesInTransaction(
+            tx,
+            subject.entityId,
+            input.now
+          );
+    reconciled.push({
+      settlements: result.settlements,
+      userId: subject.userId,
+    });
   }
   return reconciled;
 }

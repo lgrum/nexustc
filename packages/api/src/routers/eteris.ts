@@ -84,8 +84,9 @@ function rethrowEterisError(error: unknown, errors: RouterErrors): never {
 }
 
 export default {
-  getMine: protectedProcedure.handler(
-    async ({ context: { db, session, ...context }, errors }) => {
+  getMine: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
+    .handler(async ({ context: { db, session, ...context }, errors }) => {
       try {
         const wallet = await getUserWallet(db, session.user.id);
         if (wallet.status !== "active") {
@@ -119,8 +120,7 @@ export default {
       } catch (error) {
         rethrowEterisError(error, errors);
       }
-    }
-  ),
+    }),
 
   getPublicBalance: publicProcedure
     .input(userInputSchema)

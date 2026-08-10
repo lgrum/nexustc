@@ -1,10 +1,11 @@
-import { eq } from "@repo/db";
+import { and, eq, lte } from "@repo/db";
 import type { db as database } from "@repo/db";
 import { session, user } from "@repo/db/schema/app";
 
 import {
   notifyBannedLikerRewardSettlements,
   reconcileBannedLikerRewardsInTransaction,
+  reconcileRestoredLikerRewardsInTransaction,
 } from "./contribution-rewards";
 
 type Database = typeof database;
@@ -64,4 +65,56 @@ export async function banUserAndReconcileRewards(
   });
   await notifyBannedLikerRewardSettlements(db, results);
   return results;
+}
+
+export async function restoreExpiredTemporaryBanRewards(
+  db: Database,
+  now = new Date()
+) {
+  const candidates = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(and(eq(user.banned, true), lte(user.banExpires, now)))
+    .limit(1000);
+  const profileUserIds = new Set<string>();
+  let restored = 0;
+  for (const candidate of candidates) {
+    const results = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          banExpires: user.banExpires,
+          banned: user.banned,
+          id: user.id,
+        })
+        .from(user)
+        .where(eq(user.id, candidate.id))
+        .for("update");
+      if (!current?.banned || !current.banExpires || current.banExpires > now) {
+        return null;
+      }
+      await tx
+        .update(user)
+        .set({ banExpires: null, banned: false, updatedAt: now })
+        .where(eq(user.id, candidate.id));
+      return reconcileRestoredLikerRewardsInTransaction(tx, {
+        likerUserId: candidate.id,
+        now,
+      });
+    });
+    if (!results) {
+      continue;
+    }
+    restored += 1;
+    await notifyBannedLikerRewardSettlements(db, results);
+    for (const result of results) {
+      if (result.settlements.length > 0) {
+        profileUserIds.add(result.userId);
+      }
+    }
+  }
+  return {
+    checked: candidates.length,
+    profileUserIds: [...profileUserIds],
+    restored,
+  };
 }

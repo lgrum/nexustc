@@ -55,12 +55,15 @@ type ProgressionErrorCode =
   | "ACCOUNT_BANNED"
   | "ACCOUNT_CLOSED"
   | "ACCRUAL_DISABLED"
+  | "ADJUSTMENT_TOO_LARGE"
   | "IDEMPOTENCY_CONFLICT"
   | "INVALID_TOTAL"
   | "PRE_ACTIVATION_EVENT"
   | "PROGRESSION_NOT_FOUND"
   | "PROJECTION_MISMATCH"
   | "VISIBILITY_DISABLED";
+
+const MAX_OWNER_LEVEL_CHANGE = 25;
 
 export class ProgressionError extends Error {
   readonly code: ProgressionErrorCode;
@@ -642,6 +645,12 @@ export async function postXpEventInTransaction(
     ({ level } = getAccountLevelProgress(totalXp));
   } catch {
     throw new ProgressionError("INVALID_TOTAL");
+  }
+  if (
+    input.kind === "admin_adjustment" &&
+    Math.abs(level - progression.level) > MAX_OWNER_LEVEL_CHANGE
+  ) {
+    throw new ProgressionError("ADJUSTMENT_TOO_LARGE");
   }
 
   const eventId = generateId();

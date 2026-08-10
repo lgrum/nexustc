@@ -26,6 +26,7 @@ export type PatreonReconciliationReason =
   | "missing_access_token"
   | "missing_refresh_token"
   | "refresh_required"
+  | "stipend_settlement_failed"
   | "invalid_access_token"
   | "invalid_refresh_token"
   | "patreon_api_error"
@@ -438,7 +439,18 @@ export async function reconcilePatreonMemberships({
       patronRecord,
     });
     if (!dryRun && patronStatus.isActivePatron) {
-      await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+      try {
+        await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+      } catch (error) {
+        results.push({
+          ...baseResult,
+          action: "failed",
+          error: getErrorMessage(error),
+          nextTier: patronStatus.tier,
+          reason: "stipend_settlement_failed",
+        });
+        continue;
+      }
     }
 
     results.push({
