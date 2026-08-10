@@ -146,6 +146,7 @@ export default {
     }),
 
   setPublicBalance: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 10, windowSeconds: 60 }))
     .input(z.object({ publicBalance: z.boolean() }))
     .handler(async ({ context: { db, session }, errors, input }) => {
       try {

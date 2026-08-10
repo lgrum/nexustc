@@ -1029,17 +1029,37 @@ async function reverseUnsupportedMilestonesForCount(
       kind: xpEvent.kind,
       milestone: xpEvent.milestone,
       reversesEventId: xpEvent.reversesEventId,
+      state: xpEvent.state,
     })
     .from(xpEvent)
     .where(
-      and(eq(xpEvent.subjectId, input.subject.id), eq(xpEvent.state, "posted"))
+      and(
+        eq(xpEvent.subjectId, input.subject.id),
+        inArray(xpEvent.state, ["pending", "posted"])
+      )
     );
+  const pendingUnsupported = events.filter(
+    (event) =>
+      event.state === "pending" &&
+      event.kind === `${input.subject.kind}_milestone` &&
+      (event.milestone ?? 0) > input.eligibleLikes
+  );
+  for (const event of pendingUnsupported) {
+    await cancelPendingXpEventsInTransaction(tx, {
+      actorUserId: input.actorUserId,
+      closeEmptyCases: true,
+      decisionReason: "Los likes elegibles ya no respaldan este hito.",
+      eventId: event.id,
+      now: input.now,
+    });
+  }
+  const postedEvents = events.filter((event) => event.state === "posted");
   const reversed = new Set(
-    events.flatMap(({ reversesEventId }) =>
+    postedEvents.flatMap(({ reversesEventId }) =>
       reversesEventId ? [reversesEventId] : []
     )
   );
-  const unsupported = events.filter(
+  const unsupported = postedEvents.filter(
     (event) =>
       event.kind === `${input.subject.kind}_milestone` &&
       (event.milestone ?? 0) > input.eligibleLikes &&

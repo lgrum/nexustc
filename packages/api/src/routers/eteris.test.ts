@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   listHistory: vi.fn(),
   report: vi.fn(),
   reconcile: vi.fn(),
+  rateLimit: vi.fn(),
   setPublic: vi.fn(),
 }));
 
@@ -26,13 +27,18 @@ vi.mock("@repo/auth", () => ({
           body: { permissions: Record<string, unknown>; role: string };
         }) => ({
           success:
-            "ratelimit" in body.permissions ||
-            body.role === "admin" ||
-            body.role === "owner",
+            "ratelimit" in body.permissions
+              ? body.role !== "ratelimited"
+              : body.role === "admin" || body.role === "owner",
         })
       ),
     },
   },
+}));
+vi.mock("@repo/db", () => ({ getRedis: vi.fn().mockResolvedValue({}) }));
+vi.mock("../utils/redis-operations", () => ({
+  checkFixedWindowRateLimit: mocks.rateLimit,
+  checkSlidingWindowRateLimit: vi.fn(),
 }));
 vi.mock("../services/eteris", () => ({
   adjustEteris: mocks.adjust,
@@ -84,6 +90,7 @@ beforeEach(() => {
   mocks.inspect.mockResolvedValue({ balance: "0", walletId: "wallet-1" });
   mocks.reconcile.mockResolvedValue({ matches: true });
   mocks.report.mockResolvedValue({ day: "2026-08-07" });
+  mocks.rateLimit.mockResolvedValue({ exceeded: false });
   mocks.setPublic.mockResolvedValue({ publicBalance: true });
 });
 
@@ -145,6 +152,19 @@ test("public lookup returns only the opt-in serialized balance", async () => {
       { context: { ...createContext(), session: null } }
     )
   ).resolves.toEqual({ balance: "9223372036854775807" });
+});
+
+test("rate-limits public balance visibility writes", async () => {
+  mocks.rateLimit.mockResolvedValueOnce({ exceeded: true });
+
+  await expect(
+    call(
+      eterisRouter.setPublicBalance,
+      { publicBalance: true },
+      { context: createContext("ratelimited") }
+    )
+  ).rejects.toMatchObject({ code: "RATE_LIMITED" });
+  expect(mocks.setPublic).not.toHaveBeenCalled();
 });
 
 test("owner adjustment accepts a signed decimal string and requires owner", async () => {

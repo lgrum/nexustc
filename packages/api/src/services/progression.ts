@@ -874,6 +874,9 @@ export function postXpEvent(
     ) {
       throw new ProgressionError("PROJECTION_MISMATCH");
     }
+    if (ownerAdjustment && !result.replayed && result.eventId === null) {
+      throw new ProgressionError("INVALID_TOTAL");
+    }
     await notifyXpSettlement(db, input.userId, result);
     if (!result.replayed && ownerAdjustment) {
       await db.transaction((tx) =>

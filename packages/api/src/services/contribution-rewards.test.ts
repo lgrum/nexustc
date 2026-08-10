@@ -500,6 +500,7 @@ describe("banned liker reconciliation", () => {
                       kind: "review_milestone",
                       milestone: 3,
                       reversesEventId: null,
+                      state: "posted",
                     },
                   ]
             ),
@@ -514,6 +515,7 @@ describe("banned liker reconciliation", () => {
                     kind: "review_milestone",
                     milestone: 3,
                     reversesEventId: null,
+                    state: "posted",
                   },
                 ]
           ),
@@ -676,6 +678,7 @@ describe("review milestone settlement", () => {
           kind: "review_milestone",
           milestone: 100,
           reversesEventId: null,
+          state: "posted",
         },
       ],
     });
@@ -695,6 +698,39 @@ describe("review milestone settlement", () => {
         }),
       ])
     );
+  });
+
+  it("cancels unsupported Pending XP after like disqualification", async () => {
+    activation.date = new Date("2026-08-15T00:00:00.000Z");
+    const { tx } = createSettlementTransaction({
+      events: [
+        {
+          amount: 400,
+          id: "pending-milestone-100",
+          kind: "review_milestone",
+          milestone: 100,
+          reversesEventId: null,
+          state: "pending",
+        },
+      ],
+    });
+    tx.query.xpRewardSubject.findFirst = vi.fn().mockResolvedValue(subject);
+
+    await reverseUnsupportedContributionMilestonesInTransaction(tx, {
+      actorUserId: "owner-1",
+      integrityCaseId: "case-1",
+      now: new Date("2026-08-20T00:00:00.000Z"),
+      subjectId: subject.id,
+    });
+
+    expect(progression.cancelledPending).toContainEqual(
+      expect.objectContaining({
+        actorUserId: "owner-1",
+        closeEmptyCases: true,
+        eventId: "pending-milestone-100",
+      })
+    );
+    expect(progression.calls).toHaveLength(0);
   });
 });
 

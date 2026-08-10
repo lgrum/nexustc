@@ -839,16 +839,21 @@ export async function editContent({
 
 export async function deleteContent({
   context: { db, ...ctx },
+  errors,
   input,
-}: Omit<HandlerParams<{ id: string; type: ContentType }>, "errors">) {
+}: HandlerParams<{ id: string; type: ContentType }>) {
   const logger = getLogger(ctx);
   logger?.info(`Deleting ${input.type}: ${input.id}`);
 
   await db.transaction(async (tx) => {
-    await markParentPostContributionSubjectsRemovedInTransaction(tx, input.id);
-    await tx
+    const [deleted] = await tx
       .delete(post)
-      .where(and(eq(post.id, input.id), eq(post.type, input.type)));
+      .where(and(eq(post.id, input.id), eq(post.type, input.type)))
+      .returning({ id: post.id });
+    if (!deleted) {
+      throw errors.NOT_FOUND();
+    }
+    await markParentPostContributionSubjectsRemovedInTransaction(tx, input.id);
   });
 
   logger?.info(`${input.type} ${input.id} successfully deleted`);

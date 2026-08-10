@@ -1086,4 +1086,22 @@ describe("progression service", () => {
     ).resolves.toMatchObject({ eventId: null, settledXp: 0 });
     expect(store.getEvents()).toHaveLength(1);
   });
+
+  it("rejects a no-op owner adjustment at the XP cap", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    store.setProgression({ level: 1000, pendingXp: 0, totalXp: 365_000 });
+
+    await expect(
+      adjustXp(store.db, {
+        actorUserId: "owner-1",
+        amount: 1,
+        idempotencyKey: "owner-adjustment-at-cap",
+        reason: "Correccion aprobada por soporte",
+        userId: "user-1",
+      })
+    ).rejects.toMatchObject({ code: "INVALID_TOTAL" });
+    expect(store.getEvents()).toHaveLength(0);
+    expect(ledger.notifications).toHaveLength(0);
+  });
 });
