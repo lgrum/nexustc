@@ -139,6 +139,7 @@ function createDatabase(options?: {
   const reconciliations: Record<string, unknown>[] = [];
 
   const executor = {
+    execute: vi.fn(() => Promise.resolve({ rows: [] })),
     insert: vi.fn((table: unknown) => ({
       values: vi.fn((input: any) => {
         const values = Array.isArray(input) ? input : [input];

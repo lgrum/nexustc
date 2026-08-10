@@ -10,6 +10,7 @@ import {
 
 import {
   getOrCreateUserWalletInTransaction,
+  getUserWallet,
   lockEterisWalletsInTransaction,
   postEterisTransactionInTransaction,
 } from "./eteris";
@@ -157,7 +158,7 @@ export async function grantMonthlyPatreonStipends(
     where: eq(patron.isActivePatron, true),
   });
   let granted = 0;
-  const profileUserIds: string[] = [];
+  const profileUserIds = new Set<string>();
   const errors: unknown[] = [];
   for (const membership of memberships) {
     try {
@@ -169,15 +170,28 @@ export async function grantMonthlyPatreonStipends(
       if (BigInt(result.granted) > ZERO) {
         granted += 1;
         if ("publicProfileChanged" in result && result.publicProfileChanged) {
-          profileUserIds.push(membership.userId);
+          profileUserIds.add(membership.userId);
         }
       }
     } catch (error) {
       errors.push(error);
+      try {
+        const wallet = await getUserWallet(db, membership.userId);
+        if (wallet.publicBalance && wallet.status !== "active") {
+          profileUserIds.add(membership.userId);
+        }
+      } catch (walletError) {
+        errors.push(walletError);
+      }
     }
   }
+  const affectedProfileUserIds = [...profileUserIds];
   if (errors.length > 0) {
-    throw new PatreonStipendBatchError(errors, profileUserIds);
+    throw new PatreonStipendBatchError(errors, affectedProfileUserIds);
   }
-  return { checked: memberships.length, granted, profileUserIds };
+  return {
+    checked: memberships.length,
+    granted,
+    profileUserIds: affectedProfileUserIds,
+  };
 }

@@ -1,6 +1,7 @@
 import { sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import { eterisDailySnapshot } from "@repo/db/schema/app";
+import { ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID } from "@repo/shared/eteris";
 
 type Database = typeof database;
 
@@ -46,7 +47,9 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
   const dayStart = new Date(`${day}T00:00:00.000Z`);
   const dayEnd = new Date(dayStart.getTime() + 86_400_000);
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(487645233901)`);
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID})`
+    );
     const result = await tx.execute(sql`
       with user_wallets as (
         select w.id, w.user_id, w.status, b.balance

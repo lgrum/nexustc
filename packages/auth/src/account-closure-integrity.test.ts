@@ -26,4 +26,11 @@ test("account closure removes every personal integrity evidence table", async ()
   expect(reversalDelete).toBeLessThan(
     compactSource.lastIndexOf("tx.delete(xpEvent)")
   );
+  const reportLock = compactSource.indexOf("pg_advisory_xact_lock");
+  const snapshotRead = compactSource.indexOf(
+    ".from(eterisDailySnapshot).where("
+  );
+  expect(compactSource).toContain("ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID");
+  expect(reportLock).toBeGreaterThan(-1);
+  expect(reportLock).toBeLessThan(snapshotRead);
 });

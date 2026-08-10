@@ -878,6 +878,7 @@ async function postContributionMilestonesInTransaction(
   const settlements: XpSettlement[] = [];
   const milestoneEvents = await tx
     .select({
+      amount: xpEvent.amount,
       id: xpEvent.id,
       idempotencyKey: xpEvent.idempotencyKey,
       kind: xpEvent.kind,
@@ -912,11 +913,30 @@ async function postContributionMilestonesInTransaction(
     const generation = awards.length + 1;
     const generationSuffix =
       generation === 1 ? "" : `:generation:${generation}`;
+    const baseIdempotencyKey = `${input.kind}-milestone:${input.subject.id}:${milestone.likes}`;
+    const previousGeneration = generation - 1;
+    const previousGenerationSuffix =
+      previousGeneration <= 1 ? "" : `:generation:${previousGeneration}`;
+    const previousAward = awards.find(
+      (event) =>
+        event.idempotencyKey ===
+        `${baseIdempotencyKey}${previousGenerationSuffix}`
+    );
+    const previousReversal = previousAward
+      ? milestoneEvents.find(
+          (event) =>
+            event.state === "posted" &&
+            event.reversesEventId === previousAward.id
+        )
+      : undefined;
+    const amount = previousReversal
+      ? Math.min(milestone.xp, Math.max(0, -previousReversal.amount))
+      : milestone.xp;
     const result = await settleXpWithIntegrityInTransaction(
       tx,
       {
-        amount: milestone.xp,
-        idempotencyKey: `${input.kind}-milestone:${input.subject.id}:${milestone.likes}${generationSuffix}`,
+        amount,
+        idempotencyKey: `${baseIdempotencyKey}${generationSuffix}`,
         kind: `${input.kind}_milestone` as const,
         metadata: { eligibleLikeCount: input.eligibleLikes },
         milestone: milestone.likes,

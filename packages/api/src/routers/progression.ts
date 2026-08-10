@@ -8,6 +8,7 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../index";
+import { getUserWallet } from "../services/eteris";
 import {
   decideIntegrityCase,
   getIntegrityCase,
@@ -62,6 +63,16 @@ export default {
           { err: error },
           "Monthly Patreon stipend settlement did not block progression read"
         );
+        try {
+          const wallet = await getUserWallet(db, session.user.id);
+          publicProfileChanged ||=
+            wallet.publicBalance && wallet.status !== "active";
+        } catch (walletError) {
+          getLogger(context)?.warn(
+            { err: walletError },
+            "Wallet refresh after stipend failure did not block progression read"
+          );
+        }
       }
       return {
         ...progression,

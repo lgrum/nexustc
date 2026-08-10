@@ -3,6 +3,7 @@ import { account, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import {
   getHighestPatronTierFromIds,
+  isPermanentPatronTier,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
@@ -63,12 +64,6 @@ type ReconcilePatreonMembershipsInput = {
 };
 
 const DEFAULT_LIMIT = 100;
-const PERMANENT_PATRON_TIERS = new Set<PatronTier>(["level69", "level100"]);
-
-function isPermanentPatronTier(tier: PatronTier): boolean {
-  return PERMANENT_PATRON_TIERS.has(tier);
-}
-
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown Patreon error";
 }
@@ -280,7 +275,18 @@ export async function reconcilePatreonMemberships({
 
     if (isPermanentPatronTier(patronRecord.tier)) {
       if (!dryRun) {
-        await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+        try {
+          await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+        } catch (error) {
+          results.push({
+            ...baseResult,
+            action: "failed",
+            error: getErrorMessage(error),
+            nextTier: patronRecord.tier,
+            reason: "stipend_settlement_failed",
+          });
+          continue;
+        }
       }
       results.push({
         ...baseResult,

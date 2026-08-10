@@ -1109,6 +1109,7 @@ describe("review milestone settlement", () => {
     const { tx } = createSettlementTransaction({
       awardEvents: [
         {
+          amount: 25,
           id: "milestone-3-award-1",
           idempotencyKey: baseKey,
           kind: "review_milestone",
@@ -1117,6 +1118,7 @@ describe("review milestone settlement", () => {
           state: "posted",
         },
         {
+          amount: -10,
           id: "milestone-3-reversal-1",
           idempotencyKey: "review-unlike-reversal:milestone-3-award-1",
           kind: "reversal",
@@ -1131,6 +1133,7 @@ describe("review milestone settlement", () => {
 
     expect(progression.calls).toContainEqual(
       expect.objectContaining({
+        amount: 10,
         idempotencyKey: `${baseKey}:generation:2`,
         milestone: 3,
       })

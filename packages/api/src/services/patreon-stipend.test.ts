@@ -53,6 +53,12 @@ vi.mock("@repo/db/schema/app", () => ({
 }));
 
 vi.mock("./eteris", () => ({
+  getUserWallet: vi.fn(() =>
+    Promise.resolve({
+      publicBalance: state.publicBalance,
+      status: state.walletStatus,
+    })
+  ),
   getOrCreateUserWalletInTransaction: vi.fn(() =>
     Promise.resolve({ id: "wallet-user-1", publicBalance: state.publicBalance })
   ),
@@ -73,6 +79,7 @@ vi.mock("./eteris", () => ({
       const month = String(input.sourceRef).split(":").at(-3)!;
       state.posted.push({ amount: userPosting.amount, month });
       if (state.projectionMismatch) {
+        state.walletStatus = "frozen";
         return Promise.resolve({ mismatched: ["wallet-user-1"] });
       }
       return Promise.resolve({
@@ -218,13 +225,17 @@ describe(grantMonthlyPatreonStipend, () => {
 
   it("reports a projection mismatch as a failed stipend batch settlement", async () => {
     state.projectionMismatch = true;
+    state.publicBalance = true;
 
     await expect(
       grantMonthlyPatreonStipends(
         createDatabase() as never,
         new Date("2026-06-30T23:59:59.999Z")
       )
-    ).rejects.toThrow("No se pudieron liquidar todos los beneficios VIP.");
+    ).rejects.toMatchObject({
+      message: "No se pudieron liquidar todos los beneficios VIP.",
+      profileUserIds: ["user-1"],
+    });
   });
 
   it("grants once under retries and concurrent calls", async () => {

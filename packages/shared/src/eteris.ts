@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PatronTier } from "./constants";
 
 export const ETERIS_PATREON_STIPEND_VERSION = "v1";
+export const ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID = 487_645_233_901;
 // Approved launch schedule; production accrual still requires the first sink's price review.
 export const ETERIS_MONTHLY_PATREON_STIPENDS = {
   level1: 50n,

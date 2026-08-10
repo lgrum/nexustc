@@ -337,10 +337,10 @@ type PatronStatusUpdate = {
 
 const PERMANENT_PATRON_TIERS = ["level69", "level100"] as const;
 
-function isPermanentPatronTier(
+export function isPermanentPatronTier(
   tier: PatronTier | undefined
 ): tier is (typeof PERMANENT_PATRON_TIERS)[number] {
-  return tier === "level69" || tier === "level100";
+  return PERMANENT_PATRON_TIERS.some((permanentTier) => permanentTier === tier);
 }
 
 export function resolvePermanentPatronTierStatus<

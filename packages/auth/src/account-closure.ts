@@ -18,6 +18,7 @@ import {
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import {
+  ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID,
   ETERIS_MAX_AMOUNT,
   ETERIS_MIN_AMOUNT,
   ETERIS_SYSTEM_WALLETS,
@@ -317,6 +318,9 @@ async function deletePrivateProgression(tx: Transaction, userId: string) {
   await tx
     .delete(userComicProgress)
     .where(eq(userComicProgress.userId, userId));
+  await tx.execute(
+    sql`select pg_advisory_xact_lock(${ETERIS_DAILY_REPORT_ADVISORY_LOCK_ID})`
+  );
   const snapshots = await tx
     .select({
       anomalousEarners: eterisDailySnapshot.anomalousEarners,

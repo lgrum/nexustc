@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
     }
   },
   adjustXp: vi.fn(),
+  getWallet: vi.fn(),
   getMine: vi.fn(),
   getPublic: vi.fn(),
   grantStipend: vi.fn(),
@@ -31,6 +32,9 @@ vi.mock("../services/progression", () => ({
   getUserProgression: mocks.getMine,
   getPublicAccountLevel: mocks.getPublic,
   listUserXpHistory: mocks.listHistory,
+}));
+vi.mock("../services/eteris", () => ({
+  getUserWallet: mocks.getWallet,
 }));
 vi.mock("../services/patreon-stipend", () => ({
   grantMonthlyPatreonStipend: mocks.grantStipend,
@@ -61,6 +65,10 @@ beforeEach(() => {
     progress: 0,
     totalXp: 0,
     xpForNextLevel: 67,
+  });
+  mocks.getWallet.mockResolvedValue({
+    publicBalance: false,
+    status: "active",
   });
   mocks.releasePending.mockResolvedValue([]);
   mocks.grantStipend.mockResolvedValue({ granted: "0", month: "2026-08" });
@@ -152,10 +160,18 @@ describe("progression router", () => {
 
   it("returns progression when stipend settlement is unavailable", async () => {
     mocks.grantStipend.mockRejectedValueOnce(new Error("wallet frozen"));
+    mocks.getWallet.mockResolvedValueOnce({
+      publicBalance: true,
+      status: "frozen",
+    });
 
     await expect(
       call(progressionRouter.getMine, undefined, { context: createContext() })
-    ).resolves.toMatchObject({ level: 1, totalXp: 0 });
+    ).resolves.toMatchObject({
+      level: 1,
+      publicProfileChanged: true,
+      totalXp: 0,
+    });
   });
 
   it("does not multiply Account XP when the monthly VIP stipend is granted", async () => {
