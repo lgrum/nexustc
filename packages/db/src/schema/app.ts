@@ -641,6 +641,9 @@ export const commentLikes = pgTable(
     emailVerifiedAtCreation: boolean("email_verified_at_creation")
       .default(false)
       .notNull(),
+    xpAccrualEnabledAtCreation: boolean("xp_accrual_enabled_at_creation")
+      .default(false)
+      .notNull(),
     userId: text("user_id")
       .references(() => user.id, { onDelete: "cascade" })
       .notNull(),
@@ -834,6 +837,9 @@ export const postRatingLikes = pgTable(
       .defaultNow()
       .notNull(),
     emailVerifiedAtCreation: boolean("email_verified_at_creation")
+      .default(false)
+      .notNull(),
+    xpAccrualEnabledAtCreation: boolean("xp_accrual_enabled_at_creation")
       .default(false)
       .notNull(),
     ratingId: text("rating_id")

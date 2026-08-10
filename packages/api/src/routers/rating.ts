@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, desc, eq, inArray, isNull, lt, not, or, sql } from "@repo/db";
 import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
+import { env } from "@repo/env";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
@@ -411,6 +412,7 @@ export default {
             emailVerifiedAtCreation: session.user.emailVerified,
             ratingId: existingRating.id,
             userId: session.user.id,
+            xpAccrualEnabledAtCreation: env.XP_ACCRUAL_ENABLED,
           })
           .onConflictDoNothing()
           .returning({ ratingId: postRatingLikes.ratingId });

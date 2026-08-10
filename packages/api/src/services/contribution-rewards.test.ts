@@ -343,6 +343,7 @@ describe("Eligible Like", () => {
     likerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
     likerEmailVerified: true,
     likerUserId: "liker-1",
+    xpAccrualEnabledAtCreation: true,
   };
 
   it("requires a distinct, currently verified and non-banned seven-day account", () => {
@@ -354,6 +355,9 @@ describe("Eligible Like", () => {
       false
     );
     expect(isEligibleLike({ ...eligible, likerBanned: true })).toBe(false);
+    expect(
+      isEligibleLike({ ...eligible, xpAccrualEnabledAtCreation: false })
+    ).toBe(false);
     expect(
       isEligibleLike({
         ...eligible,

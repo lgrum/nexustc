@@ -689,13 +689,29 @@ export async function inspectWallet(db: Database, userId: string) {
 
 export async function reconcileWallet(
   db: Database,
-  userId: string,
+  target: string | { userId: string } | { walletId: string },
   repair = false,
   actorUserId?: string
 ) {
-  const wallet = await db.transaction((tx) =>
-    getOrCreateUserWalletInTransaction(tx, userId)
-  );
+  const wallet = await db.transaction(async (tx) => {
+    if (typeof target === "string" || "userId" in target) {
+      return getOrCreateUserWalletInTransaction(
+        tx,
+        typeof target === "string" ? target : target.userId
+      );
+    }
+    await ensureSystemWallets(tx, new Date());
+    const configured = ETERIS_SYSTEM_WALLETS.find(
+      ({ code, id }) => code === target.walletId || id === target.walletId
+    );
+    const resolved = await tx.query.eterisWallet.findFirst({
+      where: eq(eterisWallet.id, configured?.id ?? target.walletId),
+    });
+    if (!resolved) {
+      throw new EterisError("WALLET_NOT_FOUND");
+    }
+    return resolved;
+  });
   return db.transaction(async (tx) => {
     const [projection] = await tx
       .select({ balance: eterisWalletBalance.balance })

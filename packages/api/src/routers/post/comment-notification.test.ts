@@ -10,6 +10,7 @@ const rewards = vi.hoisted(() => ({
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
+vi.mock("@repo/env", () => ({ env: { XP_ACCRUAL_ENABLED: false } }));
 vi.mock("@repo/auth", () => ({
   auth: {
     api: {
@@ -348,6 +349,7 @@ describe("comment reward likes", () => {
       createdAt: expect.any(Date),
       emailVerifiedAtCreation: true,
       userId: "liker-1",
+      xpAccrualEnabledAtCreation: false,
     });
   });
 

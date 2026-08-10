@@ -13,7 +13,6 @@ import {
   profileSettings,
   profileSystemConfig,
   user,
-  userProgression,
 } from "@repo/db/schema/app";
 import {
   PATRON_TIER_PROFILE_BADGES,
@@ -35,6 +34,7 @@ import type {
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { getPublicWalletBalance } from "./eteris";
+import { getPublicAccountLevel } from "./progression";
 
 type Database = typeof database;
 export type ProfileEntitlementDb = Pick<Database, "query">;
@@ -96,7 +96,7 @@ export type ProfileSummary = {
 };
 
 export type PublicProfile = ProfileSummary & {
-  accountLevel: number;
+  accountLevel: number | null;
   activityCounts: Record<ProfileActivityCollection, number | null>;
   createdAt: Date;
   eterisBalance: string | null;
@@ -665,16 +665,13 @@ export async function getPublicProfile(db: Database, userId: string) {
           })
         : null,
       getPublicProfileActivityCounts(db, userId, visibility),
-      db.query.userProgression.findFirst({
-        columns: { level: true },
-        where: eq(userProgression.userId, userId),
-      }),
+      getPublicAccountLevel(db, userId),
       getPublicWalletBalance(db, userId),
     ]);
 
   return {
     ...summary,
-    accountLevel: progression?.level ?? 1,
+    accountLevel: progression?.level ?? null,
     activityCounts,
     banner: {
       asset: bannerAsset

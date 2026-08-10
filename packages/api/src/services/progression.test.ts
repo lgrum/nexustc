@@ -740,6 +740,13 @@ describe("progression service", () => {
     ]);
   });
 
+  it("omits public Account Level while the economy is disabled", async () => {
+    flags.economy = false;
+    const store = createDatabase();
+
+    await expect(getPublicAccountLevel(store.db, "user-1")).resolves.toBeNull();
+  });
+
   it("enforces the visibility gate on private history", async () => {
     const store = createDatabase();
 

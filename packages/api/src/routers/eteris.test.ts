@@ -210,7 +210,19 @@ test("admins can inspect but moderators cannot, and only owners reconcile", asyn
   );
   expect(mocks.reconcile).toHaveBeenCalledWith(
     expect.anything(),
-    "target-user",
+    { userId: "target-user" },
+    true,
+    "user-1"
+  );
+
+  await call(
+    eterisRouter.owner.reconcileWallet,
+    { repair: true, walletId: "mint" },
+    { context: createContext("owner") }
+  );
+  expect(mocks.reconcile).toHaveBeenLastCalledWith(
+    expect.anything(),
+    { walletId: "mint" },
     true,
     "user-1"
   );

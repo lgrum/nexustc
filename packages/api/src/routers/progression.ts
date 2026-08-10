@@ -40,8 +40,13 @@ const adjustXpInputSchema = z.object({
 export default {
   getMine: protectedProcedure.handler(
     async ({ context: { db, session, ...context } }) => {
-      const settlements = await releaseMaturedPendingXp(db, session.user.id);
-      const progression = await getUserProgression(db, session.user.id);
+      let progression = await getUserProgression(db, session.user.id);
+      const settlements = progression.accrualEnabled
+        ? await releaseMaturedPendingXp(db, session.user.id)
+        : [];
+      if (settlements.length > 0) {
+        progression = await getUserProgression(db, session.user.id);
+      }
       let publicProfileChanged = settlements.some(
         (settlement) =>
           !settlement.replayed && settlement.level !== settlement.previousLevel

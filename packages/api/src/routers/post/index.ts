@@ -29,6 +29,7 @@ import {
   translator,
   user,
 } from "@repo/db/schema/app";
+import { env } from "@repo/env";
 import {
   MAX_PINNED_ITEMS_PER_POST,
   canAccessPremiumLinks,
@@ -1973,6 +1974,7 @@ export default {
               createdAt: now,
               emailVerifiedAtCreation: session.user.emailVerified,
               userId: session.user.id,
+              xpAccrualEnabledAtCreation: env.XP_ACCRUAL_ENABLED,
             })
             .onConflictDoNothing()
             .returning({ commentId: commentLikes.commentId });

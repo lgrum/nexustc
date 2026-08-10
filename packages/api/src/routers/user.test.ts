@@ -4,16 +4,14 @@ import type { Context } from "../context";
 
 const mocks = vi.hoisted(() => ({
   attachComicCatalogProgress: vi.fn(),
-  banUser: vi.fn(),
+  banUserAndReconcileRewards: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
-  reconcileBannedLikerRewards: vi.fn(),
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
 vi.mock("@repo/auth", () => ({
   auth: {
     api: {
-      banUser: mocks.banUser,
       userHasPermission: vi.fn().mockResolvedValue({ success: true }),
     },
   },
@@ -21,11 +19,12 @@ vi.mock("@repo/auth", () => ({
 vi.mock("../services/comic-progress", () => ({
   attachComicCatalogProgress: mocks.attachComicCatalogProgress,
 }));
-vi.mock("../services/contribution-rewards", () => ({
-  reconcileBannedLikerRewards: mocks.reconcileBannedLikerRewards,
-}));
 vi.mock("../services/profile", () => ({
   canReadPublicProfileActivity: mocks.canReadPublicProfileActivity,
+}));
+vi.mock("../services/user-administration", () => ({
+  banUserAndReconcileRewards: mocks.banUserAndReconcileRewards,
+  UserAdministrationError: class extends Error {},
 }));
 
 const { default: userRouter } = await import("./user");
@@ -69,29 +68,23 @@ describe("public bookmark privacy", () => {
 });
 
 describe("user administration", () => {
-  it("reconciles contribution rewards after Better Auth bans a liker", async () => {
-    const headers = new Headers({ cookie: "session=test" });
+  it("delegates banning and reward reversal to one atomic service", async () => {
     const context = {
       db: {},
-      headers,
+      headers: new Headers({ cookie: "session=test" }),
       session: { user: { id: "owner-1", role: "owner" } },
     } as unknown as Context;
-    mocks.banUser.mockResolvedValue({ user: { id: "liker-1" } });
-    mocks.reconcileBannedLikerRewards.mockResolvedValue({ settlements: [] });
+    mocks.banUserAndReconcileRewards.mockResolvedValue([]);
 
     await expect(
       call(userRouter.admin.banUser, { userId: "liker-1" }, { context })
     ).resolves.toEqual({ success: true });
 
-    expect(mocks.banUser).toHaveBeenCalledWith({
-      body: { userId: "liker-1" },
-      headers,
-    });
-    expect(mocks.reconcileBannedLikerRewards).toHaveBeenCalledWith(
+    expect(mocks.banUserAndReconcileRewards).toHaveBeenCalledWith(
       context.db,
       expect.objectContaining({
         actorUserId: "owner-1",
-        likerUserId: "liker-1",
+        userId: "liker-1",
       })
     );
   });

@@ -2,6 +2,7 @@ import { getTableConfig } from "drizzle-orm/pg-core";
 import { expect, test } from "vitest";
 
 import {
+  commentLikes,
   eterisPosting,
   eterisTransaction,
   eterisWallet,
@@ -29,6 +30,7 @@ test("review likes belong to one stable review incarnation", () => {
   expect(likesConfig.columns.map(({ name }) => name)).toEqual([
     "created_at",
     "email_verified_at_creation",
+    "xp_accrual_enabled_at_creation",
     "rating_id",
     "user_id",
   ]);
@@ -53,6 +55,16 @@ test("review likes belong to one stable review incarnation", () => {
     ratingForeignKey?.reference().foreignColumns.map(({ name }) => name)
   ).toEqual(["id"]);
   expect(ratingForeignKey?.onDelete).toBe("cascade");
+});
+
+test("contribution likes snapshot whether XP accrual was enabled", () => {
+  for (const table of [commentLikes, postRatingLikes]) {
+    expect(
+      getTableConfig(table).columns.find(
+        ({ name }) => name === "xp_accrual_enabled_at_creation"
+      )
+    ).toMatchObject({ hasDefault: true, notNull: true });
+  }
 });
 
 test("wallet balances and postings use signed 64-bit integers", () => {

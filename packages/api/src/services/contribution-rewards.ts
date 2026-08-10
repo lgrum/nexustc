@@ -85,9 +85,11 @@ export function isEligibleLike(input: {
   likerCreatedAt: Date;
   likerEmailVerified: boolean;
   likerUserId: string;
+  xpAccrualEnabledAtCreation: boolean;
 }) {
   return (
     input.likerUserId !== input.authorUserId &&
+    input.xpAccrualEnabledAtCreation &&
     (!input.activatedAt || input.likeCreatedAt >= input.activatedAt) &&
     input.likerEmailVerified &&
     !input.likerBanned &&
@@ -115,6 +117,7 @@ async function countEligibleLikesInTransaction(
                 ? gte(postRatingLikes.createdAt, activatedAt)
                 : undefined,
               eq(postRatingLikes.emailVerifiedAtCreation, true),
+              eq(postRatingLikes.xpAccrualEnabledAtCreation, true),
               sql`${user.banned} is distinct from true`,
               sql`${user.createdAt} <= ${postRatingLikes.createdAt} - interval '7 days'`,
               sql`not exists (
@@ -137,6 +140,7 @@ async function countEligibleLikesInTransaction(
                 ? gte(commentLikes.createdAt, activatedAt)
                 : undefined,
               eq(commentLikes.emailVerifiedAtCreation, true),
+              eq(commentLikes.xpAccrualEnabledAtCreation, true),
               sql`${user.banned} is distinct from true`,
               sql`${user.createdAt} <= ${commentLikes.createdAt} - interval '7 days'`,
               sql`not exists (
@@ -162,6 +166,7 @@ async function isEligibleTriggeringReviewLike(
       likerCreatedAt: user.createdAt,
       likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
       likerUserId: postRatingLikes.userId,
+      xpAccrualEnabledAtCreation: postRatingLikes.xpAccrualEnabledAtCreation,
     })
     .from(postRatingLikes)
     .innerJoin(user, eq(user.id, postRatingLikes.userId))
@@ -189,6 +194,7 @@ async function isEligibleTriggeringCommentLike(
       likerCreatedAt: user.createdAt,
       likerEmailVerified: commentLikes.emailVerifiedAtCreation,
       likerUserId: commentLikes.userId,
+      xpAccrualEnabledAtCreation: commentLikes.xpAccrualEnabledAtCreation,
     })
     .from(commentLikes)
     .innerJoin(user, eq(user.id, commentLikes.userId))
@@ -993,13 +999,11 @@ async function reverseUnsupportedMilestonesForCount(
   };
 }
 
-export async function reconcileBannedLikerRewards(
-  db: Database,
-  input: { actorUserId: string; likerUserId: string; now?: Date }
+export async function reconcileBannedLikerRewardsInTransaction(
+  tx: Transaction,
+  input: { actorUserId: string; likerUserId: string; now: Date }
 ) {
-  const now = input.now ?? new Date();
-  const results = await db.transaction(async (tx) => {
-    const result = await tx.execute(sql`
+  const result = await tx.execute(sql`
       select distinct
         subject.id,
         subject.entity_id as "entityId",
@@ -1021,61 +1025,76 @@ export async function reconcileBannedLikerRewards(
         on subject.kind = 'comment' and subject.entity_id = likes.comment_id
       where likes.user_id = ${input.likerUserId}
         and subject.deleted_at is null
-    `);
-    const activatedAt = await readProgressionActivationDate(tx);
-    const reconciled: {
-      settlements: XpSettlement[];
-      userId: string;
-    }[] = [];
-    for (const row of result.rows) {
-      if (
-        !row ||
-        typeof row !== "object" ||
-        typeof row.id !== "string" ||
-        typeof row.entityId !== "string" ||
-        (row.kind !== "comment" && row.kind !== "review") ||
-        typeof row.userId !== "string"
-      ) {
-        continue;
-      }
-      const [locked] = await tx
-        .select({ id: xpRewardSubject.id })
-        .from(xpRewardSubject)
-        .where(eq(xpRewardSubject.id, row.id))
-        .for("update");
-      if (!locked) {
-        continue;
-      }
-      const subject: RewardSubjectIdentity = {
-        entityId: row.entityId,
-        id: row.id,
-        kind: row.kind,
-        userId: row.userId,
-      };
-      const eligibleLikes = await countEligibleLikesInTransaction(
-        tx,
-        subject,
-        activatedAt ?? undefined
-      );
-      reconciled.push(
-        await reverseUnsupportedMilestonesForCount(tx, {
-          actorUserId: input.actorUserId,
-          eligibleLikes,
-          idempotencyPrefix: `banned-liker-reversal:${input.likerUserId}`,
-          now,
-          reasonCode: "eligible_liker_banned",
-          sourcePrefix: `banned-liker:${input.likerUserId}:reversal`,
-          subject,
-        })
-      );
+  `);
+  const activatedAt = await readProgressionActivationDate(tx);
+  const reconciled: { settlements: XpSettlement[]; userId: string }[] = [];
+  for (const row of result.rows) {
+    if (
+      !row ||
+      typeof row !== "object" ||
+      typeof row.id !== "string" ||
+      typeof row.entityId !== "string" ||
+      (row.kind !== "comment" && row.kind !== "review") ||
+      typeof row.userId !== "string"
+    ) {
+      continue;
     }
-    return reconciled;
-  });
+    const [locked] = await tx
+      .select({ id: xpRewardSubject.id })
+      .from(xpRewardSubject)
+      .where(eq(xpRewardSubject.id, row.id))
+      .for("update");
+    if (!locked) {
+      continue;
+    }
+    const subject: RewardSubjectIdentity = {
+      entityId: row.entityId,
+      id: row.id,
+      kind: row.kind,
+      userId: row.userId,
+    };
+    const eligibleLikes = await countEligibleLikesInTransaction(
+      tx,
+      subject,
+      activatedAt ?? undefined
+    );
+    reconciled.push(
+      await reverseUnsupportedMilestonesForCount(tx, {
+        actorUserId: input.actorUserId,
+        eligibleLikes,
+        idempotencyPrefix: `banned-liker-reversal:${input.likerUserId}`,
+        now: input.now,
+        reasonCode: "eligible_liker_banned",
+        sourcePrefix: `banned-liker:${input.likerUserId}:reversal`,
+        subject,
+      })
+    );
+  }
+  return reconciled;
+}
+
+export async function notifyBannedLikerRewardSettlements(
+  db: Database,
+  results: Awaited<ReturnType<typeof reconcileBannedLikerRewardsInTransaction>>
+) {
   for (const result of results) {
     for (const settlement of result.settlements) {
       await notifyXpSettlement(db, result.userId, settlement);
     }
   }
+}
+
+export async function reconcileBannedLikerRewards(
+  db: Database,
+  input: { actorUserId: string; likerUserId: string; now?: Date }
+) {
+  const results = await db.transaction((tx) =>
+    reconcileBannedLikerRewardsInTransaction(tx, {
+      ...input,
+      now: input.now ?? new Date(),
+    })
+  );
+  await notifyBannedLikerRewardSettlements(db, results);
   return results;
 }
 

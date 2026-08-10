@@ -80,11 +80,13 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
         </div>
 
         <ProfileStatList className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-2">
-          <ProfileStat
-            icon={Award01Icon}
-            label="Account Level"
-            value={profile.accountLevel}
-          />
+          {profile.accountLevel === null ? null : (
+            <ProfileStat
+              icon={Award01Icon}
+              label="Account Level"
+              value={profile.accountLevel}
+            />
+          )}
           <ProfileStat
             icon={Calendar03Icon}
             label="Miembro desde"

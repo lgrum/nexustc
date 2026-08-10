@@ -27,6 +27,10 @@ const historyInputSchema = z.object({
   limit: z.number().int().min(1).max(50).default(20),
 });
 const userInputSchema = z.object({ userId: z.string().min(1) });
+const reconciliationInputSchema = z.union([
+  z.object({ repair: z.boolean().default(false), userId: z.string().min(1) }),
+  z.object({ repair: z.boolean().default(false), walletId: z.string().min(1) }),
+]);
 
 type RouterErrors = Parameters<
   Parameters<typeof protectedProcedure.handler>[0]
@@ -207,12 +211,14 @@ export default {
 
     reconcileWallet: ownerProcedure
       .use(fixedWindowRatelimitMiddleware({ limit: 10, windowSeconds: 60 }))
-      .input(userInputSchema.extend({ repair: z.boolean().default(false) }))
+      .input(reconciliationInputSchema)
       .handler(async ({ context: { db, session }, errors, input }) => {
         try {
           return await reconcileWallet(
             db,
-            input.userId,
+            "walletId" in input
+              ? { walletId: input.walletId }
+              : { userId: input.userId },
             input.repair,
             session.user.id
           );

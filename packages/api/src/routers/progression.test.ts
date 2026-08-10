@@ -102,10 +102,7 @@ describe("progression router", () => {
       totalXp: 0,
     });
     expect(mocks.getMine).toHaveBeenCalledWith(expect.anything(), "user-1");
-    expect(mocks.releasePending).toHaveBeenCalledWith(
-      expect.anything(),
-      "user-1"
-    );
+    expect(mocks.releasePending).not.toHaveBeenCalled();
     expect(mocks.grantStipend).toHaveBeenCalledWith(
       expect.anything(),
       "user-1"
@@ -116,6 +113,16 @@ describe("progression router", () => {
   });
 
   it("signals only an actual released level or public stipend change", async () => {
+    mocks.getMine.mockResolvedValue({
+      accrualEnabled: true,
+      enabled: true,
+      level: 1,
+      nextLevelTotalXp: 67,
+      pendingXp: 5,
+      progress: 0,
+      totalXp: 0,
+      xpForNextLevel: 67,
+    });
     mocks.releasePending.mockResolvedValueOnce([
       { level: 2, previousLevel: 1, replayed: false },
     ]);

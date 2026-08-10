@@ -835,6 +835,24 @@ test("reconciliation freezes a mismatch and repairs under the balance lock", asy
   ]);
 });
 
+test("reconciliation repairs a frozen system wallet by its stable code", async () => {
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  store.corruptBalance("eteris-system-mint", 9n);
+
+  await expect(
+    reconcileWallet(store.db, { walletId: "mint" }, true, "owner-1")
+  ).resolves.toMatchObject({
+    ledgerBalance: "0",
+    matches: false,
+    projectionBalance: "9",
+    repaired: true,
+    walletId: "eteris-system-mint",
+  });
+  expect(store.balances.get("eteris-system-mint")).toBe(0n);
+  expect(store.wallets.get("eteris-system-mint")?.status).toBe("active");
+});
+
 test("a journal transaction can be reversed exactly once", async () => {
   const store = createDatabase();
   await getUserWallet(store.db, "user-1");

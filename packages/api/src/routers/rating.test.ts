@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
+vi.mock("@repo/env", () => ({ env: { XP_ACCRUAL_ENABLED: false } }));
 vi.mock("@repo/auth", () => ({
   auth: {
     api: {
@@ -242,6 +243,7 @@ describe("stable review likes", () => {
       emailVerifiedAtCreation: true,
       ratingId: "review-current",
       userId: "owner-1",
+      xpAccrualEnabledAtCreation: false,
     });
     expect(onConflictDoNothing).toHaveBeenCalledOnce();
     expect(returning).toHaveBeenCalledOnce();

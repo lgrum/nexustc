@@ -34,8 +34,11 @@ import {
   publicProcedure,
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
-import { reconcileBannedLikerRewards } from "../services/contribution-rewards";
 import { canReadPublicProfileActivity } from "../services/profile";
+import {
+  banUserAndReconcileRewards,
+  UserAdministrationError,
+} from "../services/user-administration";
 import {
   canViewPost,
   getViewerPatronTier,
@@ -730,14 +733,24 @@ export default {
           userId: z.string(),
         })
       )
-      .handler(async ({ context: { db, headers, session }, input }) => {
-        await auth.api.banUser({ body: input, headers });
-        await reconcileBannedLikerRewards(db, {
-          actorUserId: session.user.id,
-          likerUserId: input.userId,
-          now: new Date(),
-        });
-        return { success: true };
+      .handler(async ({ context: { db, session }, errors, input }) => {
+        try {
+          await banUserAndReconcileRewards(db, {
+            ...input,
+            actorUserId: session.user.id,
+          });
+          return { success: true };
+        } catch (error) {
+          if (error instanceof UserAdministrationError) {
+            if (error.code === "USER_NOT_FOUND") {
+              throw errors.NOT_FOUND({ message: "Usuario no encontrado." });
+            }
+            throw errors.BAD_REQUEST({
+              message: "No puedes banear tu propia cuenta.",
+            });
+          }
+          throw error;
+        }
       }),
 
     createUser: permissionProcedure({

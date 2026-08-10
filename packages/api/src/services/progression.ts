@@ -117,6 +117,9 @@ export async function getUserProgression(db: Database, userId: string) {
 }
 
 export async function getPublicAccountLevel(db: Database, userId: string) {
+  if (!env.XP_ECONOMY_ENABLED) {
+    return null;
+  }
   const account = await db.query.user.findFirst({
     columns: { banned: true, id: true },
     where: eq(user.id, userId),
