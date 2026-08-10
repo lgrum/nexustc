@@ -13,6 +13,18 @@ type ObservedPage = {
   timeoutId: number | null;
 };
 
+function markCheckpointFailed(page: ObservedPage) {
+  if (
+    page.ratio < MIN_VISIBLE_RATIO ||
+    document.visibilityState !== "visible"
+  ) {
+    page.retryOnExit = false;
+    page.submitted = false;
+    return;
+  }
+  page.retryOnExit = true;
+}
+
 export function useComicPageCheckpoints(params: {
   comicId: string;
   enabled: boolean;
@@ -62,10 +74,14 @@ export function useComicPageCheckpoints(params: {
           if (!result.trackingAvailable) {
             setTrackingUnavailable(true);
           }
-          page.retryOnExit = !result.processed;
+          if (result.processed) {
+            page.retryOnExit = false;
+          } else {
+            markCheckpointFailed(page);
+          }
         } catch {
           setTrackingUnavailable(true);
-          page.retryOnExit = true;
+          markCheckpointFailed(page);
         }
       }, MIN_VISIBLE_TIME_MS);
     },

@@ -166,6 +166,7 @@ export default {
               "INTEGRITY_CASE_NOT_FOUND",
               "INTEGRITY_CASE_HAS_NO_EVENT",
               "INTEGRITY_SCOPE_NOT_FOUND",
+              "INTEGRITY_LIKER_MISMATCH",
               "INTEGRITY_SUBJECT_MISMATCH",
               "REWARD_SUBJECT_NOT_FOUND",
             ].includes(error.message)

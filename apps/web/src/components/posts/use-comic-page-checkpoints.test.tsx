@@ -117,4 +117,38 @@ describe(useComicPageCheckpoints, () => {
     expect(api.update).not.toHaveBeenCalled();
     expect(result.current.trackingUnavailable).toBe(true);
   });
+
+  it("rearms a page when a failed checkpoint settles after the page exits", async () => {
+    let resolveCheckpoint: ((value: unknown) => void) | undefined;
+    api.update
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveCheckpoint = resolve;
+        })
+      )
+      .mockResolvedValue({ processed: true, trackingAvailable: true });
+    const page = document.createElement("img");
+    const { result } = renderHook(() =>
+      useComicPageCheckpoints({ comicId: "comic-1", enabled: true })
+    );
+    await act(() => Promise.resolve());
+
+    act(() => {
+      result.current.trackPageElement(page, 3);
+      MockIntersectionObserver.instance.emit(page, 0.8);
+      vi.advanceTimersByTime(2000);
+      MockIntersectionObserver.instance.emit(page, 0.1);
+    });
+    expect(api.update).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveCheckpoint?.({ processed: false, trackingAvailable: true });
+      await Promise.resolve();
+    });
+    act(() => {
+      MockIntersectionObserver.instance.emit(page, 0.8);
+      vi.advanceTimersByTime(2000);
+    });
+    expect(api.update).toHaveBeenCalledTimes(2);
+  });
 });

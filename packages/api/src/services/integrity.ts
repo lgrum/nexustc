@@ -1,6 +1,8 @@
-import { and, desc, eq, lt, or } from "@repo/db";
+import { and, desc, eq, inArray, lt, or } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
+  commentLikes,
+  postRatingLikes,
   xpEvent,
   xpIntegrityCase,
   xpLikeDisqualification,
@@ -30,6 +32,46 @@ import {
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type XpSettlement = Awaited<ReturnType<typeof postXpEventInTransaction>>;
+
+async function assertCurrentSubjectLikes(
+  tx: Transaction,
+  input: { likerUserIds: string[]; subjectId: string }
+) {
+  const subject = await tx.query.xpRewardSubject.findFirst({
+    columns: { entityId: true, kind: true },
+    where: eq(xpRewardSubject.id, input.subjectId),
+  });
+  if (!subject || (subject.kind !== "comment" && subject.kind !== "review")) {
+    throw new Error("INTEGRITY_SUBJECT_MISMATCH");
+  }
+  const likerUserIds = [...new Set(input.likerUserIds)];
+  const likes =
+    subject.kind === "review"
+      ? await tx
+          .select({ userId: postRatingLikes.userId })
+          .from(postRatingLikes)
+          .where(
+            and(
+              eq(postRatingLikes.ratingId, subject.entityId),
+              inArray(postRatingLikes.userId, likerUserIds)
+            )
+          )
+          .limit(likerUserIds.length)
+      : await tx
+          .select({ userId: commentLikes.userId })
+          .from(commentLikes)
+          .where(
+            and(
+              eq(commentLikes.commentId, subject.entityId),
+              inArray(commentLikes.userId, likerUserIds)
+            )
+          )
+          .limit(likerUserIds.length);
+  if (new Set(likes.map(({ userId }) => userId)).size !== likerUserIds.length) {
+    throw new Error("INTEGRITY_LIKER_MISMATCH");
+  }
+  return likerUserIds;
+}
 
 export {
   assessXpSourceCapPressure,
@@ -370,7 +412,8 @@ export async function decideIntegrityCase(
       if (!caseEvent) {
         throw new Error("INTEGRITY_SUBJECT_MISMATCH");
       }
-      for (const likerUserId of new Set(input.likerUserIds)) {
+      const likerUserIds = await assertCurrentSubjectLikes(tx, input);
+      for (const likerUserId of likerUserIds) {
         await tx
           .insert(xpLikeDisqualification)
           .values({

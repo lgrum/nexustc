@@ -10,6 +10,7 @@ import {
   markParentPostContributionSubjectsRemovedInTransaction,
   reconcileBannedLikerRewards,
   reconcileClosedLikerRewardsInTransaction,
+  reconcileClosedAuthorCommentRewardsInTransaction,
   reconcileEditedCommentRewardsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
@@ -1628,6 +1629,31 @@ describe("review removal lifecycle", () => {
 });
 
 describe("comment removal lifecycle", () => {
+  it("cancels rewards for replies removed with a closing account's comments", async () => {
+    const set = vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) }));
+    const tx = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ id: "reply-subject" }, { id: "nested-subject" }],
+      }),
+      update: vi.fn(() => ({ set })),
+    } as unknown as Transaction;
+    const now = new Date("2026-08-10T00:00:00.000Z");
+
+    await reconcileClosedAuthorCommentRewardsInTransaction(tx, {
+      now,
+      userId: "closing-user",
+    });
+
+    expect(progression.cancelledPending).toEqual([
+      expect.objectContaining({ subjectId: "reply-subject" }),
+      expect.objectContaining({ subjectId: "nested-subject" }),
+    ]);
+    expect(set).toHaveBeenCalledWith({
+      deletedAt: now,
+      deletionReason: "parent_removed",
+    });
+  });
+
   it("reverses the target, preserves replies, and blocks guideline abuse", async () => {
     const deletedComment = vi.fn().mockResolvedValue(null);
     const insertedBlock = vi.fn().mockResolvedValue(null);

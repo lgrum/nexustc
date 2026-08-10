@@ -1822,24 +1822,11 @@ export function deleteCommentWithRewards(
           ? [row.id]
           : []
       );
-      for (const subjectId of descendantSubjectIds) {
-        await cancelPendingXpEventsInTransaction(tx, {
-          closeEmptyCases: true,
-          now,
-          subjectId,
-        });
-      }
-      if (descendantSubjectIds.length > 0) {
-        await tx
-          .update(xpRewardSubject)
-          .set({ deletedAt: now, deletionReason: "parent_removed" })
-          .where(
-            and(
-              inArray(xpRewardSubject.id, descendantSubjectIds),
-              isNull(xpRewardSubject.deletedAt)
-            )
-          );
-      }
+      await markCommentRewardSubjectsParentRemoved(
+        tx,
+        descendantSubjectIds,
+        now
+      );
       if (input.reason === "guideline_abuse") {
         await tx
           .insert(xpRewardBlock)
@@ -1863,6 +1850,60 @@ export function deleteCommentWithRewards(
       }
       return { reversedXp: result.reversedXp };
     });
+}
+
+async function markCommentRewardSubjectsParentRemoved(
+  tx: Transaction,
+  subjectIds: string[],
+  now: Date
+) {
+  for (const subjectId of subjectIds) {
+    await cancelPendingXpEventsInTransaction(tx, {
+      closeEmptyCases: true,
+      now,
+      subjectId,
+    });
+  }
+  if (subjectIds.length === 0) {
+    return;
+  }
+  await tx
+    .update(xpRewardSubject)
+    .set({ deletedAt: now, deletionReason: "parent_removed" })
+    .where(
+      and(
+        inArray(xpRewardSubject.id, subjectIds),
+        isNull(xpRewardSubject.deletedAt)
+      )
+    );
+}
+
+export async function reconcileClosedAuthorCommentRewardsInTransaction(
+  tx: Transaction,
+  input: { now: Date; userId: string }
+) {
+  const descendants = await tx.execute(sql`
+    with recursive descendants as (
+      select child.${sql.raw("id")}
+      from ${comment} child
+      inner join ${comment} parent on child.parent_id = parent.id
+      where parent.author_id = ${input.userId}
+      union
+      select child.${sql.raw("id")}
+      from ${comment} child
+      inner join descendants parent on child.parent_id = parent.id
+    )
+    select ${xpRewardSubject.id}
+    from ${xpRewardSubject}
+    inner join descendants
+      on ${xpRewardSubject.entityId} = descendants.id
+    where ${xpRewardSubject.kind} = 'comment'
+      and ${xpRewardSubject.deletedAt} is null
+  `);
+  const subjectIds = descendants.rows.flatMap((row) =>
+    row && typeof row === "object" && typeof row.id === "string" ? [row.id] : []
+  );
+  await markCommentRewardSubjectsParentRemoved(tx, subjectIds, input.now);
 }
 
 export async function markParentPostContributionSubjectsRemovedInTransaction(

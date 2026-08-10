@@ -1172,8 +1172,17 @@ test("account closure deletes the identity in the same transaction", async () =>
     store.operations.push("reconcile-likes");
     return Promise.resolve();
   });
+  const reconcileAuthoredCommentRewards = vi.fn(() => {
+    store.operations.push("reconcile-comments");
+    return Promise.resolve();
+  });
 
-  await closeAccountAndDeleteUser(store.db, "user-1", reconcileOutgoingLikes);
+  await closeAccountAndDeleteUser(
+    store.db,
+    "user-1",
+    reconcileOutgoingLikes,
+    reconcileAuthoredCommentRewards
+  );
 
   expect(store.deletedTables).toContain(user);
   expect(reconcileOutgoingLikes).toHaveBeenCalledWith(
@@ -1183,9 +1192,14 @@ test("account closure deletes the identity in the same transaction", async () =>
       likerUserId: "user-1",
     })
   );
+  expect(reconcileAuthoredCommentRewards).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ userId: "user-1" })
+  );
   expect(store.operations).toEqual([
     "lock-user",
     "reconcile-likes",
+    "reconcile-comments",
     "delete-user",
   ]);
   expect(store.db.transaction).toHaveBeenCalledOnce();
@@ -1213,7 +1227,12 @@ test("account closure removes the user from retained anomaly snapshots", async (
   });
   await getUserWallet(store.db, "user-1");
 
-  await closeAccountAndDeleteUser(store.db, "user-1", () => Promise.resolve());
+  await closeAccountAndDeleteUser(
+    store.db,
+    "user-1",
+    () => Promise.resolve(),
+    () => Promise.resolve()
+  );
 
   expect(store.dailySnapshots[0]?.anomalousEarners).toEqual([
     { total: "700", userId: "user-2" },
@@ -1227,8 +1246,11 @@ test("account deletion rolls back when outgoing-like reconciliation fails", asyn
   await getUserWallet(store.db, "user-1");
 
   await expect(
-    closeAccountAndDeleteUser(store.db, "user-1", () =>
-      Promise.reject(new Error("XP_PROJECTION_MISMATCH"))
+    closeAccountAndDeleteUser(
+      store.db,
+      "user-1",
+      () => Promise.reject(new Error("XP_PROJECTION_MISMATCH")),
+      () => Promise.resolve()
     )
   ).rejects.toThrow("XP_PROJECTION_MISMATCH");
 

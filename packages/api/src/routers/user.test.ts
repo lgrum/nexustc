@@ -1,19 +1,33 @@
 import { call } from "@orpc/server";
+import type * as DbExports from "@repo/db";
 
 import type { Context } from "../context";
+import type * as RedisOperationExports from "../utils/redis-operations";
 
 const mocks = vi.hoisted(() => ({
   attachComicCatalogProgress: vi.fn(),
   banUserAndReconcileRewards: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  checkFixedWindowRateLimit: vi.fn().mockResolvedValue({ exceeded: false }),
+  getRedis: vi.fn().mockResolvedValue({}),
   unbanUserAndReconcileRewards: vi.fn(),
+  userHasPermission: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+vi.mock("@repo/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof DbExports>()),
+  getRedis: mocks.getRedis,
+}));
+vi.mock("../utils/redis-operations", async (importOriginal) => ({
+  ...(await importOriginal<typeof RedisOperationExports>()),
+  checkFixedWindowRateLimit: mocks.checkFixedWindowRateLimit,
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
 vi.mock("@repo/auth", () => ({
   auth: {
     api: {
-      userHasPermission: vi.fn().mockResolvedValue({ success: true }),
+      userHasPermission: mocks.userHasPermission,
     },
   },
 }));
@@ -89,6 +103,10 @@ describe("user administration", () => {
         userId: "liker-1",
       })
     );
+    expect(mocks.checkFixedWindowRateLimit).toHaveBeenCalledOnce();
+    expect(mocks.userHasPermission).not.toHaveBeenCalledWith({
+      body: expect.objectContaining({ permissions: { ratelimit: ["bypass"] } }),
+    });
   });
 
   it("delegates manual unbanning and reward restoration to one atomic service", async () => {
@@ -107,5 +125,9 @@ describe("user administration", () => {
       context.db,
       { userId: "liker-1" }
     );
+    expect(mocks.checkFixedWindowRateLimit).toHaveBeenCalledOnce();
+    expect(mocks.userHasPermission).not.toHaveBeenCalledWith({
+      body: expect.objectContaining({ permissions: { ratelimit: ["bypass"] } }),
+    });
   });
 });

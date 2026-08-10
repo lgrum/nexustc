@@ -57,9 +57,11 @@ const requireAuth = o.middleware(({ context, next, errors }) => {
 });
 
 export const fixedWindowRatelimitMiddleware = ({
+  allowBypass = true,
   limit,
   windowSeconds,
 }: {
+  allowBypass?: boolean;
   limit: number;
   windowSeconds: number;
 }) =>
@@ -68,7 +70,7 @@ export const fixedWindowRatelimitMiddleware = ({
       return next();
     }
 
-    if (context.session?.user) {
+    if (allowBypass && context.session?.user) {
       const allowed = await auth.api.userHasPermission({
         body: {
           permissions: { ratelimit: ["bypass"] },

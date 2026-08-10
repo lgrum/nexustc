@@ -185,6 +185,72 @@ describe("integrity settlement", () => {
     expect(insert).not.toHaveBeenCalled();
   });
 
+  it.each(["comment", "review"] as const)(
+    "rejects like disqualification for a user who did not like the %s subject",
+    async (kind) => {
+      const insert = vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      }));
+      let shapedSelectCall = 0;
+      const tx = {
+        insert,
+        query: {
+          xpRewardSubject: {
+            findFirst: vi
+              .fn()
+              .mockResolvedValue({ entityId: `${kind}-1`, kind }),
+          },
+        },
+        select: vi.fn((shape?: Record<string, unknown>) => {
+          if (!shape) {
+            const chain = {
+              for: vi
+                .fn()
+                .mockResolvedValue([
+                  { id: "case-1", status: "open", userId: "user-1" },
+                ]),
+              from: vi.fn(),
+              where: vi.fn(),
+            };
+            chain.from.mockReturnValue(chain);
+            chain.where.mockReturnValue(chain);
+            return chain;
+          }
+          shapedSelectCall += 1;
+          const chain = {
+            from: vi.fn(),
+            limit: vi
+              .fn()
+              .mockResolvedValue(
+                shapedSelectCall === 1 ? [{ id: "case-event" }] : []
+              ),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }),
+      };
+      const db = {
+        transaction: vi.fn((callback) => callback(tx)),
+      } as unknown as Database;
+
+      await expect(
+        decideIntegrityCase(db, {
+          action: "disqualify_likes",
+          actorUserId: "moderator-1",
+          caseId: "case-1",
+          likerUserIds: ["non-liker-1"],
+          reason: "El usuario no tiene un like vigente",
+          subjectId: "subject-1",
+        })
+      ).rejects.toThrow("INTEGRITY_LIKER_MISMATCH");
+      expect(insert).not.toHaveBeenCalled();
+    }
+  );
+
   it("keeps a like-disqualification case open while supported XP remains pending", async () => {
     let shapedSelectCall = 0;
     const update = vi.fn(() => ({
@@ -196,6 +262,13 @@ describe("integrity settlement", () => {
           onConflictDoNothing: vi.fn().mockResolvedValue(null),
         })),
       })),
+      query: {
+        xpRewardSubject: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValue({ entityId: "review-1", kind: "review" }),
+        },
+      },
       select: vi.fn((shape?: Record<string, unknown>) => {
         if (!shape) {
           const chain = {
@@ -214,11 +287,15 @@ describe("integrity settlement", () => {
         shapedSelectCall += 1;
         const chain = {
           from: vi.fn(),
-          limit: vi.fn().mockResolvedValue([
-            {
-              id: shapedSelectCall === 1 ? "case-event" : "pending-event",
-            },
-          ]),
+          limit: vi
+            .fn()
+            .mockResolvedValue(
+              shapedSelectCall === 1
+                ? [{ id: "case-event" }]
+                : shapedSelectCall === 2
+                  ? [{ userId: "liker-1" }]
+                  : [{ id: "pending-event" }]
+            ),
           where: vi.fn(),
         };
         chain.from.mockReturnValue(chain);
@@ -258,6 +335,13 @@ describe("integrity settlement", () => {
           onConflictDoNothing: vi.fn().mockResolvedValue(null),
         })),
       })),
+      query: {
+        xpRewardSubject: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValue({ entityId: "review-1", kind: "review" }),
+        },
+      },
       select: vi.fn((shape?: Record<string, unknown>) => {
         if (!shape) {
           const chain = {
@@ -279,7 +363,11 @@ describe("integrity settlement", () => {
           limit: vi
             .fn()
             .mockResolvedValue(
-              shapedSelectCall === 1 ? [{ id: "case-event" }] : []
+              shapedSelectCall === 1
+                ? [{ id: "case-event" }]
+                : shapedSelectCall === 2
+                  ? [{ userId: "liker-1" }]
+                  : []
             ),
           where: vi.fn(),
         };

@@ -29,8 +29,19 @@ export type AccountClosureLikeReconciler = (
   tx: Transaction,
   input: { actorUserId: string; likerUserId: string; now: Date }
 ) => Promise<unknown>;
+export type AccountClosureCommentReconciler = (
+  tx: Transaction,
+  input: { now: Date; userId: string }
+) => Promise<unknown>;
 
+let configuredCommentReconciler: AccountClosureCommentReconciler | undefined;
 let configuredLikeReconciler: AccountClosureLikeReconciler | undefined;
+
+export function configureAccountClosureCommentReconciler(
+  reconciler: AccountClosureCommentReconciler
+) {
+  configuredCommentReconciler = reconciler;
+}
 
 export function configureAccountClosureLikeReconciler(
   reconciler: AccountClosureLikeReconciler
@@ -43,6 +54,13 @@ function requireLikeReconciler() {
     throw new Error("ACCOUNT_CLOSURE_RECONCILER_NOT_CONFIGURED");
   }
   return configuredLikeReconciler;
+}
+
+function requireCommentReconciler() {
+  if (!configuredCommentReconciler) {
+    throw new Error("ACCOUNT_CLOSURE_RECONCILER_NOT_CONFIGURED");
+  }
+  return configuredCommentReconciler;
 }
 
 function assertSignedBigint(value: bigint) {
@@ -60,7 +78,8 @@ export function closeAccount(db: Database, userId: string) {
 export function closeAccountAndDeleteUser(
   db: Database,
   userId: string,
-  reconcileOutgoingLikes = requireLikeReconciler()
+  reconcileOutgoingLikes = requireLikeReconciler(),
+  reconcileAuthoredCommentRewards = requireCommentReconciler()
 ) {
   return db.transaction(async (tx) => {
     const now = new Date();
@@ -78,6 +97,7 @@ export function closeAccountAndDeleteUser(
       likerUserId: userId,
       now,
     });
+    await reconcileAuthoredCommentRewards(tx, { now, userId });
     await tx.delete(user).where(eq(user.id, userId));
     return result;
   });

@@ -727,6 +727,13 @@ export default {
     banUser: permissionProcedure({
       user: ["ban"],
     })
+      .use(
+        fixedWindowRatelimitMiddleware({
+          allowBypass: false,
+          limit: 10,
+          windowSeconds: 60,
+        })
+      )
       .input(
         z.object({
           banExpiresIn: z.number().int().positive().optional(),
@@ -757,6 +764,13 @@ export default {
     unbanUser: permissionProcedure({
       user: ["ban"],
     })
+      .use(
+        fixedWindowRatelimitMiddleware({
+          allowBypass: false,
+          limit: 10,
+          windowSeconds: 60,
+        })
+      )
       .input(z.object({ userId: z.string() }))
       .handler(async ({ context: { db }, errors, input }) => {
         try {

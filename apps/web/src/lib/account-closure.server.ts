@@ -1,5 +1,14 @@
 import "server-only";
-import { reconcileClosedLikerRewardsInTransaction } from "@repo/api/services/contribution-rewards";
-import { configureAccountClosureLikeReconciler } from "@repo/auth/account-closure";
+import {
+  reconcileClosedAuthorCommentRewardsInTransaction,
+  reconcileClosedLikerRewardsInTransaction,
+} from "@repo/api/services/contribution-rewards";
+import {
+  configureAccountClosureCommentReconciler,
+  configureAccountClosureLikeReconciler,
+} from "@repo/auth/account-closure";
 
+configureAccountClosureCommentReconciler(
+  reconcileClosedAuthorCommentRewardsInTransaction
+);
 configureAccountClosureLikeReconciler(reconcileClosedLikerRewardsInTransaction);
