@@ -381,7 +381,7 @@ export function CommentSection({
                             title: "Banear Usuario",
                           })
                         ) {
-                          await authClient.admin.banUser({
+                          await orpcClient.user.admin.banUser({
                             userId: comment.author.id,
                           });
                           await queryClient.invalidateQueries({
@@ -714,7 +714,7 @@ export function CommentSection({
                                           title: "Banear Usuario",
                                         })
                                       ) {
-                                        await authClient.admin.banUser({
+                                        await orpcClient.user.admin.banUser({
                                           userId: comment.author.id,
                                         });
                                         await queryClient.invalidateQueries({

@@ -63,16 +63,28 @@ export function getDailyEconomyReport(db: Database, now = new Date()) {
           and t.created_at >= ${dayStart}
           and t.created_at < ${dayEnd}
       ),
+      daily_transaction_flows as (
+        select
+          t.id,
+          t.kind::text as reason,
+          coalesce(sum(p.amount) filter (where w.kind = 'user'), 0) as user_delta
+        from eteris_transaction t
+        inner join eteris_posting p on p.transaction_id = t.id
+        inner join eteris_wallet w on w.id = p.wallet_id
+        where t.created_at >= ${dayStart}
+          and t.created_at < ${dayEnd}
+        group by t.id, t.kind
+      ),
       sources as (
-        select reason, sum(amount) as total
-        from daily_user_postings
-        where amount > 0
+        select reason, sum(user_delta) as total
+        from daily_transaction_flows
+        where user_delta > 0
         group by reason
       ),
       sinks as (
-        select reason, -sum(amount) as total
-        from daily_user_postings
-        where amount < 0
+        select reason, -sum(user_delta) as total
+        from daily_transaction_flows
+        where user_delta < 0
         group by reason
       ),
       earners as (

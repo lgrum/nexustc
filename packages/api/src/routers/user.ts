@@ -34,6 +34,7 @@ import {
   publicProcedure,
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
+import { reconcileBannedLikerRewards } from "../services/contribution-rewards";
 import { canReadPublicProfileActivity } from "../services/profile";
 import {
   canViewPost,
@@ -719,6 +720,26 @@ export default {
   }),
 
   admin: {
+    banUser: permissionProcedure({
+      user: ["ban"],
+    })
+      .input(
+        z.object({
+          banExpiresIn: z.number().int().positive().optional(),
+          banReason: z.string().optional(),
+          userId: z.string(),
+        })
+      )
+      .handler(async ({ context: { db, headers, session }, input }) => {
+        await auth.api.banUser({ body: input, headers });
+        await reconcileBannedLikerRewards(db, {
+          actorUserId: session.user.id,
+          likerUserId: input.userId,
+          now: new Date(),
+        });
+        return { success: true };
+      }),
+
     createUser: permissionProcedure({
       user: ["create"],
     })

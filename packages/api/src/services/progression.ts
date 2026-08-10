@@ -297,15 +297,18 @@ export async function cancelPendingXpEventsInTransaction(
     actorUserId?: string;
     caseId?: string;
     closeEmptyCases?: boolean;
+    eventId?: string;
     now: Date;
     subjectId?: string;
   }
 ) {
-  const scopeCondition = input.caseId
-    ? eq(xpEvent.integrityCaseId, input.caseId)
-    : input.subjectId
-      ? eq(xpEvent.subjectId, input.subjectId)
-      : null;
+  const scopeCondition = input.eventId
+    ? eq(xpEvent.id, input.eventId)
+    : input.caseId
+      ? eq(xpEvent.integrityCaseId, input.caseId)
+      : input.subjectId
+        ? eq(xpEvent.subjectId, input.subjectId)
+        : null;
   if (!scopeCondition) {
     throw new Error("PENDING_XP_SCOPE_REQUIRED");
   }
@@ -395,6 +398,52 @@ export async function cancelPendingXpEventsInTransaction(
   return events;
 }
 
+export async function releasePendingXpCaseInTransaction(
+  tx: ProgressionExecutor,
+  input: { actorUserId?: string; caseId: string; now: Date }
+) {
+  const pending = await tx
+    .select()
+    .from(xpEvent)
+    .where(
+      and(
+        eq(xpEvent.integrityCaseId, input.caseId),
+        eq(xpEvent.state, "pending")
+      )
+    )
+    .for("update");
+  const settlements: Awaited<ReturnType<typeof postXpEventInTransaction>>[] =
+    [];
+  for (const event of pending) {
+    const settlement = await postXpEventInTransaction(
+      tx,
+      buildPendingXpReleaseCommand(event, input.caseId, input.actorUserId),
+      input.now
+    );
+    if (
+      "projectionMismatch" in settlement &&
+      settlement.projectionMismatch === true
+    ) {
+      return {
+        completed: false,
+        settlements,
+        userId: pending[0]?.userId ?? null,
+      };
+    }
+    await cancelPendingXpEventsInTransaction(tx, {
+      actorUserId: input.actorUserId,
+      eventId: event.id,
+      now: input.now,
+    });
+    settlements.push(settlement);
+  }
+  return {
+    completed: true,
+    settlements,
+    userId: pending[0]?.userId ?? null,
+  };
+}
+
 export async function releaseMaturedPendingXpInTransaction(
   tx: ProgressionExecutor,
   userId: string,
@@ -430,18 +479,13 @@ export async function releaseMaturedPendingXpInTransaction(
     if (additional) {
       continue;
     }
-    const pending = await cancelPendingXpEventsInTransaction(tx, {
+    const released = await releasePendingXpCaseInTransaction(tx, {
       caseId: integrityCase.id,
       now,
     });
-    for (const event of pending) {
-      settlements.push(
-        await postXpEventInTransaction(
-          tx,
-          buildPendingXpReleaseCommand(event, integrityCase.id),
-          now
-        )
-      );
+    settlements.push(...released.settlements);
+    if (!released.completed) {
+      continue;
     }
     await tx
       .update(xpIntegrityCase)

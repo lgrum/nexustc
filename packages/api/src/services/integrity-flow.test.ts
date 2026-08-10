@@ -11,6 +11,7 @@ const progression = vi.hoisted(() => ({
   matured: vi.fn(),
   pending: vi.fn(),
   posted: vi.fn(),
+  releaseCase: vi.fn(),
 }));
 
 vi.mock("./progression", () => ({
@@ -19,6 +20,7 @@ vi.mock("./progression", () => ({
   lockUserProgressionInTransaction: vi.fn(),
   notifyXpSettlement: vi.fn(),
   postXpEventInTransaction: progression.posted,
+  releasePendingXpCaseInTransaction: progression.releaseCase,
 }));
 vi.mock("./notification", () => ({ createUserNotification: vi.fn() }));
 vi.mock("./contribution-rewards", () => ({
@@ -63,6 +65,11 @@ beforeEach(() => {
     replayed: false,
   });
   progression.posted.mockReset().mockResolvedValue({ eventId: "event-1" });
+  progression.releaseCase.mockReset().mockResolvedValue({
+    completed: false,
+    settlements: [],
+    userId: "user-1",
+  });
 });
 
 describe("integrity settlement", () => {
@@ -135,6 +142,41 @@ describe("integrity settlement", () => {
       })
     ).rejects.toThrow("INTEGRITY_SUBJECT_MISMATCH");
     expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("keeps a manually released case open after a projection mismatch", async () => {
+    const update = vi.fn();
+    const tx = {
+      select: vi.fn(() => {
+        const chain = {
+          for: vi
+            .fn()
+            .mockResolvedValue([
+              { id: "case-1", status: "open", userId: "user-1" },
+            ]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }),
+      update,
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "release",
+        actorUserId: "owner-1",
+        caseId: "case-1",
+        reason: "Liberacion manual revisada",
+      })
+    ).resolves.toMatchObject({ status: "open" });
+    expect(progression.releaseCase).toHaveBeenCalledOnce();
+    expect(update).not.toHaveBeenCalled();
   });
 
   it("holds medium risk for 24 hours and persists only its anomaly", async () => {

@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAppForm } from "@/hooks/use-app-form";
-import { authClient } from "@/lib/auth-client";
+import { orpcClient } from "@/lib/orpc";
 
 import type { AdminUser } from "./types";
 
@@ -44,7 +44,7 @@ export function BanUserDialog({
 
       await toast
         .promise(
-          authClient.admin.banUser({
+          orpcClient.user.admin.banUser({
             banExpiresIn: expiresIn,
             banReason: value.banReason || undefined,
             userId: user.id,

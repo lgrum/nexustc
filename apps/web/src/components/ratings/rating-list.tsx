@@ -339,7 +339,7 @@ export function RatingList({ postId }: RatingListProps) {
                               return;
                             }
 
-                            await authClient.admin.banUser({
+                            await orpcClient.user.admin.banUser({
                               userId: author.id,
                             });
                             await queryClient.invalidateQueries({

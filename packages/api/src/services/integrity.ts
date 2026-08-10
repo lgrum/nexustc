@@ -19,11 +19,11 @@ import type { IntegrityRiskSignal } from "./integrity-settlement";
 import { createUserNotification } from "./notification";
 import type { XpEventCommand } from "./progression";
 import {
-  buildPendingXpReleaseCommand,
   cancelPendingXpEventsInTransaction,
   notifyXpSettlement,
   postXpEventInTransaction,
   releaseMaturedPendingXpInTransaction,
+  releasePendingXpCaseInTransaction,
 } from "./progression";
 
 type Database = typeof database;
@@ -119,28 +119,17 @@ export async function settleXpWithIntegrity(
   return result;
 }
 
-async function releasePendingEvents(
+function releasePendingEvents(
   tx: Transaction,
   caseId: string,
   actorUserId: string | undefined,
   now: Date
 ) {
-  const pending = await cancelPendingXpEventsInTransaction(tx, {
+  return releasePendingXpCaseInTransaction(tx, {
     actorUserId,
     caseId,
     now,
   });
-  const settlements: XpSettlement[] = [];
-  for (const event of pending) {
-    settlements.push(
-      await postXpEventInTransaction(
-        tx,
-        buildPendingXpReleaseCommand(event, caseId, actorUserId),
-        now
-      )
-    );
-  }
-  return { settlements, userId: pending[0]?.userId ?? null };
 }
 
 async function reversePostedCaseEvents(
@@ -273,15 +262,16 @@ export async function decideIntegrityCase(
 
     let settlements: XpSettlement[] = [];
     let { userId } = integrityCase;
-    let status: "dismissed" | "released" | "reversed" = "dismissed";
+    let status: "dismissed" | "open" | "released" | "reversed" = "dismissed";
     if (input.action === "release") {
-      ({ settlements, userId } = await releasePendingEvents(
+      const release = await releasePendingEvents(
         tx,
         input.caseId,
         input.actorUserId,
         now
-      ));
-      status = "released";
+      );
+      ({ settlements, userId } = release);
+      status = release.completed ? "released" : "open";
     } else if (input.action === "dismiss") {
       const pending = await cancelPendingXpEventsInTransaction(tx, {
         actorUserId: input.actorUserId,
@@ -355,16 +345,18 @@ export async function decideIntegrityCase(
       ({ userId } = reversal);
       status = settlements.length ? "reversed" : "dismissed";
     }
-    await tx
-      .update(xpIntegrityCase)
-      .set({
-        decidedAt: now,
-        decidedBy: normalizeIntegrityDecisionActor(input.actorUserId),
-        decisionReason: input.reason,
-        status,
-        updatedAt: now,
-      })
-      .where(eq(xpIntegrityCase.id, input.caseId));
+    if (status !== "open") {
+      await tx
+        .update(xpIntegrityCase)
+        .set({
+          decidedAt: now,
+          decidedBy: normalizeIntegrityDecisionActor(input.actorUserId),
+          decisionReason: input.reason,
+          status,
+          updatedAt: now,
+        })
+        .where(eq(xpIntegrityCase.id, input.caseId));
+    }
     return { replayed: false, settlements, status, userId };
   });
 

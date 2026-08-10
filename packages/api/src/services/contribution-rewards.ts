@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { and, eq, gte, inArray, isNull, lt, ne, or, sql } from "@repo/db";
+import { and, eq, gt, gte, inArray, isNull, lt, ne, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   comment,
@@ -39,6 +39,10 @@ import {
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type XpSettlement = Awaited<ReturnType<typeof postXpEventInTransaction>>;
+type RewardSubjectIdentity = Pick<
+  typeof xpRewardSubject.$inferSelect,
+  "entityId" | "id" | "kind" | "userId"
+>;
 type ReviewSnapshot = {
   createdAt: Date;
   id: string;
@@ -56,17 +60,6 @@ type CommentSnapshot = {
 
 const REVIEW_DAILY_CAP = 2;
 const COMMENT_DAILY_CAP = 5;
-
-async function getDisqualifiedLikerIds(tx: Transaction, subjectId: string) {
-  const rows =
-    (await tx.query.xpLikeDisqualification?.findMany({
-      columns: { likerUserId: true },
-      where: eq(xpLikeDisqualification.subjectId, subjectId),
-    })) ?? [];
-  return new Set(
-    rows.flatMap(({ likerUserId }) => (likerUserId ? [likerUserId] : []))
-  );
-}
 
 export function getContributionContentHash(content: string) {
   return createHash("sha256")
@@ -91,6 +84,60 @@ export function isEligibleLike(input: {
     input.likerCreatedAt.getTime() <=
       input.likeCreatedAt.getTime() - 7 * 86_400_000
   );
+}
+
+async function countEligibleLikesInTransaction(
+  tx: Transaction,
+  subject: RewardSubjectIdentity,
+  activatedAt?: Date
+) {
+  const [row] =
+    subject.kind === "review"
+      ? await tx
+          .select({ count: sql<number>`count(*)::integer` })
+          .from(postRatingLikes)
+          .innerJoin(user, eq(user.id, postRatingLikes.userId))
+          .where(
+            and(
+              eq(postRatingLikes.ratingId, subject.entityId),
+              ne(postRatingLikes.userId, subject.userId),
+              activatedAt
+                ? gte(postRatingLikes.createdAt, activatedAt)
+                : undefined,
+              eq(postRatingLikes.emailVerifiedAtCreation, true),
+              sql`${user.banned} is distinct from true`,
+              sql`${user.createdAt} <= ${postRatingLikes.createdAt} - interval '7 days'`,
+              sql`not exists (
+                select 1
+                from ${xpLikeDisqualification} disqualification
+                where disqualification.subject_id = ${subject.id}
+                  and disqualification.liker_user_id = ${postRatingLikes.userId}
+              )`
+            )
+          )
+      : await tx
+          .select({ count: sql<number>`count(*)::integer` })
+          .from(commentLikes)
+          .innerJoin(user, eq(user.id, commentLikes.userId))
+          .where(
+            and(
+              eq(commentLikes.commentId, subject.entityId),
+              ne(commentLikes.userId, subject.userId),
+              activatedAt
+                ? gte(commentLikes.createdAt, activatedAt)
+                : undefined,
+              eq(commentLikes.emailVerifiedAtCreation, true),
+              sql`${user.banned} is distinct from true`,
+              sql`${user.createdAt} <= ${commentLikes.createdAt} - interval '7 days'`,
+              sql`not exists (
+                select 1
+                from ${xpLikeDisqualification} disqualification
+                where disqualification.subject_id = ${subject.id}
+                  and disqualification.liker_user_id = ${commentLikes.userId}
+              )`
+            )
+          );
+  return row?.count ?? 0;
 }
 
 async function isEligibleTriggeringReviewLike(
@@ -465,16 +512,53 @@ async function reconcileEditedContributionRewardsInTransaction(
     .from(xpRewardSubject)
     .where(eq(xpRewardSubject.id, input.subject.id))
     .for("update");
-  if (await input.eligible(tx, input.subject)) {
-    return { reversedXp: 0, settlements: [] };
+  if (!(await input.eligible(tx, input.subject))) {
+    return reverseContributionRewardsInTransaction(
+      tx,
+      input.subject,
+      input.kind,
+      input.now,
+      "ineligible"
+    );
   }
-  return reverseContributionRewardsInTransaction(
-    tx,
-    input.subject,
-    input.kind,
-    input.now,
-    "ineligible"
-  );
+  const laterDuplicates = await tx.query.xpRewardSubject.findMany({
+    where: and(
+      eq(xpRewardSubject.userId, input.subject.userId),
+      eq(xpRewardSubject.kind, input.kind),
+      eq(
+        xpRewardSubject.normalizedContentHash,
+        input.subject.normalizedContentHash
+      ),
+      isNull(xpRewardSubject.deletedAt),
+      ne(xpRewardSubject.id, input.subject.id),
+      or(
+        gt(xpRewardSubject.createdAt, input.subject.createdAt),
+        and(
+          eq(xpRewardSubject.createdAt, input.subject.createdAt),
+          gt(xpRewardSubject.id, input.subject.id)
+        )
+      )
+    ),
+  });
+  let reversedXp = 0;
+  const settlements: XpSettlement[] = [];
+  for (const duplicate of laterDuplicates) {
+    await tx
+      .select({ id: xpRewardSubject.id })
+      .from(xpRewardSubject)
+      .where(eq(xpRewardSubject.id, duplicate.id))
+      .for("update");
+    const result = await reverseContributionRewardsInTransaction(
+      tx,
+      duplicate,
+      input.kind,
+      input.now,
+      "ineligible"
+    );
+    reversedXp += result.reversedXp;
+    settlements.push(...result.settlements);
+  }
+  return { reversedXp, settlements };
 }
 
 export async function reconcileEditedReviewRewardsInTransaction(
@@ -720,24 +804,11 @@ export async function settleReviewMilestonesInTransaction(
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
   }
   const activatedAt = await ensureProgressionActivationInTransaction(tx, now);
-
-  const likes = await tx
-    .select({
-      likeCreatedAt: postRatingLikes.createdAt,
-      likerBanned: user.banned,
-      likerCreatedAt: user.createdAt,
-      likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
-      likerUserId: postRatingLikes.userId,
-    })
-    .from(postRatingLikes)
-    .innerJoin(user, eq(user.id, postRatingLikes.userId))
-    .where(eq(postRatingLikes.ratingId, ratingId));
-  const disqualified = await getDisqualifiedLikerIds(tx, subject.id);
-  const eligibleLikes = likes.filter(
-    (like) =>
-      isEligibleLike({ activatedAt, authorUserId: review.userId, ...like }) &&
-      !disqualified.has(like.likerUserId)
-  ).length;
+  const eligibleLikes = await countEligibleLikesInTransaction(
+    tx,
+    subject,
+    activatedAt
+  );
   return postContributionMilestonesInTransaction(tx, {
     eligibleLikes,
     kind: "review",
@@ -796,24 +867,11 @@ export async function settleCommentMilestonesInTransaction(
     return { eligibleLikes: 0, grantedXp: 0, settlements: [] };
   }
   const activatedAt = await ensureProgressionActivationInTransaction(tx, now);
-
-  const likes = await tx
-    .select({
-      likeCreatedAt: commentLikes.createdAt,
-      likerBanned: user.banned,
-      likerCreatedAt: user.createdAt,
-      likerEmailVerified: commentLikes.emailVerifiedAtCreation,
-      likerUserId: commentLikes.userId,
-    })
-    .from(commentLikes)
-    .innerJoin(user, eq(user.id, commentLikes.userId))
-    .where(eq(commentLikes.commentId, commentId));
-  const disqualified = await getDisqualifiedLikerIds(tx, subject.id);
-  const eligibleLikes = likes.filter(
-    (like) =>
-      isEligibleLike({ activatedAt, authorUserId: snapshot.userId, ...like }) &&
-      !disqualified.has(like.likerUserId)
-  ).length;
+  const eligibleLikes = await countEligibleLikesInTransaction(
+    tx,
+    subject,
+    activatedAt
+  );
   return postContributionMilestonesInTransaction(tx, {
     eligibleLikes,
     kind: "comment",
@@ -840,52 +898,37 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
     throw new Error("REWARD_SUBJECT_NOT_FOUND");
   }
   const activatedAt = await readProgressionActivationDate(tx);
-  const disqualified = await getDisqualifiedLikerIds(tx, subject.id);
-  let eligibleLikes = 0;
-  if (subject.kind === "review") {
-    const likes = await tx
-      .select({
-        likeCreatedAt: postRatingLikes.createdAt,
-        likerBanned: user.banned,
-        likerCreatedAt: user.createdAt,
-        likerEmailVerified: postRatingLikes.emailVerifiedAtCreation,
-        likerUserId: postRatingLikes.userId,
-      })
-      .from(postRatingLikes)
-      .innerJoin(user, eq(user.id, postRatingLikes.userId))
-      .where(eq(postRatingLikes.ratingId, subject.entityId));
-    eligibleLikes = likes.filter(
-      (like) =>
-        !disqualified.has(like.likerUserId) &&
-        isEligibleLike({
-          activatedAt: activatedAt ?? undefined,
-          authorUserId: subject.userId,
-          ...like,
-        })
-    ).length;
-  } else {
-    const likes = await tx
-      .select({
-        likeCreatedAt: commentLikes.createdAt,
-        likerBanned: user.banned,
-        likerCreatedAt: user.createdAt,
-        likerEmailVerified: commentLikes.emailVerifiedAtCreation,
-        likerUserId: commentLikes.userId,
-      })
-      .from(commentLikes)
-      .innerJoin(user, eq(user.id, commentLikes.userId))
-      .where(eq(commentLikes.commentId, subject.entityId));
-    eligibleLikes = likes.filter(
-      (like) =>
-        !disqualified.has(like.likerUserId) &&
-        isEligibleLike({
-          activatedAt: activatedAt ?? undefined,
-          authorUserId: subject.userId,
-          ...like,
-        })
-    ).length;
-  }
+  const eligibleLikes = await countEligibleLikesInTransaction(
+    tx,
+    subject,
+    activatedAt ?? undefined
+  );
 
+  return reverseUnsupportedMilestonesForCount(tx, {
+    actorUserId: input.actorUserId,
+    eligibleLikes,
+    idempotencyPrefix: `integrity-like-reversal:${input.integrityCaseId}`,
+    integrityCaseId: input.integrityCaseId,
+    now: input.now,
+    reasonCode: "coordinated_likes_disqualified",
+    sourcePrefix: `integrity-case:${input.integrityCaseId}:like-reversal`,
+    subject,
+  });
+}
+
+async function reverseUnsupportedMilestonesForCount(
+  tx: Transaction,
+  input: {
+    actorUserId: string;
+    eligibleLikes: number;
+    idempotencyPrefix: string;
+    integrityCaseId?: string;
+    now: Date;
+    reasonCode: string;
+    sourcePrefix: string;
+    subject: RewardSubjectIdentity;
+  }
+) {
   const events = await tx
     .select({
       amount: xpEvent.amount,
@@ -895,7 +938,9 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
       reversesEventId: xpEvent.reversesEventId,
     })
     .from(xpEvent)
-    .where(and(eq(xpEvent.subjectId, subject.id), eq(xpEvent.state, "posted")));
+    .where(
+      and(eq(xpEvent.subjectId, input.subject.id), eq(xpEvent.state, "posted"))
+    );
   const reversed = new Set(
     events.flatMap(({ reversesEventId }) =>
       reversesEventId ? [reversesEventId] : []
@@ -903,8 +948,8 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
   );
   const unsupported = events.filter(
     (event) =>
-      event.kind === `${subject.kind}_milestone` &&
-      (event.milestone ?? 0) > eligibleLikes &&
+      event.kind === `${input.subject.kind}_milestone` &&
+      (event.milestone ?? 0) > input.eligibleLikes &&
       !reversed.has(event.id)
   );
   const settlements: XpSettlement[] = [];
@@ -915,21 +960,111 @@ export async function reverseUnsupportedContributionMilestonesInTransaction(
         {
           amount: -event.amount,
           createdBy: input.actorUserId,
-          idempotencyKey: `integrity-like-reversal:${input.integrityCaseId}:${event.id}`,
+          idempotencyKey: `${input.idempotencyPrefix}:${event.id}`,
           integrityCaseId: input.integrityCaseId,
           kind: "reversal",
           milestone: event.milestone ?? undefined,
-          reasonCode: "coordinated_likes_disqualified",
+          reasonCode: input.reasonCode,
           reversesEventId: event.id,
-          sourceRef: `integrity-case:${input.integrityCaseId}:like-reversal:${event.id}`,
-          subjectId: subject.id,
-          userId: subject.userId,
+          sourceRef: `${input.sourcePrefix}:${event.id}`,
+          subjectId: input.subject.id,
+          userId: input.subject.userId,
         },
         input.now
       )
     );
   }
-  return { eligibleLikes, settlements, userId: subject.userId };
+  return {
+    eligibleLikes: input.eligibleLikes,
+    settlements,
+    userId: input.subject.userId,
+  };
+}
+
+export async function reconcileBannedLikerRewards(
+  db: Database,
+  input: { actorUserId: string; likerUserId: string; now?: Date }
+) {
+  const now = input.now ?? new Date();
+  const results = await db.transaction(async (tx) => {
+    const result = await tx.execute(sql`
+      select distinct
+        subject.id,
+        subject.entity_id as "entityId",
+        subject.kind,
+        subject.user_id as "userId"
+      from xp_reward_subject subject
+      inner join post_rating_like likes
+        on subject.kind = 'review' and subject.entity_id = likes.rating_id
+      where likes.user_id = ${input.likerUserId}
+        and subject.deleted_at is null
+      union
+      select distinct
+        subject.id,
+        subject.entity_id as "entityId",
+        subject.kind,
+        subject.user_id as "userId"
+      from xp_reward_subject subject
+      inner join comment_like likes
+        on subject.kind = 'comment' and subject.entity_id = likes.comment_id
+      where likes.user_id = ${input.likerUserId}
+        and subject.deleted_at is null
+    `);
+    const activatedAt = await readProgressionActivationDate(tx);
+    const reconciled: {
+      settlements: XpSettlement[];
+      userId: string;
+    }[] = [];
+    for (const row of result.rows) {
+      if (
+        !row ||
+        typeof row !== "object" ||
+        typeof row.id !== "string" ||
+        typeof row.entityId !== "string" ||
+        (row.kind !== "comment" && row.kind !== "review") ||
+        typeof row.userId !== "string"
+      ) {
+        continue;
+      }
+      const [locked] = await tx
+        .select({ id: xpRewardSubject.id })
+        .from(xpRewardSubject)
+        .where(eq(xpRewardSubject.id, row.id))
+        .for("update");
+      if (!locked) {
+        continue;
+      }
+      const subject: RewardSubjectIdentity = {
+        entityId: row.entityId,
+        id: row.id,
+        kind: row.kind,
+        userId: row.userId,
+      };
+      const eligibleLikes = await countEligibleLikesInTransaction(
+        tx,
+        subject,
+        activatedAt ?? undefined
+      );
+      reconciled.push(
+        await reverseUnsupportedMilestonesForCount(tx, {
+          actorUserId: input.actorUserId,
+          eligibleLikes,
+          idempotencyPrefix: `banned-liker-reversal:${input.likerUserId}`,
+          now,
+          reasonCode: "eligible_liker_banned",
+          sourcePrefix: `banned-liker:${input.likerUserId}:reversal`,
+          subject,
+        })
+      );
+    }
+    return reconciled;
+  });
+  for (const result of results) {
+    for (const settlement of result.settlements) {
+      await notifyXpSettlement(db, result.userId, settlement);
+    }
+  }
+  return results;
 }
 
 async function reverseContributionRewardsInTransaction(
@@ -1163,21 +1298,42 @@ export function deleteCommentWithRewards(
           .set({ deletedAt: now, deletionReason: input.reason })
           .where(eq(xpRewardSubject.id, subject.id));
       }
-      const replies = await tx
-        .select({ id: comment.id })
-        .from(comment)
-        .where(eq(comment.parentId, snapshot.id));
-      if (replies.length > 0) {
+      const descendants = await tx.execute(sql`
+        with recursive descendants as (
+          select ${comment.id}
+          from ${comment}
+          where ${comment.parentId} = ${snapshot.id}
+          union all
+          select child.${sql.raw("id")}
+          from ${comment} child
+          inner join descendants parent on child.parent_id = parent.id
+        )
+        select ${xpRewardSubject.id}
+        from ${xpRewardSubject}
+        inner join descendants
+          on ${xpRewardSubject.entityId} = descendants.id
+        where ${xpRewardSubject.kind} = 'comment'
+          and ${xpRewardSubject.deletedAt} is null
+      `);
+      const descendantSubjectIds = descendants.rows.flatMap((row) =>
+        row && typeof row === "object" && typeof row.id === "string"
+          ? [row.id]
+          : []
+      );
+      for (const subjectId of descendantSubjectIds) {
+        await cancelPendingXpEventsInTransaction(tx, {
+          closeEmptyCases: true,
+          now,
+          subjectId,
+        });
+      }
+      if (descendantSubjectIds.length > 0) {
         await tx
           .update(xpRewardSubject)
           .set({ deletedAt: now, deletionReason: "parent_removed" })
           .where(
             and(
-              eq(xpRewardSubject.kind, "comment"),
-              inArray(
-                xpRewardSubject.entityId,
-                replies.map((reply) => reply.id)
-              ),
+              inArray(xpRewardSubject.id, descendantSubjectIds),
               isNull(xpRewardSubject.deletedAt)
             )
           );

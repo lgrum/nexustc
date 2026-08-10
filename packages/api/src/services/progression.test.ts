@@ -13,6 +13,7 @@ import {
   listUserXpHistory,
   postXpEventInTransaction,
   postXpEvent,
+  releasePendingXpCaseInTransaction,
 } from "./progression";
 import type { ProgressionExecutor } from "./progression";
 
@@ -452,6 +453,88 @@ describe("progression service", () => {
       expect.objectContaining({
         values: expect.objectContaining({ status: "dismissed" }),
       })
+    );
+  });
+
+  it("keeps Pending XP open when its level reward finds a projection mismatch", async () => {
+    flags.accrual = true;
+    ledger.mismatchAtCall = 1;
+    const now = new Date("2026-08-10T00:00:00.000Z");
+    const activation = {
+      activatedAt: new Date("2026-08-01T00:00:00.000Z"),
+      curveVersion: "v1",
+    };
+    const progression = {
+      level: 1,
+      pendingXp: 67,
+      totalXp: 0,
+      userId: "user-1",
+    };
+    const pending = {
+      amount: 67,
+      createdAt: new Date("2026-08-09T00:00:00.000Z"),
+      createdBy: null,
+      id: "pending-1",
+      idempotencyKey: "pending-source-1",
+      integrityCaseId: "case-1",
+      kind: "review_milestone" as const,
+      metadata: {},
+      milestone: 3,
+      reasonCode: "eligible_likes_3",
+      reversesEventId: null,
+      sourceRef: "review:subject-1:milestone:3",
+      state: "pending" as const,
+      subjectId: "subject-1",
+      updatedAt: now,
+      userId: "user-1",
+    };
+    const updates: Record<string, unknown>[] = [];
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      query: {
+        eterisWallet: { findFirst: vi.fn().mockResolvedValue(null) },
+        progressionSystem: { findFirst: vi.fn().mockResolvedValue(activation) },
+        user: {
+          findFirst: vi.fn().mockResolvedValue({ banned: false, id: "user-1" }),
+        },
+        userProgression: { findFirst: vi.fn().mockResolvedValue(progression) },
+        xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
+      },
+      select: vi.fn(() => ({
+        from: vi.fn((table: unknown) => ({
+          where: vi.fn(() => ({
+            for: vi
+              .fn()
+              .mockResolvedValue(
+                table === xpEvent
+                  ? [pending]
+                  : table === progressionSystem
+                    ? [activation]
+                    : [progression]
+              ),
+          })),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updates.push(values);
+          return { where: vi.fn().mockResolvedValue(null) };
+        }),
+      })),
+    } as unknown as ProgressionExecutor;
+
+    await expect(
+      releasePendingXpCaseInTransaction(tx, {
+        caseId: "case-1",
+        now,
+      })
+    ).resolves.toMatchObject({ completed: false, settlements: [] });
+    expect(updates).not.toContainEqual(
+      expect.objectContaining({ state: "cancelled" })
     );
   });
 

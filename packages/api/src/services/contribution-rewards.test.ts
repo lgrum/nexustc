@@ -7,6 +7,7 @@ import {
   getContributionContentHash,
   isEligibleLike,
   markParentPostContributionSubjectsRemovedInTransaction,
+  reconcileBannedLikerRewards,
   reconcileEditedCommentRewardsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
   reverseUnsupportedContributionMilestonesInTransaction,
@@ -126,7 +127,8 @@ const commentSnapshot = {
 };
 
 function createEditedContributionTransaction(
-  editedSubject: typeof xpRewardSubject.$inferSelect
+  editedSubject: typeof xpRewardSubject.$inferSelect,
+  laterDuplicates: (typeof xpRewardSubject.$inferSelect)[] = []
 ) {
   const where = vi.fn().mockResolvedValue(null);
   const update = vi.fn().mockReturnValue({
@@ -159,9 +161,15 @@ function createEditedContributionTransaction(
   });
   return {
     query: {
+      forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
       user: { findFirst: vi.fn().mockResolvedValue({ banned: false }) },
+      xpRewardBlock: { findFirst: vi.fn().mockResolvedValue(null) },
       xpRewardSubject: {
-        findFirst: vi.fn().mockResolvedValue(editedSubject),
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(editedSubject)
+          .mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue(laterDuplicates),
       },
     },
     select,
@@ -206,6 +214,27 @@ describe("edited contribution eligibility", () => {
       })
     );
   });
+
+  it("reverses later rewarded duplicates when an earlier edit becomes canonical", async () => {
+    const later = {
+      ...subject,
+      createdAt: new Date("2026-08-08T13:00:00.000Z"),
+      entityId: "rating-2",
+      id: "subject-2",
+    };
+
+    await reconcileEditedReviewRewardsInTransaction(
+      createEditedContributionTransaction(subject, [later]),
+      review
+    );
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        reasonCode: "review_ineligible",
+        subjectId: later.id,
+      })
+    );
+  });
 });
 const commentSubject = {
   ...subject,
@@ -225,15 +254,6 @@ function createSettlementTransaction(options?: {
     .mockResolvedValueOnce(subject)
     .mockResolvedValueOnce(options?.duplicate ? { id: "older" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: subject.id }]);
-  const eligibleLikes = Array.from({ length: 100 }, (_, index) => ({
-    likeCreatedAt: new Date(
-      `2026-08-${String(10 + (index % 10)).padStart(2, "0")}T00:00:00.000Z`
-    ),
-    likerBanned: false,
-    likerCreatedAt: new Date("2026-07-01T00:00:00.000Z"),
-    likerEmailVerified: true,
-    likerUserId: `liker-${index}`,
-  }));
   const select = vi.fn((shape: Record<string, unknown>) => {
     if ("amount" in shape && options?.events) {
       return {
@@ -263,7 +283,17 @@ function createSettlementTransaction(options?: {
     const chain = {
       from: vi.fn(),
       innerJoin: vi.fn(),
-      where: vi.fn().mockResolvedValue(eligibleLikes),
+      where: vi.fn().mockImplementation(() =>
+        Promise.resolve([
+          {
+            count:
+              activation.date?.getTime() ===
+              new Date("2026-08-15T00:00:00.000Z").getTime()
+                ? 50
+                : 100,
+          },
+        ])
+      ),
     };
     chain.from.mockReturnValue(chain);
     chain.innerJoin.mockReturnValue(chain);
@@ -409,6 +439,76 @@ describe("Eligible Like", () => {
   });
 });
 
+describe("banned liker reconciliation", () => {
+  it("reverses milestones that no longer have enough eligible likes", async () => {
+    const select = vi.fn((shape: Record<string, unknown>) => {
+      if (Object.keys(shape).length === 1 && "id" in shape) {
+        const chain = {
+          for: vi.fn().mockResolvedValue([{ id: subject.id }]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }
+      return {
+        from: vi.fn().mockReturnValue({
+          innerJoin: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(
+              "count" in shape
+                ? [{ count: 2 }]
+                : [
+                    {
+                      amount: 25,
+                      id: "milestone-3",
+                      kind: "review_milestone",
+                      milestone: 3,
+                      reversesEventId: null,
+                    },
+                  ]
+            ),
+          }),
+          where: vi.fn().mockResolvedValue(
+            "count" in shape
+              ? [{ count: 2 }]
+              : [
+                  {
+                    amount: 25,
+                    id: "milestone-3",
+                    kind: "review_milestone",
+                    milestone: 3,
+                    reversesEventId: null,
+                  },
+                ]
+          ),
+        }),
+      };
+    });
+    const tx = {
+      execute: vi.fn().mockResolvedValue({ rows: [subject] }),
+      select,
+    } as unknown as Transaction;
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+
+    await reconcileBannedLikerRewards(db, {
+      actorUserId: "owner-1",
+      likerUserId: "banned-liker",
+      now: new Date("2026-08-10T00:00:00.000Z"),
+    });
+
+    expect(progression.calls).toContainEqual(
+      expect.objectContaining({
+        amount: -25,
+        reasonCode: "eligible_liker_banned",
+        reversesEventId: "milestone-3",
+      })
+    );
+  });
+});
+
 describe("review milestone settlement", () => {
   beforeEach(() => {
     activation.date = new Date("2026-08-01T00:00:00.000Z");
@@ -551,13 +651,6 @@ function createCommentSettlementTransaction(
     })
     .mockResolvedValueOnce(duplicate ? { id: "older-comment" } : null);
   const lock = vi.fn().mockResolvedValue([{ id: commentSubject.id }]);
-  const likes = Array.from({ length: 100 }, (_, index) => ({
-    likeCreatedAt: new Date("2026-08-10T00:00:00.000Z"),
-    likerBanned: false,
-    likerCreatedAt: new Date("2026-07-01T00:00:00.000Z"),
-    likerEmailVerified: true,
-    likerUserId: `comment-liker-${index}`,
-  }));
   const select = vi.fn((shape: Record<string, unknown>) => {
     if ("authorBanned" in shape) {
       const chain = {
@@ -584,7 +677,7 @@ function createCommentSettlementTransaction(
     const chain = {
       from: vi.fn(),
       innerJoin: vi.fn(),
-      where: vi.fn().mockResolvedValue(likes),
+      where: vi.fn().mockResolvedValue([{ count: 100 }]),
     };
     chain.from.mockReturnValue(chain);
     chain.innerJoin.mockReturnValue(chain);
@@ -1000,6 +1093,9 @@ describe("comment removal lifecycle", () => {
     });
     const tx = {
       delete: vi.fn().mockReturnValue({ where: deletedComment }),
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ id: "reply-subject" }, { id: "nested-subject" }],
+      }),
       insert: vi.fn().mockReturnValue({
         values: vi.fn().mockReturnValue({ onConflictDoNothing: insertedBlock }),
       }),
@@ -1041,5 +1137,11 @@ describe("comment removal lifecycle", () => {
     );
     expect(insertedBlock).toHaveBeenCalledOnce();
     expect(deletedComment).toHaveBeenCalledOnce();
+    expect(progression.cancelledPending).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ subjectId: "reply-subject" }),
+        expect.objectContaining({ subjectId: "nested-subject" }),
+      ])
+    );
   });
 });
