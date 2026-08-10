@@ -818,64 +818,68 @@ export async function createPendingXpEventInTransaction(
   return { eventId, pendingXp, replayed: false };
 }
 
-export async function notifyXpSettlement(
-  db: Database,
+async function notifyXpSettlementInTransaction(
+  tx: Parameters<typeof createUserNotification>[0],
   userId: string,
   result: Awaited<ReturnType<typeof postXpEventInTransaction>>
 ) {
   if (!result.replayed && result.level > result.previousLevel) {
-    await db.transaction((tx) =>
-      createUserNotification(tx, {
-        description: `Alcanzaste el Account Level ${result.level}. Tus recompensas de Eteris se acreditaron automaticamente.`,
-        metadata: {
-          category: "account_level_up",
-          level: result.level,
-          linkPath: "/profile?section=progression",
-        },
-        targetUserId: userId,
-        title: `Subiste al nivel ${result.level}`,
-      })
-    );
+    await createUserNotification(tx, {
+      description: `Alcanzaste el Account Level ${result.level}. Tus recompensas de Eteris se acreditaron automaticamente.`,
+      metadata: {
+        category: "account_level_up",
+        level: result.level,
+        linkPath: "/profile?section=progression",
+      },
+      targetUserId: userId,
+      title: `Subiste al nivel ${result.level}`,
+    });
   }
   if (!result.replayed && result.debtCreated) {
-    await db.transaction((tx) =>
-      createUserNotification(tx, {
-        description:
-          "Una reversion de nivel dejo tu Billetera Eteris con deuda. No podras gastar hasta saldarla.",
-        metadata: {
-          category: "eteris_debt",
-          linkPath: "/profile?section=wallet",
-        },
-        targetUserId: userId,
-        title: "Tu Billetera Eteris tiene deuda",
-      })
-    );
+    await createUserNotification(tx, {
+      description:
+        "Una reversion de nivel dejo tu Billetera Eteris con deuda. No podras gastar hasta saldarla.",
+      metadata: {
+        category: "eteris_debt",
+        linkPath: "/profile?section=wallet",
+      },
+      targetUserId: userId,
+      title: "Tu Billetera Eteris tiene deuda",
+    });
   }
 }
 
-export function postXpEvent(
+export function notifyXpSettlement(
+  db: Database,
+  userId: string,
+  result: Awaited<ReturnType<typeof postXpEventInTransaction>>
+) {
+  if (
+    result.replayed ||
+    (result.level <= result.previousLevel && !result.debtCreated)
+  ) {
+    return Promise.resolve();
+  }
+  return db.transaction((tx) =>
+    notifyXpSettlementInTransaction(tx, userId, result)
+  );
+}
+
+export async function postXpEvent(
   db: Database,
   input: XpEventCommand,
   ownerAdjustment?: { actorUserId: string }
 ) {
-  const settlement = db.transaction((tx) =>
-    postXpEventInTransaction(tx, input)
-  );
-  return settlement.then(async (result) => {
+  const result = await db.transaction(async (tx) => {
+    const settlement = await postXpEventInTransaction(tx, input);
     if (
       ownerAdjustment &&
-      "projectionMismatch" in result &&
-      result.projectionMismatch === true
+      !("projectionMismatch" in settlement) &&
+      settlement.eventId !== null
     ) {
-      throw new ProgressionError("PROJECTION_MISMATCH");
-    }
-    if (ownerAdjustment && !result.replayed && result.eventId === null) {
-      throw new ProgressionError("INVALID_TOTAL");
-    }
-    await notifyXpSettlement(db, input.userId, result);
-    if (!result.replayed && ownerAdjustment) {
-      await db.transaction((tx) =>
-        createUserNotification(tx, {
+      await notifyXpSettlementInTransaction(tx, input.userId, settlement);
+      if (!settlement.replayed) {
+        await createUserNotification(tx, {
           description:
             "El propietario ajusto tu Account XP. Consulta tu historial para ver el movimiento.",
           metadata: {
@@ -885,16 +889,31 @@ export function postXpEvent(
           sourceUserId: ownerAdjustment.actorUserId,
           targetUserId: input.userId,
           title: "Tu Account XP fue ajustado",
-        })
-      );
+        });
+      }
     }
-    return {
-      eventId: result.eventId,
-      level: result.level,
-      settledXp: result.settledXp,
-      totalXp: result.totalXp,
-    };
+    return settlement;
   });
+
+  if (
+    ownerAdjustment &&
+    "projectionMismatch" in result &&
+    result.projectionMismatch === true
+  ) {
+    throw new ProgressionError("PROJECTION_MISMATCH");
+  }
+  if (ownerAdjustment && !result.replayed && result.eventId === null) {
+    throw new ProgressionError("INVALID_TOTAL");
+  }
+  if (!ownerAdjustment) {
+    await notifyXpSettlement(db, input.userId, result);
+  }
+  return {
+    eventId: result.eventId,
+    level: result.level,
+    settledXp: result.settledXp,
+    totalXp: result.totalXp,
+  };
 }
 
 export function adjustXp(

@@ -41,6 +41,7 @@ const flags = vi.hoisted(() => ({
 const notifications = vi.hoisted(
   () => [] as { metadata?: Record<string, unknown>; title: string }[]
 );
+const notificationState = vi.hoisted(() => ({ fail: false }));
 const activation = vi.hoisted(() => ({ calls: [] as unknown[] }));
 vi.mock("@repo/env", () => ({
   env: {
@@ -57,6 +58,9 @@ vi.mock("@repo/env", () => ({
 }));
 vi.mock("./notification", () => ({
   createUserNotification: vi.fn((_db: unknown, input: any) => {
+    if (notificationState.fail) {
+      throw new Error("notification failure");
+    }
     notifications.push(input);
     return Promise.resolve(`notification-${notifications.length}`);
   }),
@@ -372,8 +376,46 @@ function createDatabase() {
           release = resolve;
         });
         await previous;
+        const balancesBefore = new Map(balances);
+        const deletedTablesBefore = new Set(deletedTables);
+        const postingsBefore = postings.map((posting) => ({ ...posting }));
+        const reconciliationsBefore = reconciliations.map((entry) => ({
+          ...entry,
+        }));
+        const sequenceBefore = transactionSequence;
+        const transactionsBefore = new Map(
+          [...transactions].map(([id, transaction]) => [id, { ...transaction }])
+        );
+        const walletsBefore = new Map(
+          [...wallets].map(([id, wallet]) => [id, { ...wallet }])
+        );
         try {
           return await callback(executor);
+        } catch (error) {
+          balances.clear();
+          for (const entry of balancesBefore) {
+            balances.set(...entry);
+          }
+          deletedTables.clear();
+          for (const table of deletedTablesBefore) {
+            deletedTables.add(table);
+          }
+          postings.splice(0, postings.length, ...postingsBefore);
+          reconciliations.splice(
+            0,
+            reconciliations.length,
+            ...reconciliationsBefore
+          );
+          transactionSequence = sequenceBefore;
+          transactions.clear();
+          for (const entry of transactionsBefore) {
+            transactions.set(...entry);
+          }
+          wallets.clear();
+          for (const entry of walletsBefore) {
+            wallets.set(...entry);
+          }
+          throw error;
         } finally {
           release?.();
         }
@@ -403,6 +445,7 @@ beforeEach(() => {
   flags.accrual = false;
   flags.spending = false;
   notifications.length = 0;
+  notificationState.fail = false;
   activation.calls = [];
 });
 
@@ -426,6 +469,30 @@ test("an owner Eteris adjustment notifies once and reports newly created debt", 
   ]);
   expect(notifications.every(({ metadata }) => !metadata?.reason)).toBe(true);
   expect(activation.calls).toHaveLength(2);
+});
+
+test("rolls back an owner Eteris adjustment when its notification fails", async () => {
+  flags.accrual = true;
+  const store = createDatabase();
+  const wallet = await getUserWallet(store.db, "user-1");
+  notificationState.fail = true;
+
+  await expect(
+    adjustEteris(store.db, {
+      actorUserId: "owner-1",
+      amount: 5n,
+      idempotencyKey: "owner-adjustment-notification-failure",
+      reason: "Corrección aprobada por soporte",
+      userId: "user-1",
+    })
+  ).rejects.toThrow("notification failure");
+
+  expect(store.transactions.size).toBe(0);
+  expect(
+    store.balances.get(
+      [...store.wallets.values()].find(({ userId }) => userId === "user-1")!.id
+    )
+  ).toBe(BigInt(wallet.balance));
 });
 
 test("banning freezes Eteris spending without confiscating the balance", async () => {

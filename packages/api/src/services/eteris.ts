@@ -525,7 +525,7 @@ export async function adjustEteris(
       input.userId,
       now
     );
-    return postEterisTransactionInTransaction(tx, {
+    const settlement = await postEterisTransactionInTransaction(tx, {
       actorUserId: input.actorUserId,
       debtPolicy: "trusted-recovery",
       idempotencyKey: input.idempotencyKey,
@@ -538,12 +538,7 @@ export async function adjustEteris(
       sourceModule: "owner",
       sourceRef: `owner-adjustment:${input.idempotencyKey}`,
     });
-  });
-  if ("mismatched" in result) {
-    throw new EterisError("PROJECTION_MISMATCH");
-  }
-  if (!result.replayed) {
-    await db.transaction(async (tx) => {
+    if (!("mismatched" in settlement) && !settlement.replayed) {
       await createUserNotification(tx, {
         description:
           "El propietario ajusto tu saldo Eteris. Consulta tu historial para ver el movimiento.",
@@ -555,7 +550,7 @@ export async function adjustEteris(
         targetUserId: input.userId,
         title: "Tu saldo Eteris fue ajustado",
       });
-      if ("debtCreated" in result && result.debtCreated) {
+      if ("debtCreated" in settlement && settlement.debtCreated) {
         await createUserNotification(tx, {
           description:
             "Tu Billetera Eteris tiene deuda. No podras gastar hasta saldarla.",
@@ -567,7 +562,11 @@ export async function adjustEteris(
           title: "Tu Billetera Eteris tiene deuda",
         });
       }
-    });
+    }
+    return settlement;
+  });
+  if ("mismatched" in result) {
+    throw new EterisError("PROJECTION_MISMATCH");
   }
   return { id: result.id, replayed: result.replayed };
 }

@@ -26,6 +26,7 @@ const ledger = vi.hoisted(() => ({
     metadata?: Record<string, unknown>;
   }[],
   failAtCall: 0,
+  failNotification: false,
   mismatchAtCall: 0,
   notifications: [] as { metadata?: Record<string, unknown>; title: string }[],
   reversalDebtCreated: null as boolean | null,
@@ -111,6 +112,9 @@ vi.mock("./eteris", () => ({
 }));
 vi.mock("./notification", () => ({
   createUserNotification: vi.fn((_db: unknown, input: any) => {
+    if (ledger.failNotification) {
+      throw new Error("notification failure");
+    }
     ledger.notifications.push(input);
     return Promise.resolve(`notification-${ledger.notifications.length}`);
   }),
@@ -356,6 +360,7 @@ beforeEach(() => {
   ledger.balance = 0n;
   ledger.calls = [];
   ledger.failAtCall = 0;
+  ledger.failNotification = false;
   ledger.mismatchAtCall = 0;
   ledger.notifications = [];
   ledger.reversalDebtCreated = null;
@@ -989,6 +994,29 @@ describe("progression service", () => {
         userId: "user-1",
       })
     ).rejects.toThrow("ledger failure");
+    expect(store.getActivation()).toBeNull();
+    expect(store.getProgression()).toBeNull();
+    expect(store.getEvents()).toHaveLength(0);
+    expect(ledger.balance).toBe(0n);
+    expect(ledger.transactions.size).toBe(0);
+    expect(ledger.notifications).toHaveLength(0);
+  });
+
+  it("rolls back an owner XP adjustment when its notification fails", async () => {
+    flags.accrual = true;
+    ledger.failNotification = true;
+    const store = createDatabase();
+
+    await expect(
+      adjustXp(store.db, {
+        actorUserId: "owner-1",
+        amount: 67,
+        idempotencyKey: "atomic-notification-failure",
+        reason: "Correccion aprobada por soporte",
+        userId: "user-1",
+      })
+    ).rejects.toThrow("notification failure");
+
     expect(store.getActivation()).toBeNull();
     expect(store.getProgression()).toBeNull();
     expect(store.getEvents()).toHaveLength(0);
