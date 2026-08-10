@@ -63,10 +63,7 @@ import {
 } from "../../services/contribution-rewards";
 import { createCommentReplyNotification } from "../../services/notification";
 import { buildProfileSummaries } from "../../services/profile";
-import {
-  notifyXpSettlement,
-  notifyXpSettlementInTransaction,
-} from "../../services/progression";
+import { notifyXpSettlementInTransaction } from "../../services/progression";
 import {
   getResolvedEngagementPromptsForPost,
   getSelectableEngagementPromptsForPost,
@@ -1733,14 +1730,17 @@ export default {
                 userId: updatedComment.userId,
               }
             );
+            for (const settlement of result.settlements) {
+              await notifyXpSettlementInTransaction(
+                tx,
+                session.user.id,
+                settlement
+              );
+            }
             return result.settlements;
           }
           return [];
         });
-        for (const settlement of settlements) {
-          await notifyXpSettlement(db, session.user.id, settlement);
-        }
-
         logger?.debug(`Own comment ${input.commentId} edited`);
         return {
           profileUserId: session.user.id,

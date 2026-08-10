@@ -1,5 +1,10 @@
 import type { db as database } from "@repo/db";
-import { commentLikes, postRatingLikes } from "@repo/db/schema/app";
+import {
+  commentLikes,
+  postRating,
+  postRatingLikes,
+  user,
+} from "@repo/db/schema/app";
 import type { xpRewardSubject } from "@repo/db/schema/app";
 
 import {
@@ -432,6 +437,7 @@ function createSettlementTransaction(options?: {
   recentLikes?: number;
   reviewAfterSourceLock?: string;
 }) {
+  const lockedTables: unknown[] = [];
   const subjectFindFirst = vi
     .fn()
     .mockResolvedValueOnce(subject)
@@ -499,8 +505,14 @@ function createSettlementTransaction(options?: {
       return chain;
     }
     if (Object.keys(shape).length === 1 && "id" in shape) {
-      const chain = { for: lock, from: vi.fn(), where: vi.fn() };
-      chain.from.mockReturnValue(chain);
+      const chain = {
+        for: lock,
+        from: vi.fn((table: unknown) => {
+          lockedTables.push(table);
+          return chain;
+        }),
+        where: vi.fn(),
+      };
       chain.where.mockReturnValue(chain);
       return chain;
     }
@@ -558,7 +570,7 @@ function createSettlementTransaction(options?: {
       set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
     })),
   } as unknown as Transaction;
-  return { lock, sourceLock, tx };
+  return { lock, lockedTables, sourceLock, tx };
 }
 
 beforeEach(() => {
@@ -1675,7 +1687,7 @@ describe("review removal lifecycle", () => {
       entityId: "review-2",
       id: "subject-2",
     };
-    const { tx } = createSettlementTransaction();
+    const { lockedTables, tx } = createSettlementTransaction();
     vi.mocked(tx.query.xpRewardSubject.findFirst)
       .mockReset()
       .mockResolvedValueOnce(subject)
@@ -1694,6 +1706,7 @@ describe("review removal lifecycle", () => {
       userId: review.userId,
     });
 
+    expect(lockedTables.slice(0, 2)).toEqual([user, postRating]);
     expect(progression.calls).toContainEqual(
       expect.objectContaining({
         amount: 25,
@@ -1843,6 +1856,25 @@ describe("comment removal lifecycle", () => {
     const insertedBlock = vi.fn().mockResolvedValue(null);
     const subjectUpdates: Record<string, unknown>[] = [];
     const select = vi.fn((shape: Record<string, unknown>) => {
+      if (Object.keys(shape).length === 1 && "userId" in shape) {
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi
+              .fn()
+              .mockResolvedValue([{ userId: commentSnapshot.userId }]),
+          }),
+        };
+      }
+      if (Object.keys(shape).length === 1 && "id" in shape) {
+        const chain = {
+          for: vi.fn().mockResolvedValue([{ id: commentSnapshot.userId }]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(chain);
+        return chain;
+      }
       if ("userId" in shape) {
         const chain = {
           for: vi
@@ -1952,6 +1984,25 @@ describe("comment removal lifecycle", () => {
         },
       },
       select: vi.fn((shape: Record<string, unknown>) => {
+        if (Object.keys(shape).length === 1 && "userId" in shape) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi
+                .fn()
+                .mockResolvedValue([{ userId: commentSnapshot.userId }]),
+            }),
+          };
+        }
+        if (Object.keys(shape).length === 1 && "id" in shape) {
+          const chain = {
+            for: vi.fn().mockResolvedValue([{ id: commentSnapshot.userId }]),
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
         if ("userId" in shape) {
           const chain = {
             for: vi

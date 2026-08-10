@@ -293,6 +293,11 @@ describe("comment edit reward reconciliation", () => {
       rewards.lockContributionParticipantsInTransaction.mock
         .invocationCallOrder[0]
     ).toBeLessThan(set.mock.invocationCallOrder[0]!);
+    expect(rewards.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      tx,
+      "author-1",
+      expect.objectContaining({ level: 1, previousLevel: 2, replayed: false })
+    );
   });
 });
 

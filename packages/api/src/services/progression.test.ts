@@ -452,6 +452,25 @@ describe("progression service", () => {
       select: vi.fn(() => {
         selectCall += 1;
         if (selectCall === 1) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([{ integrityCaseId: "case-1" }]),
+            }),
+          };
+        }
+        if (selectCall === 2) {
+          const chain = {
+            for: vi.fn().mockResolvedValue([{ id: "case-1" }]),
+            from: vi.fn(),
+            orderBy: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.orderBy.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        if (selectCall === 3) {
           const chain = {
             for: vi.fn().mockResolvedValue(pending),
             from: vi.fn(),
@@ -485,6 +504,73 @@ describe("progression service", () => {
       expect.objectContaining({
         values: expect.objectContaining({ status: "dismissed" }),
       })
+    );
+  });
+
+  it("locks affected integrity cases before their Pending events", async () => {
+    const caseLock = vi.fn().mockResolvedValue([{ id: "case-1" }]);
+    const eventLock = vi.fn().mockResolvedValue([
+      {
+        amount: 25,
+        id: "pending-1",
+        integrityCaseId: "case-1",
+        userId: "user-1",
+      },
+    ]);
+    let selectCall = 0;
+    const tx = {
+      select: vi.fn(() => {
+        selectCall += 1;
+        if (selectCall === 1) {
+          return {
+            from: vi.fn().mockReturnValue({
+              where: vi.fn().mockResolvedValue([{ integrityCaseId: "case-1" }]),
+            }),
+          };
+        }
+        if (selectCall === 2) {
+          const chain = {
+            for: caseLock,
+            from: vi.fn(),
+            orderBy: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.orderBy.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        if (selectCall === 3) {
+          const chain = {
+            for: eventLock,
+            from: vi.fn(),
+            where: vi.fn(),
+          };
+          chain.from.mockReturnValue(chain);
+          chain.where.mockReturnValue(chain);
+          return chain;
+        }
+        return {
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue([]),
+          }),
+        };
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    } as unknown as ProgressionExecutor;
+
+    await cancelPendingXpEventsInTransaction(tx, {
+      closeEmptyCases: true,
+      now: new Date("2026-08-10T00:00:00.000Z"),
+      subjectId: "subject-1",
+    });
+
+    expect(caseLock).toHaveBeenCalledWith("update");
+    expect(eventLock).toHaveBeenCalledWith("update");
+    expect(caseLock.mock.invocationCallOrder[0]).toBeLessThan(
+      eventLock.mock.invocationCallOrder[0]!
     );
   });
 

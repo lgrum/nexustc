@@ -7,12 +7,14 @@ import {
 } from "./user-administration";
 
 const rewards = vi.hoisted(() => ({
+  lockLikerParticipants: vi.fn(),
   notifyInTransaction: vi.fn(),
   reconcile: vi.fn(),
   restore: vi.fn(),
 }));
 
 vi.mock("./contribution-rewards", () => ({
+  lockLikerRewardParticipantsInTransaction: rewards.lockLikerParticipants,
   notifyBannedLikerRewardSettlementsInTransaction: rewards.notifyInTransaction,
   reconcileBannedLikerRewardsInTransaction: rewards.reconcile,
   reconcileRestoredLikerRewardsInTransaction: rewards.restore,
@@ -40,6 +42,7 @@ function createDatabase() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  rewards.lockLikerParticipants.mockImplementation(() => Promise.resolve());
   rewards.reconcile.mockResolvedValue([]);
   rewards.restore.mockResolvedValue([]);
   rewards.notifyInTransaction.mockImplementation(() => Promise.resolve());
@@ -102,6 +105,10 @@ it("restores rewards when a temporary ban expires", async () => {
     likerUserId: "liker-1",
     now,
   });
+  expect(rewards.lockLikerParticipants).toHaveBeenCalledWith(tx, "liker-1");
+  expect(
+    rewards.lockLikerParticipants.mock.invocationCallOrder[0]
+  ).toBeLessThan(lockedQuery.for.mock.invocationCallOrder[0]!);
   expect(rewards.notifyInTransaction).toHaveBeenCalledWith(
     tx,
     expect.any(Array)
@@ -174,7 +181,7 @@ it("bans, revokes sessions, and reconciles liker rewards in one transaction", as
 });
 
 it("manually unbans and restores supported liker rewards atomically", async () => {
-  const { db, tx, updateSet } = createDatabase();
+  const { db, forUpdate, tx, updateSet } = createDatabase();
   const now = new Date("2026-08-10T00:00:00.000Z");
   rewards.restore.mockResolvedValueOnce([
     { settlements: [], userId: "author-1" },
@@ -198,6 +205,10 @@ it("manually unbans and restores supported liker rewards atomically", async () =
     likerUserId: "liker-1",
     now,
   });
+  expect(rewards.lockLikerParticipants).toHaveBeenCalledWith(tx, "liker-1");
+  expect(
+    rewards.lockLikerParticipants.mock.invocationCallOrder[0]
+  ).toBeLessThan(forUpdate.mock.invocationCallOrder[0]!);
   expect(rewards.notifyInTransaction).toHaveBeenCalledWith(
     tx,
     expect.any(Array)

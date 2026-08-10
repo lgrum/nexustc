@@ -1622,6 +1622,17 @@ async function getRewardSubjectsLikedByUser(
   return subjects;
 }
 
+export async function lockLikerRewardParticipantsInTransaction(
+  tx: Transaction,
+  likerUserId: string
+) {
+  const subjects = await getRewardSubjectsLikedByUser(tx, likerUserId);
+  await lockContributionParticipantsInTransaction(tx, [
+    likerUserId,
+    ...subjects.map(({ userId }) => userId),
+  ]);
+}
+
 export async function reconcileRestoredLikerRewardsInTransaction(
   tx: Transaction,
   input: { likerUserId: string; now: Date }
@@ -1835,6 +1846,7 @@ export function deleteReviewWithRewards(
 ) {
   return db.transaction(async (tx) => {
     const now = new Date();
+    await lockContributionAuthor(tx, input.userId);
     const [review] = await tx
       .select({ id: postRating.id })
       .from(postRating)
@@ -1906,6 +1918,14 @@ export function deleteCommentWithRewards(
 ) {
   return db.transaction(async (tx) => {
     const now = new Date();
+    const [candidate] = await tx
+      .select({ userId: comment.authorId })
+      .from(comment)
+      .where(eq(comment.id, input.commentId));
+    if (!candidate?.userId) {
+      return { reversedXp: 0 };
+    }
+    await lockContributionAuthor(tx, candidate.userId);
     const [snapshot] = await tx
       .select({ id: comment.id, userId: comment.authorId })
       .from(comment)

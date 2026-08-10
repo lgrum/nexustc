@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import {
   and,
+  asc,
   desc,
   eq,
   gt,
@@ -351,6 +352,28 @@ export async function cancelPendingXpEventsInTransaction(
   if (!scopeCondition) {
     throw new Error("PENDING_XP_SCOPE_REQUIRED");
   }
+  let lockedCaseIds: string[] = [];
+  if (input.closeEmptyCases) {
+    const candidates = await tx
+      .select({ integrityCaseId: xpEvent.integrityCaseId })
+      .from(xpEvent)
+      .where(and(eq(xpEvent.state, "pending"), scopeCondition));
+    lockedCaseIds = [
+      ...new Set(
+        candidates.flatMap(({ integrityCaseId }) =>
+          integrityCaseId ? [integrityCaseId] : []
+        )
+      ),
+    ].toSorted();
+    if (lockedCaseIds.length > 0) {
+      await tx
+        .select({ id: xpIntegrityCase.id })
+        .from(xpIntegrityCase)
+        .where(inArray(xpIntegrityCase.id, lockedCaseIds))
+        .orderBy(asc(xpIntegrityCase.id))
+        .for("update");
+    }
+  }
   const events = await tx
     .select()
     .from(xpEvent)
@@ -391,13 +414,7 @@ export async function cancelPendingXpEventsInTransaction(
       .where(eq(userProgression.userId, userId));
   }
   if (input.closeEmptyCases) {
-    const caseIds = [
-      ...new Set(
-        events.flatMap(({ integrityCaseId }) =>
-          integrityCaseId ? [integrityCaseId] : []
-        )
-      ),
-    ];
+    const caseIds = lockedCaseIds;
     if (caseIds.length > 0) {
       const remaining = await tx
         .select({ integrityCaseId: xpEvent.integrityCaseId })

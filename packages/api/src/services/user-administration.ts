@@ -3,6 +3,7 @@ import type { db as database } from "@repo/db";
 import { session, user } from "@repo/db/schema/app";
 
 import {
+  lockLikerRewardParticipantsInTransaction,
   notifyBannedLikerRewardSettlementsInTransaction,
   reconcileBannedLikerRewardsInTransaction,
   reconcileRestoredLikerRewardsInTransaction,
@@ -81,6 +82,7 @@ export async function restoreExpiredTemporaryBanRewards(
   let restored = 0;
   for (const candidate of candidates) {
     const results = await db.transaction(async (tx) => {
+      await lockLikerRewardParticipantsInTransaction(tx, candidate.id);
       const [current] = await tx
         .select({
           banExpires: user.banExpires,
@@ -133,6 +135,7 @@ export async function unbanUserAndReconcileRewards(
 ) {
   const now = input.now ?? new Date();
   const results = await db.transaction(async (tx) => {
+    await lockLikerRewardParticipantsInTransaction(tx, input.userId);
     const [target] = await tx
       .select({ id: user.id })
       .from(user)
