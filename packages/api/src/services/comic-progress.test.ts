@@ -175,6 +175,18 @@ describe("verified comic reading rewards", () => {
     ).toEqual([[1, 5]]);
   });
 
+  it("keeps every current page retryable when settlement is deferred", () => {
+    expect(
+      getPersistedProcessedPageRanges({
+        currentRanges: [[1, 2]],
+        processedPages: [3, 4, 5],
+        projectionMismatch: false,
+        rewardCount: 2,
+        settlementDeferred: true,
+      })
+    ).toEqual([[1, 2]]);
+  });
+
   it("requires visible evidence and plausible server time", () => {
     const hidden = applyRewardCheckpoint({
       evidence: { ...evidence, documentVisible: false },
@@ -499,6 +511,86 @@ describe("verified comic reading rewards", () => {
       })
     ).resolves.toMatchObject({ processed: true, rewardedXp: 0 });
     expect(integrity.settle).not.toHaveBeenCalled();
+  });
+
+  it("reports deferred reward pages as unprocessed for a later retry", async () => {
+    integrity.settle.mockResolvedValueOnce({
+      outcome: "deferred",
+      releasedSettlements: [],
+      replayed: false,
+    });
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify(
+          createState({
+            startedAtMs: Date.now() - 10_000,
+            verifiedThroughPage: 1,
+          })
+        )
+      ),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    let selectCall = 0;
+    let updateValues: Record<string, unknown> | undefined;
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      query: {
+        xpRewardBlock: { findFirst: vi.fn().mockResolvedValue(null) },
+      },
+      select: vi.fn(() => {
+        selectCall += 1;
+        const chain = {
+          for: vi.fn().mockResolvedValue([
+            {
+              completed: false,
+              completedAt: null,
+              lastPageRead: 0,
+              lastReadTimestamp: new Date(0),
+              ranges: [],
+              totalPagesAtLastRead: 0,
+              verifiedThroughPage: 0,
+            },
+          ]),
+          from: vi.fn(),
+          where: vi.fn(),
+        };
+        chain.from.mockReturnValue(chain);
+        chain.where.mockReturnValue(
+          selectCall === 1 ? chain : Promise.resolve([{ total: 0 }])
+        );
+        return chain;
+      }),
+      update: vi.fn(() => ({
+        set: vi.fn((values: Record<string, unknown>) => {
+          updateValues = values;
+          return { where: vi.fn().mockResolvedValue(null) };
+        }),
+      })),
+    };
+    const db = {
+      query: createAccessQueries(),
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db,
+        evidence,
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ processed: false, rewardedXp: 0 });
+
+    expect(updateValues).toMatchObject({ xpProcessedPageRanges: [] });
   });
 
   it("rejects checkpoints after the comic becomes inaccessible", async () => {

@@ -24,7 +24,10 @@ import {
   buildProfileSummaries,
   canReadPublicProfileActivity,
 } from "../services/profile";
-import { notifyXpSettlement } from "../services/progression";
+import {
+  notifyXpSettlement,
+  notifyXpSettlementInTransaction,
+} from "../services/progression";
 import {
   canViewPost,
   getPostEarlyAccessView,
@@ -46,6 +49,10 @@ const ratingsByUserPaginationSchema = z.object({
     .optional(),
   limit: z.number().min(1).max(30).default(10),
 });
+
+type ReviewMilestoneSettlement = Awaited<
+  ReturnType<typeof settleReviewMilestonesInTransaction>
+>["settlements"][number];
 
 async function assertRatingsAreOpen(params: {
   db: Context["db"];
@@ -361,7 +368,10 @@ export default {
         ? await getViewerPatronTier(db, session)
         : "none";
 
-      const result = await db.transaction(async (tx) => {
+      const result: {
+        authorId: string;
+        settlements: ReviewMilestoneSettlement[];
+      } = await db.transaction(async (tx) => {
         await tx
           .select({ id: user.id })
           .from(user)
@@ -385,7 +395,7 @@ export default {
             and(
               eq(postRating.postId, input.postId),
               eq(postRating.userId, input.ratingUserId),
-              sql`${user.banned} IS DISTINCT FROM true`
+              userIsNotActivelyBanned()
             )
           )
           .limit(1);
@@ -422,6 +432,13 @@ export default {
               kind: "review",
               now,
             });
+          for (const settlement of reconciliation.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              input.ratingUserId,
+              settlement
+            );
+          }
           return {
             authorId: input.ratingUserId,
             settlements: reconciliation.settlements,
@@ -448,15 +465,18 @@ export default {
           session.user.id,
           buildIntegrityCorrelationEvidence(ctx.headers)
         );
+        for (const xpSettlement of settlement.settlements) {
+          await notifyXpSettlementInTransaction(
+            tx,
+            input.ratingUserId,
+            xpSettlement
+          );
+        }
         return {
           authorId: input.ratingUserId,
           settlements: settlement.settlements,
         };
       });
-      for (const settlement of result.settlements) {
-        await notifyXpSettlement(db, input.ratingUserId, settlement);
-      }
-
       return {
         profileUserId: result.authorId,
         publicProfileChanged: result.settlements.some(
@@ -500,7 +520,7 @@ export default {
           and(
             eq(postRating.postId, input.postId),
             eq(postRating.userId, input.userId),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned()
           )
         )
         .limit(1);
@@ -526,7 +546,7 @@ export default {
             and(
               eq(postRating.postId, input.postId),
               not(isNull(postRating.pinnedAt)),
-              sql`${user.banned} IS DISTINCT FROM true`
+              userIsNotActivelyBanned()
             )
           );
 
@@ -582,10 +602,7 @@ export default {
         .from(postRating)
         .innerJoin(user, eq(user.id, postRating.userId))
         .where(
-          and(
-            eq(postRating.postId, input.postId),
-            sql`${user.banned} IS DISTINCT FROM true`
-          )
+          and(eq(postRating.postId, input.postId), userIsNotActivelyBanned())
         )
         .orderBy(
           sql`${postRating.pinnedAt} DESC NULLS LAST`,
@@ -610,7 +627,7 @@ export default {
                     postRatingLikes.ratingId,
                     ratings.map((rating) => rating.id)
                   ),
-                  sql`${user.banned} IS DISTINCT FROM true`
+                  userIsNotActivelyBanned()
                 )
               )
               .groupBy(postRatingLikes.ratingId)
@@ -669,7 +686,7 @@ export default {
           and(
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned()
           )
         )
         .orderBy(desc(postRating.createdAt))
@@ -789,7 +806,7 @@ export default {
           and(
             eq(postRating.postId, input.postId),
             eq(postRating.userId, session.user.id),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned()
           )
         )
         .limit(1);
@@ -828,10 +845,7 @@ export default {
         .from(postRating)
         .innerJoin(user, eq(user.id, postRating.userId))
         .where(
-          and(
-            eq(postRating.postId, input.postId),
-            sql`${user.banned} IS DISTINCT FROM true`
-          )
+          and(eq(postRating.postId, input.postId), userIsNotActivelyBanned())
         );
 
       const averageRating = result[0]?.averageRating ?? 0;

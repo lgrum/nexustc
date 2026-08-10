@@ -6,6 +6,8 @@ import type { publicCatalogVisibilityCondition } from "../utils/early-access";
 const mocks = vi.hoisted(() => ({
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  notifyXpSettlement: vi.fn(),
+  notifyXpSettlementInTransaction: vi.fn(),
   userIsNotActivelyBanned: vi.fn(),
   publicCatalogVisibilityCondition: vi.fn(),
   reconcileEditedReviewRewardsInTransaction: vi.fn(),
@@ -40,7 +42,8 @@ vi.mock("../utils/user-ban", () => ({
   userIsNotActivelyBanned: mocks.userIsNotActivelyBanned,
 }));
 vi.mock("../services/progression", () => ({
-  notifyXpSettlement: vi.fn(),
+  notifyXpSettlement: mocks.notifyXpSettlement,
+  notifyXpSettlementInTransaction: mocks.notifyXpSettlementInTransaction,
 }));
 vi.mock("../utils/early-access", async (importOriginal) => {
   const original = await importOriginal<{
@@ -209,6 +212,63 @@ describe("profile review privacy", () => {
 });
 
 describe("stable review likes", () => {
+  it("persists level notifications in the like settlement transaction", async () => {
+    const ratingQuery = createPaginatedQuery([
+      {
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "review-current",
+        releasedAt: null,
+        status: "publish",
+        type: "post",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]);
+    const settlement = {
+      level: 2,
+      previousLevel: 1,
+      replayed: false,
+      settledXp: 25,
+    };
+    mocks.settleReviewMilestonesInTransaction.mockResolvedValue({
+      settlements: [settlement],
+    });
+    const executor = {
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          onConflictDoNothing: vi.fn().mockReturnValue({
+            returning: vi
+              .fn()
+              .mockResolvedValue([{ ratingId: "review-current" }]),
+          }),
+        }),
+      }),
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select: vi.fn().mockReturnValue(ratingQuery),
+    };
+    const context = {
+      ...createContext(executor.select),
+      db: {
+        ...executor,
+        transaction: vi.fn((callback) => callback(executor)),
+      },
+    } as unknown as Context;
+
+    await call(
+      ratingRouter.toggleReviewLike,
+      { liked: true, postId: "post-1", ratingUserId: "author-1" },
+      { context }
+    );
+
+    expect(mocks.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      executor,
+      "author-1",
+      settlement
+    );
+    expect(mocks.notifyXpSettlement).not.toHaveBeenCalled();
+  });
+
   it("attaches a new like to the current review incarnation", async () => {
     const ratingQuery = createPaginatedQuery([
       {
@@ -395,5 +455,70 @@ describe("stable review likes", () => {
       )
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe("post review visibility", () => {
+  it("uses the active-ban predicate for review authors and likers", async () => {
+    const ratingsQuery = createPaginatedQuery([
+      {
+        createdAt: new Date("2026-08-10T00:00:00.000Z"),
+        id: "review-1",
+        pinnedAt: null,
+        postId: "post-1",
+        rating: 5,
+        review: "Excelente",
+        updatedAt: new Date("2026-08-10T00:00:00.000Z"),
+        userId: "author-1",
+      },
+    ]);
+    ratingsQuery.orderBy.mockResolvedValue([
+      {
+        createdAt: new Date("2026-08-10T00:00:00.000Z"),
+        id: "review-1",
+        pinnedAt: null,
+        postId: "post-1",
+        rating: 5,
+        review: "Excelente",
+        updatedAt: new Date("2026-08-10T00:00:00.000Z"),
+        userId: "author-1",
+      },
+    ]);
+    const likesQuery = {
+      from: vi.fn(),
+      groupBy: vi.fn().mockResolvedValue([]),
+      innerJoin: vi.fn(),
+      where: vi.fn(),
+    };
+    likesQuery.from.mockReturnValue(likesQuery);
+    likesQuery.innerJoin.mockReturnValue(likesQuery);
+    likesQuery.where.mockReturnValue(likesQuery);
+    const select = vi
+      .fn()
+      .mockReturnValueOnce(ratingsQuery)
+      .mockReturnValueOnce(likesQuery);
+    const context = {
+      ...createContext(select),
+      db: {
+        query: {
+          patron: { findFirst: vi.fn().mockResolvedValue(null) },
+          post: {
+            findFirst: vi.fn().mockResolvedValue({
+              earlyAccessEnabled: false,
+              earlyAccessStartedAt: null,
+              type: "post",
+              vip12EarlyAccessHours: 0,
+              vip8EarlyAccessHours: 0,
+            }),
+          },
+        },
+        select,
+      },
+    } as unknown as Context;
+    mocks.buildProfileSummaries.mockResolvedValue([]);
+
+    await call(ratingRouter.getByPostId, { postId: "post-1" }, { context });
+
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledTimes(2);
   });
 });

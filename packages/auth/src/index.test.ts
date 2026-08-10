@@ -1,9 +1,10 @@
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
 import { auth } from "./index";
 
 const mocks = vi.hoisted(() => ({
   closeAccountAndDeleteUser: vi.fn(),
+  notifyAccountClosureCompleted: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({ db: { marker: "db" } }));
@@ -49,6 +50,7 @@ vi.mock("@repo/transactional/emails/two-factor-code", () => ({
 }));
 vi.mock("./account-closure", () => ({
   closeAccountAndDeleteUser: mocks.closeAccountAndDeleteUser,
+  notifyAccountClosureCompleted: mocks.notifyAccountClosureCompleted,
 }));
 vi.mock("./email", () => ({ resend: {} }));
 vi.mock("./patreon-sync", () => ({
@@ -64,6 +66,10 @@ vi.mock("./two-factor-delivery", () => ({
   consumeTwoFactorOtpDeliveryFailure: vi.fn(),
   markTwoFactorOtpDeliveryFailed: vi.fn(),
 }));
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 test("the database user-delete hook closes the account with identity deletion", async () => {
   const beforeDelete = (
@@ -82,4 +88,25 @@ test("the database user-delete hook closes the account with identity deletion", 
     { marker: "db" },
     "user-1"
   );
+  expect(mocks.notifyAccountClosureCompleted).toHaveBeenCalledWith("user-1");
+});
+
+test("a failed closure does not invalidate a profile that still exists", async () => {
+  mocks.closeAccountAndDeleteUser.mockRejectedValueOnce(
+    new Error("closure failed")
+  );
+  const beforeDelete = (
+    auth as unknown as {
+      options: {
+        databaseHooks: {
+          user: { delete: { before: (user: { id: string }) => Promise<void> } };
+        };
+      };
+    }
+  ).options.databaseHooks.user.delete.before;
+
+  await expect(beforeDelete({ id: "user-1" })).rejects.toThrow(
+    "closure failed"
+  );
+  expect(mocks.notifyAccountClosureCompleted).not.toHaveBeenCalled();
 });

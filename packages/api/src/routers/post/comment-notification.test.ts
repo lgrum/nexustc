@@ -4,6 +4,7 @@ import postRouter from ".";
 import type { Context } from "../../context";
 
 const rewards = vi.hoisted(() => ({
+  notifyXpSettlementInTransaction: vi.fn(),
   reconcileEditedCommentRewardsInTransaction: vi.fn(),
   reconcileRemovedContributionLikeInTransaction: vi.fn(),
   saveCommentRewardSubjectInTransaction: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("../../services/contribution-rewards", () => ({
 }));
 vi.mock("../../services/progression", () => ({
   notifyXpSettlement: vi.fn(),
+  notifyXpSettlementInTransaction: rewards.notifyXpSettlementInTransaction,
 }));
 
 function createContext({
@@ -290,6 +292,15 @@ describe("comment reward likes", () => {
   });
 
   it("settles milestones only when a like row is newly inserted", async () => {
+    const settlement = {
+      level: 2,
+      previousLevel: 1,
+      replayed: false,
+      settledXp: 20,
+    };
+    rewards.settleCommentMilestonesInTransaction.mockResolvedValue({
+      settlements: [settlement],
+    });
     const query = {
       for: vi.fn(),
       from: vi.fn(),
@@ -360,6 +371,12 @@ describe("comment reward likes", () => {
       { deviceHash: null, ipPrefixHash: null }
     );
     expect(rewards.settleCommentMilestonesInTransaction).toHaveBeenCalledOnce();
+    expect(rewards.notifyXpSettlementInTransaction).toHaveBeenCalledOnce();
+    expect(rewards.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      tx,
+      "comment-author",
+      settlement
+    );
     expect(query.for).toHaveBeenCalledWith("update");
     expect(query.for.mock.invocationCallOrder[0]).toBeLessThan(
       values.mock.invocationCallOrder[0]!

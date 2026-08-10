@@ -235,15 +235,28 @@ export function getPersistedProcessedPageRanges(input: {
   processedPages: number[];
   projectionMismatch: boolean;
   rewardCount: number;
+  settlementDeferred?: boolean;
 }) {
-  const pages = input.projectionMismatch
-    ? input.processedPages.slice(input.rewardCount)
-    : input.processedPages;
+  const pages = getPersistedProcessedPages(input);
   let ranges = input.currentRanges;
   for (const page of pages) {
     ({ ranges } = addProcessedPage(ranges, page));
   }
   return ranges;
+}
+
+function getPersistedProcessedPages(input: {
+  processedPages: number[];
+  projectionMismatch: boolean;
+  rewardCount: number;
+  settlementDeferred?: boolean;
+}) {
+  if (input.settlementDeferred) {
+    return [];
+  }
+  return input.projectionMismatch
+    ? input.processedPages.slice(input.rewardCount)
+    : input.processedPages;
 }
 
 export function getComicReadingRewardCount(
@@ -870,6 +883,7 @@ async function persistProgressRecord(params: {
               Number(daily?.total ?? 0)
             );
         let projectionMismatch = false;
+        let settlementDeferred = false;
         rewardedPages = processedPages.slice(0, rewardCount);
         if (rewardCount > 0) {
           const batchKey = processedPages.join(",");
@@ -912,15 +926,24 @@ async function persistProgressRecord(params: {
               settlement.projectionMismatch === true;
             rewardedPages = rewardedPages.slice(0, settlement.settledXp);
           } else {
+            settlementDeferred = integrityResult.outcome === "deferred";
             rewardedPages = [];
           }
         }
+        const persistedPages = getPersistedProcessedPages({
+          processedPages,
+          projectionMismatch,
+          rewardCount,
+          settlementDeferred,
+        });
         processedPageRanges = getPersistedProcessedPageRanges({
           currentRanges: currentProcessedPageRanges,
           processedPages,
           projectionMismatch,
           rewardCount,
+          settlementDeferred,
         });
+        processedPages.splice(0, processedPages.length, ...persistedPages);
       }
     }
 

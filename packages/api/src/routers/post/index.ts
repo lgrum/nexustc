@@ -62,7 +62,10 @@ import {
 } from "../../services/contribution-rewards";
 import { createCommentReplyNotification } from "../../services/notification";
 import { buildProfileSummaries } from "../../services/profile";
-import { notifyXpSettlement } from "../../services/progression";
+import {
+  notifyXpSettlement,
+  notifyXpSettlementInTransaction,
+} from "../../services/progression";
 import {
   getResolvedEngagementPromptsForPost,
   getSelectableEngagementPromptsForPost,
@@ -113,6 +116,10 @@ type RelatedPostResult = {
   version: string | null;
   views: number;
 };
+
+type CommentMilestoneSettlement = Awaited<
+  ReturnType<typeof settleCommentMilestonesInTransaction>
+>["settlements"][number];
 const releasedAtAscending = sql`${post.releasedAt} ASC NULLS LAST`;
 const releasedAtDescending = sql`${post.releasedAt} DESC NULLS LAST`;
 
@@ -1905,7 +1912,10 @@ export default {
           ? await getViewerPatronTier(db, session)
           : "none";
 
-        const result = await db.transaction(async (tx) => {
+        const result: {
+          authorId: string;
+          settlements: CommentMilestoneSettlement[];
+        } = await db.transaction(async (tx) => {
           await tx
             .select({ id: user.id })
             .from(user)
@@ -1982,6 +1992,13 @@ export default {
                 kind: "comment",
                 now,
               });
+            for (const settlement of reconciliation.settlements) {
+              await notifyXpSettlementInTransaction(
+                tx,
+                existingComment.authorId,
+                settlement
+              );
+            }
             return {
               authorId: existingComment.authorId,
               settlements: reconciliation.settlements,
@@ -2009,15 +2026,18 @@ export default {
             session.user.id,
             buildIntegrityCorrelationEvidence(context.headers)
           );
+          for (const xpSettlement of settlement.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              existingComment.authorId,
+              xpSettlement
+            );
+          }
           return {
             authorId: existingComment.authorId,
             settlements: settlement.settlements,
           };
         });
-        for (const settlement of result.settlements) {
-          await notifyXpSettlement(db, result.authorId, settlement);
-        }
-
         return {
           profileUserId: result.authorId,
           publicProfileChanged: result.settlements.some(

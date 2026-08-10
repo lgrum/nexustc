@@ -33,8 +33,12 @@ export type AccountClosureCommentReconciler = (
   tx: Transaction,
   input: { now: Date; userId: string }
 ) => Promise<unknown>;
+export type AccountClosureCompletionHandler = (
+  userId: string
+) => Promise<void> | void;
 
 let configuredCommentReconciler: AccountClosureCommentReconciler | undefined;
+let configuredCompletionHandler: AccountClosureCompletionHandler | undefined;
 let configuredLikeReconciler: AccountClosureLikeReconciler | undefined;
 
 export function configureAccountClosureCommentReconciler(
@@ -47,6 +51,16 @@ export function configureAccountClosureLikeReconciler(
   reconciler: AccountClosureLikeReconciler
 ) {
   configuredLikeReconciler = reconciler;
+}
+
+export function configureAccountClosureCompletionHandler(
+  handler: AccountClosureCompletionHandler
+) {
+  configuredCompletionHandler = handler;
+}
+
+export function notifyAccountClosureCompleted(userId: string) {
+  return configuredCompletionHandler?.(userId);
 }
 
 function requireLikeReconciler() {
