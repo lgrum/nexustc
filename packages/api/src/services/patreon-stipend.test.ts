@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   month: "2026-06",
   posted: [] as { amount: bigint; month: string }[],
   posts: [] as Record<string, unknown>[],
+  publicBalance: false,
   tier: "level12",
   walletStatus: "active" as "active" | "frozen",
 }));
@@ -51,7 +52,7 @@ vi.mock("@repo/db/schema/app", () => ({
 
 vi.mock("./eteris", () => ({
   getOrCreateUserWalletInTransaction: vi.fn(() =>
-    Promise.resolve({ id: "wallet-user-1" })
+    Promise.resolve({ id: "wallet-user-1", publicBalance: state.publicBalance })
   ),
   lockEterisWalletsInTransaction: vi.fn(() => {
     state.events.push("lock");
@@ -140,6 +141,7 @@ describe(grantMonthlyPatreonStipend, () => {
     state.month = "2026-06";
     state.posted = [];
     state.posts = [];
+    state.publicBalance = false;
     state.tier = "level12";
     state.walletStatus = "active";
   });
@@ -266,12 +268,17 @@ describe(grantMonthlyPatreonStipends, () => {
   });
 
   it("checks active patrons through the recurring batch path", async () => {
+    state.publicBalance = true;
     const result = await grantMonthlyPatreonStipends(
       createDatabase() as never,
       new Date("2026-06-15T12:00:00.000Z")
     );
 
-    expect(result).toEqual({ checked: 1, granted: 1 });
+    expect(result).toEqual({
+      checked: 1,
+      granted: 1,
+      profileUserIds: ["user-1"],
+    });
     expect(state.posts).toHaveLength(1);
   });
 });

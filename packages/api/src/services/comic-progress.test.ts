@@ -35,6 +35,28 @@ function createState(
   };
 }
 
+function createAccessQueries(post: Record<string, unknown> | null = {}) {
+  return {
+    patron: { findFirst: vi.fn().mockResolvedValue(null) },
+    post: {
+      findFirst: vi.fn().mockResolvedValue(
+        post && {
+          comicLastUpdateAt: null,
+          comicPageCount: 4,
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          id: "comic-1",
+          imageObjectKeys: null,
+          releasedAt: null,
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+          ...post,
+        }
+      ),
+    },
+  };
+}
+
 describe("getPersistedProgressStatus", () => {
   it("returns updated when a completed comic receives new pages", () => {
     expect(
@@ -256,6 +278,7 @@ describe("verified comic reading rewards", () => {
     } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
     const transaction = vi.fn();
     const db = {
+      query: createAccessQueries(),
       transaction,
     } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
 
@@ -274,6 +297,37 @@ describe("verified comic reading rewards", () => {
       persisted: false,
       processed: false,
       reason: "tracking_unavailable",
+      rewardedXp: 0,
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects checkpoints after the comic becomes inaccessible", async () => {
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const transaction = vi.fn();
+    const db = {
+      query: createAccessQueries(null),
+      transaction,
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        comicId: "comic-1",
+        db,
+        evidence,
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      accepted: false,
+      reason: "session_mismatch",
       rewardedXp: 0,
     });
     expect(transaction).not.toHaveBeenCalled();

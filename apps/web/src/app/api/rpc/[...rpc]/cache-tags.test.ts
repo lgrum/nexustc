@@ -22,9 +22,7 @@ test.each([
   "post/deleteComment",
   "post/deleteOwnComment",
   "progression/admin/decideCase",
-  "progression/getMine",
   "progression/owner/adjustXp",
-  "eteris/getMine",
   "eteris/owner/adjust",
   "eteris/owner/reconcileWallet",
   "eteris/setPublicBalance",
@@ -90,6 +88,32 @@ test.each(["post/toggleCommentLike", "rating/toggleReviewLike"])(
         responseBody: {
           json: {
             profileUserId: "author-1",
+            publicProfileChanged: false,
+          },
+        },
+      })
+    ).toEqual([]);
+  }
+);
+
+test.each(["eteris/getMine", "post/editOwnComment", "progression/getMine"])(
+  "invalidates only the affected profile after %s changes public data",
+  (procedurePath) => {
+    expect(
+      getCacheTagsForProcedure(procedurePath, {
+        responseBody: {
+          json: {
+            profileUserId: "user-1",
+            publicProfileChanged: true,
+          },
+        },
+      })
+    ).toEqual(["profile:user-1"]);
+    expect(
+      getCacheTagsForProcedure(procedurePath, {
+        responseBody: {
+          json: {
+            profileUserId: "user-1",
             publicProfileChanged: false,
           },
         },

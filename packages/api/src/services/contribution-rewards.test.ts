@@ -410,6 +410,10 @@ describe("Eligible Like", () => {
 });
 
 describe("review milestone settlement", () => {
+  beforeEach(() => {
+    activation.date = new Date("2026-08-01T00:00:00.000Z");
+  });
+
   it("locks the subject and grants every reached milestone once", async () => {
     const { lock, tx } = createSettlementTransaction();
 
@@ -601,6 +605,10 @@ function createCommentSettlementTransaction(
 }
 
 describe("comment milestone settlement", () => {
+  beforeEach(() => {
+    activation.date = new Date("2026-08-01T00:00:00.000Z");
+  });
+
   it("requires 40 normalized characters and grants each milestone once", async () => {
     const thresholdText = "Comentario aporta detalles concretos hoy";
     await expect(

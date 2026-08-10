@@ -88,6 +88,7 @@ export default {
         },
         page: input.page,
         readingSessionId: input.readingSessionId,
+        role: session.user.role,
         userId: session.user.id,
       });
     }),

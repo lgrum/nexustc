@@ -27,13 +27,15 @@ const rpcHandler = new RPCHandler(appRouter, {
 });
 
 async function handle(request: Request) {
-  const { deviceId, setCookie } = ensureIntegrityDeviceCookie(request.headers);
+  const { cookieValue, setCookie } = ensureIntegrityDeviceCookie(
+    request.headers
+  );
   const headers = new Headers(request.headers);
   if (setCookie) {
     const cookie = headers.get("cookie");
     headers.set(
       "cookie",
-      `${cookie ? `${cookie}; ` : ""}ntc_device=${deviceId}`
+      `${cookie ? `${cookie}; ` : ""}ntc_device=${cookieValue}`
     );
   }
   const context = await createContext(headers);
@@ -49,7 +51,10 @@ async function handle(request: Request) {
       );
       const responseBody = [
         "comicProgress/update",
+        "eteris/getMine",
+        "post/editOwnComment",
         "post/toggleCommentLike",
+        "progression/getMine",
         "rating/toggleReviewLike",
       ].includes(procedurePath)
         ? await rpcResult.response.clone().json()

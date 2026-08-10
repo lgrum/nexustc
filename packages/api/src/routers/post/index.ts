@@ -1727,7 +1727,15 @@ export default {
         }
 
         logger?.debug(`Own comment ${input.commentId} edited`);
-        return { success: true };
+        return {
+          profileUserId: session.user.id,
+          publicProfileChanged: settlements.some(
+            (settlement) =>
+              !settlement.replayed &&
+              settlement.level !== settlement.previousLevel
+          ),
+          success: true,
+        };
       }
     ),
 

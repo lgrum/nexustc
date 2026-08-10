@@ -115,6 +115,26 @@ test("wallet reads survive a stipend settlement failure", async () => {
   ).resolves.toMatchObject({ status: "active" });
 });
 
+test("signals only a stipend change to an opted-in public balance", async () => {
+  mocks.getMine.mockResolvedValue({
+    balance: "0",
+    canSpend: true,
+    debt: false,
+    enabled: true,
+    publicBalance: true,
+    spendingEnabled: true,
+    status: "active",
+  });
+  mocks.grantStipend.mockResolvedValue({ granted: "600", month: "2026-08" });
+
+  await expect(
+    call(eterisRouter.getMine, undefined, { context: createContext() })
+  ).resolves.toMatchObject({
+    profileUserId: "user-1",
+    publicProfileChanged: true,
+  });
+});
+
 test("public lookup returns only the opt-in serialized balance", async () => {
   mocks.getPublic.mockResolvedValue({ balance: "9223372036854775807" });
 

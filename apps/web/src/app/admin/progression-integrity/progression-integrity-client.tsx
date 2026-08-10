@@ -13,6 +13,9 @@ import { orpc } from "@/lib/orpc";
 import type { orpcClient } from "@/lib/orpc";
 
 type Cases = Awaited<ReturnType<typeof orpcClient.progression.admin.listCases>>;
+type CaseCursor = { createdAt: string; id: string };
+type CaseStatus = "open" | "released";
+const PAGE_SIZE = 50;
 const decisionSchema = z.object({
   likerUserIds: z.string(),
   reason: z.string().trim().min(10).max(500),
@@ -25,12 +28,19 @@ export function ProgressionIntegrityClient({
   initialCases: Cases;
 }) {
   const [selectedCaseId, setSelectedCaseId] = useState<string>();
+  const [status, setStatus] = useState<CaseStatus>("open");
+  const [cursors, setCursors] = useState<(CaseCursor | undefined)[]>([
+    undefined,
+  ]);
+  const cursor = cursors.at(-1);
   const cases = useQuery({
     ...orpc.progression.admin.listCases.queryOptions({
-      input: { limit: 50, status: "open" },
+      input: { cursor, limit: PAGE_SIZE, status },
     }),
-    initialData: initialCases,
+    initialData:
+      status === "open" && cursors.length === 1 ? initialCases : undefined,
   });
+  const caseRows = cases.data ?? [];
   const detail = useQuery({
     ...orpc.progression.admin.getCase.queryOptions({
       input: { caseId: selectedCaseId ?? "" },
@@ -87,13 +97,29 @@ export function ProgressionIntegrityClient({
       <header>
         <h1 className="font-bold text-2xl">Integridad de Account XP</h1>
         <p className="text-muted-foreground text-sm">
-          Casos pendientes con evidencia resumida. Ninguna penalizacion
-          permanente se aplica automaticamente.
+          Casos con evidencia resumida. Ninguna penalizacion permanente se
+          aplica automaticamente.
         </p>
       </header>
 
       <section className="grid gap-3">
-        {cases.data.map((item) => (
+        <label className="grid max-w-xs gap-1 text-sm" htmlFor="case-status">
+          Estado
+          <select
+            className="h-9 rounded-md border bg-background px-3"
+            id="case-status"
+            onChange={(event) => {
+              setStatus(event.target.value as CaseStatus);
+              setCursors([undefined]);
+              setSelectedCaseId(undefined);
+            }}
+            value={status}
+          >
+            <option value="open">Abiertos</option>
+            <option value="released">Liberados</option>
+          </select>
+        </label>
+        {caseRows.map((item) => (
           <button
             className="grid gap-2 rounded-lg border p-4 text-left hover:bg-muted/50"
             key={item.id}
@@ -113,11 +139,37 @@ export function ProgressionIntegrityClient({
             </span>
           </button>
         ))}
-        {cases.data.length === 0 && (
+        {caseRows.length === 0 && (
           <p className="rounded-lg border p-8 text-center text-muted-foreground">
-            No hay casos abiertos.
+            No hay casos con este estado.
           </p>
         )}
+        <div className="flex gap-2">
+          <Button
+            disabled={cursors.length === 1}
+            onClick={() => setCursors((current) => current.slice(0, -1))}
+            type="button"
+            variant="outline"
+          >
+            Más recientes
+          </Button>
+          <Button
+            disabled={caseRows.length < PAGE_SIZE}
+            onClick={() => {
+              const last = caseRows.at(-1);
+              if (last) {
+                setCursors((current) => [
+                  ...current,
+                  { createdAt: last.createdAt, id: last.id },
+                ]);
+              }
+            }}
+            type="button"
+            variant="outline"
+          >
+            Más antiguos
+          </Button>
+        </div>
       </section>
 
       {selectedCaseId && detail.data && (

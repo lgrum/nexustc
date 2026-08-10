@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getMine: vi.fn(),
   getPublic: vi.fn(),
   grantStipend: vi.fn(),
+  listCases: vi.fn(),
   listHistory: vi.fn(),
   releasePending: vi.fn(),
 }));
@@ -27,7 +28,7 @@ vi.mock("../services/patreon-stipend", () => ({
 vi.mock("../services/integrity", () => ({
   decideIntegrityCase: vi.fn(),
   getIntegrityCase: vi.fn(),
-  listIntegrityCases: vi.fn(),
+  listIntegrityCases: mocks.listCases,
   releaseMaturedPendingXp: mocks.releasePending,
 }));
 
@@ -51,14 +52,39 @@ beforeEach(() => {
     totalXp: 0,
     xpForNextLevel: 67,
   });
-  mocks.releasePending.mockImplementation(() => Promise.resolve());
+  mocks.releasePending.mockResolvedValue([]);
   mocks.grantStipend.mockResolvedValue({ granted: "0", month: "2026-08" });
   mocks.listHistory.mockResolvedValue({ items: [], nextCursor: null });
+  mocks.listCases.mockResolvedValue([]);
   mocks.getPublic.mockResolvedValue({ level: 1 });
   mocks.adjustXp.mockResolvedValue({
     eventId: "event-1",
     level: 2,
     totalXp: 67,
+  });
+});
+
+it("forwards a stable integrity-case cursor", async () => {
+  await call(
+    progressionRouter.admin.listCases,
+    {
+      cursor: {
+        createdAt: "2026-08-07T00:00:00.000Z",
+        id: "case-50",
+      },
+      limit: 50,
+      status: "released",
+    },
+    { context: createContext("admin") }
+  );
+
+  expect(mocks.listCases).toHaveBeenCalledWith(expect.anything(), {
+    cursor: {
+      createdAt: new Date("2026-08-07T00:00:00.000Z"),
+      id: "case-50",
+    },
+    limit: 50,
+    status: "released",
   });
 });
 
@@ -71,6 +97,8 @@ describe("progression router", () => {
       enabled: false,
       level: 1,
       pendingXp: 0,
+      profileUserId: "user-1",
+      publicProfileChanged: false,
       totalXp: 0,
     });
     expect(mocks.getMine).toHaveBeenCalledWith(expect.anything(), "user-1");
@@ -85,6 +113,24 @@ describe("progression router", () => {
     expect(mocks.getMine.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.grantStipend.mock.invocationCallOrder[0]!
     );
+  });
+
+  it("signals only an actual released level or public stipend change", async () => {
+    mocks.releasePending.mockResolvedValueOnce([
+      { level: 2, previousLevel: 1, replayed: false },
+    ]);
+    await expect(
+      call(progressionRouter.getMine, undefined, { context: createContext() })
+    ).resolves.toMatchObject({ publicProfileChanged: true });
+
+    mocks.grantStipend.mockResolvedValueOnce({
+      granted: "600",
+      month: "2026-08",
+      publicProfileChanged: true,
+    });
+    await expect(
+      call(progressionRouter.getMine, undefined, { context: createContext() })
+    ).resolves.toMatchObject({ publicProfileChanged: true });
   });
 
   it("returns progression when stipend settlement is unavailable", async () => {

@@ -38,8 +38,6 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["profile/updateVisibility", ["profiles"]],
   ["progression/owner/adjustXp", ["profiles"]],
   ["progression/admin/decideCase", ["profiles"]],
-  ["progression/getMine", ["profiles"]],
-  ["eteris/getMine", ["profiles"]],
   ["eteris/owner/adjust", ["profiles"]],
   ["eteris/owner/reconcileWallet", ["profiles"]],
   ["eteris/setPublicBalance", ["profiles"]],
@@ -68,7 +66,10 @@ export function getCacheTagsForProcedure(
 ) {
   if (
     procedurePath === "comicProgress/update" ||
+    procedurePath === "eteris/getMine" ||
+    procedurePath === "post/editOwnComment" ||
     procedurePath === "post/toggleCommentLike" ||
+    procedurePath === "progression/getMine" ||
     procedurePath === "rating/toggleReviewLike"
   ) {
     if (!(options?.responseBody && typeof options.responseBody === "object")) {

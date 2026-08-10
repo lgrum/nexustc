@@ -663,6 +663,32 @@ test("a projection mismatch freezes the wallet and fails without postings", asyn
   expect(store.wallets.get(userWallet.id)?.status).toBe("frozen");
 });
 
+test("a nonzero projection without ledger postings freezes the wallet", async () => {
+  const store = createDatabase();
+  await getUserWallet(store.db, "user-1");
+  const userWallet = [...store.wallets.values()].find(
+    (wallet) => wallet.userId === "user-1"
+  )!;
+  store.corruptBalance(userWallet.id, 10n);
+
+  await expect(
+    postEterisTransaction(store.db, {
+      debtPolicy: "trusted-recovery",
+      idempotencyKey: "missing-ledger-postings",
+      kind: "admin_adjustment",
+      postings: [
+        { amount: 1n, walletId: userWallet.id },
+        { amount: -1n, walletId: "eteris-system-mint" },
+      ],
+      reason: "No debe asentarse",
+      sourceModule: "owner",
+      sourceRef: "missing-ledger-postings",
+    })
+  ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+  expect(store.transactions.size).toBe(0);
+  expect(store.wallets.get(userWallet.id)?.status).toBe("frozen");
+});
+
 test("an outer transaction can commit a projection freeze before its caller reports failure", async () => {
   const store = createDatabase();
   await getUserWallet(store.db, "user-1");

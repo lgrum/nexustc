@@ -1052,6 +1052,7 @@ async function trackComicPageViewWithLockHeld(params: {
   comicId: string;
   page: number;
   readingSessionId: string;
+  role?: string | null;
   userId: string;
 }) {
   let state: ReadingSessionState | null;
@@ -1091,7 +1092,34 @@ async function trackComicPageViewWithLockHeld(params: {
     };
   }
 
-  const nowMs = Date.now();
+  const now = new Date();
+  const [comicMetadata, tier] = await Promise.all([
+    getComicMetadata(params.db, params.comicId),
+    getUserPatronTier(params.db, params.userId),
+  ]);
+  if (
+    !comicMetadata ||
+    !canAccessComicMetadata({
+      metadata: comicMetadata,
+      now,
+      role: params.role,
+      tier,
+    })
+  ) {
+    return {
+      accepted: false,
+      markedCompleted: false,
+      persisted: false,
+      processed: false,
+      publicProfileChanged: false,
+      reason: "session_mismatch" as const,
+      rewardedXp: 0,
+      status: "unread" as ComicProgressStatus,
+      trackingAvailable: true,
+    };
+  }
+
+  const nowMs = now.getTime();
   const checkpoint = applyCheckpoint({
     nowMs,
     page: params.page,

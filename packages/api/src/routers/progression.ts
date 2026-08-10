@@ -40,17 +40,28 @@ const adjustXpInputSchema = z.object({
 export default {
   getMine: protectedProcedure.handler(
     async ({ context: { db, session, ...context } }) => {
-      await releaseMaturedPendingXp(db, session.user.id);
+      const settlements = await releaseMaturedPendingXp(db, session.user.id);
       const progression = await getUserProgression(db, session.user.id);
+      let publicProfileChanged = settlements.some(
+        (settlement) =>
+          !settlement.replayed && settlement.level !== settlement.previousLevel
+      );
       try {
-        await grantMonthlyPatreonStipend(db, session.user.id);
+        const stipend = await grantMonthlyPatreonStipend(db, session.user.id);
+        publicProfileChanged ||=
+          "publicProfileChanged" in stipend &&
+          stipend.publicProfileChanged === true;
       } catch (error) {
         getLogger(context)?.warn(
           { err: error },
           "Monthly Patreon stipend settlement did not block progression read"
         );
       }
-      return progression;
+      return {
+        ...progression,
+        profileUserId: session.user.id,
+        publicProfileChanged,
+      };
     }
   ),
 
@@ -167,13 +178,26 @@ export default {
       .use(fixedWindowRatelimitMiddleware({ limit: 60, windowSeconds: 60 }))
       .input(
         z.object({
+          cursor: z
+            .object({ createdAt: z.iso.datetime(), id: z.string().min(1) })
+            .optional(),
           limit: z.number().int().min(1).max(100).default(50),
           status: z
             .enum(["open", "released", "reversed", "dismissed"])
             .optional(),
         })
       )
-      .handler(({ context: { db }, input }) => listIntegrityCases(db, input)),
+      .handler(({ context: { db }, input }) =>
+        listIntegrityCases(db, {
+          ...input,
+          cursor: input.cursor
+            ? {
+                createdAt: new Date(input.cursor.createdAt),
+                id: input.cursor.id,
+              }
+            : undefined,
+        })
+      ),
   },
 
   owner: {

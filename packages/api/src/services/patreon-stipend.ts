@@ -114,7 +114,11 @@ export function grantMonthlyPatreonStipend(
       return { granted: "0", month: month.key };
     }
 
-    return { granted: grant.toString(), month: month.key };
+    return {
+      granted: grant.toString(),
+      month: month.key,
+      publicProfileChanged: wallet.publicBalance,
+    };
   });
 }
 
@@ -123,7 +127,7 @@ export async function grantMonthlyPatreonStipends(
   now = new Date()
 ) {
   if (!(env.XP_ACCRUAL_ENABLED && env.XP_ECONOMY_ENABLED)) {
-    return { checked: 0, granted: 0 };
+    return { checked: 0, granted: 0, profileUserIds: [] };
   }
 
   const memberships = await db.query.patron.findMany({
@@ -131,6 +135,7 @@ export async function grantMonthlyPatreonStipends(
     where: eq(patron.isActivePatron, true),
   });
   let granted = 0;
+  const profileUserIds: string[] = [];
   const errors: unknown[] = [];
   for (const membership of memberships) {
     try {
@@ -141,6 +146,9 @@ export async function grantMonthlyPatreonStipends(
       );
       if (BigInt(result.granted) > ZERO) {
         granted += 1;
+        if ("publicProfileChanged" in result && result.publicProfileChanged) {
+          profileUserIds.push(membership.userId);
+        }
       }
     } catch (error) {
       errors.push(error);
@@ -152,5 +160,5 @@ export async function grantMonthlyPatreonStipends(
       "No se pudieron liquidar todos los beneficios VIP."
     );
   }
-  return { checked: memberships.length, granted };
+  return { checked: memberships.length, granted, profileUserIds };
 }

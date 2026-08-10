@@ -27,6 +27,9 @@ vi.mock("../../services/contribution-rewards", () => ({
   settleCommentMilestonesInTransaction:
     rewards.settleCommentMilestonesInTransaction,
 }));
+vi.mock("../../services/progression", () => ({
+  notifyXpSettlement: vi.fn(),
+}));
 
 function createContext({
   parentAuthorId = "recipient-1",
@@ -219,6 +222,55 @@ describe("comment reply notifications", () => {
         userId: "author-1",
       })
     );
+  });
+});
+
+describe("comment edit reward reconciliation", () => {
+  it("signals a public profile change when the edit lowers Account Level", async () => {
+    rewards.reconcileEditedCommentRewardsInTransaction.mockResolvedValueOnce({
+      settlements: [{ level: 1, previousLevel: 2, replayed: false }],
+    });
+    const returning = vi.fn().mockResolvedValue([
+      {
+        content: "Contenido editado válido",
+        createdAt: new Date("2026-08-07T12:00:00.000Z"),
+        id: "comment-1",
+        postId: "post-1",
+        userId: "author-1",
+      },
+    ]);
+    const where = vi.fn().mockReturnValue({ returning });
+    const set = vi.fn().mockReturnValue({ where });
+    const tx = { update: vi.fn().mockReturnValue({ set }) };
+    const context = {
+      db: {
+        query: {
+          comment: {
+            findFirst: vi.fn().mockResolvedValue({
+              authorId: "author-1",
+              id: "comment-1",
+            }),
+          },
+          forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
+          patron: { findFirst: vi.fn().mockResolvedValue(null) },
+        },
+        transaction: vi.fn((callback) => callback(tx)),
+      },
+      headers: new Headers(),
+      session: { user: { id: "author-1", role: "user" } },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        postRouter.editOwnComment,
+        { commentId: "comment-1", content: "Contenido editado válido" },
+        { context }
+      )
+    ).resolves.toEqual({
+      profileUserId: "author-1",
+      publicProfileChanged: true,
+      success: true,
+    });
   });
 });
 

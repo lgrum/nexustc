@@ -1,4 +1,4 @@
-import { and, desc, eq } from "@repo/db";
+import { and, desc, eq, lt, or } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   xpEvent,
@@ -402,11 +402,13 @@ export async function releaseMaturedPendingXp(
   for (const settlement of settlements) {
     await notifyXpSettlement(db, userId, settlement);
   }
+  return settlements;
 }
 
 export async function listIntegrityCases(
   db: Database,
   input: {
+    cursor?: { createdAt: Date; id: string };
     limit: number;
     status?: "dismissed" | "open" | "released" | "reversed";
   },
@@ -424,8 +426,21 @@ export async function listIntegrityCases(
       userId: xpIntegrityCase.userId,
     })
     .from(xpIntegrityCase)
-    .where(input.status ? eq(xpIntegrityCase.status, input.status) : undefined)
-    .orderBy(desc(xpIntegrityCase.createdAt))
+    .where(
+      and(
+        input.status ? eq(xpIntegrityCase.status, input.status) : undefined,
+        input.cursor
+          ? or(
+              lt(xpIntegrityCase.createdAt, input.cursor.createdAt),
+              and(
+                eq(xpIntegrityCase.createdAt, input.cursor.createdAt),
+                lt(xpIntegrityCase.id, input.cursor.id)
+              )
+            )
+          : undefined
+      )
+    )
+    .orderBy(desc(xpIntegrityCase.createdAt), desc(xpIntegrityCase.id))
     .limit(input.limit);
   return rows.map((row) => ({
     ...row,

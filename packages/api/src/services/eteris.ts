@@ -360,7 +360,10 @@ async function settleEterisTransaction(
         .where(eq(eterisPosting.walletId, wallet.walletId))
         .orderBy(desc(eterisTransaction.sequence))
         .limit(1);
-      if (latest && latest.balanceAfter !== wallet.balance) {
+      if (
+        (latest && latest.balanceAfter !== wallet.balance) ||
+        (!latest && wallet.balance !== ZERO)
+      ) {
         mismatched.push(wallet.walletId);
       }
     }

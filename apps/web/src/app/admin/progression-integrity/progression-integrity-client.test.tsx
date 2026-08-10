@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ProgressionIntegrityClient } from "./progression-integrity-client";
 
 const state = vi.hoisted(() => ({
+  caseRows: [] as unknown[],
   getCaseOptions: vi.fn(() => ({ queryKey: ["case"] })),
   listCasesOptions: vi.fn(() => ({ queryKey: ["cases"] })),
   mutate: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock("@tanstack/react-query", () => ({
   useMutation: () => ({ isPending: false, mutate: state.mutate }),
   useQuery: (options: { initialData?: unknown; queryKey: string[] }) =>
     options.queryKey[0] === "cases"
-      ? { data: options.initialData, refetch: state.refetch }
+      ? { data: options.initialData ?? state.caseRows, refetch: state.refetch }
       : {
           data: {
             evidence: { signals: [] },
@@ -60,7 +61,7 @@ it("uses generated options and submits a validated integrity decision", async ()
   render(<ProgressionIntegrityClient initialCases={cases} />);
 
   expect(state.listCasesOptions).toHaveBeenCalledWith({
-    input: { limit: 50, status: "open" },
+    input: { cursor: undefined, limit: 50, status: "open" },
   });
   fireEvent.click(screen.getByRole("button", { name: /Actividad inusual/ }));
   expect(state.getCaseOptions).toHaveBeenLastCalledWith({
@@ -80,5 +81,36 @@ it("uses generated options and submits a validated integrity decision", async ()
     action: "release",
     caseId: "case-1",
     reason: "Revisión manual aprobada",
+  });
+});
+
+it("exposes released cases and uses a stable cursor for older pages", () => {
+  const fullPage = Array.from({ length: 50 }, (_, index) => ({
+    ...cases[0],
+    createdAt: `2026-08-07T00:00:${String(index).padStart(2, "0")}.000Z`,
+    id: `case-${index}`,
+  })) as never;
+  render(<ProgressionIntegrityClient initialCases={fullPage} />);
+
+  fireEvent.change(screen.getByLabelText("Estado"), {
+    target: { value: "released" },
+  });
+  expect(state.listCasesOptions).toHaveBeenLastCalledWith({
+    input: { cursor: undefined, limit: 50, status: "released" },
+  });
+
+  fireEvent.change(screen.getByLabelText("Estado"), {
+    target: { value: "open" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Más antiguos" }));
+  expect(state.listCasesOptions).toHaveBeenLastCalledWith({
+    input: {
+      cursor: {
+        createdAt: "2026-08-07T00:00:49.000Z",
+        id: "case-49",
+      },
+      limit: 50,
+      status: "open",
+    },
   });
 });

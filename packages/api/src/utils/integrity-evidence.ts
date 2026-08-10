@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 
 import { env } from "@repo/env";
@@ -17,15 +17,46 @@ function readCookie(headers: Headers, name: string) {
   return null;
 }
 
-export function ensureIntegrityDeviceCookie(headers: Headers) {
+function getSignedDeviceId(value: string | null, secret: string) {
+  const [deviceId, signature, extra] = value?.split(".") ?? [];
+  if (
+    extra !== undefined ||
+    !deviceId ||
+    !signature ||
+    !UUID_PATTERN.test(deviceId) ||
+    !/^[a-f0-9]{64}$/i.test(signature)
+  ) {
+    return null;
+  }
+  const expected = keyedHash(secret, `device-cookie:${deviceId}`);
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
+    ? deviceId
+    : null;
+}
+
+function createDeviceCookieValue(deviceId: string, secret: string) {
+  return `${deviceId}.${keyedHash(secret, `device-cookie:${deviceId}`)}`;
+}
+
+export function ensureIntegrityDeviceCookie(
+  headers: Headers,
+  secret = env.BETTER_AUTH_SECRET
+) {
   const existing = readCookie(headers, DEVICE_COOKIE);
-  if (existing && UUID_PATTERN.test(existing)) {
-    return { deviceId: existing, setCookie: null };
+  const existingDeviceId = getSignedDeviceId(existing, secret);
+  if (existing && existingDeviceId) {
+    return {
+      cookieValue: existing,
+      deviceId: existingDeviceId,
+      setCookie: null,
+    };
   }
   const deviceId = randomUUID();
+  const cookieValue = createDeviceCookieValue(deviceId, secret);
   return {
+    cookieValue,
     deviceId,
-    setCookie: `${DEVICE_COOKIE}=${deviceId}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax`,
+    setCookie: `${DEVICE_COOKIE}=${cookieValue}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax`,
   };
 }
 
@@ -62,15 +93,15 @@ export function buildIntegrityCorrelationEvidence(
   headers: Headers,
   secret = env.BETTER_AUTH_SECRET
 ) {
-  const deviceId = readCookie(headers, DEVICE_COOKIE);
+  const deviceId = getSignedDeviceId(
+    readCookie(headers, DEVICE_COOKIE),
+    secret
+  );
   const ipPrefix = getCoarseIpPrefix(
     headers.get("cf-connecting-ip")?.trim() ?? ""
   );
   return {
-    deviceHash:
-      deviceId && UUID_PATTERN.test(deviceId)
-        ? keyedHash(secret, `device:${deviceId}`)
-        : null,
+    deviceHash: deviceId ? keyedHash(secret, `device:${deviceId}`) : null,
     ipPrefixHash: ipPrefix ? keyedHash(secret, `ip:${ipPrefix}`) : null,
   };
 }

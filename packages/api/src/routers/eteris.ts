@@ -85,19 +85,32 @@ export default {
       try {
         const wallet = await getUserWallet(db, session.user.id);
         if (wallet.status !== "active") {
-          return wallet;
+          return {
+            ...wallet,
+            profileUserId: session.user.id,
+            publicProfileChanged: false,
+          };
         }
         try {
           const stipend = await grantMonthlyPatreonStipend(db, session.user.id);
-          return stipend.granted === "0"
-            ? wallet
-            : await getUserWallet(db, session.user.id);
+          return {
+            ...(stipend.granted === "0"
+              ? wallet
+              : await getUserWallet(db, session.user.id)),
+            profileUserId: session.user.id,
+            publicProfileChanged:
+              stipend.granted !== "0" && wallet.publicBalance,
+          };
         } catch (error) {
           getLogger(context)?.warn(
             { err: error },
             "Monthly Patreon stipend settlement did not block wallet read"
           );
-          return wallet;
+          return {
+            ...wallet,
+            profileUserId: session.user.id,
+            publicProfileChanged: false,
+          };
         }
       } catch (error) {
         rethrowEterisError(error, errors);
