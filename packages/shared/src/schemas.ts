@@ -19,6 +19,23 @@ export const webUrlSchema = z.url({
   protocol: /^https?$/,
 });
 
+export const ianaTimezoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(100)
+  .refine(
+    (timezone) => {
+      try {
+        new Intl.DateTimeFormat("en-US", { timeZone: timezone }).format(0);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: "La zona horaria no es v\u00E1lida." }
+  );
+
 export const ratingReviewSchema = z
   .string()
   .trim()
@@ -37,6 +54,13 @@ export const ratingReviewSchema = z
     message: "Las reseñas no pueden incluir enlaces o imágenes.",
   })
   .transform((val) => val.trim());
+
+const ratingInputReviewSchema = z
+  .string()
+  .transform((value) => value.trim())
+  .pipe(z.union([z.literal(""), ratingReviewSchema]))
+  .optional()
+  .default("");
 
 export const termCreateSchema = z.object({
   color1: z.string().trim().max(7),
@@ -234,6 +258,7 @@ export const notificationReadSchema = z.object({
 
 export const contentFollowSchema = z.object({
   contentId: z.string().min(1),
+  timezone: ianaTimezoneSchema.optional(),
 });
 
 export const globalAnnouncementSchema = z.object({
@@ -266,13 +291,15 @@ export const notificationArchiveSchema = z.object({
 export const ratingCreateSchema = z.object({
   postId: z.string().min(1),
   rating: z.number().int().min(1).max(10),
-  review: ratingReviewSchema,
+  review: ratingInputReviewSchema,
+  timezone: ianaTimezoneSchema.optional(),
 });
 
 export const ratingUpdateSchema = z.object({
   postId: z.string().min(1),
   rating: z.number().int().min(1).max(10),
-  review: ratingReviewSchema,
+  review: ratingInputReviewSchema,
+  timezone: ianaTimezoneSchema.optional(),
 });
 
 export const forbiddenContentKindSchema = z.enum(["term", "word", "url"]);
@@ -311,6 +338,7 @@ export const comicProgressUpdateSchema = z.object({
   documentVisible: z.boolean(),
   page: z.number().int().min(1),
   readingSessionId: z.string().min(1),
+  timezone: ianaTimezoneSchema.optional(),
   visibleDurationMs: z.number().int().min(0).max(60_000),
   visiblePercentage: z.number().min(0).max(100),
 });

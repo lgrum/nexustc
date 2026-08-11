@@ -18,7 +18,6 @@ import {
   getReviewDeletionWarning,
   isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction,
-  reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
   runContributionRewardTransaction,
   settleReviewMilestonesInTransaction,
@@ -28,6 +27,7 @@ import {
   canReadPublicProfileActivity,
 } from "../services/profile";
 import { notifyXpSettlementInTransaction } from "../services/progression";
+import { saveRatingInTransaction } from "../services/rating";
 import {
   canViewPost,
   getPostEarlyAccessView,
@@ -62,11 +62,14 @@ async function assertRatingsAreOpen(params: {
   };
   postId: string;
   session: Context["session"];
+  now?: Date;
 }) {
   const targetPost = await params.db.query.post.findFirst({
     columns: {
       earlyAccessEnabled: true,
       earlyAccessStartedAt: true,
+      releasedAt: true,
+      status: true,
       type: true,
       vip12EarlyAccessHours: true,
       vip8EarlyAccessHours: true,
@@ -87,6 +90,14 @@ async function assertRatingsAreOpen(params: {
   if (earlyAccess.isActive) {
     throw params.errors.FORBIDDEN();
   }
+  if (
+    targetPost.status !== "publish" ||
+    (targetPost.releasedAt !== null &&
+      targetPost.releasedAt > (params.now ?? new Date()))
+  ) {
+    throw params.errors.FORBIDDEN();
+  }
+  return targetPost;
 }
 
 async function getRatingsByUser({
@@ -173,15 +184,16 @@ export default {
     )
     .input(ratingCreateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const now = new Date();
       const logger = getLogger(ctx);
       const review = input.review ?? "";
-      const reviewWasRemoved = review.trim().length === 0;
       logger?.info(
         `User ${session.user.id} creating/updating rating for post ${input.postId}: ${input.rating} stars`
       );
-      await assertRatingsAreOpen({
+      const targetPost = await assertRatingsAreOpen({
         db,
         errors,
+        now,
         postId: input.postId,
         session,
       });
@@ -192,66 +204,53 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await runContributionRewardTransaction(db, async (tx) => {
-        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
-        const [savedReview] = await tx
-          .insert(postRating)
-          .values({
+      const ratingResult = await runContributionRewardTransaction(
+        db,
+        async (tx) => {
+          const result = await saveRatingInTransaction(tx, {
+            contentType: targetPost.type,
+            correlation: buildIntegrityCorrelationEvidence(ctx.headers),
+            impersonated: Boolean(session.session?.impersonatedBy),
+            insertIfMissing: true,
+            now,
             postId: input.postId,
             rating: input.rating,
             review,
+            timezone: input.timezone,
             userId: session.user.id,
-          })
-          .onConflictDoUpdate({
-            set: {
-              ...(reviewWasRemoved ? { pinnedAt: null } : {}),
-              rating: input.rating,
-              review,
-              updatedAt: new Date(),
-            },
-            target: [postRating.userId, postRating.postId],
-          })
-          .returning({
-            createdAt: postRating.createdAt,
-            id: postRating.id,
-            postId: postRating.postId,
-            review: postRating.review,
-            userId: postRating.userId,
           });
-        if (savedReview) {
-          const result = await reconcileEditedReviewRewardsInTransaction(
-            tx,
-            savedReview
-          );
-          for (const settlement of result.settlements) {
+          for (const settlement of result?.settlements ?? []) {
             await notifyXpSettlementInTransaction(
               tx,
               session.user.id,
               settlement
             );
           }
+          return result;
         }
-      });
+      );
+      const streak = ratingResult?.streak;
 
       logger?.debug(
         `Rating upserted for user ${session.user.id} on post ${input.postId}`
       );
-      return { success: true };
+      return { streak, success: true };
     }),
 
   // Update own rating
   update: protectedProcedure
     .input(ratingUpdateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const now = new Date();
       const logger = getLogger(ctx);
       const review = input.review ?? "";
-      const reviewWasRemoved = review.trim().length === 0;
       logger?.info(
         `User ${session.user.id} updating rating for post ${input.postId}: ${input.rating} stars`
       );
-      await assertRatingsAreOpen({
+      const targetPost = await assertRatingsAreOpen({
         db,
         errors,
+        now,
         postId: input.postId,
         session,
       });
@@ -262,48 +261,37 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await runContributionRewardTransaction(db, async (tx) => {
-        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
-        const [savedReview] = await tx
-          .update(postRating)
-          .set({
-            ...(reviewWasRemoved ? { pinnedAt: null } : {}),
+      const ratingResult = await runContributionRewardTransaction(
+        db,
+        async (tx) => {
+          const result = await saveRatingInTransaction(tx, {
+            contentType: targetPost.type,
+            correlation: buildIntegrityCorrelationEvidence(ctx.headers),
+            impersonated: Boolean(session.session?.impersonatedBy),
+            insertIfMissing: false,
+            now,
+            postId: input.postId,
             rating: input.rating,
             review,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(postRating.postId, input.postId),
-              eq(postRating.userId, session.user.id)
-            )
-          )
-          .returning({
-            createdAt: postRating.createdAt,
-            id: postRating.id,
-            postId: postRating.postId,
-            review: postRating.review,
-            userId: postRating.userId,
+            timezone: input.timezone,
+            userId: session.user.id,
           });
-        if (savedReview) {
-          const result = await reconcileEditedReviewRewardsInTransaction(
-            tx,
-            savedReview
-          );
-          for (const settlement of result.settlements) {
+          for (const settlement of result?.settlements ?? []) {
             await notifyXpSettlementInTransaction(
               tx,
               session.user.id,
               settlement
             );
           }
+          return result;
         }
-      });
+      );
+      const streak = ratingResult?.streak;
 
       logger?.debug(
         `Rating updated for user ${session.user.id} on post ${input.postId}`
       );
-      return { success: true };
+      return { streak, success: true };
     }),
 
   // Delete own rating

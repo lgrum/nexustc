@@ -5,6 +5,7 @@ import { env } from "@repo/env";
 import { getPatronTierRank } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 import type { RedisClientType } from "redis";
+import { z } from "zod";
 
 import type { Context } from "../context";
 import { getPostEarlyAccessView } from "../utils/early-access";
@@ -19,6 +20,8 @@ import {
   lockUserProgressionInTransaction,
   notifyXpSettlementInTransaction,
 } from "./progression";
+import { applyStreakEvidenceInTransaction } from "./streak";
+import type { StreakDayCompletion } from "./streak";
 
 const COMIC_READING_SESSION_TTL_SECONDS = 60 * 60 * 6;
 const COMIC_READING_SESSION_LOCK_TTL_MS = 30_000;
@@ -57,6 +60,11 @@ type StoredComicProgress = {
   verifiedThroughPage: number;
 };
 
+type PendingRewardCheckpoint = {
+  page: number;
+  receivedAtMs: number;
+};
+
 type ReadingSessionState = {
   canUseResume: boolean;
   comicId: string;
@@ -70,13 +78,47 @@ type ReadingSessionState = {
   lastPersistedAtMs: number | null;
   lastPersistedPage: number;
   lastRewardCheckpointAtMs: number | null;
-  pendingRewardPages: number[];
+  pendingRewardCheckpoints: PendingRewardCheckpoint[];
   startedAtMs: number;
   totalPages: number;
   totalPagesAtLastReadSnapshot: number;
   userId: string;
   verifiedThroughPage: number;
 };
+
+const storedReadingSessionSchema = z.object({
+  canUseResume: z.boolean(),
+  comicId: z.string().min(1),
+  completedAtIso: z.iso.datetime().nullable(),
+  completedSnapshot: z.boolean(),
+  consecutiveValidRewardCheckpoints: z.number().int().nonnegative().optional(),
+  fastRewardCheckpoints: z.boolean().optional(),
+  lastAcceptedAtMs: z.number().int().nonnegative().nullable(),
+  lastAcceptedPage: z.number().int().positive().nullable(),
+  lastPageRead: z.number().int().nonnegative(),
+  lastPersistedAtMs: z.number().int().nonnegative().nullable(),
+  lastPersistedPage: z.number().int().nonnegative(),
+  lastRewardCheckpointAtMs: z
+    .number()
+    .int()
+    .nonnegative()
+    .nullable()
+    .optional(),
+  pendingRewardCheckpoints: z
+    .array(
+      z.object({
+        page: z.number().int().positive(),
+        receivedAtMs: z.number().int().nonnegative(),
+      })
+    )
+    .optional(),
+  pendingRewardPages: z.array(z.number().int().positive()).optional(),
+  startedAtMs: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+  totalPagesAtLastReadSnapshot: z.number().int().nonnegative(),
+  userId: z.string().min(1),
+  verifiedThroughPage: z.number().int().nonnegative(),
+});
 
 type CatalogComicItem = {
   comicPageCount?: number | null;
@@ -198,14 +240,30 @@ function parseStoredSession(value: string | null): ReadingSessionState | null {
     return null;
   }
 
-  const state = JSON.parse(value) as ReadingSessionState;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  const validated = storedReadingSessionSchema.safeParse(parsed);
+  if (!validated.success) {
+    return null;
+  }
+  const { pendingRewardPages, ...state } = validated.data;
   return {
     ...state,
     consecutiveValidRewardCheckpoints:
       state.consecutiveValidRewardCheckpoints ?? 0,
     fastRewardCheckpoints: state.fastRewardCheckpoints ?? false,
     lastRewardCheckpointAtMs: state.lastRewardCheckpointAtMs ?? null,
-    pendingRewardPages: state.pendingRewardPages ?? [],
+    pendingRewardCheckpoints:
+      state.pendingRewardCheckpoints ??
+      pendingRewardPages?.map((page) => ({
+        page,
+        receivedAtMs: state.lastRewardCheckpointAtMs ?? state.startedAtMs,
+      })) ??
+      [],
   };
 }
 
@@ -348,7 +406,7 @@ function createSessionState(params: {
       null,
     lastPersistedPage: normalizedProgress?.lastPageRead ?? 0,
     lastRewardCheckpointAtMs: null,
-    pendingRewardPages: [],
+    pendingRewardCheckpoints: [],
     startedAtMs: params.nowMs,
     totalPages: params.currentPageCount,
     totalPagesAtLastReadSnapshot:
@@ -428,9 +486,11 @@ export function applyRewardCheckpoint(params: {
       ...state,
       consecutiveValidRewardCheckpoints: 0,
       lastRewardCheckpointAtMs: nowMs,
-      pendingRewardPages: state.pendingRewardPages.includes(page)
-        ? state.pendingRewardPages
-        : [...state.pendingRewardPages, page],
+      pendingRewardCheckpoints: state.pendingRewardCheckpoints.some(
+        (checkpoint) => checkpoint.page === page
+      )
+        ? state.pendingRewardCheckpoints
+        : [...state.pendingRewardCheckpoints, { page, receivedAtMs: nowMs }],
     },
     reason: "accepted",
     rewardValid: true,
@@ -757,8 +817,10 @@ function parseCompletedAt(value: string | null) {
 async function persistProgressRecord(params: {
   correlation: IntegrityCorrelationEvidence;
   db: Database;
+  impersonated: boolean;
   now: Date;
   state: ReadingSessionState;
+  timezone?: string;
 }) {
   const completed = params.state.completedSnapshot;
   const completedAt = parseCompletedAt(params.state.completedAtIso);
@@ -776,6 +838,15 @@ async function persistProgressRecord(params: {
   };
 
   const result = await params.db.transaction(async (tx) => {
+    const pendingRewardCheckpoints = [
+      ...new Map(
+        params.state.pendingRewardCheckpoints.map((checkpoint) => [
+          checkpoint.page,
+          checkpoint,
+        ])
+      ).values(),
+    ];
+    let dayCompletion: StreakDayCompletion | undefined;
     await tx
       .insert(userComicProgress)
       .values(incomingProgressValues)
@@ -833,6 +904,25 @@ async function persistProgressRecord(params: {
       ),
     };
 
+    for (const checkpoint of pendingRewardCheckpoints) {
+      const streak = await applyStreakEvidenceInTransaction(
+        tx,
+        {
+          comicId: params.state.comicId,
+          impersonated: params.impersonated,
+          integrity: { correlation: params.correlation },
+          kind: "reading",
+          page: checkpoint.page,
+          timezone: params.timezone,
+          userId: params.state.userId,
+        },
+        new Date(checkpoint.receivedAtMs)
+      );
+      if (streak && "dayCompletion" in streak) {
+        dayCompletion ??= streak.dayCompletion;
+      }
+    }
+
     let processedPageRanges: [number, number][] | undefined;
     const processedPages: number[] = [];
     let rewardedPages: number[] = [];
@@ -843,7 +933,7 @@ async function persistProgressRecord(params: {
       | Awaited<ReturnType<typeof postXpEventInTransaction>>
       | undefined;
 
-    if (env.XP_ACCRUAL_ENABLED && params.state.pendingRewardPages.length > 0) {
+    if (env.XP_ACCRUAL_ENABLED && pendingRewardCheckpoints.length > 0) {
       await lockUserProgressionInTransaction(
         tx,
         params.state.userId,
@@ -851,8 +941,8 @@ async function persistProgressRecord(params: {
       );
       const currentProcessedPageRanges = storedProgress.ranges;
       processedPageRanges = currentProcessedPageRanges;
-      for (const page of [...new Set(params.state.pendingRewardPages)].toSorted(
-        (left, right) => left - right
+      for (const { page } of pendingRewardCheckpoints.toSorted(
+        (left, right) => left.page - right.page
       )) {
         const added = addProcessedPage(processedPageRanges, page);
         processedPageRanges = added.ranges;
@@ -1003,8 +1093,9 @@ async function persistProgressRecord(params: {
       );
     }
     return {
+      dayCompletion,
       processedPages,
-      publicProfileChanged,
+      publicProfileChanged: Boolean(dayCompletion) || publicProfileChanged,
       releasedSettlements,
       rewardedPages,
       settlement,
@@ -1167,9 +1258,12 @@ async function trackComicPageViewWithLockHeld(params: {
   db: Database;
   evidence: ComicPageCheckpointEvidence;
   comicId: string;
+  impersonated: boolean;
+  now: Date;
   page: number;
   readingSessionId: string;
   role?: string | null;
+  timezone?: string;
   userId: string;
   waitedForLock?: boolean;
 }) {
@@ -1210,19 +1304,6 @@ async function trackComicPageViewWithLockHeld(params: {
     };
   }
 
-  if (
-    params.waitedForLock &&
-    state.lastAcceptedAtMs !== null &&
-    state.lastAcceptedPage !== null &&
-    params.page > state.lastAcceptedPage
-  ) {
-    const remainingInterval =
-      MIN_PAGE_ADVANCE_INTERVAL_MS - (Date.now() - state.lastAcceptedAtMs);
-    if (remainingInterval > 0) {
-      await new Promise((resolve) => setTimeout(resolve, remainingInterval));
-    }
-  }
-  const now = new Date();
   const [comicMetadata, tier] = await Promise.all([
     getComicMetadata(params.db, params.comicId),
     getUserPatronTier(params.db, params.userId),
@@ -1231,7 +1312,7 @@ async function trackComicPageViewWithLockHeld(params: {
     !comicMetadata ||
     !canAccessComicMetadata({
       metadata: comicMetadata,
-      now,
+      now: params.now,
       role: params.role,
       tier,
     })
@@ -1249,9 +1330,16 @@ async function trackComicPageViewWithLockHeld(params: {
     };
   }
 
-  const nowMs = now.getTime();
+  const nowMs = params.now.getTime();
+  const checkpointNowMs =
+    params.waitedForLock &&
+    state.lastAcceptedAtMs !== null &&
+    state.lastAcceptedPage !== null &&
+    params.page > state.lastAcceptedPage
+      ? Math.max(nowMs, state.lastAcceptedAtMs + MIN_PAGE_ADVANCE_INTERVAL_MS)
+      : nowMs;
   const checkpoint = applyCheckpoint({
-    nowMs,
+    nowMs: checkpointNowMs,
     page: params.page,
     state,
   });
@@ -1292,10 +1380,12 @@ async function trackComicPageViewWithLockHeld(params: {
     persistenceResult = await persistProgressRecord({
       correlation: params.correlation,
       db: params.db,
-      now: new Date(nowMs),
+      impersonated: params.impersonated,
+      now: params.now,
       state: nextState,
+      timezone: params.timezone,
     });
-    nextState = { ...nextState, pendingRewardPages: [] };
+    nextState = { ...nextState, pendingRewardCheckpoints: [] };
   }
 
   if (persisted) {
@@ -1311,6 +1401,9 @@ async function trackComicPageViewWithLockHeld(params: {
         publicProfileChanged: persistenceResult?.publicProfileChanged ?? false,
         reason: "tracking_unavailable" as const,
         rewardedXp: persistenceResult?.rewardedPages.length ?? 0,
+        ...(persistenceResult?.dayCompletion && {
+          dayCompletion: persistenceResult.dayCompletion,
+        }),
         status: getPersistedProgressStatus(
           nextState.totalPages,
           buildSessionProgressSnapshot(nextState)
@@ -1330,6 +1423,9 @@ async function trackComicPageViewWithLockHeld(params: {
     publicProfileChanged: persistenceResult?.publicProfileChanged ?? false,
     reason: rewardCheckpoint.reason,
     rewardedXp: persistenceResult?.rewardedPages.length ?? 0,
+    ...(persistenceResult?.dayCompletion && {
+      dayCompletion: persistenceResult.dayCompletion,
+    }),
     status: getPersistedProgressStatus(
       nextState.totalPages,
       buildSessionProgressSnapshot(nextState)

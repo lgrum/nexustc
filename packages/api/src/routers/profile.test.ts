@@ -147,6 +147,7 @@ beforeEach(() => {
           ? config.reserved
           : {},
       reviews: typeof config.reviews === "boolean" ? config.reviews : true,
+      streak: typeof config.streak === "boolean" ? config.streak : false,
     };
   });
 });
@@ -163,6 +164,7 @@ describe("profile visibility settings", () => {
           favorites: true,
           reserved: {},
           reviews: true,
+          streak: false,
         },
       },
     });
@@ -184,12 +186,44 @@ describe("profile visibility settings", () => {
         favorites: false,
         reserved: { futureFlag: true },
         reviews: false,
+        streak: false,
       },
     });
     expect(set).toHaveBeenCalledWith({
       visibilityConfig: expect.any(Object),
     });
     expect(returning).toHaveBeenCalledWith({ visibilityConfig: {} });
+  });
+
+  it("updates the authenticated account's explicit streak visibility", async () => {
+    const { context } = createSettingsContext({
+      favorites: true,
+      reserved: {},
+      reviews: true,
+      streak: true,
+    });
+
+    await expect(
+      call(profileRouter.updateVisibility, { streak: true }, { context })
+    ).resolves.toMatchObject({ visibility: { streak: true } });
+  });
+
+  it("repairs a malformed root visibility value before updating it", async () => {
+    const { context, set } = createSettingsContext({ streak: true });
+
+    await call(profileRouter.updateVisibility, { streak: true }, { context });
+
+    expect(set).toHaveBeenCalledWith({
+      visibilityConfig: expect.objectContaining({
+        values: expect.arrayContaining([
+          expect.objectContaining({
+            strings: expect.arrayContaining([
+              expect.stringContaining("jsonb_typeof"),
+            ]),
+          }),
+        ]),
+      }),
+    });
   });
 
   it("requires authentication before changing visibility", async () => {

@@ -29,6 +29,8 @@ import {
   markTwoFactorOtpDeliveryFailed,
 } from "./two-factor-delivery";
 
+export { verifyTurnstileToken } from "./plugins/turnstile";
+
 type NewsletterOptInUser = {
   email: string;
   id: string;

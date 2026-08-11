@@ -41,7 +41,18 @@ describe(normalizeProfileVisibilityConfig, () => {
       favorites: false,
       reserved: { futureFlag: true },
       reviews: true,
+      streak: false,
     });
+  });
+
+  it("keeps streaks private for missing and malformed legacy values", () => {
+    expect(normalizeProfileVisibilityConfig({}).streak).toBe(false);
+    expect(normalizeProfileVisibilityConfig({ streak: "yes" }).streak).toBe(
+      false
+    );
+    expect(normalizeProfileVisibilityConfig({ streak: true }).streak).toBe(
+      true
+    );
   });
 
   it("exposes only resolved activity fields to public profile callers", () => {

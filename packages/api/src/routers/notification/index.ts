@@ -18,6 +18,8 @@ import {
   markNotificationsRead,
   unfollowContent,
 } from "../../services/notification";
+import { applyStreakEvidenceInTransaction } from "../../services/streak";
+import { buildIntegrityCorrelationEvidence } from "../../utils/integrity-evidence";
 import admin from "./admin";
 
 export default {
@@ -51,13 +53,22 @@ export default {
 
   followContent: protectedProcedure
     .input(contentFollowSchema)
-    .handler(async ({ context: { db, session }, input, errors }) => {
+    .handler(async ({ context: { db, headers, session }, input, errors }) => {
+      const now = new Date();
       try {
-        return await followContent(db, {
-          contentId: input.contentId,
-          role: session.user.role,
-          userId: session.user.id,
-        });
+        return await followContent(
+          db,
+          {
+            contentId: input.contentId,
+            correlation: buildIntegrityCorrelationEvidence(headers),
+            impersonated: Boolean(session.session?.impersonatedBy),
+            now,
+            role: session.user.role,
+            timezone: input.timezone,
+            userId: session.user.id,
+          },
+          applyStreakEvidenceInTransaction
+        );
       } catch (error) {
         if (
           error instanceof Error &&

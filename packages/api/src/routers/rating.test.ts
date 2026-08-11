@@ -4,6 +4,7 @@ import type { Context } from "../context";
 import type { publicCatalogVisibilityCondition } from "../utils/early-access";
 
 const mocks = vi.hoisted(() => ({
+  applyStreakEvidenceInTransaction: vi.fn(),
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
   isContributionLikerEligibleInTransaction: vi.fn(),
@@ -52,6 +53,9 @@ vi.mock("../utils/user-ban", () => ({
 vi.mock("../services/progression", () => ({
   notifyXpSettlement: mocks.notifyXpSettlement,
   notifyXpSettlementInTransaction: mocks.notifyXpSettlementInTransaction,
+}));
+vi.mock("../services/streak", () => ({
+  applyStreakEvidenceInTransaction: mocks.applyStreakEvidenceInTransaction,
 }));
 vi.mock("../utils/early-access", async (importOriginal) => {
   const original = await importOriginal<{
@@ -105,6 +109,95 @@ function createContext(select = vi.fn()) {
       user: { emailVerified: true, id: "owner-1", role: "user" },
     },
   } as unknown as Context;
+}
+
+const qualifyingReview =
+  "Esta reseña analiza con detalle el ritmo, los personajes y la presentación de la obra sin incluir enlaces externos.";
+
+function createRatingMutationContext(
+  previousReview?: string,
+  postStatus: "draft" | "publish" = "publish"
+) {
+  const now = new Date("2026-08-08T12:00:00.000Z");
+  let current =
+    previousReview === undefined
+      ? undefined
+      : {
+          createdAt: now,
+          id: "review-1",
+          postId: "post-1",
+          rating: 5,
+          review: previousReview,
+          userId: "owner-1",
+        };
+  let pendingValues = { rating: 8, review: qualifyingReview };
+  const returningInsert = vi.fn(() => {
+    if (current) {
+      return [];
+    }
+    current = {
+      createdAt: now,
+      id: "review-1",
+      postId: "post-1",
+      rating: pendingValues.rating,
+      review: pendingValues.review,
+      userId: "owner-1",
+    };
+    return [current];
+  });
+  const insert = vi.fn(() => ({
+    values: vi.fn((values: typeof pendingValues) => {
+      pendingValues = values;
+      return {
+        onConflictDoNothing: vi.fn(() => ({ returning: returningInsert })),
+      };
+    }),
+  }));
+  const selectForUpdate = vi.fn(() => (current ? [current] : []));
+  const select = vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn(() => ({ for: selectForUpdate })),
+    })),
+  }));
+  const returningUpdate = vi.fn(() => (current ? [current] : []));
+  const update = vi.fn(() => ({
+    set: vi.fn((values: Partial<typeof current>) => {
+      current = current ? { ...current, ...values } : current;
+      return {
+        where: vi.fn(() => ({ returning: returningUpdate })),
+      };
+    }),
+  }));
+  const tx = { insert, select, update };
+  const db = {
+    query: {
+      forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
+      patron: { findFirst: vi.fn().mockResolvedValue(null) },
+      post: {
+        findFirst: vi.fn().mockResolvedValue({
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          releasedAt: null,
+          status: postStatus,
+          type: "post",
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+        }),
+      },
+    },
+    transaction: vi.fn((callback: (executor: typeof tx) => Promise<unknown>) =>
+      callback(tx)
+    ),
+  };
+  return {
+    context: {
+      db,
+      headers: new Headers(),
+      session: { user: { id: "owner-1", role: "user" } },
+    } as unknown as Context,
+    selectForUpdate,
+    tx,
+  };
 }
 
 beforeEach(() => {
@@ -223,6 +316,173 @@ describe("profile review privacy", () => {
     expect(mocks.canReadPublicProfileActivity).not.toHaveBeenCalled();
     expect(ratingsQuery.limit).toHaveBeenCalledWith(7);
     expect(select.mock.calls[1]?.[0]).toHaveProperty("slug");
+  });
+});
+
+describe("qualifying review streak evidence", () => {
+  it("submits a newly inserted review as Contribution evidence", async () => {
+    const settlement = {
+      level: 2,
+      previousLevel: 1,
+      replayed: false,
+      settledXp: 25,
+    };
+    mocks.reconcileEditedReviewRewardsInTransaction.mockResolvedValueOnce({
+      settlements: [settlement],
+    });
+    const { context, tx } = createRatingMutationContext();
+
+    await expect(
+      call(
+        ratingRouter.create,
+        {
+          postId: "post-1",
+          rating: 8,
+          review: qualifyingReview,
+          timezone: "America/Argentina/Buenos_Aires",
+        },
+        { context }
+      )
+    ).resolves.toMatchObject({ success: true });
+
+    expect(mocks.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      tx,
+      {
+        impersonated: false,
+        integrity: {
+          correlation: { deviceHash: null, ipPrefixHash: null },
+        },
+        kind: "contribution",
+        source: { id: "review-1", kind: "review" },
+        text: qualifyingReview,
+        timezone: "America/Argentina/Buenos_Aires",
+        userId: "owner-1",
+      },
+      expect.any(Date)
+    );
+    expect(mocks.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      tx,
+      "owner-1",
+      settlement
+    );
+    expect(mocks.notifyXpSettlement).not.toHaveBeenCalled();
+  });
+
+  it("submits only the first non-qualifying-to-qualifying transition", async () => {
+    const { context, selectForUpdate } = createRatingMutationContext("");
+
+    await call(
+      ratingRouter.create,
+      { postId: "post-1", rating: 8, review: qualifyingReview },
+      { context }
+    );
+    await call(
+      ratingRouter.create,
+      { postId: "post-1", rating: 9, review: `${qualifyingReview} Editada.` },
+      { context }
+    );
+
+    expect(mocks.applyStreakEvidenceInTransaction).toHaveBeenCalledOnce();
+    expect(selectForUpdate).toHaveBeenCalledWith("update");
+  });
+
+  it("does not submit an edit to an already-qualifying review", async () => {
+    const { context } = createRatingMutationContext(qualifyingReview);
+
+    await call(
+      ratingRouter.update,
+      { postId: "post-1", rating: 9, review: `${qualifyingReview} Editada.` },
+      { context }
+    );
+
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("submits only Discovery evidence for a newly inserted bare rating", async () => {
+    const { context, tx } = createRatingMutationContext();
+
+    await expect(
+      call(
+        ratingRouter.create,
+        { postId: "post-1", rating: 8, review: "" },
+        { context }
+      )
+    ).resolves.toMatchObject({ success: true });
+
+    expect(mocks.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      tx,
+      {
+        actionKind: "rating",
+        contentKey: "post:post-1",
+        impersonated: false,
+        integrity: {
+          correlation: { deviceHash: null, ipPrefixHash: null },
+        },
+        kind: "discovery",
+        timezone: undefined,
+        userId: "owner-1",
+      },
+      expect.any(Date)
+    );
+  });
+
+  it("does not submit Discovery evidence for a bare rating update", async () => {
+    const { context } = createRatingMutationContext("");
+
+    await call(
+      ratingRouter.create,
+      { postId: "post-1", rating: 9, review: "" },
+      { context }
+    );
+
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not publish review evidence for hidden content", async () => {
+    const { context } = createRatingMutationContext(undefined, "draft");
+
+    await expect(
+      call(
+        ratingRouter.create,
+        { postId: "post-1", rating: 8, review: qualifyingReview },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps a qualifying rating successful when streak evidence is ineligible", async () => {
+    mocks.applyStreakEvidenceInTransaction.mockResolvedValueOnce({
+      available: true,
+      completed: false,
+    });
+    const { context } = createRatingMutationContext();
+
+    await expect(
+      call(
+        ratingRouter.create,
+        { postId: "post-1", rating: 8, review: qualifyingReview },
+        { context }
+      )
+    ).resolves.toMatchObject({
+      streak: { available: true, completed: false },
+      success: true,
+    });
+  });
+
+  it("keeps rating and streak writes in the same rollback boundary", async () => {
+    const failure = new Error("streak write failed");
+    mocks.applyStreakEvidenceInTransaction.mockRejectedValueOnce(failure);
+    const { context } = createRatingMutationContext();
+
+    await expect(
+      call(
+        ratingRouter.create,
+        { postId: "post-1", rating: 8, review: qualifyingReview },
+        { context }
+      )
+    ).rejects.toBe(failure);
   });
 });
 
@@ -491,80 +751,6 @@ describe("stable review likes", () => {
   });
 });
 
-describe("review edit locking", () => {
-  it("locks the author before updating the review source", async () => {
-    const settlement = {
-      level: 2,
-      previousLevel: 1,
-      replayed: false,
-      settledXp: 25,
-    };
-    mocks.reconcileEditedReviewRewardsInTransaction.mockResolvedValueOnce({
-      settlements: [settlement],
-    });
-    const returning = vi.fn().mockResolvedValue([
-      {
-        createdAt: new Date("2026-08-10T12:00:00.000Z"),
-        id: "review-1",
-        postId: "post-1",
-        review:
-          "Resena actualizada con suficiente detalle para conservarse y asegurar que supera el minimo requerido por el contrato compartido.",
-        userId: "owner-1",
-      },
-    ]);
-    const where = vi.fn().mockReturnValue({ returning });
-    const set = vi.fn().mockReturnValue({ where });
-    const tx = { update: vi.fn().mockReturnValue({ set }) };
-    const context = {
-      db: {
-        query: {
-          forbiddenContentRule: { findMany: vi.fn().mockResolvedValue([]) },
-          patron: { findFirst: vi.fn().mockResolvedValue(null) },
-          post: {
-            findFirst: vi.fn().mockResolvedValue({
-              earlyAccessEnabled: false,
-              earlyAccessStartedAt: null,
-              type: "post",
-              vip12EarlyAccessHours: 0,
-              vip8EarlyAccessHours: 0,
-            }),
-          },
-        },
-        transaction: vi.fn((callback) => callback(tx)),
-      },
-      headers: new Headers(),
-      session: {
-        user: { emailVerified: true, id: "owner-1", role: "user" },
-      },
-    } as unknown as Context;
-
-    await call(
-      ratingRouter.update,
-      {
-        postId: "post-1",
-        rating: 4,
-        review:
-          "Resena actualizada con suficiente detalle para conservarse y asegurar que supera el minimo requerido por el contrato compartido.",
-      },
-      { context }
-    );
-
-    expect(
-      mocks.lockContributionParticipantsInTransaction
-    ).toHaveBeenCalledWith(tx, ["owner-1"]);
-    expect(
-      mocks.lockContributionParticipantsInTransaction.mock
-        .invocationCallOrder[0]
-    ).toBeLessThan(set.mock.invocationCallOrder[0]!);
-    expect(mocks.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
-      tx,
-      "owner-1",
-      settlement
-    );
-    expect(mocks.notifyXpSettlement).not.toHaveBeenCalled();
-  });
-});
-
 describe("post review visibility", () => {
   it("uses the active-ban predicate for review authors and likers", async () => {
     const ratingsQuery = createPaginatedQuery([
@@ -613,6 +799,8 @@ describe("post review visibility", () => {
             findFirst: vi.fn().mockResolvedValue({
               earlyAccessEnabled: false,
               earlyAccessStartedAt: null,
+              releasedAt: null,
+              status: "publish",
               type: "post",
               vip12EarlyAccessHours: 0,
               vip8EarlyAccessHours: 0,

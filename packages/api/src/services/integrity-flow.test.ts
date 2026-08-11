@@ -680,11 +680,15 @@ describe("integrity settlement", () => {
           chain.for.mockResolvedValue([
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
+        } else if (selectCall === 2) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([]);
         } else {
           chain.where.mockResolvedValue([
             {
               amount: 67,
               id: "event-1",
+              kind: "review_milestone",
               reversesEventId: null,
               userId: "user-1",
             },
@@ -730,6 +734,9 @@ describe("integrity settlement", () => {
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
         } else if (selectCall === 2) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([]);
+        } else if (selectCall === 3) {
           chain.where.mockResolvedValue([
             {
               amount: 25,

@@ -13,6 +13,9 @@ const rewards = vi.hoisted(() => ({
   saveCommentRewardSubjectInTransaction: vi.fn(),
   settleCommentMilestonesInTransaction: vi.fn(),
 }));
+const streak = vi.hoisted(() => ({
+  applyStreakEvidenceInTransaction: vi.fn(),
+}));
 const bans = vi.hoisted(() => ({
   userIsNotActivelyBanned: vi.fn(),
 }));
@@ -47,6 +50,7 @@ vi.mock("../../services/progression", () => ({
   notifyXpSettlement: vi.fn(),
   notifyXpSettlementInTransaction: rewards.notifyXpSettlementInTransaction,
 }));
+vi.mock("../../services/streak", () => streak);
 vi.mock("../../utils/user-ban", () => ({
   userIsNotActivelyBanned: bans.userIsNotActivelyBanned,
 }));
@@ -244,6 +248,15 @@ describe("comment reply notifications", () => {
         postId: "post-1",
         userId: "author-1",
       })
+    );
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "contribution",
+        source: { id: "reply-1", kind: "comment" },
+        userId: "author-1",
+      }),
+      expect.any(Date)
     );
   });
 });

@@ -23,6 +23,7 @@ import rating from "./rating";
 import siteConfig from "./site-config";
 import staticPage from "./static-page";
 import sticker from "./sticker";
+import streak from "./streak";
 import term from "./term";
 import translator from "./translator";
 import user from "./user";
@@ -50,6 +51,7 @@ export const appRouter = {
   rating,
   siteConfig,
   staticPage,
+  streak,
   sticker,
   term,
   translator,

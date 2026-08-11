@@ -165,6 +165,8 @@ export async function getPublicAccountLevel(
 }
 
 const HISTORY_LABELS = {
+  streak_day: "D\u00EDa de Racha",
+  streak_challenge: "Desaf\u00EDo de Racha",
   admin_adjustment: "Corrección de Account XP",
   comment_milestone: "Hito de comentario",
   comic_reading: "Lectura verificada de cómic",
@@ -830,7 +832,9 @@ export async function createPendingXpEventInTransaction(
       existing.userId !== input.userId ||
       existing.amount !== input.amount ||
       existing.integrityCaseId !== input.integrityCaseId ||
-      existing.state !== "pending"
+      existing.state !== "pending" ||
+      (input.sourceCreatedAt &&
+        existing.createdAt.getTime() !== input.sourceCreatedAt.getTime())
     ) {
       throw new ProgressionError("IDEMPOTENCY_CONFLICT");
     }
@@ -861,6 +865,7 @@ export async function createPendingXpEventInTransaction(
     amount: input.amount,
     availableAt: input.availableAt,
     createdBy: input.createdBy,
+    createdAt: input.sourceCreatedAt,
     id: eventId,
     idempotencyKey: input.idempotencyKey,
     integrityCaseId: input.integrityCaseId,

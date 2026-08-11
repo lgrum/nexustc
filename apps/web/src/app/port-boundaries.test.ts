@@ -27,6 +27,25 @@ test("authenticated catalog fetches bypass anonymous cache context", () => {
   expect(source).toContain("await orpcClient.post.search({");
 });
 
+test("public streak resolution stays outside the hours-cached profile", () => {
+  const source = read("src/app/(main)/user/[id]/page.tsx");
+  const cachedProfile = source.slice(
+    source.indexOf("async function getProfile"),
+    source.indexOf("export async function generateMetadata")
+  );
+  const page = source.slice(
+    source.indexOf("export default async function Page")
+  );
+
+  expect(cachedProfile).toContain("includeCurrentStreak: false");
+  expect(cachedProfile).toContain("orpcClient.profile.getPublic(");
+  expect(cachedProfile).toContain("context: { cache: true }");
+  expect(cachedProfile).not.toContain("getPublicCurrentStreak");
+  expect(page).toContain("orpcClient.profile.getPublicCurrentStreak({");
+  expect(source).not.toContain("@repo/api/services/profile");
+  expect(source).not.toContain('from "@repo/db"');
+});
+
 test("server oRPC client keeps cached calls public and live calls request-bound", () => {
   const source = read("src/lib/orpc.server.ts");
 

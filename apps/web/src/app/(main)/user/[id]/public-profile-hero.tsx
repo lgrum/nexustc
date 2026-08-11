@@ -3,6 +3,7 @@ import {
   Calendar03Icon,
   Coins01Icon,
   FavouriteIcon,
+  Fire03Icon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
 import type { PublicProfile } from "@repo/api/services/profile";
@@ -97,6 +98,13 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
               icon={Coins01Icon}
               label="Eteris"
               value={profile.eterisBalance}
+            />
+          )}
+          {profile.currentStreak === undefined ? null : (
+            <ProfileStat
+              icon={Fire03Icon}
+              label="Racha actual"
+              value={`${profile.currentStreak} días`}
             />
           )}
           <ProfileStat

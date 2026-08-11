@@ -294,6 +294,8 @@ export const xpEventKindEnum = pgEnum("xp_event_kind", [
   "comic_reading",
   "review_milestone",
   "comment_milestone",
+  "streak_day",
+  "streak_challenge",
   "admin_adjustment",
   "reversal",
 ]);
@@ -301,6 +303,14 @@ export const xpEventStateEnum = pgEnum("xp_event_state", [
   "pending",
   "posted",
   "cancelled",
+]);
+export const streakDiscoveryActionKindEnum = pgEnum(
+  "streak_discovery_action_kind",
+  ["bookmark", "follow", "rating"]
+);
+export const streakProtectionKindEnum = pgEnum("streak_protection_kind", [
+  "outage",
+  "pause",
 ]);
 export const xpRewardSubjectKindEnum = pgEnum("xp_reward_subject_kind", [
   "review",
@@ -971,6 +981,122 @@ export const userProgression = pgTable(
   ]
 );
 
+export type StreakEvidence = {
+  contribution?: { sourceId: string; sourceKind: "comment" | "review" };
+  discoveryCandidates?: {
+    actionKind: "bookmark" | "follow" | "rating";
+    contentKey: string;
+  }[];
+  readingPageKeys?: string[];
+  pendingCompletion?: {
+    path: "contribution" | "mixed_discovery" | "reading";
+    receivedAt: string;
+    trigger:
+      | {
+          kind: "contribution";
+          normalizedLength: number;
+          source: { id: string; kind: "comment" | "review" };
+        }
+      | { comicId: string; kind: "reading"; page: number }
+      | {
+          actionKind: "bookmark" | "follow" | "rating";
+          contentKey: string;
+          kind: "discovery";
+        };
+  };
+};
+
+export const userStreak = pgTable(
+  "user_streak",
+  {
+    bestStreak: integer("best_streak").notNull().default(0),
+    challengeCompletedAt: timestamp("challenge_completed_at", {
+      withTimezone: true,
+    }),
+    challengeCompletedDayKey: text("challenge_completed_day_key"),
+    challengeSelectedAt: timestamp("challenge_selected_at", {
+      withTimezone: true,
+    }),
+    challengeTarget: integer("challenge_target"),
+    currentEvidence: jsonb("current_evidence")
+      .$type<StreakEvidence>()
+      .notNull()
+      .default({}),
+    currentEvidenceDayKey: text("current_evidence_day_key"),
+    currentStreak: integer("current_streak").notNull().default(0),
+    lastCompletedAt: timestamp("last_completed_at", { withTimezone: true }),
+    lastCompletedDayKey: text("last_completed_day_key"),
+    lastCompletedLocalDate: date("last_completed_local_date"),
+    pendingTimezone: text("pending_timezone"),
+    timezone: text("timezone").notNull(),
+    timezoneChangeAvailableAt: timestamp("timezone_change_available_at", {
+      withTimezone: true,
+    }),
+    timezoneChangeEffectiveAt: timestamp("timezone_change_effective_at", {
+      withTimezone: true,
+    }),
+    timezoneVersion: integer("timezone_version").notNull().default(1),
+    userId: text("user_id")
+      .primaryKey()
+      .references(() => user.id, { onDelete: "cascade" }),
+    ...timestamps,
+  },
+  (table) => [
+    check("user_streak_current_check", sql`${table.currentStreak} >= 0`),
+    check("user_streak_best_check", sql`${table.bestStreak} >= 0`),
+    check(
+      "user_streak_challenge_target_check",
+      sql`${table.challengeTarget} is null or ${table.challengeTarget} in (10, 20, 30)`
+    ),
+  ]
+);
+
+export const streakDiscoveryReceipt = pgTable(
+  "streak_discovery_receipt",
+  {
+    actionKind: streakDiscoveryActionKindEnum("action_kind").notNull(),
+    contentKey: text("content_key").notNull(),
+    dayKey: text("day_key").notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }).notNull(),
+    userId: text("user_id")
+      .references(() => user.id, { onDelete: "cascade" })
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.userId, table.actionKind, table.contentKey],
+      name: "streak_discovery_receipt_user_action_content_pk",
+    }),
+  ]
+);
+
+export const streakProtectionWindow = pgTable(
+  "streak_protection_window",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdBy: text("created_by").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    kind: streakProtectionKindEnum("kind").notNull(),
+    reason: text("reason").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "streak_protection_window_bounds_check",
+      sql`${table.endsAt} > ${table.startsAt}`
+    ),
+    index("streak_protection_window_deadline_idx").on(
+      table.endsAt,
+      table.startsAt
+    ),
+  ]
+);
+
 export const xpRewardSubject = pgTable(
   "xp_reward_subject",
   {
@@ -1470,7 +1596,7 @@ export const profileSettings = pgTable(
       .$type<ProfileVisibilityConfig>()
       .notNull()
       .default(
-        sql`'{"favorites": true, "reviews": true, "reserved": {}}'::jsonb`
+        sql`'{"favorites": true, "reviews": true, "reserved": {}, "streak": false}'::jsonb`
       ),
     ...timestamps,
   },
@@ -2041,6 +2167,13 @@ export const userProgressionRelations = relations(
     }),
   })
 );
+
+export const userStreakRelations = relations(userStreak, ({ one }) => ({
+  user: one(user, {
+    fields: [userStreak.userId],
+    references: [user.id],
+  }),
+}));
 
 export const xpRewardSubjectRelations = relations(
   xpRewardSubject,

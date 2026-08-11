@@ -8,7 +8,7 @@ import {
   AuthDialogContent,
   AuthDialogTrigger,
 } from "@/components/auth/auth-dialog";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackStreakDayCompletion } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -87,7 +87,8 @@ export function FollowButton({ contentId }: FollowButtonProps) {
       onSettled: async () => {
         await invalidateNotificationFollowQueries(contentId);
       },
-      onSuccess: () => {
+      onSuccess: (result) => {
+        trackStreakDayCompletion(result.streak);
         trackEvent("content_follow_toggled", {
           contentId,
           following: true,
@@ -163,7 +164,11 @@ export function FollowButton({ contentId }: FollowButtonProps) {
           return;
         }
 
-        followMutation.mutate({ contentId });
+        followMutation.mutate({
+          contentId,
+          timezone:
+            Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
+        });
       }}
     />
   );
@@ -181,5 +186,6 @@ async function invalidateNotificationFollowQueries(contentId: string) {
         input: { limit: 20 },
       }),
     }),
+    queryClient.invalidateQueries(orpc.streak.getMine.queryOptions()),
   ]);
 }

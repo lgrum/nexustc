@@ -3,6 +3,7 @@ import type { db as database } from "@repo/db";
 import {
   commentLikes,
   postRatingLikes,
+  userStreak,
   xpEvent,
   xpIntegrityCase,
   xpLikeDisqualification,
@@ -31,6 +32,7 @@ import {
   releaseMaturedPendingXpInTransaction,
   releasePendingXpCaseInTransaction,
 } from "./progression";
+import { reconcileStreakAfterIntegrityDecisionInTransaction } from "./streak";
 
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -222,6 +224,7 @@ async function reversePostedCaseEvents(
     )
   );
   const originals = caseOriginals.filter((event) => !reversed.has(event.id));
+  const reversedEvents: typeof originals = [];
   const settlements: XpSettlement[] = [];
   for (const event of originals) {
     const settlement = await postXpEventInTransaction(
@@ -246,14 +249,17 @@ async function reversePostedCaseEvents(
     ) {
       return {
         completed: false,
+        events: reversedEvents,
         settlements,
         userId: caseOriginals[0]?.userId ?? null,
       };
     }
+    reversedEvents.push(event);
     settlements.push(settlement);
   }
   return {
     completed: true,
+    events: reversedEvents,
     settlements,
     userId: caseOriginals[0]?.userId ?? null,
   };
@@ -383,7 +389,15 @@ export async function decideIntegrityCase(
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
       }
-      await cancelPendingXpEventsInTransaction(tx, {
+      const lockedStreakRows = integrityCase.userId
+        ? await tx
+            .select({ userId: userStreak.userId })
+            .from(userStreak)
+            .where(eq(userStreak.userId, integrityCase.userId))
+            .for("update")
+        : [];
+      const [lockedStreak] = lockedStreakRows;
+      const pending = await cancelPendingXpEventsInTransaction(tx, {
         actorUserId: input.actorUserId,
         caseId: input.caseId,
         now,
@@ -395,8 +409,22 @@ export async function decideIntegrityCase(
         now
       );
       ({ settlements, userId } = reversal);
+      const streakDayAffected = [...pending, ...reversal.events].some(
+        ({ kind }) => kind === "streak_day"
+      );
+      if (lockedStreak && streakDayAffected) {
+        settlements.push(
+          ...(await reconcileStreakAfterIntegrityDecisionInTransaction(tx, {
+            actorUserId: input.actorUserId,
+            caseId: input.caseId,
+            now,
+            userId: lockedStreak.userId,
+          }))
+        );
+        ({ userId } = lockedStreak);
+      }
       status = reversal.completed
-        ? settlements.length
+        ? settlements.length || streakDayAffected
           ? "reversed"
           : "dismissed"
         : "open";

@@ -10,6 +10,7 @@ import {
   ShieldUserIcon,
   UserIcon,
   Coins01Icon,
+  Fire03Icon,
   ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -32,6 +33,7 @@ import { ProfileLibrarySection } from "@/components/profile/profile-library-sect
 import { ProfileOverviewSection } from "@/components/profile/profile-overview-section";
 import { ProgressionSection } from "@/components/profile/progression-section";
 import { SecuritySection } from "@/components/profile/security-section";
+import { StreakSection } from "@/components/profile/streak-section";
 import { ThemeSection } from "@/components/profile/theme-section";
 import { Button } from "@/components/ui/button";
 import { trackEvent } from "@/lib/analytics";
@@ -61,6 +63,7 @@ const NAVIGATION: NavigationItem[] = [
   },
   { icon: UserIcon, label: "Cuenta", value: "account" },
   { icon: Award01Icon, label: "Progreso", value: "progression" },
+  { icon: Fire03Icon, label: "Racha", value: "streak" },
   { icon: Coins01Icon, label: "Billetera", value: "wallet" },
   { icon: ShieldUserIcon, label: "Seguridad", value: "security" },
 ];
@@ -86,6 +89,9 @@ function AuthenticatedProfile({
   const { data: themeState } = useSuspenseQuery(
     getAppThemeQueryOptions(user.id)
   );
+  const { data: streakState } = useSuspenseQuery(
+    orpc.streak.getMine.queryOptions()
+  );
   const router = useRouter();
   const { setTheme } = useTheme();
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -99,13 +105,18 @@ function AuthenticatedProfile({
       profileEmblems: [],
       profileRoles: [],
     } as const);
-  const visibleNavigation = themeState.catalogVisible
-    ? NAVIGATION
-    : NAVIGATION.filter(({ value }) => value !== "theme");
-  const visibleSection =
+  const visibleNavigation = NAVIGATION.filter(
+    ({ value }) =>
+      (value !== "theme" || themeState.catalogVisible) &&
+      (value !== "streak" || streakState.available)
+  );
+  let visibleSection: ProfileSection =
     activeSection === "theme" && !themeState.catalogVisible
       ? "overview"
       : activeSection;
+  if (visibleSection === "streak" && !streakState.available) {
+    visibleSection = "overview";
+  }
 
   const handleSignOut = async () => {
     if (isSigningOut) {
@@ -228,6 +239,9 @@ function AuthenticatedProfile({
             <AccountSection userId={user.id} />
           ) : null}
           {visibleSection === "progression" ? <ProgressionSection /> : null}
+          {visibleSection === "streak" ? (
+            <StreakSection streakPublic={data.settings.visibility.streak} />
+          ) : null}
           {visibleSection === "wallet" ? <EterisSection /> : null}
           {visibleSection === "security" ? (
             <SecuritySection

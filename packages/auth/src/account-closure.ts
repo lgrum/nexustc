@@ -7,9 +7,11 @@ import {
   eterisWallet,
   eterisWalletBalance,
   patron,
+  streakDiscoveryReceipt,
   user,
   userComicProgress,
   userProgression,
+  userStreak,
   xpEvent,
   xpIntegrityCase,
   xpLikeDisqualification,
@@ -366,6 +368,10 @@ async function deletePrivateProgression(tx: Transaction, userId: string) {
   await tx.delete(xpRewardBlock).where(eq(xpRewardBlock.userId, userId));
   await tx.delete(xpRiskSignal).where(eq(xpRiskSignal.userId, userId));
   await tx.delete(xpIntegrityCase).where(eq(xpIntegrityCase.userId, userId));
+  await tx
+    .delete(streakDiscoveryReceipt)
+    .where(eq(streakDiscoveryReceipt.userId, userId));
+  await tx.delete(userStreak).where(eq(userStreak.userId, userId));
   await tx.delete(userProgression).where(eq(userProgression.userId, userId));
   await tx
     .delete(userComicProgress)

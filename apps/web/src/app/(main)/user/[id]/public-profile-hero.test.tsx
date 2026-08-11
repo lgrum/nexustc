@@ -31,6 +31,7 @@ it("always renders public Account Level without private XP totals", () => {
 
   expect(screen.getByText("Account Level")).toBeTruthy();
   expect(screen.getByText("42")).toBeTruthy();
+  expect(screen.queryByText("Racha actual")).toBeNull();
   expect(screen.queryByText(/XP/)).toBeNull();
 });
 
@@ -92,4 +93,37 @@ it("renders only an opted-in public Eteris balance", () => {
   expect(screen.getByText("Eteris")).toBeTruthy();
   expect(screen.getByText("9223372036854775807")).toBeTruthy();
   expect(screen.queryByText(/deuda|congelada|historial/i)).toBeNull();
+});
+
+it("renders only a positive opted-in current streak", () => {
+  const profile = {
+    accountLevel: 1,
+    activityCounts: { favorites: null, reviews: null },
+    avatar: null,
+    avatarFallbackColor: "#111827",
+    banner: { asset: null, color: "#111827", mode: "color" },
+    createdAt: new Date("2025-01-01T00:00:00.000Z"),
+    currentStreak: 7,
+    eterisBalance: null,
+    href: "/user/user-1",
+    id: "user-1",
+    image: null,
+    maxVisibleEmblems: 3,
+    name: "Nexus",
+    patronBadge: null,
+    patronTier: "none",
+    profileEmblems: [],
+    profileRoles: [],
+    role: "user",
+    roleBadge: null,
+    roleGradient: null,
+    visibility: { favorites: false, reviews: false },
+  } satisfies PublicProfile;
+
+  render(<PublicProfileHero profile={profile} />);
+
+  expect(screen.getByText("Racha actual")).toBeTruthy();
+  expect(screen.getByText("7 días")).toBeTruthy();
+  expect(screen.queryByText(/mejor racha|zona horaria|desafío/i)).toBeNull();
+  expect(screen.queryByText(/^XP$/i)).toBeNull();
 });

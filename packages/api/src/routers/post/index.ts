@@ -42,6 +42,7 @@ import type {
   PremiumLinksDescriptor,
 } from "@repo/shared/constants";
 import { getMaskedPostLabel } from "@repo/shared/early-access";
+import { ianaTimezoneSchema } from "@repo/shared/schemas";
 import { parseTokens, validateTokenLimit } from "@repo/shared/token-parser";
 import z from "zod";
 
@@ -66,6 +67,7 @@ import {
 import { createCommentReplyNotification } from "../../services/notification";
 import { buildProfileSummaries } from "../../services/profile";
 import { notifyXpSettlementInTransaction } from "../../services/progression";
+import { applyStreakEvidenceInTransaction } from "../../services/streak";
 import {
   getResolvedEngagementPromptsForPost,
   getSelectableEngagementPromptsForPost,
@@ -1397,10 +1399,12 @@ export default {
           .optional(),
         parentId: z.string().optional(),
         postId: z.string(),
+        timezone: ianaTimezoneSchema.optional(),
       })
     )
     .handler(
       async ({ context: { db, session, ...context }, input, errors }) => {
+        const now = new Date();
         const logger = getLogger(context);
         logger?.info(
           `User ${session.user.id} creating comment on post ${input.postId}`
@@ -1554,7 +1558,7 @@ export default {
           }
         }
 
-        await db.transaction(async (tx) => {
+        const streak = await db.transaction(async (tx) => {
           const [createdComment] = await tx
             .insert(comment)
             .values({
@@ -1583,6 +1587,22 @@ export default {
             userId: createdComment.userId,
           });
 
+          const streakResult = await applyStreakEvidenceInTransaction(
+            tx,
+            {
+              impersonated: Boolean(session.session?.impersonatedBy),
+              integrity: {
+                correlation: buildIntegrityCorrelationEvidence(context.headers),
+              },
+              kind: "contribution",
+              source: { id: createdComment.id, kind: "comment" },
+              text: createdComment.content,
+              timezone: input.timezone,
+              userId: session.user.id,
+            },
+            now
+          );
+
           if (parentComment?.authorId) {
             await createCommentReplyNotification(tx, {
               parentCommentId: parentComment.id,
@@ -1594,10 +1614,12 @@ export default {
               sourceUserName: session.user.name,
             });
           }
+          return streakResult;
         });
         logger?.info(
           `Comment successfully created by user ${session.user.id} on post ${input.postId}`
         );
+        return { streak };
       }
     ),
 

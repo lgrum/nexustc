@@ -9,6 +9,7 @@ import {
   buildProfileSummaries,
   getOrCreateProfileSettings,
   getProfileEntitlements,
+  getPublicCurrentStreakForUser,
   getPublicProfile,
   resolveProfileVisibility,
 } from "../services/profile";
@@ -33,10 +34,13 @@ const visibilityUpdateSchema = z
   .object({
     favorites: z.boolean().optional(),
     reviews: z.boolean().optional(),
+    streak: z.boolean().optional(),
   })
   .refine(
     (visibility) =>
-      visibility.favorites !== undefined || visibility.reviews !== undefined,
+      visibility.favorites !== undefined ||
+      visibility.reviews !== undefined ||
+      visibility.streak !== undefined,
     { message: "Debes actualizar al menos una preferencia de privacidad." }
   );
 
@@ -167,12 +171,25 @@ export default {
   ),
 
   getPublic: publicProcedure
-    .input(z.object({ userId: z.string() }))
+    .input(
+      z.object({
+        includeCurrentStreak: z.boolean().optional(),
+        userId: z.string(),
+      })
+    )
     .handler(({ context: { db, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(`Fetching public profile for user ${input.userId}`);
-      return getPublicProfile(db, input.userId);
+      return getPublicProfile(db, input.userId, {
+        includeCurrentStreak: input.includeCurrentStreak,
+      });
     }),
+
+  getPublicCurrentStreak: publicProcedure
+    .input(z.object({ userId: z.string() }))
+    .handler(({ context: { db }, input }) =>
+      getPublicCurrentStreakForUser(db, input.userId)
+    ),
 
   getSummary: publicProcedure
     .input(z.object({ userId: z.string() }))
@@ -276,12 +293,15 @@ export default {
       logger?.info(`Updating visibility settings for user ${session.user.id}`);
       await getOrCreateProfileSettings(db, session.user.id);
 
-      let visibilityConfig = sql`${profileSettings.visibilityConfig}`;
+      let visibilityConfig = sql`CASE WHEN jsonb_typeof(${profileSettings.visibilityConfig}) = 'object' THEN ${profileSettings.visibilityConfig} ELSE '{}'::jsonb END`;
       if (input.favorites !== undefined) {
         visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{favorites}', ${JSON.stringify(input.favorites)}::jsonb, true)`;
       }
       if (input.reviews !== undefined) {
         visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{reviews}', ${JSON.stringify(input.reviews)}::jsonb, true)`;
+      }
+      if (input.streak !== undefined) {
+        visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{streak}', ${JSON.stringify(input.streak)}::jsonb, true)`;
       }
 
       const [settings] = await db

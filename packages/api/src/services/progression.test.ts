@@ -8,6 +8,7 @@ import {
 import {
   adjustXp,
   cancelPendingXpEventsInTransaction,
+  createPendingXpEventInTransaction,
   getPublicAccountLevel,
   getUserProgression,
   listUserXpHistory,
@@ -161,7 +162,7 @@ function createDatabase(options?: {
     reasonCode: string;
     reversesEventId: string | null;
     sourceRef: string;
-    state: "posted";
+    state: "pending" | "posted";
     updatedAt: Date;
     userId: string;
   };
@@ -215,7 +216,7 @@ function createDatabase(options?: {
             reversesEventId:
               (values.reversesEventId as string | undefined) ?? null,
             sourceRef: values.sourceRef as string,
-            state: "posted",
+            state: values.state as "pending" | "posted",
             updatedAt: values.updatedAt as Date,
             userId: values.userId as string,
           });
@@ -386,6 +387,51 @@ beforeEach(() => {
 });
 
 describe("progression service", () => {
+  it("keeps Pending XP on its captured source timestamp", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    const sourceDay = new Date("2026-08-07T23:59:59.000Z");
+    const verificationDay = new Date("2026-08-08T00:00:01.000Z");
+
+    await store.db.transaction((tx) =>
+      createPendingXpEventInTransaction(
+        tx,
+        {
+          amount: 5,
+          idempotencyKey: "streak-day:user-1:1:2026-08-07",
+          integrityCaseId: "case-1",
+          kind: "streak_day",
+          reasonCode: "streak_day_completed",
+          sourceCreatedAt: sourceDay,
+          sourceRef: "comment:comment-1",
+          userId: "user-1",
+        },
+        verificationDay
+      )
+    );
+
+    expect(store.getEvent()?.createdAt).toEqual(sourceDay);
+    expect(store.getEvent()?.updatedAt).toEqual(verificationDay);
+    await expect(
+      store.db.transaction((tx) =>
+        createPendingXpEventInTransaction(
+          tx,
+          {
+            amount: 5,
+            idempotencyKey: "streak-day:user-1:1:2026-08-07",
+            integrityCaseId: "case-1",
+            kind: "streak_day",
+            reasonCode: "streak_day_completed",
+            sourceCreatedAt: verificationDay,
+            sourceRef: "comment:comment-1",
+            userId: "user-1",
+          },
+          verificationDay
+        )
+      )
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  });
+
   it("cancels Pending XP and decrements its projection in the same transaction", async () => {
     const updates: { table: unknown; values: Record<string, unknown> }[] = [];
     const pending = [

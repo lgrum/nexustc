@@ -5,6 +5,7 @@ import { ProfileClient } from "./profile-client";
 const mocks = vi.hoisted(() => ({
   catalogVisible: false,
   setTheme: vi.fn(),
+  streakAvailable: false,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -18,13 +19,15 @@ vi.mock("@tanstack/react-query", () => ({
             requiredTier: null,
             selectedTheme: "predeterminado",
           }
-        : {
-            settings: {
-              notifications: { commentReplies: true },
-              visibility: { favorites: true, reviews: true },
+        : options.queryKey[0] === "streak"
+          ? { available: mocks.streakAvailable }
+          : {
+              settings: {
+                notifications: { commentReplies: true },
+                visibility: { favorites: true, reviews: true, streak: false },
+              },
+              summary: null,
             },
-            summary: null,
-          },
   }),
 }));
 vi.mock("@/components/profile/account-section", () => ({
@@ -45,6 +48,9 @@ vi.mock("@/components/profile/profile-library-section", () => ({
 vi.mock("@/components/profile/security-section", () => ({
   SecuritySection: () => null,
 }));
+vi.mock("@/components/profile/streak-section", () => ({
+  StreakSection: () => <div>Racha privada</div>,
+}));
 vi.mock("@/lib/orpc", () => ({
   orpc: {
     appTheme: {
@@ -52,6 +58,9 @@ vi.mock("@/lib/orpc", () => ({
     },
     profile: {
       getMySettings: { queryOptions: () => ({ queryKey: ["profile"] }) },
+    },
+    streak: {
+      getMine: { queryOptions: () => ({ queryKey: ["streak"] }) },
     },
   },
   queryClient: { clear: vi.fn() },
@@ -99,4 +108,16 @@ it("shows the Tema section to an authorized account", () => {
   render(<ProfileClient activeSection="theme" user={user} />);
   expect(screen.getAllByRole("link", { name: "Tema" })).toHaveLength(2);
   expect(screen.getByText("Ajustes de tema")).toBeTruthy();
+});
+
+it("shows Racha only while every rollout gate is effective", () => {
+  mocks.streakAvailable = false;
+  const hidden = render(<ProfileClient activeSection="streak" user={user} />);
+  expect(screen.queryByRole("link", { name: "Racha" })).toBeNull();
+  hidden.unmount();
+
+  mocks.streakAvailable = true;
+  render(<ProfileClient activeSection="streak" user={user} />);
+  expect(screen.getAllByRole("link", { name: "Racha" })).toHaveLength(2);
+  expect(screen.getByText("Racha privada")).toBeTruthy();
 });

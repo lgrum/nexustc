@@ -19,8 +19,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { trackEvent } from "@/lib/analytics";
-import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
+import { trackEvent, trackStreakDayCompletion } from "@/lib/analytics";
+import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 
 import { getReviewDeletionDescription } from "./review-deletion-warning";
 import { StarRatingInput } from "./star-rating-input";
@@ -108,13 +108,15 @@ function RatingDialogContent({
         postId,
         rating,
         review,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }),
     onError: (error) => {
       toast.error(
         getClientErrorMessage(error, "No pudimos guardar tu valoracion.")
       );
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
+      trackStreakDayCompletion(result.streak);
       trackEvent("post_rating_submitted", {
         hasExistingRating: Boolean(existingRating),
         postId,
@@ -129,6 +131,7 @@ function RatingDialogContent({
       queryClient.invalidateQueries({
         queryKey: ["profile", "public-reviews"],
       });
+      queryClient.invalidateQueries(orpc.streak.getMine.queryOptions());
       handleOpenChange(false);
     },
   });
@@ -172,7 +175,8 @@ function RatingDialogContent({
   const hasExistingRating = !!existingRating;
   const trimmedReviewLength = review.trim().length;
   const isOverLimit = review.length > RATING_REVIEW_MAX_LENGTH;
-  const isUnderReviewMinimum = trimmedReviewLength < RATING_REVIEW_MIN_LENGTH;
+  const isUnderReviewMinimum =
+    trimmedReviewLength > 0 && trimmedReviewLength < RATING_REVIEW_MIN_LENGTH;
   const hasBlockedReviewContent = hasBlockedMarkdown(review);
   const canSubmit =
     rating >= 1 &&

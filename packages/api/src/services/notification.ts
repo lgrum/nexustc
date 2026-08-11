@@ -29,6 +29,8 @@ import {
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
+import type { IntegrityCorrelationEvidence } from "./integrity-settlement";
+import type { applyStreakEvidenceInTransaction } from "./streak";
 
 const CONTENT_UPDATE_COOLDOWN_MS = 30 * 60 * 1000;
 const MIN_COMIC_PAGE_DELTA = 1;
@@ -488,8 +490,10 @@ export function createGlobalAnnouncement(
 export function createUserNotification(
   db: NotificationDb,
   params: {
+    dedupeKey?: string;
     description: string;
     metadata?: Record<string, unknown>;
+    publishedAt?: Date;
     sourceUserId?: string;
     targetUserId: string;
     title: string;
@@ -497,8 +501,10 @@ export function createUserNotification(
 ) {
   return createNotificationRecord(db, {
     audienceType: "user",
+    dedupeKey: params.dedupeKey,
     description: params.description,
     metadata: params.metadata,
+    publishedAt: params.publishedAt,
     sourceUserId: params.sourceUserId,
     targetUserId: params.targetUserId,
     title: params.title,
@@ -1063,79 +1069,106 @@ export async function getUnreadNotificationCount(
   return result?.count ?? 0;
 }
 
-export async function followContent(
-  db: NotificationDb,
+export function followContent(
+  db: Context["db"],
   params: {
+    correlation?: IntegrityCorrelationEvidence;
     contentId: string;
+    impersonated: boolean;
+    now: Date;
     role?: string | null;
+    timezone?: string;
     userId: string;
-  }
+  },
+  applyStreakEvidence: typeof applyStreakEvidenceInTransaction
 ) {
-  const [content] = await db
-    .select({
-      authorBanned: user.banned,
-      earlyAccessEnabled: post.earlyAccessEnabled,
-      earlyAccessStartedAt: post.earlyAccessStartedAt,
-      id: post.id,
-      releasedAt: post.releasedAt,
-      status: post.status,
-      title: post.title,
-      type: post.type,
-      vip12EarlyAccessHours: post.vip12EarlyAccessHours,
-      vip8EarlyAccessHours: post.vip8EarlyAccessHours,
-    })
-    .from(post)
-    .innerJoin(user, eq(user.id, post.authorId))
-    .where(eq(post.id, params.contentId))
-    .limit(1);
-  const tier = await getActivePatronTier(db, params.userId);
+  return db.transaction(async (tx) => {
+    const [content] = await tx
+      .select({
+        authorBanned: user.banned,
+        earlyAccessEnabled: post.earlyAccessEnabled,
+        earlyAccessStartedAt: post.earlyAccessStartedAt,
+        id: post.id,
+        releasedAt: post.releasedAt,
+        status: post.status,
+        title: post.title,
+        type: post.type,
+        vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+        vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+      })
+      .from(post)
+      .innerJoin(user, eq(user.id, post.authorId))
+      .where(eq(post.id, params.contentId))
+      .limit(1);
+    const tier = await getActivePatronTier(tx, params.userId);
 
-  if (
-    !content ||
-    content.authorBanned ||
-    !canViewPost(content, { role: params.role, tier })
-  ) {
-    throw new Error("FOLLOW_TARGET_NOT_FOUND");
-  }
-  const visibleContent = {
-    id: content.id,
-    status: content.status,
-    title: content.title,
-    type: content.type,
-  };
+    if (
+      !content ||
+      content.authorBanned ||
+      !canViewPost(content, { role: params.role, tier }, params.now)
+    ) {
+      throw new Error("FOLLOW_TARGET_NOT_FOUND");
+    }
+    const visibleContent = {
+      id: content.id,
+      status: content.status,
+      title: content.title,
+      type: content.type,
+    };
 
-  const existingFollow = await db.query.contentFollower.findFirst({
-    columns: { contentId: true },
-    where: and(
-      eq(contentFollower.contentId, content.id),
-      eq(contentFollower.userId, params.userId)
-    ),
+    const existingFollow = await tx.query.contentFollower.findFirst({
+      columns: { contentId: true },
+      where: and(
+        eq(contentFollower.contentId, content.id),
+        eq(contentFollower.userId, params.userId)
+      ),
+    });
+
+    if (existingFollow) {
+      return { ...visibleContent, streak: null };
+    }
+
+    const follows = await tx
+      .select({ count: sql<number>`count(*)`.as("count") })
+      .from(contentFollower)
+      .where(eq(contentFollower.userId, params.userId));
+    const followCount = follows[0]?.count ?? 0;
+
+    if (!canFollow({ role: params.role ?? "user", tier }, followCount)) {
+      throw new Error("FOLLOW_LIMIT_REACHED");
+    }
+
+    const [inserted] = await tx
+      .insert(contentFollower)
+      .values({
+        contentId: content.id,
+        contentType: content.type,
+        userId: params.userId,
+      })
+      .onConflictDoNothing({
+        target: [contentFollower.userId, contentFollower.contentId],
+      })
+      .returning({ contentId: contentFollower.contentId });
+    const streak = inserted
+      ? await applyStreakEvidence(
+          tx,
+          {
+            actionKind: "follow",
+            contentKey: `${content.type}:${content.id}`,
+            impersonated: params.impersonated,
+            ...(params.correlation && {
+              integrity: { correlation: params.correlation },
+            }),
+            kind: "discovery",
+            timezone: params.timezone,
+            userId: params.userId,
+          },
+          params.now
+        )
+      : null;
+
+    return { ...visibleContent, streak };
   });
-
-  if (existingFollow) {
-    return visibleContent;
-  }
-
-  const follows = await db
-    .select({ count: sql<number>`count(*)`.as("count") })
-    .from(contentFollower)
-    .where(eq(contentFollower.userId, params.userId));
-  const followCount = follows[0]?.count ?? 0;
-
-  if (!canFollow({ role: params.role ?? "user", tier }, followCount)) {
-    throw new Error("FOLLOW_LIMIT_REACHED");
-  }
-
-  await db
-    .insert(contentFollower)
-    .values({
-      contentId: content.id,
-      contentType: content.type,
-      userId: params.userId,
-    })
-    .onConflictDoNothing();
-
-  return visibleContent;
 }
 
 export async function unfollowContent(

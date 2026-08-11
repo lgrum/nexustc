@@ -10,6 +10,8 @@ test("account closure removes every personal integrity evidence table", async ()
   const compactSource = source.replaceAll(/\s+/g, "");
 
   for (const table of [
+    "streakDiscoveryReceipt",
+    "userStreak",
     "xpLikeDisqualification",
     "xpRiskSignal",
     "xpIntegrityCase",

@@ -75,6 +75,7 @@ export default {
     .use(slidingWindowRatelimitMiddleware(180, 60))
     .input(comicProgressUpdateSchema)
     .handler(async ({ context: { db, headers, session }, input }) => {
+      const now = new Date();
       const cache = await getRedis();
 
       return trackComicPageView({
@@ -87,9 +88,12 @@ export default {
           visibleDurationMs: input.visibleDurationMs,
           visiblePercentage: input.visiblePercentage,
         },
+        impersonated: Boolean(session.session?.impersonatedBy),
+        now,
         page: input.page,
         readingSessionId: input.readingSessionId,
         role: session.user.role,
+        timezone: input.timezone,
         userId: session.user.id,
       });
     }),

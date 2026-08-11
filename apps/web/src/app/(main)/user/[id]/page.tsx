@@ -1,8 +1,8 @@
-import { getPublicProfile } from "@repo/api/services/profile";
-import { db } from "@repo/db";
 import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
+
+import { orpcClient } from "@/lib/orpc";
 
 import { PublicProfileHero } from "./public-profile-hero";
 import { UserClient } from "./user-client";
@@ -16,7 +16,10 @@ async function getProfile(id: string) {
   cacheLife("hours");
   cacheTag("profiles", `profile:${id}`);
 
-  const profile = await getPublicProfile(db, id);
+  const profile = await orpcClient.profile.getPublic(
+    { includeCurrentStreak: false, userId: id },
+    { context: { cache: true } }
+  );
   if (!profile) {
     notFound();
   }
@@ -36,11 +39,16 @@ export async function generateMetadata({
 
 export default async function Page({ params }: PageProps) {
   const { id } = await params;
-  const profile = await getProfile(id);
+  const [profile, currentStreak] = await Promise.all([
+    getProfile(id),
+    orpcClient.profile.getPublicCurrentStreak({ userId: id }),
+  ]);
+  const publicProfile =
+    currentStreak === null ? profile : { ...profile, currentStreak };
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-9 px-3 py-5 pb-12 sm:px-4 md:py-8">
-      <PublicProfileHero profile={profile} />
+      <PublicProfileHero profile={publicProfile} />
       <UserClient
         userId={profile.id}
         userName={profile.name}
