@@ -1,5 +1,7 @@
 import {
+  Award01Icon,
   Calendar03Icon,
+  Coins01Icon,
   FavouriteIcon,
   StarIcon,
 } from "@hugeicons/core-free-icons";
@@ -78,11 +80,25 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
         </div>
 
         <ProfileStatList className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-2">
+          {profile.accountLevel === null ? null : (
+            <ProfileStat
+              icon={Award01Icon}
+              label="Account Level"
+              value={profile.accountLevel}
+            />
+          )}
           <ProfileStat
             icon={Calendar03Icon}
             label="Miembro desde"
             value={format(profile.createdAt, "yyyy")}
           />
+          {profile.eterisBalance === null ? null : (
+            <ProfileStat
+              icon={Coins01Icon}
+              label="Eteris"
+              value={profile.eterisBalance}
+            />
+          )}
           <ProfileStat
             icon={FavouriteIcon}
             label="Favoritos"

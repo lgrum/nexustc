@@ -18,6 +18,7 @@ export const env = createEnv({
     BETTER_AUTH_URL: httpUrlSchema,
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     CLOUDFLARE_API_TOKEN: z.string().optional(),
+    CRON_SECRET: z.string().min(16),
     DATABASE_URL: z.string(),
     EXE_TOKEN: z.string(),
     PATREON_CAMPAIGN_ID: z.string(),
@@ -32,13 +33,27 @@ export const env = createEnv({
     SHRINKEARN_TOKEN: z.string(),
     SHRINKME_TOKEN: z.string(),
     TURNSTILE_SECRET_KEY: z.string(),
+    ETERIS_SPENDING_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    XP_ACCRUAL_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
+    XP_ECONOMY_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
   },
   runtimeEnv: {
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
     CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
+    CRON_SECRET: process.env.CRON_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
+    ETERIS_SPENDING_ENABLED: process.env.ETERIS_SPENDING_ENABLED,
     EXE_TOKEN: process.env.EXE_TOKEN,
     NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED:
       process.env.NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED,
@@ -56,6 +71,8 @@ export const env = createEnv({
     SHRINKEARN_TOKEN: process.env.SHRINKEARN_TOKEN,
     SHRINKME_TOKEN: process.env.SHRINKME_TOKEN,
     TURNSTILE_SECRET_KEY: process.env.TURNSTILE_SECRET_KEY,
+    XP_ACCRUAL_ENABLED: process.env.XP_ACCRUAL_ENABLED,
+    XP_ECONOMY_ENABLED: process.env.XP_ECONOMY_ENABLED,
   },
 
   emptyStringAsUndefined: true,

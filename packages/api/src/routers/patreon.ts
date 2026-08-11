@@ -15,6 +15,7 @@ import {
   protectedProcedure,
 } from "../index";
 import { reconcilePatreonMemberships } from "../services/patreon-reconciliation";
+import { grantMonthlyPatreonStipend } from "../services/patreon-stipend";
 import { fetchPatreonMembership, refreshPatreonToken } from "../utils/patreon";
 
 const webhookProcessingStatusSchema = z.enum([
@@ -290,6 +291,14 @@ export default {
           },
           target: patron.userId,
         });
+      try {
+        await grantMonthlyPatreonStipend(db, session.user.id);
+      } catch (error) {
+        logger?.warn(
+          { err: error },
+          "Monthly Patreon stipend settlement did not block membership sync"
+        );
+      }
 
       logger?.info(
         `Patron sync complete for user ${session.user.id}, tier: ${patronStatus.tier}`

@@ -3,12 +3,14 @@ import { account, patron } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import {
   getHighestPatronTierFromIds,
+  isPermanentPatronTier,
   resolvePermanentPatronTierStatus,
 } from "@repo/shared/constants";
 import type { PatronTier } from "@repo/shared/constants";
 
 import { fetchPatreonMembership, refreshPatreonToken } from "../utils/patreon";
 import type { PatreonMembership } from "../utils/patreon";
+import { grantMonthlyPatreonStipend } from "./patreon-stipend";
 
 type Database = typeof defaultDb;
 
@@ -25,6 +27,7 @@ export type PatreonReconciliationReason =
   | "missing_access_token"
   | "missing_refresh_token"
   | "refresh_required"
+  | "stipend_settlement_failed"
   | "invalid_access_token"
   | "invalid_refresh_token"
   | "patreon_api_error"
@@ -61,12 +64,6 @@ type ReconcilePatreonMembershipsInput = {
 };
 
 const DEFAULT_LIMIT = 100;
-const PERMANENT_PATRON_TIERS = new Set<PatronTier>(["level69", "level100"]);
-
-function isPermanentPatronTier(tier: PatronTier): boolean {
-  return PERMANENT_PATRON_TIERS.has(tier);
-}
-
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown Patreon error";
 }
@@ -277,6 +274,20 @@ export async function reconcilePatreonMemberships({
     };
 
     if (isPermanentPatronTier(patronRecord.tier)) {
+      if (!dryRun) {
+        try {
+          await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+        } catch (error) {
+          results.push({
+            ...baseResult,
+            action: "failed",
+            error: getErrorMessage(error),
+            nextTier: patronRecord.tier,
+            reason: "stipend_settlement_failed",
+          });
+          continue;
+        }
+      }
       results.push({
         ...baseResult,
         action: "skipped_permanent",
@@ -433,6 +444,20 @@ export async function reconcilePatreonMemberships({
       now,
       patronRecord,
     });
+    if (!dryRun && patronStatus.isActivePatron) {
+      try {
+        await grantMonthlyPatreonStipend(db, patronRecord.userId, now);
+      } catch (error) {
+        results.push({
+          ...baseResult,
+          action: "failed",
+          error: getErrorMessage(error),
+          nextTier: patronStatus.tier,
+          reason: "stipend_settlement_failed",
+        });
+        continue;
+      }
+    }
 
     results.push({
       ...baseResult,

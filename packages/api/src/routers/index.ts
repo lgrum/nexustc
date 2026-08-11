@@ -8,6 +8,7 @@ import comicProgress from "./comic-progress";
 import creator from "./creator";
 import emoji from "./emoji";
 import engagementQuestion from "./engagement-question";
+import eteris from "./eteris";
 import extras from "./extras";
 import file from "./file";
 import media from "./media";
@@ -17,6 +18,7 @@ import patreon from "./patreon";
 import post from "./post";
 import profile from "./profile";
 import profileAdmin from "./profile-admin";
+import progression from "./progression";
 import rating from "./rating";
 import siteConfig from "./site-config";
 import staticPage from "./static-page";
@@ -34,6 +36,7 @@ export const appRouter = {
   creator,
   emoji,
   engagementQuestion,
+  eteris,
   extras,
   file,
   media,
@@ -43,6 +46,7 @@ export const appRouter = {
   post,
   profile,
   profileAdmin,
+  progression,
   rating,
   siteConfig,
   staticPage,

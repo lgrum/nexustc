@@ -36,11 +36,17 @@ import {
 import { attachComicCatalogProgress } from "../services/comic-progress";
 import { canReadPublicProfileActivity } from "../services/profile";
 import {
+  banUserAndReconcileRewards,
+  unbanUserAndReconcileRewards,
+  UserAdministrationError,
+} from "../services/user-administration";
+import {
   canViewPost,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 
 const RECENT_USERS_WINDOW_SECONDS = 60 * 10;
 const RECENT_USERS_LIMIT = 24;
@@ -675,7 +681,7 @@ export default {
             eq(post.status, "publish"),
             eq(postBookmark.userId, input.userId),
             publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`,
+            userIsNotActivelyBanned(),
             cursorCondition
           )
         )
@@ -719,6 +725,69 @@ export default {
   }),
 
   admin: {
+    banUser: permissionProcedure({
+      user: ["ban"],
+    })
+      .use(
+        fixedWindowRatelimitMiddleware({
+          allowBypass: false,
+          limit: 10,
+          windowSeconds: 60,
+        })
+      )
+      .input(
+        z.object({
+          banExpiresIn: z.number().int().positive().optional(),
+          banReason: z.string().optional(),
+          userId: z.string(),
+        })
+      )
+      .handler(async ({ context: { db, session }, errors, input }) => {
+        try {
+          await banUserAndReconcileRewards(db, {
+            ...input,
+            actorUserId: session.user.id,
+          });
+          return { success: true };
+        } catch (error) {
+          if (error instanceof UserAdministrationError) {
+            if (error.code === "USER_NOT_FOUND") {
+              throw errors.NOT_FOUND({ message: "Usuario no encontrado." });
+            }
+            throw errors.BAD_REQUEST({
+              message: "No puedes banear tu propia cuenta.",
+            });
+          }
+          throw error;
+        }
+      }),
+
+    unbanUser: permissionProcedure({
+      user: ["ban"],
+    })
+      .use(
+        fixedWindowRatelimitMiddleware({
+          allowBypass: false,
+          limit: 10,
+          windowSeconds: 60,
+        })
+      )
+      .input(z.object({ userId: z.string() }))
+      .handler(async ({ context: { db }, errors, input }) => {
+        try {
+          await unbanUserAndReconcileRewards(db, input);
+          return { success: true };
+        } catch (error) {
+          if (
+            error instanceof UserAdministrationError &&
+            error.code === "USER_NOT_FOUND"
+          ) {
+            throw errors.NOT_FOUND({ message: "Usuario no encontrado." });
+          }
+          throw error;
+        }
+      }),
+
     createUser: permissionProcedure({
       user: ["create"],
     })

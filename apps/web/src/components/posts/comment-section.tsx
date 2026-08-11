@@ -21,6 +21,7 @@ import {
   CommentContent,
   useEmojiStickerMaps,
 } from "@/components/comments/comment-content";
+import { getCommentDeletionDescription } from "@/components/comments/comment-deletion-warning";
 import { EditCommentDialog } from "@/components/comments/edit-comment-dialog";
 import { PostCommentForm } from "@/components/comments/post-comment-form";
 import { ProfileAvatar } from "@/components/profile/profile-avatar";
@@ -144,6 +145,39 @@ export function CommentSection({
       });
     },
   });
+
+  const handleDeleteComment = async ({
+    commentId,
+    isOwnComment,
+  }: {
+    commentId: string;
+    isOwnComment: boolean;
+  }) => {
+    let description =
+      "¿Estás seguro de que quieres eliminar este comentario? Esta acción no se puede deshacer.";
+    if (isOwnComment) {
+      try {
+        description = getCommentDeletionDescription(
+          await orpcClient.post.getCommentDeletionWarning({ commentId })
+        );
+      } catch {
+        toast.error(
+          "No pudimos comprobar el impacto de eliminar tu comentario."
+        );
+        return;
+      }
+    }
+    if (
+      await confirm({
+        cancelText: "Cancelar",
+        confirmText: "Eliminar",
+        description,
+        title: "Eliminar comentario",
+      })
+    ) {
+      deleteCommentMutation.mutate({ commentId, isOwnComment });
+    }
+  };
 
   const toggleCommentLikeMutation = useMutation({
     mutationFn: ({ commentId, liked }: { commentId: string; liked: boolean }) =>
@@ -347,7 +381,7 @@ export function CommentSection({
                             title: "Banear Usuario",
                           })
                         ) {
-                          await authClient.admin.banUser({
+                          await orpcClient.user.admin.banUser({
                             userId: comment.author.id,
                           });
                           await queryClient.invalidateQueries({
@@ -365,20 +399,12 @@ export function CommentSection({
 
                   {canDeleteComment && (
                     <DropdownMenuItem
-                      onClick={async () => {
-                        if (
-                          await confirm({
-                            description:
-                              "Estas seguro de que quieres eliminar este comentario? Esta accion no se puede deshacer.",
-                            title: "Eliminar Comentario",
-                          })
-                        ) {
-                          deleteCommentMutation.mutate({
-                            commentId: comment.id,
-                            isOwnComment,
-                          });
-                        }
-                      }}
+                      onClick={() =>
+                        handleDeleteComment({
+                          commentId: comment.id,
+                          isOwnComment,
+                        })
+                      }
                       variant="destructive"
                     >
                       <HugeiconsIcon icon={Delete02Icon} />
@@ -688,7 +714,7 @@ export function CommentSection({
                                           title: "Banear Usuario",
                                         })
                                       ) {
-                                        await authClient.admin.banUser({
+                                        await orpcClient.user.admin.banUser({
                                           userId: comment.author.id,
                                         });
                                         await queryClient.invalidateQueries({
@@ -707,20 +733,12 @@ export function CommentSection({
                                 )}
                                 {canDeleteComment && (
                                   <DropdownMenuItem
-                                    onClick={async () => {
-                                      if (
-                                        await confirm({
-                                          title: "Eliminar Comentario",
-                                          description:
-                                            "¿Estás seguro de que quieres eliminar este comentario? Esta acción no se puede deshacer.",
-                                        })
-                                      ) {
-                                        deleteCommentMutation.mutate({
-                                          commentId: comment.id,
-                                          isOwnComment,
-                                        });
-                                      }
-                                    }}
+                                    onClick={() =>
+                                      handleDeleteComment({
+                                        commentId: comment.id,
+                                        isOwnComment,
+                                      })
+                                    }
                                     variant="destructive"
                                   >
                                     <HugeiconsIcon icon={Delete02Icon} />

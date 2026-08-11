@@ -8,24 +8,31 @@ const TEST_SECRET = "test-only-webhook-secret";
 const MAX_BODY_BYTES = 1024 * 1024;
 
 const databaseMocks = vi.hoisted(() => ({
+  accountFindFirst: vi.fn(),
   insert: vi.fn(),
   insertReturning: vi.fn(),
   insertValues: vi.fn(),
+  patronFindFirst: vi.fn(),
   update: vi.fn(),
   updateSet: vi.fn(),
   updateWhere: vi.fn(),
 }));
+const stipendMocks = vi.hoisted(() => ({ grant: vi.fn() }));
 
 vi.mock("@repo/db", () => ({
   db: {
     insert: databaseMocks.insert,
     query: {
-      account: { findFirst: vi.fn() },
-      patron: { findFirst: vi.fn() },
+      account: { findFirst: databaseMocks.accountFindFirst },
+      patron: { findFirst: databaseMocks.patronFindFirst },
     },
     update: databaseMocks.update,
   },
   eq: vi.fn(),
+}));
+
+vi.mock("@repo/api/services/patreon-stipend", () => ({
+  grantMonthlyPatreonStipend: stipendMocks.grant,
 }));
 
 vi.mock("@repo/env", () => ({
@@ -86,12 +93,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   databaseMocks.insert.mockReturnValue({ values: databaseMocks.insertValues });
   databaseMocks.insertValues.mockReturnValue({
+    onConflictDoUpdate: vi.fn(() => Promise.resolve()),
     returning: databaseMocks.insertReturning,
   });
   databaseMocks.insertReturning.mockResolvedValue([{ id: "stored-request" }]);
   databaseMocks.update.mockReturnValue({ set: databaseMocks.updateSet });
   databaseMocks.updateSet.mockReturnValue({ where: databaseMocks.updateWhere });
   databaseMocks.updateWhere.mockResolvedValue();
+  stipendMocks.grant.mockResolvedValue({ granted: "0" });
 });
 
 it("rejects missing authentication headers without inserting", async () => {
@@ -225,5 +234,45 @@ it("verifies a UTF-8 body split across stream chunks", async () => {
   expect(response.status).toBe(200);
   expect(databaseMocks.insertValues).toHaveBeenCalledWith(
     expect.objectContaining({ body })
+  );
+});
+
+it("commits membership and succeeds when the retryable stipend settlement fails", async () => {
+  databaseMocks.accountFindFirst.mockResolvedValue({ userId: "user-1" });
+  databaseMocks.patronFindFirst.mockResolvedValue(null);
+  stipendMocks.grant.mockRejectedValue(new Error("wallet mismatch"));
+  const body = JSON.stringify({
+    data: {
+      attributes: {
+        currently_entitled_amount_cents: 500,
+        patron_status: "active_patron",
+        pledge_relationship_start: "2026-08-01T00:00:00.000Z",
+      },
+      id: "member-1",
+      relationships: {
+        campaign: { data: { id: "test-campaign", type: "campaign" } },
+        currently_entitled_tiers: { data: [] },
+        user: { data: { id: "patreon-user-1", type: "user" } },
+      },
+      type: "member",
+    },
+  });
+
+  const response = await handleWebhook(
+    createRequest(
+      body,
+      authenticatedHeaders(body, {
+        "x-patreon-event": "members:pledge:update",
+      })
+    )
+  );
+
+  expect(response.status).toBe(200);
+  expect(stipendMocks.grant).toHaveBeenCalledWith(expect.anything(), "user-1");
+  expect(databaseMocks.updateSet).toHaveBeenCalledWith(
+    expect.objectContaining({
+      processingStatus: "processed",
+      responseStatus: 200,
+    })
   );
 });

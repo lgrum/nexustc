@@ -29,6 +29,7 @@ import {
   translator,
   user,
 } from "@repo/db/schema/app";
+import { env } from "@repo/env";
 import {
   MAX_PINNED_ITEMS_PER_POST,
   canAccessPremiumLinks,
@@ -51,8 +52,20 @@ import {
   publicProcedure,
 } from "../../index";
 import { attachComicCatalogProgress } from "../../services/comic-progress";
+import {
+  deleteCommentWithRewards,
+  getCommentDeletionWarning,
+  isContributionLikerEligibleInTransaction,
+  lockContributionParticipantsInTransaction,
+  reconcileEditedCommentRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction,
+  runContributionRewardTransaction,
+  saveCommentRewardSubjectInTransaction,
+  settleCommentMilestonesInTransaction,
+} from "../../services/contribution-rewards";
 import { createCommentReplyNotification } from "../../services/notification";
 import { buildProfileSummaries } from "../../services/profile";
+import { notifyXpSettlementInTransaction } from "../../services/progression";
 import {
   getResolvedEngagementPromptsForPost,
   getSelectableEngagementPromptsForPost,
@@ -60,12 +73,14 @@ import {
 } from "../../utils/comment-engagement";
 import {
   activeVipCatalogCondition,
+  canViewPost,
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
   redactEarlyAccessMedia,
 } from "../../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../../utils/forbidden-content";
+import { buildIntegrityCorrelationEvidence } from "../../utils/integrity-evidence";
 import { createPostCoverImageObjectKeySelect } from "../../utils/post-media";
 import {
   getPostViewDedupeKey,
@@ -73,6 +88,7 @@ import {
   POST_VIEW_DEDUPE_TTL_SECONDS,
 } from "../../utils/post-views";
 import { assertTextIsNotSpammy } from "../../utils/spam-detection";
+import { userIsNotActivelyBanned } from "../../utils/user-ban";
 import admin from "./admin";
 
 const RECOMMENDATION_LIMIT = 5;
@@ -101,6 +117,10 @@ type RelatedPostResult = {
   version: string | null;
   views: number;
 };
+
+type CommentMilestoneSettlement = Awaited<
+  ReturnType<typeof settleCommentMilestonesInTransaction>
+>["settlements"][number];
 const releasedAtAscending = sql`${post.releasedAt} ASC NULLS LAST`;
 const releasedAtDescending = sql`${post.releasedAt} DESC NULLS LAST`;
 
@@ -1546,11 +1566,22 @@ export default {
               parentId: input.parentId ?? null,
               postId: input.postId,
             })
-            .returning({ id: comment.id });
+            .returning({
+              content: comment.content,
+              createdAt: comment.createdAt,
+              id: comment.id,
+              postId: comment.postId,
+              userId: comment.authorId,
+            });
 
-          if (!createdComment) {
+          if (!createdComment?.userId) {
             throw errors.INTERNAL_SERVER_ERROR();
           }
+
+          await saveCommentRewardSubjectInTransaction(tx, {
+            ...createdComment,
+            userId: createdComment.userId,
+          });
 
           if (parentComment?.authorId) {
             await createCommentReplyNotification(tx, {
@@ -1670,21 +1701,61 @@ export default {
           }
         }
 
-        await db
-          .update(comment)
-          .set({
-            content: input.content,
-            editedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(comment.id, input.commentId),
-              eq(comment.authorId, session.user.id)
-            )
-          );
-
+        const settlements = await runContributionRewardTransaction(
+          db,
+          async (tx) => {
+            await lockContributionParticipantsInTransaction(tx, [
+              session.user.id,
+            ]);
+            const [updatedComment] = await tx
+              .update(comment)
+              .set({
+                content: input.content,
+                editedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(comment.id, input.commentId),
+                  eq(comment.authorId, session.user.id)
+                )
+              )
+              .returning({
+                content: comment.content,
+                createdAt: comment.createdAt,
+                id: comment.id,
+                postId: comment.postId,
+                userId: comment.authorId,
+              });
+            if (updatedComment?.userId) {
+              const result = await reconcileEditedCommentRewardsInTransaction(
+                tx,
+                {
+                  ...updatedComment,
+                  userId: updatedComment.userId,
+                }
+              );
+              for (const settlement of result.settlements) {
+                await notifyXpSettlementInTransaction(
+                  tx,
+                  session.user.id,
+                  settlement
+                );
+              }
+              return result.settlements;
+            }
+            return [];
+          }
+        );
         logger?.debug(`Own comment ${input.commentId} edited`);
-        return { success: true };
+        return {
+          profileUserId: session.user.id,
+          publicProfileChanged: settlements.some(
+            (settlement) =>
+              !settlement.replayed &&
+              settlement.level !== settlement.previousLevel
+          ),
+          success: true,
+        };
       }
     ),
 
@@ -1766,26 +1837,32 @@ export default {
 
   deleteComment: permissionProcedure({ comments: ["delete"] })
     .input(z.object({ commentId: z.string() }))
-    .handler(async ({ context: { db, ...context }, input, errors }) => {
-      const logger = getLogger(context);
-      logger?.info(`Deleting comment ${input.commentId}`);
+    .handler(
+      async ({ context: { db, session, ...context }, input, errors }) => {
+        const logger = getLogger(context);
+        logger?.info(`Deleting comment ${input.commentId}`);
 
-      const existingComment = await db.query.comment.findFirst({
-        columns: {
-          id: true,
-        },
-        where: eq(comment.id, input.commentId),
-      });
+        const existingComment = await db.query.comment.findFirst({
+          columns: {
+            id: true,
+          },
+          where: eq(comment.id, input.commentId),
+        });
 
-      if (!existingComment) {
-        throw errors.NOT_FOUND();
+        if (!existingComment) {
+          throw errors.NOT_FOUND();
+        }
+
+        await deleteCommentWithRewards(db, {
+          actorUserId: session.user.id,
+          commentId: input.commentId,
+          reason: "guideline_abuse",
+        });
+
+        logger?.debug(`Comment ${input.commentId} deleted`);
+        return { success: true };
       }
-
-      await db.delete(comment).where(eq(comment.id, input.commentId));
-
-      logger?.debug(`Comment ${input.commentId} deleted`);
-      return { success: true };
-    }),
+    ),
 
   deleteOwnComment: protectedProcedure
     .input(z.object({ commentId: z.string() }))
@@ -1812,21 +1889,27 @@ export default {
           throw errors.FORBIDDEN();
         }
 
-        await db
-          .delete(comment)
-          .where(
-            and(
-              eq(comment.id, input.commentId),
-              eq(comment.authorId, session.user.id)
-            )
-          );
+        await deleteCommentWithRewards(db, {
+          commentId: input.commentId,
+          reason: "voluntary",
+        });
 
         logger?.debug(`Own comment ${input.commentId} deleted`);
         return { success: true };
       }
     ),
 
+  getCommentDeletionWarning: protectedProcedure
+    .input(z.object({ commentId: z.string() }))
+    .handler(({ context: { db, session }, input }) =>
+      getCommentDeletionWarning(db, {
+        commentId: input.commentId,
+        userId: session.user.id,
+      })
+    ),
+
   toggleCommentLike: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .input(z.object({ commentId: z.string(), liked: z.boolean() }))
     .handler(
       async ({ context: { db, session, ...context }, input, errors }) => {
@@ -1834,43 +1917,152 @@ export default {
         logger?.info(
           `User ${session.user.id} toggling comment like ${input.commentId} to ${input.liked}`
         );
+        const now = new Date();
+        const viewerTier = input.liked
+          ? await getViewerPatronTier(db, session)
+          : "none";
 
-        const existingComment = await db
-          .select({ id: comment.id })
-          .from(comment)
-          .innerJoin(user, eq(user.id, comment.authorId))
-          .where(
-            and(
-              eq(comment.id, input.commentId),
-              sql`${user.banned} IS DISTINCT FROM true`
+        const result: {
+          authorId: string;
+          settlements: CommentMilestoneSettlement[];
+        } = await runContributionRewardTransaction(db, async (tx) => {
+          const [existingComment] = await tx
+            .select({
+              authorId: comment.authorId,
+              earlyAccessEnabled: post.earlyAccessEnabled,
+              earlyAccessStartedAt: post.earlyAccessStartedAt,
+              id: comment.id,
+              postId: comment.postId,
+              releasedAt: post.releasedAt,
+              status: post.status,
+              type: post.type,
+              vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+              vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+            })
+            .from(comment)
+            .innerJoin(user, eq(user.id, comment.authorId))
+            .leftJoin(post, eq(post.id, comment.postId))
+            .where(
+              and(eq(comment.id, input.commentId), userIsNotActivelyBanned(now))
             )
-          )
-          .limit(1);
+            .limit(1);
 
-        if (existingComment.length === 0) {
-          throw errors.NOT_FOUND();
-        }
-
-        const toggleLikeQuery = input.liked
-          ? db
-              .insert(commentLikes)
-              .values({
-                commentId: input.commentId,
-                userId: session.user.id,
-              })
-              .onConflictDoNothing()
-          : db
+          if (!existingComment?.authorId) {
+            throw errors.NOT_FOUND();
+          }
+          if (
+            input.liked &&
+            existingComment.postId &&
+            (!existingComment.type ||
+              !existingComment.status ||
+              existingComment.earlyAccessEnabled === null ||
+              existingComment.vip12EarlyAccessHours === null ||
+              existingComment.vip8EarlyAccessHours === null ||
+              !canViewPost(
+                {
+                  earlyAccessEnabled: existingComment.earlyAccessEnabled,
+                  earlyAccessStartedAt: existingComment.earlyAccessStartedAt,
+                  releasedAt: existingComment.releasedAt,
+                  status: existingComment.status,
+                  type: existingComment.type,
+                  vip12EarlyAccessHours: existingComment.vip12EarlyAccessHours,
+                  vip8EarlyAccessHours: existingComment.vip8EarlyAccessHours,
+                },
+                { role: session.user.role, tier: viewerTier },
+                now
+              ))
+          ) {
+            throw errors.NOT_FOUND();
+          }
+          await lockContributionParticipantsInTransaction(tx, [
+            session.user.id,
+            existingComment.authorId,
+          ]);
+          if (
+            input.liked &&
+            !(await isContributionLikerEligibleInTransaction(
+              tx,
+              session.user.id,
+              now
+            ))
+          ) {
+            throw errors.FORBIDDEN();
+          }
+          if (!input.liked) {
+            const deleted = await tx
               .delete(commentLikes)
               .where(
                 and(
                   eq(commentLikes.commentId, input.commentId),
                   eq(commentLikes.userId, session.user.id)
                 )
+              )
+              .returning({ commentId: commentLikes.commentId });
+            if (deleted.length === 0) {
+              return { authorId: existingComment.authorId, settlements: [] };
+            }
+            const reconciliation =
+              await reconcileRemovedContributionLikeInTransaction(tx, {
+                actorUserId: session.user.id,
+                entityId: input.commentId,
+                kind: "comment",
+                now,
+              });
+            for (const settlement of reconciliation.settlements) {
+              await notifyXpSettlementInTransaction(
+                tx,
+                existingComment.authorId,
+                settlement
               );
+            }
+            return {
+              authorId: existingComment.authorId,
+              settlements: reconciliation.settlements,
+            };
+          }
 
-        await toggleLikeQuery;
-
-        return { success: true };
+          const inserted = await tx
+            .insert(commentLikes)
+            .values({
+              commentId: input.commentId,
+              createdAt: now,
+              emailVerifiedAtCreation: session.user.emailVerified,
+              userId: session.user.id,
+              xpAccrualEnabledAtCreation: env.XP_ACCRUAL_ENABLED,
+            })
+            .onConflictDoNothing()
+            .returning({ commentId: commentLikes.commentId });
+          if (inserted.length === 0) {
+            return { authorId: existingComment.authorId, settlements: [] };
+          }
+          const settlement = await settleCommentMilestonesInTransaction(
+            tx,
+            input.commentId,
+            now,
+            session.user.id,
+            buildIntegrityCorrelationEvidence(context.headers)
+          );
+          for (const xpSettlement of settlement.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              existingComment.authorId,
+              xpSettlement
+            );
+          }
+          return {
+            authorId: existingComment.authorId,
+            settlements: settlement.settlements,
+          };
+        });
+        return {
+          profileUserId: result.authorId,
+          publicProfileChanged: result.settlements.some(
+            (settlement) =>
+              !settlement.replayed &&
+              settlement.level !== settlement.previousLevel
+          ),
+          success: true,
+        };
       }
     ),
 

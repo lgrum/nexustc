@@ -1,0 +1,2 @@
+ALTER TABLE "comment_like" ADD COLUMN "email_verified_at_creation" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "post_rating_like" ADD COLUMN "email_verified_at_creation" boolean DEFAULT false NOT NULL;

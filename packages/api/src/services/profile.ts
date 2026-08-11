@@ -33,6 +33,9 @@ import type {
 } from "@repo/shared/profile";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
+import { getPublicWalletBalance } from "./eteris";
+import { getPublicAccountLevel } from "./progression";
 
 type Database = typeof database;
 export type ProfileEntitlementDb = Pick<Database, "query">;
@@ -94,8 +97,10 @@ export type ProfileSummary = {
 };
 
 export type PublicProfile = ProfileSummary & {
+  accountLevel: number | null;
   activityCounts: Record<ProfileActivityCollection, number | null>;
   createdAt: Date;
+  eterisBalance: string | null;
   banner: {
     mode: "color" | "image";
     color: string;
@@ -248,7 +253,7 @@ export async function getPublicProfileActivityCounts(
             eq(postBookmark.userId, userId),
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(now),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned(now)
           )
         )
     : null;
@@ -263,7 +268,7 @@ export async function getPublicProfileActivityCounts(
             eq(postRating.userId, userId),
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(now),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned(now)
           )
         )
     : null;
@@ -335,7 +340,11 @@ function getMediaAssetsByIds(db: Database, ids: string[]) {
   });
 }
 
-export async function buildProfileSummaries(db: Database, userIds: string[]) {
+export async function buildProfileSummaries(
+  db: Database,
+  userIds: string[],
+  asOf = new Date()
+) {
   if (userIds.length === 0) {
     return [] satisfies ProfileSummary[];
   }
@@ -353,7 +362,7 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
         },
         where: and(
           inArray(user.id, uniqueUserIds),
-          sql`${user.banned} IS DISTINCT FROM true`
+          userIsNotActivelyBanned(asOf)
         ),
       }),
       getOrCreateProfileSystemConfig(db),
@@ -629,8 +638,12 @@ export async function buildProfileSummaries(db: Database, userIds: string[]) {
   });
 }
 
-export async function getPublicProfile(db: Database, userId: string) {
-  const [summary] = await buildProfileSummaries(db, [userId]);
+export async function getPublicProfile(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
+  const [summary] = await buildProfileSummaries(db, [userId], now);
 
   if (!summary) {
     return null;
@@ -640,10 +653,7 @@ export async function getPublicProfile(db: Database, userId: string) {
     getOrCreateProfileSettings(db, userId),
     db.query.user.findFirst({
       columns: { createdAt: true },
-      where: and(
-        eq(user.id, userId),
-        sql`${user.banned} IS DISTINCT FROM true`
-      ),
+      where: and(eq(user.id, userId), userIsNotActivelyBanned(now)),
     }),
     getOrCreateProfileSystemConfig(db),
   ]);
@@ -653,17 +663,21 @@ export async function getPublicProfile(db: Database, userId: string) {
   }
 
   const visibility = getProfileActivityVisibility(settings.visibilityConfig);
-  const [bannerAsset, activityCounts] = await Promise.all([
-    settings.bannerAssetId
-      ? db.query.profileMediaAsset.findFirst({
-          where: eq(profileMediaAsset.id, settings.bannerAssetId),
-        })
-      : null,
-    getPublicProfileActivityCounts(db, userId, visibility),
-  ]);
+  const [bannerAsset, activityCounts, progression, publicWallet] =
+    await Promise.all([
+      settings.bannerAssetId
+        ? db.query.profileMediaAsset.findFirst({
+            where: eq(profileMediaAsset.id, settings.bannerAssetId),
+          })
+        : null,
+      getPublicProfileActivityCounts(db, userId, visibility, now),
+      getPublicAccountLevel(db, userId, now),
+      getPublicWalletBalance(db, userId, now),
+    ]);
 
   return {
     ...summary,
+    accountLevel: progression?.level ?? null,
     activityCounts,
     banner: {
       asset: bannerAsset
@@ -677,6 +691,7 @@ export async function getPublicProfile(db: Database, userId: string) {
       mode: settings.bannerMode,
     },
     createdAt: currentUser.createdAt,
+    eterisBalance: publicWallet?.balance ?? null,
     maxVisibleEmblems: systemConfig.maxVisibleEmblems,
     visibility,
   } satisfies PublicProfile;

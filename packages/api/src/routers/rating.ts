@@ -1,6 +1,7 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { and, desc, eq, inArray, isNull, lt, not, or, sql } from "@repo/db";
 import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
+import { env } from "@repo/env";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
 import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
 import z from "zod";
@@ -13,17 +14,31 @@ import {
   publicProcedure,
 } from "../index";
 import {
+  deleteReviewWithRewards,
+  getReviewDeletionWarning,
+  isContributionLikerEligibleInTransaction,
+  lockContributionParticipantsInTransaction,
+  reconcileEditedReviewRewardsInTransaction,
+  reconcileRemovedContributionLikeInTransaction,
+  runContributionRewardTransaction,
+  settleReviewMilestonesInTransaction,
+} from "../services/contribution-rewards";
+import {
   buildProfileSummaries,
   canReadPublicProfileActivity,
 } from "../services/profile";
+import { notifyXpSettlementInTransaction } from "../services/progression";
 import {
+  canViewPost,
   getPostEarlyAccessView,
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
 import { assertContentHasNoForbiddenTerms } from "../utils/forbidden-content";
+import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { assertTextIsNotSpammy } from "../utils/spam-detection";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 
 const ratingsByUserPaginationSchema = z.object({
   cursor: z
@@ -34,6 +49,10 @@ const ratingsByUserPaginationSchema = z.object({
     .optional(),
   limit: z.number().min(1).max(30).default(10),
 });
+
+type ReviewMilestoneSettlement = Awaited<
+  ReturnType<typeof settleReviewMilestonesInTransaction>
+>["settlements"][number];
 
 async function assertRatingsAreOpen(params: {
   db: Context["db"];
@@ -88,7 +107,7 @@ async function getRatingsByUser({
         eq(postRating.userId, userId),
         eq(post.status, "publish"),
         publicCatalogVisibilityCondition(),
-        sql`${user.banned} IS DISTINCT FROM true`
+        userIsNotActivelyBanned()
       )
     : eq(postRating.userId, userId);
   const cursorCondition = cursor
@@ -173,23 +192,46 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await db
-        .insert(postRating)
-        .values({
-          postId: input.postId,
-          rating: input.rating,
-          review,
-          userId: session.user.id,
-        })
-        .onConflictDoUpdate({
-          set: {
-            ...(reviewWasRemoved ? { pinnedAt: null } : {}),
+      await runContributionRewardTransaction(db, async (tx) => {
+        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
+        const [savedReview] = await tx
+          .insert(postRating)
+          .values({
+            postId: input.postId,
             rating: input.rating,
             review,
-            updatedAt: new Date(),
-          },
-          target: [postRating.userId, postRating.postId],
-        });
+            userId: session.user.id,
+          })
+          .onConflictDoUpdate({
+            set: {
+              ...(reviewWasRemoved ? { pinnedAt: null } : {}),
+              rating: input.rating,
+              review,
+              updatedAt: new Date(),
+            },
+            target: [postRating.userId, postRating.postId],
+          })
+          .returning({
+            createdAt: postRating.createdAt,
+            id: postRating.id,
+            postId: postRating.postId,
+            review: postRating.review,
+            userId: postRating.userId,
+          });
+        if (savedReview) {
+          const result = await reconcileEditedReviewRewardsInTransaction(
+            tx,
+            savedReview
+          );
+          for (const settlement of result.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              session.user.id,
+              settlement
+            );
+          }
+        }
+      });
 
       logger?.debug(
         `Rating upserted for user ${session.user.id} on post ${input.postId}`
@@ -220,20 +262,43 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await db
-        .update(postRating)
-        .set({
-          ...(reviewWasRemoved ? { pinnedAt: null } : {}),
-          rating: input.rating,
-          review,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(postRating.postId, input.postId),
-            eq(postRating.userId, session.user.id)
+      await runContributionRewardTransaction(db, async (tx) => {
+        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
+        const [savedReview] = await tx
+          .update(postRating)
+          .set({
+            ...(reviewWasRemoved ? { pinnedAt: null } : {}),
+            rating: input.rating,
+            review,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(postRating.postId, input.postId),
+              eq(postRating.userId, session.user.id)
+            )
           )
-        );
+          .returning({
+            createdAt: postRating.createdAt,
+            id: postRating.id,
+            postId: postRating.postId,
+            review: postRating.review,
+            userId: postRating.userId,
+          });
+        if (savedReview) {
+          const result = await reconcileEditedReviewRewardsInTransaction(
+            tx,
+            savedReview
+          );
+          for (const settlement of result.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              session.user.id,
+              settlement
+            );
+          }
+        }
+      });
 
       logger?.debug(
         `Rating updated for user ${session.user.id} on post ${input.postId}`
@@ -256,14 +321,11 @@ export default {
         session,
       });
 
-      await db
-        .delete(postRating)
-        .where(
-          and(
-            eq(postRating.postId, input.postId),
-            eq(postRating.userId, session.user.id)
-          )
-        );
+      await deleteReviewWithRewards(db, {
+        postId: input.postId,
+        reason: "voluntary",
+        userId: session.user.id,
+      });
 
       logger?.debug(
         `Rating deleted for user ${session.user.id} on post ${input.postId}`
@@ -274,20 +336,18 @@ export default {
   // Admin delete any rating
   deleteAny: permissionProcedure({ ratings: ["delete"] })
     .input(z.object({ postId: z.string(), userId: z.string() }))
-    .handler(async ({ context: { db, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `Admin deleting rating: user ${input.userId} on post ${input.postId}`
       );
 
-      await db
-        .delete(postRating)
-        .where(
-          and(
-            eq(postRating.postId, input.postId),
-            eq(postRating.userId, input.userId)
-          )
-        );
+      await deleteReviewWithRewards(db, {
+        actorUserId: session.user.id,
+        postId: input.postId,
+        reason: "guideline_abuse",
+        userId: input.userId,
+      });
 
       logger?.debug(
         `Rating deleted by admin for user ${input.userId} on post ${input.postId}`
@@ -296,6 +356,7 @@ export default {
     }),
 
   toggleReviewLike: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .input(
       z.object({
         liked: z.boolean(),
@@ -308,50 +369,148 @@ export default {
       logger?.info(
         `User ${session.user.id} toggling review like for ${input.ratingUserId} on post ${input.postId} to ${input.liked}`
       );
+      const now = new Date();
+      const viewerTier = input.liked
+        ? await getViewerPatronTier(db, session)
+        : "none";
 
-      const [existingRating] = await db
-        .select({
-          postId: postRating.postId,
-          userId: postRating.userId,
-        })
-        .from(postRating)
-        .innerJoin(user, eq(user.id, postRating.userId))
-        .where(
-          and(
-            eq(postRating.postId, input.postId),
-            eq(postRating.userId, input.ratingUserId),
-            sql`${user.banned} IS DISTINCT FROM true`
+      const result: {
+        authorId: string;
+        settlements: ReviewMilestoneSettlement[];
+      } = await runContributionRewardTransaction(db, async (tx) => {
+        const [existingRating] = await tx
+          .select({
+            earlyAccessEnabled: post.earlyAccessEnabled,
+            earlyAccessStartedAt: post.earlyAccessStartedAt,
+            id: postRating.id,
+            releasedAt: post.releasedAt,
+            status: post.status,
+            type: post.type,
+            vip12EarlyAccessHours: post.vip12EarlyAccessHours,
+            vip8EarlyAccessHours: post.vip8EarlyAccessHours,
+          })
+          .from(postRating)
+          .innerJoin(user, eq(user.id, postRating.userId))
+          .innerJoin(post, eq(post.id, postRating.postId))
+          .where(
+            and(
+              eq(postRating.postId, input.postId),
+              eq(postRating.userId, input.ratingUserId),
+              userIsNotActivelyBanned()
+            )
           )
-        )
-        .limit(1);
-
-      if (!existingRating) {
-        throw errors.NOT_FOUND();
-      }
-
-      const toggleLikeQuery = input.liked
-        ? db
-            .insert(postRatingLikes)
-            .values({
-              postId: input.postId,
-              ratingUserId: input.ratingUserId,
-              userId: session.user.id,
-            })
-            .onConflictDoNothing()
-        : db
+          .limit(1);
+        if (!existingRating) {
+          throw errors.NOT_FOUND();
+        }
+        if (
+          input.liked &&
+          !canViewPost(
+            existingRating,
+            { role: session.user.role, tier: viewerTier },
+            now
+          )
+        ) {
+          throw errors.NOT_FOUND();
+        }
+        await lockContributionParticipantsInTransaction(tx, [
+          session.user.id,
+          input.ratingUserId,
+        ]);
+        if (
+          input.liked &&
+          !(await isContributionLikerEligibleInTransaction(
+            tx,
+            session.user.id,
+            now
+          ))
+        ) {
+          throw errors.FORBIDDEN();
+        }
+        if (!input.liked) {
+          const deleted = await tx
             .delete(postRatingLikes)
             .where(
               and(
-                eq(postRatingLikes.postId, input.postId),
-                eq(postRatingLikes.ratingUserId, input.ratingUserId),
+                eq(postRatingLikes.ratingId, existingRating.id),
                 eq(postRatingLikes.userId, session.user.id)
               )
+            )
+            .returning({ ratingId: postRatingLikes.ratingId });
+          if (deleted.length === 0) {
+            return { authorId: input.ratingUserId, settlements: [] };
+          }
+          const reconciliation =
+            await reconcileRemovedContributionLikeInTransaction(tx, {
+              actorUserId: session.user.id,
+              entityId: existingRating.id,
+              kind: "review",
+              now,
+            });
+          for (const settlement of reconciliation.settlements) {
+            await notifyXpSettlementInTransaction(
+              tx,
+              input.ratingUserId,
+              settlement
             );
-
-      await toggleLikeQuery;
-
-      return { success: true };
+          }
+          return {
+            authorId: input.ratingUserId,
+            settlements: reconciliation.settlements,
+          };
+        }
+        const inserted = await tx
+          .insert(postRatingLikes)
+          .values({
+            createdAt: now,
+            emailVerifiedAtCreation: session.user.emailVerified,
+            ratingId: existingRating.id,
+            userId: session.user.id,
+            xpAccrualEnabledAtCreation: env.XP_ACCRUAL_ENABLED,
+          })
+          .onConflictDoNothing()
+          .returning({ ratingId: postRatingLikes.ratingId });
+        if (inserted.length === 0) {
+          return { authorId: input.ratingUserId, settlements: [] };
+        }
+        const settlement = await settleReviewMilestonesInTransaction(
+          tx,
+          existingRating.id,
+          now,
+          session.user.id,
+          buildIntegrityCorrelationEvidence(ctx.headers)
+        );
+        for (const xpSettlement of settlement.settlements) {
+          await notifyXpSettlementInTransaction(
+            tx,
+            input.ratingUserId,
+            xpSettlement
+          );
+        }
+        return {
+          authorId: input.ratingUserId,
+          settlements: settlement.settlements,
+        };
+      });
+      return {
+        profileUserId: result.authorId,
+        publicProfileChanged: result.settlements.some(
+          (settlement) =>
+            !settlement.replayed &&
+            settlement.level !== settlement.previousLevel
+        ),
+        success: true,
+      };
     }),
+
+  getDeletionWarning: protectedProcedure
+    .input(z.object({ postId: z.string() }))
+    .handler(({ context: { db, session }, input }) =>
+      getReviewDeletionWarning(db, {
+        postId: input.postId,
+        userId: session.user.id,
+      })
+    ),
 
   setPinned: permissionProcedure({ ratings: ["pin"] })
     .input(
@@ -376,7 +535,7 @@ export default {
           and(
             eq(postRating.postId, input.postId),
             eq(postRating.userId, input.userId),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned()
           )
         )
         .limit(1);
@@ -402,7 +561,7 @@ export default {
             and(
               eq(postRating.postId, input.postId),
               not(isNull(postRating.pinnedAt)),
-              sql`${user.banned} IS DISTINCT FROM true`
+              userIsNotActivelyBanned()
             )
           );
 
@@ -447,6 +606,7 @@ export default {
       const ratings = await db
         .select({
           createdAt: postRating.createdAt,
+          id: postRating.id,
           pinnedAt: postRating.pinnedAt,
           postId: postRating.postId,
           rating: postRating.rating,
@@ -457,10 +617,7 @@ export default {
         .from(postRating)
         .innerJoin(user, eq(user.id, postRating.userId))
         .where(
-          and(
-            eq(postRating.postId, input.postId),
-            sql`${user.banned} IS DISTINCT FROM true`
-          )
+          and(eq(postRating.postId, input.postId), userIsNotActivelyBanned())
         )
         .orderBy(
           sql`${postRating.pinnedAt} DESC NULLS LAST`,
@@ -475,27 +632,27 @@ export default {
                   ? sql<boolean>`BOOL_OR(${postRatingLikes.userId} = ${session.user.id})`
                   : sql<boolean>`false`,
                 likeCount: sql<number>`COUNT(*)::integer`,
-                postId: postRatingLikes.postId,
-                ratingUserId: postRatingLikes.ratingUserId,
+                ratingId: postRatingLikes.ratingId,
               })
               .from(postRatingLikes)
               .innerJoin(user, eq(user.id, postRatingLikes.userId))
               .where(
                 and(
-                  eq(postRatingLikes.postId, input.postId),
-                  sql`${user.banned} IS DISTINCT FROM true`
+                  inArray(
+                    postRatingLikes.ratingId,
+                    ratings.map((rating) => rating.id)
+                  ),
+                  userIsNotActivelyBanned()
                 )
               )
-              .groupBy(postRatingLikes.postId, postRatingLikes.ratingUserId)
+              .groupBy(postRatingLikes.ratingId)
           : [];
 
       const ratingLikeMap = new Map(
-        ratingLikeRows.map((row) => [`${row.postId}:${row.ratingUserId}`, row])
+        ratingLikeRows.map((row) => [row.ratingId, row])
       );
       const ratingsWithLikes = ratings.map((rating) => {
-        const likeStats = ratingLikeMap.get(
-          `${rating.postId}:${rating.userId}`
-        );
+        const likeStats = ratingLikeMap.get(rating.id);
 
         return {
           ...rating,
@@ -544,7 +701,7 @@ export default {
           and(
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned()
           )
         )
         .orderBy(desc(postRating.createdAt))
@@ -664,7 +821,7 @@ export default {
           and(
             eq(postRating.postId, input.postId),
             eq(postRating.userId, session.user.id),
-            sql`${user.banned} IS DISTINCT FROM true`
+            userIsNotActivelyBanned()
           )
         )
         .limit(1);
@@ -703,10 +860,7 @@ export default {
         .from(postRating)
         .innerJoin(user, eq(user.id, postRating.userId))
         .where(
-          and(
-            eq(postRating.postId, input.postId),
-            sql`${user.banned} IS DISTINCT FROM true`
-          )
+          and(eq(postRating.postId, input.postId), userIsNotActivelyBanned())
         );
 
       const averageRating = result[0]?.averageRating ?? 0;

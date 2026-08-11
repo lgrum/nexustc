@@ -17,10 +17,12 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { trackEvent } from "@/lib/analytics";
 import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
 
+import { getReviewDeletionDescription } from "./review-deletion-warning";
 import { StarRatingInput } from "./star-rating-input";
 
 type RatingDialogProps = {
@@ -80,6 +82,7 @@ function RatingDialogContent({
   isLoading: boolean;
 }) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const [rating, setRating] = useState<number>(existingRating?.rating ?? 0);
   const [review, setReview] = useState<string>(existingRating?.review ?? "");
@@ -149,6 +152,23 @@ function RatingDialogContent({
   });
 
   const isSubmitting = createMutation.isPending || deleteMutation.isPending;
+  const handleDelete = async () => {
+    try {
+      const warning = await orpcClient.rating.getDeletionWarning({ postId });
+      if (
+        await confirm({
+          cancelText: "Cancelar",
+          confirmText: "Eliminar",
+          description: getReviewDeletionDescription(warning),
+          title: "Eliminar valoración",
+        })
+      ) {
+        deleteMutation.mutate();
+      }
+    } catch {
+      toast.error("No pudimos comprobar el impacto de eliminar tu reseña.");
+    }
+  };
   const hasExistingRating = !!existingRating;
   const trimmedReviewLength = review.trim().length;
   const isOverLimit = review.length > RATING_REVIEW_MAX_LENGTH;
@@ -312,7 +332,7 @@ function RatingDialogContent({
               <Button
                 className="h-11 w-full gap-2 rounded-lg text-[12.5px] sm:w-auto sm:shrink-0 sm:px-4"
                 disabled={isSubmitting}
-                onClick={() => deleteMutation.mutate()}
+                onClick={handleDelete}
                 type="button"
                 variant="destructive"
               >

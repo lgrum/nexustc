@@ -10,6 +10,7 @@ import {
   startComicReadingSession,
   trackComicPageView,
 } from "../services/comic-progress";
+import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 
 export default {
   getByComicId: protectedProcedure
@@ -51,6 +52,7 @@ export default {
     }),
 
   startSession: protectedProcedure
+    .use(slidingWindowRatelimitMiddleware(10, 60))
     .input(comicProgressComicSchema)
     .handler(async ({ context: { db, session }, input, errors }) => {
       const cache = await getRedis();
@@ -72,15 +74,22 @@ export default {
   update: protectedProcedure
     .use(slidingWindowRatelimitMiddleware(180, 60))
     .input(comicProgressUpdateSchema)
-    .handler(async ({ context: { db, session }, input }) => {
+    .handler(async ({ context: { db, headers, session }, input }) => {
       const cache = await getRedis();
 
       return trackComicPageView({
         cache,
         comicId: input.comicId,
+        correlation: buildIntegrityCorrelationEvidence(headers),
         db,
+        evidence: {
+          documentVisible: input.documentVisible,
+          visibleDurationMs: input.visibleDurationMs,
+          visiblePercentage: input.visiblePercentage,
+        },
         page: input.page,
         readingSessionId: input.readingSessionId,
+        role: session.user.role,
         userId: session.user.id,
       });
     }),

@@ -1,8 +1,15 @@
+import { deleteContent } from "./content-handlers";
 import {
   resolvePublishReleasedAt,
   resolveReleasedAt,
   resolveVersionUpdatedAt,
 } from "./content-timestamps";
+
+const rewards = vi.hoisted(() => ({ markRemoved: vi.fn() }));
+
+vi.mock("../services/contribution-rewards", () => ({
+  markParentPostContributionSubjectsRemovedInTransaction: rewards.markRemoved,
+}));
 
 const NOW = new Date("2026-07-14T12:00:00.000Z");
 const PAST = new Date("2026-07-13T12:00:00.000Z");
@@ -140,5 +147,35 @@ describe(resolveVersionUpdatedAt, () => {
         versionChanged: true,
       })
     ).toBeNull();
+  });
+});
+
+describe(deleteContent, () => {
+  it("does not remove reward subjects when the content type does not match", async () => {
+    const returning = vi.fn().mockResolvedValue([]);
+    const tx = {
+      delete: vi.fn(() => ({
+        where: vi.fn(() => ({ returning })),
+      })),
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    };
+
+    await expect(
+      deleteContent({
+        context: {
+          db,
+          headers: new Headers(),
+          session: { user: { id: "owner-1" } },
+        } as never,
+        errors: {
+          BAD_REQUEST: () => new Error("BAD_REQUEST"),
+          NOT_FOUND: () => new Error("NOT_FOUND"),
+        },
+        input: { id: "comic-1", type: "post" },
+      })
+    ).rejects.toThrow("NOT_FOUND");
+    expect(rewards.markRemoved).not.toHaveBeenCalled();
   });
 });

@@ -1,19 +1,50 @@
 import { call } from "@orpc/server";
+import type * as DbExports from "@repo/db";
 
 import type { Context } from "../context";
+import type * as RedisOperationExports from "../utils/redis-operations";
 
 const mocks = vi.hoisted(() => ({
   attachComicCatalogProgress: vi.fn(),
+  banUserAndReconcileRewards: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  checkFixedWindowRateLimit: vi.fn().mockResolvedValue({ exceeded: false }),
+  getRedis: vi.fn().mockResolvedValue({}),
+  unbanUserAndReconcileRewards: vi.fn(),
+  userHasPermission: vi.fn().mockResolvedValue({ success: true }),
+  userIsNotActivelyBanned: vi.fn(),
+}));
+
+vi.mock("@repo/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof DbExports>()),
+  getRedis: mocks.getRedis,
+}));
+vi.mock("../utils/redis-operations", async (importOriginal) => ({
+  ...(await importOriginal<typeof RedisOperationExports>()),
+  checkFixedWindowRateLimit: mocks.checkFixedWindowRateLimit,
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
-vi.mock("@repo/auth", () => ({ auth: { api: {} } }));
+vi.mock("@repo/auth", () => ({
+  auth: {
+    api: {
+      userHasPermission: mocks.userHasPermission,
+    },
+  },
+}));
 vi.mock("../services/comic-progress", () => ({
   attachComicCatalogProgress: mocks.attachComicCatalogProgress,
 }));
 vi.mock("../services/profile", () => ({
   canReadPublicProfileActivity: mocks.canReadPublicProfileActivity,
+}));
+vi.mock("../services/user-administration", () => ({
+  banUserAndReconcileRewards: mocks.banUserAndReconcileRewards,
+  unbanUserAndReconcileRewards: mocks.unbanUserAndReconcileRewards,
+  UserAdministrationError: class extends Error {},
+}));
+vi.mock("../utils/user-ban", () => ({
+  userIsNotActivelyBanned: mocks.userIsNotActivelyBanned,
 }));
 
 const { default: userRouter } = await import("./user");
@@ -53,5 +84,92 @@ describe("public bookmark privacy", () => {
     );
     expect(db.select).not.toHaveBeenCalled();
     expect(mocks.attachComicCatalogProgress).not.toHaveBeenCalled();
+  });
+
+  it("uses the active-ban predicate when public favorites are visible", async () => {
+    mocks.canReadPublicProfileActivity.mockResolvedValue(true);
+    mocks.attachComicCatalogProgress.mockResolvedValue([]);
+    const query = {
+      from: vi.fn(),
+      groupBy: vi.fn(),
+      innerJoin: vi.fn(),
+      leftJoin: vi.fn(),
+      limit: vi.fn().mockResolvedValue([]),
+      orderBy: vi.fn(),
+      where: vi.fn(),
+    };
+    for (const method of [
+      "from",
+      "groupBy",
+      "innerJoin",
+      "leftJoin",
+      "orderBy",
+      "where",
+    ] as const) {
+      query[method].mockReturnValue(query);
+    }
+    Object.assign(query, { as: vi.fn(() => query) });
+    const context = {
+      db: { select: vi.fn(() => query) },
+      headers: new Headers(),
+      session: null,
+    } as unknown as Context;
+
+    await call(
+      userRouter.getUserBookmarks,
+      { limit: 12, userId: "user-1" },
+      { context }
+    );
+
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledOnce();
+  });
+});
+
+describe("user administration", () => {
+  it("delegates banning and reward reversal to one atomic service", async () => {
+    const context = {
+      db: {},
+      headers: new Headers({ cookie: "session=test" }),
+      session: { user: { id: "owner-1", role: "owner" } },
+    } as unknown as Context;
+    mocks.banUserAndReconcileRewards.mockResolvedValue([]);
+
+    await expect(
+      call(userRouter.admin.banUser, { userId: "liker-1" }, { context })
+    ).resolves.toEqual({ success: true });
+
+    expect(mocks.banUserAndReconcileRewards).toHaveBeenCalledWith(
+      context.db,
+      expect.objectContaining({
+        actorUserId: "owner-1",
+        userId: "liker-1",
+      })
+    );
+    expect(mocks.checkFixedWindowRateLimit).toHaveBeenCalledOnce();
+    expect(mocks.userHasPermission).not.toHaveBeenCalledWith({
+      body: expect.objectContaining({ permissions: { ratelimit: ["bypass"] } }),
+    });
+  });
+
+  it("delegates manual unbanning and reward restoration to one atomic service", async () => {
+    const context = {
+      db: {},
+      headers: new Headers({ cookie: "session=test" }),
+      session: { user: { id: "owner-1", role: "owner" } },
+    } as unknown as Context;
+    mocks.unbanUserAndReconcileRewards.mockResolvedValue([]);
+
+    await expect(
+      call(userRouter.admin.unbanUser, { userId: "liker-1" }, { context })
+    ).resolves.toEqual({ success: true });
+
+    expect(mocks.unbanUserAndReconcileRewards).toHaveBeenCalledWith(
+      context.db,
+      { userId: "liker-1" }
+    );
+    expect(mocks.checkFixedWindowRateLimit).toHaveBeenCalledOnce();
+    expect(mocks.userHasPermission).not.toHaveBeenCalledWith({
+      body: expect.objectContaining({ permissions: { ratelimit: ["bypass"] } }),
+    });
   });
 });

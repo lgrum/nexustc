@@ -4,6 +4,7 @@ import { BodyLimitPlugin, RPCHandler } from "@orpc/server/fetch";
 import { SimpleCsrfProtectionHandlerPlugin } from "@orpc/server/plugins";
 import { createContext } from "@repo/api/context";
 import { appRouter } from "@repo/api/routers/index";
+import { ensureIntegrityDeviceCookie } from "@repo/api/utils/integrity-evidence";
 import { ADMIN_RPC_BODY_MAX_BYTES } from "@repo/shared/media";
 import { revalidateTag } from "next/cache";
 
@@ -15,6 +16,18 @@ import {
 const rpcHandler = new RPCHandler(appRouter, {
   interceptors: [
     onError((error) => {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "profileUserIds" in error &&
+        Array.isArray(error.profileUserIds)
+      ) {
+        for (const userId of error.profileUserIds) {
+          if (typeof userId === "string") {
+            revalidateTag(`profile:${userId}`, "max");
+          }
+        }
+      }
       console.error(error);
     }),
   ],
@@ -26,8 +39,20 @@ const rpcHandler = new RPCHandler(appRouter, {
 });
 
 async function handle(request: Request) {
-  const rpcResult = await rpcHandler.handle(request, {
-    context: await createContext(request.headers),
+  const { cookieValue, setCookie } = ensureIntegrityDeviceCookie(
+    request.headers
+  );
+  const headers = new Headers(request.headers);
+  if (setCookie) {
+    const cookie = headers.get("cookie");
+    headers.set(
+      "cookie",
+      `${cookie ? `${cookie}; ` : ""}ntc_device=${cookieValue}`
+    );
+  }
+  const context = await createContext(headers);
+  const rpcResult = await rpcHandler.handle(new Request(request, { headers }), {
+    context,
     prefix: "/api/rpc",
   });
   if (rpcResult.response) {
@@ -36,12 +61,30 @@ async function handle(request: Request) {
         /^\/api\/rpc\//,
         ""
       );
-      for (const tag of getCacheTagsForProcedure(procedurePath)) {
+      const responseBody = [
+        "comicProgress/update",
+        "eteris/getMine",
+        "post/editOwnComment",
+        "post/toggleCommentLike",
+        "progression/getMine",
+        "rating/toggleReviewLike",
+      ].includes(procedurePath)
+        ? await rpcResult.response.clone().json()
+        : undefined;
+      for (const tag of getCacheTagsForProcedure(procedurePath, {
+        responseBody,
+        userId: context.session?.user.id,
+      })) {
         revalidateTag(tag, getCacheRevalidationProfile(procedurePath));
       }
     }
 
-    return rpcResult.response;
+    if (!setCookie) {
+      return rpcResult.response;
+    }
+    const response = new Response(rpcResult.response.body, rpcResult.response);
+    response.headers.append("set-cookie", setCookie);
+    return response;
   }
 
   return new Response("Not found", { status: 404 });

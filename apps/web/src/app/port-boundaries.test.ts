@@ -34,6 +34,19 @@ test("server oRPC client keeps cached calls public and live calls request-bound"
   expect(source).toContain(": await createContext(await headers())");
 });
 
+test("the Better Auth route composes account closure with economy reconciliation", () => {
+  const source = read("src/app/api/auth/[...auth]/route.ts");
+
+  expect(source).toContain('import "@/lib/account-closure.server"');
+});
+
+test("manual unbans use the reward-restoring API boundary", () => {
+  const source = read("src/components/admin/users/user-actions-dropdown.tsx");
+
+  expect(source).toContain("orpcClient.user.admin.unbanUser");
+  expect(source).not.toContain("authClient.admin.unbanUser");
+});
+
 test("VIP feed stays request-bound", () => {
   const source = read("src/app/(main)/vip/page.tsx");
   const clientSource = read("src/app/(main)/vip/vip-client.tsx");

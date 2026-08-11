@@ -1,0 +1,3 @@
+# Use a double-entry Eteris ledger with a balance projection
+
+Eteris movements will be recorded as immutable, balanced postings under an idempotent transaction journal, including issuance and sinks through code-owned system wallets. The ledger is authoritative while a wallet-balance row is updated atomically as a lockable read projection; this avoids re-summing an account's complete history on every operation without making a mutable balance the source of truth. We accept the extra journal/postings table boundary now because retrofitting balanced settlement after purchases, marketplace sales, fees, and reversals exist would be substantially riskier.

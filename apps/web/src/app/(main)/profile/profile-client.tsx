@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Award01Icon,
   Bookmark02Icon,
   Home01Icon,
   Image01Icon,
@@ -8,6 +9,7 @@ import {
   Notification03Icon,
   ShieldUserIcon,
   UserIcon,
+  Coins01Icon,
   ViewIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -22,11 +24,13 @@ import { toast } from "sonner";
 
 import { AccountSection } from "@/components/profile/account-section";
 import { AppearanceSection } from "@/components/profile/appearance-section";
+import { EterisSection } from "@/components/profile/eteris-section";
 import { FollowingSection } from "@/components/profile/following-section";
 import { NotificationSettingsSection } from "@/components/profile/notification-settings-section";
 import { ProfileIdentity } from "@/components/profile/profile-identity";
 import { ProfileLibrarySection } from "@/components/profile/profile-library-section";
 import { ProfileOverviewSection } from "@/components/profile/profile-overview-section";
+import { ProgressionSection } from "@/components/profile/progression-section";
 import { SecuritySection } from "@/components/profile/security-section";
 import { ThemeSection } from "@/components/profile/theme-section";
 import { Button } from "@/components/ui/button";
@@ -56,6 +60,8 @@ const NAVIGATION: NavigationItem[] = [
     value: "notifications",
   },
   { icon: UserIcon, label: "Cuenta", value: "account" },
+  { icon: Award01Icon, label: "Progreso", value: "progression" },
+  { icon: Coins01Icon, label: "Billetera", value: "wallet" },
   { icon: ShieldUserIcon, label: "Seguridad", value: "security" },
 ];
 
@@ -221,6 +227,8 @@ function AuthenticatedProfile({
           {visibleSection === "account" ? (
             <AccountSection userId={user.id} />
           ) : null}
+          {visibleSection === "progression" ? <ProgressionSection /> : null}
+          {visibleSection === "wallet" ? <EterisSection /> : null}
           {visibleSection === "security" ? (
             <SecuritySection
               email={user.email}

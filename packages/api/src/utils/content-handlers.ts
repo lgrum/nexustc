@@ -14,6 +14,7 @@ import {
 import { createContentSlug, dedupeContentSlug } from "@repo/shared/slug";
 
 import type { Context } from "../context";
+import { markParentPostContributionSubjectsRemovedInTransaction } from "../services/contribution-rewards";
 import {
   createOrCollapseContentUpdateNotification,
   deriveContentUpdateEvent,
@@ -838,14 +839,22 @@ export async function editContent({
 
 export async function deleteContent({
   context: { db, ...ctx },
+  errors,
   input,
-}: Omit<HandlerParams<{ id: string; type: ContentType }>, "errors">) {
+}: HandlerParams<{ id: string; type: ContentType }>) {
   const logger = getLogger(ctx);
   logger?.info(`Deleting ${input.type}: ${input.id}`);
 
-  await db
-    .delete(post)
-    .where(and(eq(post.id, input.id), eq(post.type, input.type)));
+  await db.transaction(async (tx) => {
+    const [deleted] = await tx
+      .delete(post)
+      .where(and(eq(post.id, input.id), eq(post.type, input.type)))
+      .returning({ id: post.id });
+    if (!deleted) {
+      throw errors.NOT_FOUND();
+    }
+    await markParentPostContributionSubjectsRemovedInTransaction(tx, input.id);
+  });
 
   logger?.info(`${input.type} ${input.id} successfully deleted`);
 }

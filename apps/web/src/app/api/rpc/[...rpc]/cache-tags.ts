@@ -16,6 +16,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["extras/deleteTutorial", ["tutorials"]],
   ["notification/admin/archive", ["news"]],
   ["notification/admin/createNewsArticle", ["news"]],
+  ["patreon/admin/reconcileMemberships", ["profiles"]],
   ["patreon/syncMembership", ["profiles"]],
   ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
   [
@@ -28,11 +29,18 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ],
   ["post/admin/uploadFeaturedPosts", ["home"]],
   ["post/admin/uploadWeeklyPosts", ["home"]],
+  ["post/deleteComment", ["profiles"]],
+  ["post/deleteOwnComment", ["profiles"]],
   ["profile/finalizeUpload", ["profiles"]],
   ["profile/removeAvatar", ["profiles"]],
   ["profile/removeBanner", ["profiles"]],
   ["profile/updateAppearance", ["profiles"]],
   ["profile/updateVisibility", ["profiles"]],
+  ["progression/owner/adjustXp", ["profiles"]],
+  ["progression/admin/decideCase", ["profiles"]],
+  ["eteris/owner/adjust", ["profiles"]],
+  ["eteris/owner/reconcileWallet", ["profiles"]],
+  ["eteris/setPublicBalance", ["profiles"]],
   ["rating/create", ["profiles"]],
   ["rating/delete", ["profiles"]],
   ["rating/deleteAny", ["profiles"]],
@@ -49,15 +57,52 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["term/create", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/delete", ["catalog:comics", "catalog:games", "content", "home"]],
   ["term/edit", ["catalog:comics", "catalog:games", "content", "home"]],
+  ["user/admin/banUser", ["profiles"]],
+  ["user/admin/unbanUser", ["profiles"]],
   ["user/toggleBookmark", ["profiles"]],
 ]);
 
-export function getCacheTagsForProcedure(procedurePath: string) {
+export function getCacheTagsForProcedure(
+  procedurePath: string,
+  options?: { responseBody?: unknown; userId?: string }
+) {
+  if (
+    procedurePath === "comicProgress/update" ||
+    procedurePath === "eteris/getMine" ||
+    procedurePath === "post/editOwnComment" ||
+    procedurePath === "post/toggleCommentLike" ||
+    procedurePath === "progression/getMine" ||
+    procedurePath === "rating/toggleReviewLike"
+  ) {
+    if (!(options?.responseBody && typeof options.responseBody === "object")) {
+      return [];
+    }
+    const output =
+      "json" in options.responseBody
+        ? options.responseBody.json
+        : options.responseBody;
+    if (!(output && typeof output === "object")) {
+      return [];
+    }
+    const profileUserId =
+      procedurePath === "comicProgress/update"
+        ? options.userId
+        : "profileUserId" in output && typeof output.profileUserId === "string"
+          ? output.profileUserId
+          : undefined;
+    return profileUserId &&
+      typeof output === "object" &&
+      "publicProfileChanged" in output &&
+      output.publicProfileChanged === true
+      ? [`profile:${profileUserId}`]
+      : [];
+  }
   return cacheTagsByMutation.get(procedurePath) ?? [];
 }
 
 export function getCacheRevalidationProfile(procedurePath: string) {
-  return procedurePath === "profile/updateVisibility"
+  return procedurePath === "profile/updateVisibility" ||
+    procedurePath === "eteris/setPublicBalance"
     ? ({ expire: 0 } as const)
     : "max";
 }

@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { authClient } from "@/lib/auth-client";
+import { orpcClient } from "@/lib/orpc";
 
 import { BanUserDialog } from "./ban-user-dialog";
 import { SetPasswordDialog } from "./set-password-dialog";
@@ -41,7 +42,7 @@ export function UserActionsDropdown({
 
     if (confirmed) {
       await toast
-        .promise(authClient.admin.unbanUser({ userId: user.id }), {
+        .promise(orpcClient.user.admin.unbanUser({ userId: user.id }), {
           error: "Error al desbanear usuario.",
           loading: "Desbaneando usuario...",
           success: "Usuario desbaneado.",
