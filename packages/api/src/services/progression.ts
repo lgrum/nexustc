@@ -643,9 +643,13 @@ export async function postXpEventInTransaction(
     input.amount > 0
       ? Math.min(input.amount, ACCOUNT_LEVEL_XP_CAP - progression.totalXp)
       : input.kind === "reversal"
-        ? Math.max(input.amount, -progression.totalXp)
+        ? Math.max(input.amount, -progression.totalXp) || 0
         : input.amount;
-  if (settledXp === 0) {
+  const isConsumedReversal =
+    settledXp === 0 &&
+    input.kind === "reversal" &&
+    input.reversesEventId !== undefined;
+  if (settledXp === 0 && !isConsumedReversal) {
     return {
       debtCreated: false,
       eventId: null,
@@ -774,10 +778,12 @@ export async function postXpEventInTransaction(
     updatedAt: now,
     userId: input.userId,
   });
-  await tx
-    .update(userProgression)
-    .set({ level, totalXp, updatedAt: now })
-    .where(eq(userProgression.userId, input.userId));
+  if (!isConsumedReversal) {
+    await tx
+      .update(userProgression)
+      .set({ level, totalXp, updatedAt: now })
+      .where(eq(userProgression.userId, input.userId));
+  }
 
   return {
     debtCreated,
@@ -954,7 +960,9 @@ export async function postXpEvent(
     "projectionMismatch" in result &&
     result.projectionMismatch === true
   ) {
-    throw new ProgressionError("PROJECTION_MISMATCH");
+    throw Object.assign(new ProgressionError("PROJECTION_MISMATCH"), {
+      profileUserIds: [input.userId],
+    });
   }
   if (ownerAdjustment && !result.replayed && result.eventId === null) {
     throw new ProgressionError("INVALID_TOTAL");

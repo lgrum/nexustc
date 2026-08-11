@@ -1411,6 +1411,6 @@ test("account closure fails closed on a projection mismatch", async () => {
   await expect(closeAccount(store.db, "user-1")).rejects.toThrow(
     "La proyeccion Eteris no coincide con el libro mayor."
   );
-  expect(store.wallets.get(userWallet.id)?.status).toBe("active");
+  expect(store.wallets.get(userWallet.id)?.status).toBe("frozen");
   expect(store.deletedTables.size).toBe(0);
 });

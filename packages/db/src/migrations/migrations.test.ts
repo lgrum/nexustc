@@ -127,6 +127,18 @@ test("Eteris records wallet status history for cutoff reports", async () => {
   expect(migrationSql).toContain('INSERT INTO "eteris_wallet_status_event"');
 });
 
+test("zero-clipped reversals remain consumed in the XP ledger", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0068_amusing_jasper_sitwell.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(
+    '"xp_event"."kind" = \'reversal\' and "xp_event"."reverses_event_id" is not null'
+  );
+  expect(migrationSql).toContain('"xp_event"."state" = \'posted\'');
+});
+
 test("comic reading XP uses compact ranges on existing progress", async () => {
   const migrationSql = await readFile(
     path.join(migrationsDirectory, "0059_thin_vanisher.sql"),
@@ -139,6 +151,8 @@ test("comic reading XP uses compact ranges on existing progress", async () => {
   expect(migrationSql).toContain(
     'ADD COLUMN "xp_tracking_updated_at" timestamp with time zone'
   );
+  expect(migrationSql).toContain('UPDATE "user_comic_progress"');
+  expect(migrationSql).toContain("jsonb_build_array(1, GREATEST(");
   expect(migrationSql).not.toContain("CREATE TABLE");
 });
 

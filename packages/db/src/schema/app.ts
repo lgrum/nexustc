@@ -1142,7 +1142,10 @@ export const xpEvent = pgTable(
       foreignColumns: [table.id],
       name: "xp_event_reversal_fk",
     }).onDelete("restrict"),
-    check("xp_event_amount_check", sql`${table.amount} <> 0`),
+    check(
+      "xp_event_amount_check",
+      sql`${table.amount} <> 0 or (${table.kind} = 'reversal' and ${table.reversesEventId} is not null and ${table.state} = 'posted')`
+    ),
     index("xp_event_subject_idx").on(table.subjectId),
     index("xp_event_user_created_idx").on(table.userId, table.createdAt),
     index("xp_event_user_state_available_idx").on(

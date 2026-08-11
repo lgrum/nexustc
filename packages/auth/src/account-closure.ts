@@ -85,8 +85,54 @@ function assertSignedBigint(value: bigint) {
   }
 }
 
+class AccountClosureProjectionMismatchError extends Error {
+  readonly walletIds: string[];
+
+  constructor(walletIds: string[]) {
+    super("La proyeccion Eteris no coincide con el libro mayor.");
+    this.name = "AccountClosureProjectionMismatchError";
+    this.walletIds = walletIds;
+  }
+}
+
+function getProjectionMismatchWalletIds(error: unknown) {
+  if (
+    error instanceof Error &&
+    (error instanceof AccountClosureProjectionMismatchError ||
+      error.name === "ContributionProjectionMismatchError") &&
+    "walletIds" in error &&
+    Array.isArray(error.walletIds) &&
+    error.walletIds.every((walletId) => typeof walletId === "string")
+  ) {
+    return error.walletIds;
+  }
+  return null;
+}
+
+type AccountClosureResult = Awaited<
+  ReturnType<typeof closeAccountInTransaction>
+>;
+
+async function runAccountClosureTransaction(
+  db: Database,
+  callback: (tx: Transaction) => Promise<AccountClosureResult>
+) {
+  try {
+    return await db.transaction(callback);
+  } catch (error) {
+    const walletIds = getProjectionMismatchWalletIds(error);
+    if (walletIds) {
+      await db
+        .update(eterisWallet)
+        .set({ status: "frozen" })
+        .where(inArray(eterisWallet.id, walletIds));
+    }
+    throw error;
+  }
+}
+
 export function closeAccount(db: Database, userId: string) {
-  return db.transaction((tx) =>
+  return runAccountClosureTransaction(db, (tx) =>
     closeAccountInTransaction(tx, userId, new Date())
   );
 }
@@ -97,49 +143,31 @@ export function closeAccountAndDeleteUser(
   reconcileOutgoingLikes = requireLikeReconciler(),
   reconcileAuthoredCommentRewards = requireCommentReconciler()
 ) {
-  return (async () => {
-    try {
-      return await db.transaction(async (tx) => {
-        const now = new Date();
-        await tx
-          .select({ userId: patron.userId })
-          .from(patron)
-          .where(eq(patron.userId, userId))
-          .for("update");
-        const [account] = await tx
-          .select({ id: user.id })
-          .from(user)
-          .where(eq(user.id, userId))
-          .for("update");
-        if (!account) {
-          throw new Error("ACCOUNT_CLOSURE_USER_NOT_FOUND");
-        }
-        const result = await closeAccountInTransaction(tx, userId, now);
-        await reconcileOutgoingLikes(tx, {
-          actorUserId: userId,
-          likerUserId: userId,
-          now,
-        });
-        await reconcileAuthoredCommentRewards(tx, { now, userId });
-        await tx.delete(user).where(eq(user.id, userId));
-        return result;
-      });
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.name === "ContributionProjectionMismatchError" &&
-        "walletIds" in error &&
-        Array.isArray(error.walletIds) &&
-        error.walletIds.every((walletId) => typeof walletId === "string")
-      ) {
-        await db
-          .update(eterisWallet)
-          .set({ status: "frozen" })
-          .where(inArray(eterisWallet.id, error.walletIds));
-      }
-      throw error;
+  return runAccountClosureTransaction(db, async (tx) => {
+    const now = new Date();
+    await tx
+      .select({ userId: patron.userId })
+      .from(patron)
+      .where(eq(patron.userId, userId))
+      .for("update");
+    const [account] = await tx
+      .select({ id: user.id })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for("update");
+    if (!account) {
+      throw new Error("ACCOUNT_CLOSURE_USER_NOT_FOUND");
     }
-  })();
+    const result = await closeAccountInTransaction(tx, userId, now);
+    await reconcileOutgoingLikes(tx, {
+      actorUserId: userId,
+      likerUserId: userId,
+      now,
+    });
+    await reconcileAuthoredCommentRewards(tx, { now, userId });
+    await tx.delete(user).where(eq(user.id, userId));
+    return result;
+  });
 }
 
 async function closeAccountInTransaction(
@@ -243,7 +271,7 @@ async function closeAccountInTransaction(
       (latest && latest.balanceAfter !== lockedWallet.balance) ||
       (!latest && lockedWallet.balance !== 0n)
     ) {
-      throw new Error("La proyeccion Eteris no coincide con el libro mayor.");
+      throw new AccountClosureProjectionMismatchError([lockedWallet.walletId]);
     }
   }
 

@@ -680,6 +680,59 @@ describe("progression service", () => {
     expect(store.getProgression()).toMatchObject({ level: 1, totalXp: 0 });
   });
 
+  it("records a consumed reversal when Account XP is already zero", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    const first = await postXpEvent(store.db, {
+      amount: 10,
+      idempotencyKey: "first-award-before-floor",
+      kind: "comment_milestone",
+      reasonCode: "eligible_likes_3",
+      sourceRef: "comment:first-award",
+      userId: "user-1",
+    });
+    const second = await postXpEvent(store.db, {
+      amount: 10,
+      idempotencyKey: "second-award-before-floor",
+      kind: "comment_milestone",
+      reasonCode: "eligible_likes_3",
+      sourceRef: "comment:second-award",
+      userId: "user-1",
+    });
+    if (!second.eventId) {
+      throw new Error("Expected the second award to create an XP event.");
+    }
+    await postXpEvent(store.db, {
+      amount: -20,
+      idempotencyKey: "unrelated-floor-reversal",
+      kind: "reversal",
+      reasonCode: "confirmed_integrity_abuse",
+      sourceRef: "integrity:floor",
+      userId: "user-1",
+    });
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: -10,
+        idempotencyKey: "consume-second-at-floor",
+        kind: "reversal",
+        reasonCode: "comment_removed",
+        reversesEventId: second.eventId,
+        sourceRef: "comment:second-award:removed",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ eventId: expect.any(String), settledXp: 0 });
+
+    expect(first.eventId).toBeTypeOf("string");
+    expect(store.getEvents()).toContainEqual(
+      expect.objectContaining({
+        amount: 0,
+        reversesEventId: second.eventId,
+      })
+    );
+    expect(store.getProgression()).toMatchObject({ totalXp: 0 });
+  });
+
   it("keeps release creation on its source day and updates it on release day", async () => {
     flags.accrual = true;
     const store = createDatabase();
@@ -1210,7 +1263,10 @@ describe("progression service", () => {
         reason: "Correccion aprobada por soporte",
         userId: "user-1",
       })
-    ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+    ).rejects.toMatchObject({
+      code: "PROJECTION_MISMATCH",
+      profileUserIds: ["user-1"],
+    });
     expect(store.getEvents()).toHaveLength(0);
     expect(ledger.notifications).toHaveLength(0);
   });
