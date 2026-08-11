@@ -565,7 +565,10 @@ export async function postXpEventInTransaction(
   input: XpEventCommand,
   now = new Date()
 ) {
-  if (input.amount > 0 && !env.XP_ACCRUAL_ENABLED) {
+  if (
+    (input.amount > 0 || input.kind === "admin_adjustment") &&
+    !env.XP_ACCRUAL_ENABLED
+  ) {
     throw new ProgressionError("ACCRUAL_DISABLED");
   }
 

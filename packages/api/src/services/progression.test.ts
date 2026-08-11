@@ -1276,6 +1276,17 @@ describe("progression service", () => {
     await expect(
       adjustXp(store.db, {
         actorUserId: "owner-1",
+        amount: -1,
+        idempotencyKey: "support-ticket-disabled-negative",
+        reason: "Correccion aprobada por soporte",
+        userId: "user-1",
+      })
+    ).rejects.toMatchObject({ code: "ACCRUAL_DISABLED" });
+    expect(store.getActivation()).toBeNull();
+
+    await expect(
+      adjustXp(store.db, {
+        actorUserId: "owner-1",
         amount: 1,
         idempotencyKey: "support-ticket-disabled",
         reason: "Correccion aprobada por soporte",
@@ -1296,6 +1307,35 @@ describe("progression service", () => {
       })
     ).rejects.toMatchObject({ code: "INVALID_TOTAL" });
     expect(store.getProgression()).toMatchObject({ totalXp: 0 });
+  });
+
+  it("permits genuine reversals while XP accrual is paused", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    const award = await postXpEvent(store.db, {
+      amount: 10,
+      idempotencyKey: "pause-reversal-award",
+      kind: "comment_milestone",
+      reasonCode: "eligible_likes_3",
+      sourceRef: "comment:pause-reversal-award",
+      userId: "user-1",
+    });
+    if (!award.eventId) {
+      throw new Error("Expected the award to create an XP event.");
+    }
+
+    flags.accrual = false;
+    await expect(
+      postXpEvent(store.db, {
+        amount: -10,
+        idempotencyKey: "pause-reversal",
+        kind: "reversal",
+        reasonCode: "comment_removed",
+        reversesEventId: award.eventId,
+        sourceRef: "comment:pause-reversal-award:removed",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ settledXp: -10, totalXp: 0 });
   });
 
   it("freezes new XP while banned without confiscating settled XP", async () => {
