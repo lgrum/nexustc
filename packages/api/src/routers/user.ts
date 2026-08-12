@@ -260,6 +260,7 @@ export default {
       if (input.bookmarked) {
         const targetPost = await db.query.post.findFirst({
           columns: {
+            authorId: true,
             earlyAccessEnabled: true,
             earlyAccessStartedAt: true,
             releasedAt: true,
@@ -275,6 +276,16 @@ export default {
           !targetPost ||
           !canViewPost(targetPost, { role: session.user.role, tier }, now)
         ) {
+          throw errors.NOT_FOUND();
+        }
+        const visibleAuthor = await db.query.user.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(user.id, targetPost.authorId),
+            userIsNotActivelyBanned(now)
+          ),
+        });
+        if (!visibleAuthor) {
           throw errors.NOT_FOUND();
         }
 

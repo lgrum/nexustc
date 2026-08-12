@@ -173,6 +173,23 @@ describe("bookmark Discovery evidence", () => {
     expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
   });
 
+  it("rejects a bookmark when the post author is actively banned", async () => {
+    const { context, transaction } = createBookmarkMutationContext(true);
+    context.db.query.user.findFirst = vi.fn().mockResolvedValue(null);
+
+    await expect(
+      call(
+        userRouter.toggleBookmark,
+        { bookmarked: true, postId: "post-1" },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledOnce();
+  });
+
   it("does not submit evidence when removing a bookmark", async () => {
     const { context, transaction } = createBookmarkMutationContext(false);
 
@@ -228,6 +245,7 @@ function createBookmarkMutationContext(inserted: boolean) {
       patron: { findFirst: vi.fn().mockResolvedValue(null) },
       post: {
         findFirst: vi.fn().mockResolvedValue({
+          authorId: "author-1",
           earlyAccessEnabled: false,
           earlyAccessStartedAt: null,
           releasedAt: null,
@@ -237,6 +255,7 @@ function createBookmarkMutationContext(inserted: boolean) {
           vip8EarlyAccessHours: 0,
         }),
       },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "author-1" }) },
     },
     select,
     transaction,
