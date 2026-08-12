@@ -578,6 +578,7 @@ describe("comment streak qualification", () => {
             .mockResolvedValue({ banned: false, emailVerified: true }),
         },
         userStreak: { findFirst: vi.fn().mockResolvedValue(null) },
+        xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
       select: vi.fn(() => ({
@@ -875,6 +876,7 @@ describe("comic reading streak qualification", () => {
             .mockResolvedValue({ banned: false, emailVerified: true }),
         },
         userStreak: { findFirst: vi.fn(() => Promise.resolve(stored)) },
+        xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
       select: vi.fn(() => ({
@@ -1040,6 +1042,7 @@ describe("comic reading streak qualification", () => {
             .mockResolvedValue({ banned: false, emailVerified: true }),
         },
         userStreak: { findFirst: vi.fn(() => Promise.resolve(stored)) },
+        xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
       select: vi.fn(() => ({
@@ -1353,6 +1356,7 @@ describe("mixed discovery streak qualification", () => {
             .mockResolvedValue({ banned: false, emailVerified: true }),
         },
         userStreak: { findFirst: vi.fn(() => Promise.resolve(stored)) },
+        xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
       select: vi.fn(() => ({
@@ -1956,6 +1960,27 @@ describe("adaptive streak integrity", () => {
     );
   });
 
+  it("uses a fresh settlement key after the same local day was reversed", async () => {
+    const db = createStreakDb({});
+    db.query.xpEvent.findFirst
+      .mockResolvedValueOnce({ id: "original-day", state: "posted" })
+      .mockResolvedValueOnce({ id: "day-reversal", state: "posted" });
+
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      contributionEvidence("comment-after-reversal"),
+      new Date("2026-08-08T12:00:00.000Z")
+    );
+
+    expect(progression.postXpEventInTransaction).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        idempotencyKey: "streak-day:user-1:1:2026-08-08:retry:1786190400000",
+      }),
+      expect.any(Date)
+    );
+  });
+
   it("accepts streak evidence after a temporary ban has expired", async () => {
     const db = createStreakDb({});
     db.query.user.findFirst.mockResolvedValue({
@@ -2426,6 +2451,7 @@ function createMixedDiscoveryDb(consumed: ({ dayKey: string } | null)[] = []) {
           .mockResolvedValue({ banned: false, emailVerified: true }),
       },
       userStreak: { findFirst: vi.fn(() => Promise.resolve(stored)) },
+      xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
       xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
     },
     select: vi.fn(() => ({

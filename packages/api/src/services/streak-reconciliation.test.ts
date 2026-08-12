@@ -119,6 +119,38 @@ describe("streak ledger reconciliation", () => {
     });
   });
 
+  it("preserves capped zero-XP days while rebuilding after a later reversal", async () => {
+    const cappedDay = streakDay(2, 1, { amount: 0 });
+    const reversedDay = streakDay(3, 2);
+    const { tx, updates } = createTransaction([
+      streakDay(1, null),
+      cappedDay,
+      reversedDay,
+      {
+        ...reversedDay,
+        id: "reverse-day-3",
+        kind: "reversal",
+        metadata: {},
+        reversesEventId: reversedDay.id,
+      },
+    ]);
+
+    await reconcileStreakAfterIntegrityDecisionInTransaction(tx as never, {
+      actorUserId: "staff-1",
+      caseId: "case-1",
+      now: new Date("2026-08-04T12:00:00.000Z"),
+      userId: "user-1",
+    });
+
+    expect(
+      updates.find(({ table }) => table === userStreak)?.values
+    ).toMatchObject({
+      bestStreak: 2,
+      currentStreak: 2,
+      lastCompletedDayKey: "user-1:1:2026-08-02",
+    });
+  });
+
   it("reopens an unsupported challenge and accepts a later day-keyed achievement", async () => {
     const days = Array.from({ length: 15 }, (_, index) =>
       streakDay(index + 1, index === 0 ? null : index)

@@ -1271,7 +1271,7 @@ export const xpEvent = pgTable(
     }).onDelete("restrict"),
     check(
       "xp_event_amount_check",
-      sql`${table.amount} <> 0 or (${table.kind} = 'reversal' and ${table.reversesEventId} is not null and ${table.state} = 'posted')`
+      sql`${table.amount} <> 0 or (${table.kind} = 'reversal' and ${table.reversesEventId} is not null and ${table.state} = 'posted') or (${table.kind} in ('streak_day', 'streak_challenge') and ${table.state} = 'posted')`
     ),
     index("xp_event_subject_idx").on(table.subjectId),
     index("xp_event_user_created_idx").on(table.userId, table.createdAt),

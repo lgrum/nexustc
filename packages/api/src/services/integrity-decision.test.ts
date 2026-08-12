@@ -40,6 +40,11 @@ function createStore(
 ) {
   const tx = {
     cancelPending: vi.fn().mockResolvedValue(pendingEvents),
+    query: {
+      xpIntegrityCase: {
+        findFirst: vi.fn().mockResolvedValue({ userId: "user-1" }),
+      },
+    },
     select: vi.fn(() => ({
       from: vi.fn((table: unknown) => {
         if (table === xpIntegrityCase) {
@@ -106,6 +111,11 @@ function createTransactionalStore() {
               },
             ]);
           }),
+          query: {
+            xpIntegrityCase: {
+              findFirst: vi.fn().mockResolvedValue({ userId: "user-1" }),
+            },
+          },
           state: working,
           select: vi.fn(() => ({
             from: vi.fn((table: unknown) => {

@@ -220,6 +220,36 @@ async function getXpSettlementEvent(
   );
 }
 
+async function getStreakDayIdempotencyKey(
+  executor: Pick<Database, "query">,
+  userId: string,
+  dayKey: string,
+  now: Date
+) {
+  const baseKey = `streak-day:${dayKey}`;
+  const original = await executor.query.xpEvent.findFirst({
+    columns: { id: true, state: true },
+    where: and(eq(xpEvent.userId, userId), eq(xpEvent.idempotencyKey, baseKey)),
+  });
+  if (!original) {
+    return baseKey;
+  }
+  const reversal =
+    original.state === "posted"
+      ? await executor.query.xpEvent.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(xpEvent.kind, "reversal"),
+            eq(xpEvent.reversesEventId, original.id),
+            eq(xpEvent.state, "posted")
+          ),
+        })
+      : null;
+  return original.state === "cancelled" || reversal
+    ? `${baseKey}:retry:${now.getTime()}`
+    : baseKey;
+}
+
 function getChallengeCompletionEvent(
   executor: Pick<Database, "query">,
   userId: string,
@@ -820,7 +850,12 @@ export async function applyStreakEvidenceInTransaction(
   }
   const dailyCommand = {
     amount,
-    idempotencyKey: `streak-day:${currentDayKey}`,
+    idempotencyKey: await getStreakDayIdempotencyKey(
+      tx,
+      evidence.userId,
+      currentDayKey,
+      now
+    ),
     kind: "streak_day",
     metadata: {
       dayKey: currentDayKey,

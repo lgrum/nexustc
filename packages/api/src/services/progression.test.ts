@@ -1461,6 +1461,37 @@ describe("progression service", () => {
     expect(store.getEvents()).toHaveLength(1);
   });
 
+  it("keeps a zero-XP streak completion in the reconciliation ledger", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    store.setProgression({ level: 1000, pendingXp: 0, totalXp: 365_000 });
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: 25,
+        idempotencyKey: "streak-day:user-1:1:2026-08-12",
+        kind: "streak_day",
+        metadata: {
+          dayKey: "user-1:1:2026-08-12",
+          localDate: "2026-08-12",
+          previousDayKey: "user-1:1:2026-08-11",
+        },
+        reasonCode: "streak_day_completed",
+        sourceRef: "comment:comment-at-cap",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      eventId: expect.any(String),
+      settledXp: 0,
+      totalXp: 365_000,
+    });
+    expect(store.getEvent()).toMatchObject({
+      amount: 0,
+      kind: "streak_day",
+      metadata: expect.objectContaining({ requestedAmount: 25 }),
+    });
+  });
+
   it("rejects a no-op owner adjustment at the XP cap", async () => {
     flags.accrual = true;
     const store = createDatabase();

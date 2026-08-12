@@ -654,7 +654,13 @@ export async function postXpEventInTransaction(
     settledXp === 0 &&
     input.kind === "reversal" &&
     input.reversesEventId !== undefined;
-  if (settledXp === 0 && !isConsumedReversal) {
+  const isStreakCompletionLedgerEntry =
+    settledXp === 0 &&
+    (input.kind === "streak_day" || input.kind === "streak_challenge");
+  if (
+    settledXp === 0 &&
+    !(isConsumedReversal || isStreakCompletionLedgerEntry)
+  ) {
     return {
       debtCreated: false,
       eventId: null,
@@ -783,7 +789,7 @@ export async function postXpEventInTransaction(
     updatedAt: now,
     userId: input.userId,
   });
-  if (!isConsumedReversal) {
+  if (!(isConsumedReversal || isStreakCompletionLedgerEntry)) {
     await tx
       .update(userProgression)
       .set({ level, totalXp, updatedAt: now })

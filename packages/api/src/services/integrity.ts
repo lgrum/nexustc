@@ -344,6 +344,21 @@ export async function decideIntegrityCase(
   now = new Date()
 ) {
   const result = await runContributionRewardTransaction(db, async (tx) => {
+    const reverseCase =
+      input.action === "reverse"
+        ? await tx.query.xpIntegrityCase.findFirst({
+            columns: { userId: true },
+            where: eq(xpIntegrityCase.id, input.caseId),
+          })
+        : null;
+    const lockedStreakRows = reverseCase?.userId
+      ? await tx
+          .select({ userId: userStreak.userId })
+          .from(userStreak)
+          .where(eq(userStreak.userId, reverseCase.userId))
+          .for("update")
+      : [];
+    const [lockedStreak] = lockedStreakRows;
     const [integrityCase] = await tx
       .select()
       .from(xpIntegrityCase)
@@ -389,14 +404,6 @@ export async function decideIntegrityCase(
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
       }
-      const lockedStreakRows = integrityCase.userId
-        ? await tx
-            .select({ userId: userStreak.userId })
-            .from(userStreak)
-            .where(eq(userStreak.userId, integrityCase.userId))
-            .for("update")
-        : [];
-      const [lockedStreak] = lockedStreakRows;
       const pending = await cancelPendingXpEventsInTransaction(tx, {
         actorUserId: input.actorUserId,
         caseId: input.caseId,
