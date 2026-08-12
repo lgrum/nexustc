@@ -819,6 +819,7 @@ async function persistProgressRecord(params: {
   db: Database;
   impersonated: boolean;
   now: Date;
+  processingNow: Date;
   state: ReadingSessionState;
   timezone?: string;
 }) {
@@ -916,7 +917,8 @@ async function persistProgressRecord(params: {
           timezone: params.timezone,
           userId: params.state.userId,
         },
-        new Date(checkpoint.receivedAtMs)
+        new Date(checkpoint.receivedAtMs),
+        params.processingNow
       );
       if (streak && "dayCompletion" in streak) {
         dayCompletion ??= streak.dayCompletion;
@@ -1375,6 +1377,7 @@ async function trackComicPageViewWithLockHeld(params: {
       db: params.db,
       impersonated: params.impersonated,
       now: params.now,
+      processingNow: params.processingNow,
       state: nextState,
       timezone: params.timezone,
     });

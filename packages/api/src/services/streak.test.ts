@@ -159,6 +159,54 @@ describe("streak challenge", () => {
     expect(notifications.createUserNotification).toHaveBeenCalledOnce();
   });
 
+  it("publishes delayed challenge notifications at processing time", async () => {
+    const db = createStreakDb({
+      challengeSelectedAt: new Date("2026-08-01T12:00:00.000Z"),
+      challengeTarget: 10,
+      currentStreak: 9,
+      lastCompletedDayKey: "user-1:1:2026-08-07",
+      lastCompletedLocalDate: "2026-08-07",
+    });
+    const receivedAt = new Date("2026-08-08T23:59:00.000Z");
+    const processingNow = new Date("2026-08-09T00:05:00.000Z");
+
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      contributionEvidence("delayed-comment-10"),
+      receivedAt,
+      processingNow
+    );
+
+    expect(notifications.createUserNotification).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({ publishedAt: processingNow })
+    );
+    expect(progression.postXpEventInTransaction).toHaveBeenNthCalledWith(
+      2,
+      db,
+      expect.any(Object),
+      receivedAt
+    );
+  });
+
+  it("reports the reward tier that begins on the next day", async () => {
+    const db = createStreakDb({
+      currentStreak: 3,
+      lastCompletedDayKey: "user-1:1:2026-08-08",
+      lastCompletedLocalDate: "2026-08-08",
+    });
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      upcomingReward: { fromDay: 4, xp: 10 },
+    });
+  });
+
   it("uses a fresh challenge key after the same completion was reversed", async () => {
     const db = createStreakDb({
       challengeSelectedAt: new Date("2026-08-01T12:00:00.000Z"),
@@ -1811,6 +1859,29 @@ describe("streak continuity", () => {
     expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });
 
+  it("keeps the next tier boundary visible during a partial timezone day", async () => {
+    const db = createStreakDb({
+      currentStreak: 3,
+      lastCompletedDayKey: "user-1:1:2026-08-08",
+      lastCompletedLocalDate: "2026-08-08",
+      pendingTimezone: "America/Los_Angeles",
+      timezone: "UTC",
+      timezoneChangeAvailableAt: new Date("2026-09-07T12:00:00.000Z"),
+      timezoneChangeEffectiveAt: new Date("2026-08-09T07:00:00.000Z"),
+    });
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-09T02:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      currentStreak: 3,
+      upcomingReward: { fromDay: 4, xp: 10 },
+    });
+  });
+
   it("resumes after a declared flag pause on the next full local day", async () => {
     const db = createStreakDb(
       {
@@ -2192,7 +2263,13 @@ describe("adaptive streak integrity", () => {
   });
 
   it("retains medium automation evidence without completing the day", async () => {
-    const db = createStreakDb({});
+    const db = createStreakDb({
+      currentEvidence: { completedPath: "contribution" },
+      currentEvidenceDayKey: "user-1:1:2026-08-07",
+      currentStreak: 1,
+      lastCompletedDayKey: "user-1:1:2026-08-07",
+      lastCompletedLocalDate: "2026-08-07",
+    });
     db.query.xpRiskSignal.findMany.mockResolvedValue([
       { kind: "rejected_sequence" },
     ]);
@@ -2221,6 +2298,19 @@ describe("adaptive streak integrity", () => {
         },
       },
       currentEvidenceDayKey: "user-1:1:2026-08-08",
+    });
+    await expect(db.query.userStreak.findFirst()).resolves.not.toMatchObject({
+      currentEvidence: { completedPath: "contribution" },
+    });
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      contribution: { completed: false },
+      stepUpRequired: true,
     });
     expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });

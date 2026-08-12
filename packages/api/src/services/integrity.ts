@@ -14,6 +14,7 @@ import { xpRiskSignalKindSchema } from "@repo/shared/xp-integrity";
 
 import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 import {
+  ContributionProjectionMismatchError,
   reverseUnsupportedContributionMilestonesInTransaction,
   runContributionRewardTransaction,
 } from "./contribution-rewards";
@@ -247,13 +248,12 @@ async function reversePostedCaseEvents(
       "projectionMismatch" in settlement &&
       settlement.projectionMismatch === true
     ) {
-      return {
-        caseEvents: events,
-        completed: false,
-        events: reversedEvents,
-        settlements,
-        userId: events[0]?.userId ?? null,
-      };
+      if (!settlement.projectionMismatchWalletIds) {
+        throw new Error("XP_PROJECTION_MISMATCH");
+      }
+      throw new ContributionProjectionMismatchError(
+        settlement.projectionMismatchWalletIds
+      );
     }
     reversedEvents.push(event);
     settlements.push(settlement);

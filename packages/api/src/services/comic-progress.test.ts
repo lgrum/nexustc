@@ -752,7 +752,8 @@ describe("verified comic reading rewards", () => {
         timezone: "America/Argentina/Buenos_Aires",
         userId: "user-1",
       },
-      now
+      now,
+      expect.any(Date)
     );
 
     await trackComicPageView({
@@ -889,9 +890,24 @@ describe("verified comic reading rewards", () => {
         tx,
         expect.objectContaining({ kind: "reading", page: 1 }),
         new Date("2026-08-08T23:59:59.000Z"),
+        expect.any(Date),
       ],
-      [tx, expect.objectContaining({ kind: "reading", page: 2 }), retryNow],
+      [
+        tx,
+        expect.objectContaining({ kind: "reading", page: 2 }),
+        retryNow,
+        expect.any(Date),
+      ],
     ]);
+    const firstProcessingNow =
+      streak.applyStreakEvidenceInTransaction.mock.calls[0]?.[3];
+    expect(firstProcessingNow).toBeInstanceOf(Date);
+    if (!(firstProcessingNow instanceof Date)) {
+      throw new Error("Expected a processing timestamp.");
+    }
+    expect(firstProcessingNow.getTime()).toBeGreaterThanOrEqual(
+      retryNow.getTime()
+    );
   });
 
   it("blocks comic XP without suppressing a valid streak checkpoint", async () => {

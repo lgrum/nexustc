@@ -38,6 +38,16 @@ vi.mock("./notification", () => ({
   createUserNotification: notification.create,
 }));
 vi.mock("./contribution-rewards", () => ({
+  ContributionProjectionMismatchError: class extends Error {
+    profileUserIds: string[] = [];
+    readonly walletIds: string[];
+
+    constructor(walletIds: string[]) {
+      super("XP_PROJECTION_MISMATCH");
+      this.name = "ContributionProjectionMismatchError";
+      this.walletIds = walletIds;
+    }
+  },
   reverseUnsupportedContributionMilestonesInTransaction:
     contribution.reverseUnsupported,
   runContributionRewardTransaction: contribution.runTransaction,
@@ -654,13 +664,20 @@ describe("integrity settlement", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("keeps a released case retryable when its reversal finds a projection mismatch", async () => {
-    progression.posted.mockResolvedValue({
-      eventId: null,
-      projectionMismatch: true,
-      replayed: false,
-      settledXp: 0,
-    });
+  it("aborts all reversals when a later event finds a projection mismatch", async () => {
+    progression.posted
+      .mockResolvedValueOnce({
+        eventId: "reversal-1",
+        replayed: false,
+        settledXp: 0,
+      })
+      .mockResolvedValueOnce({
+        eventId: null,
+        projectionMismatch: true,
+        projectionMismatchWalletIds: ["wallet-user-1"],
+        replayed: false,
+        settledXp: 0,
+      });
     let selectCall = 0;
     const update = vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
@@ -688,7 +705,7 @@ describe("integrity settlement", () => {
           chain.for.mockResolvedValue([
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
-        } else {
+        } else if (selectCall === 3) {
           chain.where.mockResolvedValue([
             {
               amount: 67,
@@ -697,7 +714,16 @@ describe("integrity settlement", () => {
               reversesEventId: null,
               userId: "user-1",
             },
+            {
+              amount: 33,
+              id: "event-2",
+              kind: "review_milestone",
+              reversesEventId: null,
+              userId: "user-1",
+            },
           ]);
+        } else {
+          chain.where.mockResolvedValue([]);
         }
         return chain;
       }),
@@ -714,7 +740,11 @@ describe("integrity settlement", () => {
         caseId: "case-1",
         reason: "Reversion confirmada",
       })
-    ).resolves.toMatchObject({ status: "open" });
+    ).rejects.toMatchObject({
+      name: "ContributionProjectionMismatchError",
+      walletIds: ["wallet-user-1"],
+    });
+    expect(progression.posted).toHaveBeenCalledTimes(2);
     expect(update).not.toHaveBeenCalled();
   });
 

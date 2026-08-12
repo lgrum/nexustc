@@ -619,7 +619,8 @@ async function activateTimezoneIfDue(
 export async function applyStreakEvidenceInTransaction(
   tx: StreakExecutor,
   evidence: StreakEvidence,
-  now: Date
+  now: Date,
+  processingNow = now
 ) {
   if (!(await isStreakAvailable(tx))) {
     return { available: false, completed: false } as const;
@@ -866,7 +867,9 @@ export async function applyStreakEvidenceInTransaction(
       .update(userStreak)
       .set({
         currentEvidence: {
-          ...streak.currentEvidence,
+          ...(streak.currentEvidenceDayKey === currentDayKey
+            ? streak.currentEvidence
+            : {}),
           discoveryCandidates,
           pendingCompletion: {
             path,
@@ -1064,7 +1067,7 @@ export async function applyStreakEvidenceInTransaction(
         target: challengeTarget,
         xp: challengeSettledAmount,
       },
-      publishedAt: now,
+      publishedAt: processingNow,
       targetUserId: evidence.userId,
       title: "\u00A1Desaf\u00EDo de Racha completado!",
     });
@@ -1201,7 +1204,7 @@ export async function completeStreakStepUpInTransaction(
             contentKey: retained.trigger.contentKey,
             kind: "discovery",
           };
-  return applyStreakEvidenceInTransaction(tx, evidence, receivedAt);
+  return applyStreakEvidenceInTransaction(tx, evidence, receivedAt, now);
 }
 
 export async function getStreakState(db: Database, userId: string, now: Date) {
@@ -1272,7 +1275,7 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
       timezoneChangeEffectiveAt: transition.effectiveAt.toISOString(),
       todayXp: 0,
       upcomingReward:
-        DAILY_STREAK_REWARDS.find(({ fromDay }) => fromDay > nextStreak) ??
+        DAILY_STREAK_REWARDS.find(({ fromDay }) => fromDay >= nextStreak) ??
         DAILY_STREAK_REWARDS.at(-1)!,
     } as const;
   }
@@ -1330,7 +1333,7 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
   const mixedCompleted = completionPath === "mixed_discovery";
   const nextStreak = currentStreak + 1;
   const upcoming = DAILY_STREAK_REWARDS.find(
-    ({ fromDay }) => fromDay > nextStreak
+    ({ fromDay }) => fromDay >= nextStreak
   );
 
   return {
