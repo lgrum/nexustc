@@ -1,5 +1,10 @@
 import { and, eq, gte, inArray, sql } from "@repo/db";
-import { userComicProgress, xpEvent, xpRewardBlock } from "@repo/db/schema/app";
+import {
+  user,
+  userComicProgress,
+  xpEvent,
+  xpRewardBlock,
+} from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import { getPatronTierRank } from "@repo/shared/constants";
@@ -9,6 +14,7 @@ import { z } from "zod";
 
 import type { Context } from "../context";
 import { getPostEarlyAccessView } from "../utils/early-access";
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 import {
   assessXpSourceCapPressure,
   settleXpWithIntegrityInTransaction,
@@ -660,10 +666,12 @@ async function writeSessionState(
 
 async function getComicMetadata(
   db: Database,
-  comicId: string
+  comicId: string,
+  now = new Date()
 ): Promise<ComicMetadata | null> {
   const result = await db.query.post.findFirst({
     columns: {
+      authorId: true,
       comicLastUpdateAt: true,
       comicPageCount: true,
       earlyAccessEnabled: true,
@@ -683,6 +691,14 @@ async function getComicMetadata(
   });
 
   if (!result) {
+    return null;
+  }
+
+  const author = await db.query.user.findFirst({
+    columns: { id: true },
+    where: and(eq(user.id, result.authorId), userIsNotActivelyBanned(now)),
+  });
+  if (!author) {
     return null;
   }
 
@@ -1307,7 +1323,7 @@ async function trackComicPageViewWithLockHeld(params: {
   }
 
   const [comicMetadata, tier] = await Promise.all([
-    getComicMetadata(params.db, params.comicId),
+    getComicMetadata(params.db, params.comicId, params.now),
     getUserPatronTier(params.db, params.userId),
   ]);
   if (

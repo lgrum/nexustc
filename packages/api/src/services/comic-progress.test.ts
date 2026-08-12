@@ -58,12 +58,16 @@ function createState(
   };
 }
 
-function createAccessQueries(post: Record<string, unknown> | null = {}) {
+function createAccessQueries(
+  post: Record<string, unknown> | null = {},
+  author?: Record<string, unknown> | null
+) {
   return {
     patron: { findFirst: vi.fn().mockResolvedValue(null) },
     post: {
       findFirst: vi.fn().mockResolvedValue(
         post && {
+          authorId: "author-1",
           comicLastUpdateAt: null,
           comicPageCount: 4,
           earlyAccessEnabled: false,
@@ -76,6 +80,11 @@ function createAccessQueries(post: Record<string, unknown> | null = {}) {
           ...post,
         }
       ),
+    },
+    user: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue(author === undefined ? { id: "author-1" } : author),
     },
   };
 }
@@ -1058,6 +1067,40 @@ describe("verified comic reading rewards", () => {
     const transaction = vi.fn();
     const db = {
       query: createAccessQueries(null),
+      transaction,
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db,
+        evidence,
+        impersonated: false,
+        now: new Date("2026-08-08T12:00:00.000Z"),
+        page: 1,
+        readingSessionId: "session-1",
+        role: "user",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      accepted: false,
+      reason: "session_mismatch",
+      rewardedXp: 0,
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects checkpoints after the comic author becomes actively banned", async () => {
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const transaction = vi.fn();
+    const db = {
+      query: createAccessQueries({}, null),
       transaction,
     } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
 
