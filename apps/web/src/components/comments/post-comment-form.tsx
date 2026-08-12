@@ -6,8 +6,8 @@ import { toast } from "sonner";
 import z from "zod";
 
 import { useAppForm } from "@/hooks/use-app-form";
-import { trackEvent } from "@/lib/analytics";
-import { getClientErrorMessage, orpcClient } from "@/lib/orpc";
+import { trackEvent, trackStreakDayCompletion } from "@/lib/analytics";
+import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 import type { EngagementPromptType } from "@/lib/types";
 
 import { ErrorField } from "../forms/error-field";
@@ -54,7 +54,7 @@ export function PostCommentForm({
     },
     onSubmit: async (formData) => {
       try {
-        await orpcClient.post.createComment({
+        const result = await orpcClient.post.createComment({
           content: formData.value.content,
           engagementPrompt: prompt
             ? {
@@ -64,11 +64,14 @@ export function PostCommentForm({
             : undefined,
           parentId,
           postId,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
+        trackStreakDayCompletion(result.streak);
 
         await queryClient.invalidateQueries({
           queryKey: ["comments", postId],
         });
+        await queryClient.invalidateQueries(orpc.streak.getMine.queryOptions());
 
         form.reset();
         trackEvent("comment_submitted", {

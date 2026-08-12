@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "@repo/db";
+import { and, eq, inArray, ne, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   patron,
@@ -36,6 +36,7 @@ import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { userIsNotActivelyBanned } from "../utils/user-ban";
 import { getPublicWalletBalance } from "./eteris";
 import { getPublicAccountLevel } from "./progression";
+import { getStreakState } from "./streak";
 
 type Database = typeof database;
 export type ProfileEntitlementDb = Pick<Database, "query">;
@@ -100,6 +101,7 @@ export type PublicProfile = ProfileSummary & {
   accountLevel: number | null;
   activityCounts: Record<ProfileActivityCollection, number | null>;
   createdAt: Date;
+  currentStreak?: number;
   eterisBalance: string | null;
   banner: {
     mode: "color" | "image";
@@ -266,6 +268,7 @@ export async function getPublicProfileActivityCounts(
         .where(
           and(
             eq(postRating.userId, userId),
+            ne(postRating.review, ""),
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(now),
             userIsNotActivelyBanned(now)
@@ -283,6 +286,39 @@ export async function getPublicProfileActivityCounts(
       : null,
     reviews: visibility.reviews ? (reviewCountRows?.[0]?.count ?? 0) : null,
   };
+}
+
+export async function getPublicCurrentStreak(
+  db: Database,
+  userId: string,
+  visibility: ProfileVisibilityConfig,
+  now = new Date()
+) {
+  if (!visibility.streak) {
+    return null;
+  }
+
+  const publicAccount = await db.query.user.findFirst({
+    columns: { id: true },
+    where: and(eq(user.id, userId), userIsNotActivelyBanned(now)),
+  });
+  if (!publicAccount) {
+    return null;
+  }
+
+  const state = await getStreakState(db, userId, now);
+  return state.available && state.initialized && state.currentStreak > 0
+    ? state.currentStreak
+    : null;
+}
+
+export async function getPublicCurrentStreakForUser(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
+  const visibility = await getResolvedProfileVisibility(db, userId);
+  return getPublicCurrentStreak(db, userId, visibility, now);
 }
 
 export async function getOrCreateProfileSettings(db: Database, userId: string) {
@@ -641,8 +677,9 @@ export async function buildProfileSummaries(
 export async function getPublicProfile(
   db: Database,
   userId: string,
-  now = new Date()
+  { includeCurrentStreak = true }: { includeCurrentStreak?: boolean } = {}
 ) {
+  const now = new Date();
   const [summary] = await buildProfileSummaries(db, [userId], now);
 
   if (!summary) {
@@ -662,18 +699,27 @@ export async function getPublicProfile(
     return null;
   }
 
-  const visibility = getProfileActivityVisibility(settings.visibilityConfig);
-  const [bannerAsset, activityCounts, progression, publicWallet] =
-    await Promise.all([
-      settings.bannerAssetId
-        ? db.query.profileMediaAsset.findFirst({
-            where: eq(profileMediaAsset.id, settings.bannerAssetId),
-          })
-        : null,
-      getPublicProfileActivityCounts(db, userId, visibility, now),
-      getPublicAccountLevel(db, userId, now),
-      getPublicWalletBalance(db, userId, now),
-    ]);
+  const profileVisibility = resolveProfileVisibility(settings.visibilityConfig);
+  const visibility = getProfileActivityVisibility(profileVisibility);
+  const [
+    bannerAsset,
+    activityCounts,
+    currentStreak,
+    progression,
+    publicWallet,
+  ] = await Promise.all([
+    settings.bannerAssetId
+      ? db.query.profileMediaAsset.findFirst({
+          where: eq(profileMediaAsset.id, settings.bannerAssetId),
+        })
+      : null,
+    getPublicProfileActivityCounts(db, userId, visibility, now),
+    includeCurrentStreak
+      ? getPublicCurrentStreak(db, userId, profileVisibility, now)
+      : null,
+    getPublicAccountLevel(db, userId, now),
+    getPublicWalletBalance(db, userId, now),
+  ]);
 
   return {
     ...summary,
@@ -691,6 +737,7 @@ export async function getPublicProfile(
       mode: settings.bannerMode,
     },
     createdAt: currentUser.createdAt,
+    ...(currentStreak === null ? {} : { currentStreak }),
     eterisBalance: publicWallet?.balance ?? null,
     maxVisibleEmblems: systemConfig.maxVisibleEmblems,
     visibility,

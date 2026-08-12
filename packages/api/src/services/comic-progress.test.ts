@@ -10,12 +10,17 @@ import {
   trackComicPageView,
 } from "./comic-progress";
 
+const testEnv = vi.hoisted(() => ({ XP_ACCRUAL_ENABLED: false }));
+const progression = vi.hoisted(() => ({
+  lockUserProgressionInTransaction: vi.fn(),
+  notifyXpSettlement: vi.fn(),
+  notifyXpSettlementInTransaction: vi.fn(),
+}));
+const streak = vi.hoisted(() => ({
+  applyStreakEvidenceInTransaction: vi.fn(),
+}));
 const integrity = vi.hoisted(() => ({
   settle: vi.fn(),
-}));
-const notifications = vi.hoisted(() => ({
-  notify: vi.fn(),
-  notifyInTransaction: vi.fn(),
 }));
 
 vi.mock("./integrity-settlement", () => ({
@@ -23,15 +28,9 @@ vi.mock("./integrity-settlement", () => ({
   settleXpWithIntegrityInTransaction: integrity.settle,
 }));
 
-vi.mock("@repo/env", () => ({
-  env: { XP_ACCRUAL_ENABLED: true },
-}));
-
-vi.mock("./progression", () => ({
-  lockUserProgressionInTransaction: vi.fn().mockResolvedValue({}),
-  notifyXpSettlement: notifications.notify,
-  notifyXpSettlementInTransaction: notifications.notifyInTransaction,
-}));
+vi.mock("@repo/env", () => ({ env: testEnv }));
+vi.mock("./progression", () => progression);
+vi.mock("./streak", () => streak);
 
 function createState(
   overrides?: Partial<Parameters<typeof applyCheckpoint>[0]["state"]>
@@ -49,7 +48,7 @@ function createState(
     lastPersistedAtMs: null,
     lastPersistedPage: 0,
     lastRewardCheckpointAtMs: null,
-    pendingRewardPages: [],
+    pendingRewardCheckpoints: [],
     startedAtMs: 0,
     totalPages: 4,
     totalPagesAtLastReadSnapshot: 4,
@@ -59,12 +58,16 @@ function createState(
   };
 }
 
-function createAccessQueries(post: Record<string, unknown> | null = {}) {
+function createAccessQueries(
+  post: Record<string, unknown> | null = {},
+  author?: Record<string, unknown> | null
+) {
   return {
     patron: { findFirst: vi.fn().mockResolvedValue(null) },
     post: {
       findFirst: vi.fn().mockResolvedValue(
         post && {
+          authorId: "author-1",
           comicLastUpdateAt: null,
           comicPageCount: 4,
           earlyAccessEnabled: false,
@@ -78,7 +81,44 @@ function createAccessQueries(post: Record<string, unknown> | null = {}) {
         }
       ),
     },
+    user: {
+      findFirst: vi
+        .fn()
+        .mockResolvedValue(author === undefined ? { id: "author-1" } : author),
+    },
   };
+}
+
+function createProgressSelect(
+  overrides: Partial<{
+    completed: boolean;
+    completedAt: Date | null;
+    lastPageRead: number;
+    lastReadTimestamp: Date;
+    ranges: [number, number][];
+    totalPagesAtLastRead: number;
+    verifiedThroughPage: number;
+  }> = {}
+) {
+  const query = {
+    for: vi.fn().mockResolvedValue([
+      {
+        completed: false,
+        completedAt: null,
+        lastPageRead: 0,
+        lastReadTimestamp: new Date(0),
+        ranges: [],
+        totalPagesAtLastRead: 4,
+        verifiedThroughPage: 0,
+        ...overrides,
+      },
+    ]),
+    from: vi.fn(),
+    where: vi.fn(),
+  };
+  query.from.mockReturnValue(query);
+  query.where.mockReturnValue(query);
+  return { query, select: vi.fn().mockReturnValue(query) };
 }
 
 describe("getPersistedProgressStatus", () => {
@@ -111,12 +151,12 @@ describe("verified comic reading rewards", () => {
   };
 
   beforeEach(() => {
-    notifications.notify
-      .mockReset()
-      .mockImplementation(() => Promise.resolve());
-    notifications.notifyInTransaction
-      .mockReset()
-      .mockImplementation(() => Promise.resolve());
+    vi.clearAllMocks();
+    testEnv.XP_ACCRUAL_ENABLED = false;
+    progression.lockUserProgressionInTransaction.mockResolvedValue({});
+    progression.notifyXpSettlementInTransaction.mockImplementation(() =>
+      Promise.resolve()
+    );
     integrity.settle.mockReset().mockResolvedValue({
       outcome: "posted",
       settlement: {
@@ -236,7 +276,7 @@ describe("verified comic reading rewards", () => {
       reason: "invalid_page",
       rewardValid: false,
     });
-    expect(result.nextState.pendingRewardPages).toEqual([]);
+    expect(result.nextState.pendingRewardCheckpoints).toEqual([]);
   });
 
   it("restores eligibility only after three consecutive plausible checkpoints", () => {
@@ -307,6 +347,8 @@ describe("verified comic reading rewards", () => {
         comicId: "comic-1",
         db,
         evidence,
+        impersonated: false,
+        now: new Date(),
         page: 1,
         readingSessionId: "session-1",
         userId: "user-1",
@@ -319,11 +361,37 @@ describe("verified comic reading rewards", () => {
     });
   });
 
+  it("rejects malformed stored session data before using it", async () => {
+    const cache = {
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify({
+          ...createState(),
+          pendingRewardCheckpoints: [{ page: "1", receivedAtMs: 1000 }],
+        })
+      ),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        comicId: "comic-1",
+        db: {} as Parameters<typeof trackComicPageView>[0]["db"],
+        evidence,
+        impersonated: false,
+        now: new Date(),
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ reason: "session_mismatch" });
+    expect(cache.set).toHaveBeenCalledOnce();
+  });
+
   it("keeps checkpoint notifications in the progress transaction", async () => {
-    notifications.notify.mockRejectedValueOnce(
-      new Error("notification failure")
-    );
-    notifications.notifyInTransaction.mockRejectedValueOnce(
+    testEnv.XP_ACCRUAL_ENABLED = true;
+    progression.notifyXpSettlementInTransaction.mockRejectedValueOnce(
       new Error("notification failure")
     );
     const cache = {
@@ -334,7 +402,9 @@ describe("verified comic reading rewards", () => {
             lastPageRead: 1,
             lastPersistedAtMs: 0,
             lastPersistedPage: 1,
-            pendingRewardPages: [1],
+            pendingRewardCheckpoints: [
+              { page: 1, receivedAtMs: Date.now() - 2000 },
+            ],
             startedAtMs: Date.now() - 10_000,
             verifiedThroughPage: 1,
           })
@@ -396,6 +466,8 @@ describe("verified comic reading rewards", () => {
         correlation: { deviceHash: null, ipPrefixHash: null },
         db,
         evidence,
+        impersonated: false,
+        now: new Date(),
         page: 2,
         readingSessionId: "session-1",
         userId: "user-1",
@@ -403,12 +475,12 @@ describe("verified comic reading rewards", () => {
     ).rejects.toThrow("notification failure");
 
     expect(committed).toBe(false);
-    expect(notifications.notifyInTransaction).toHaveBeenCalledWith(
+    expect(progression.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
       tx,
       "user-1",
       expect.objectContaining({ replayed: false, settledXp: 1 })
     );
-    expect(notifications.notify).not.toHaveBeenCalled();
+    expect(progression.notifyXpSettlement).not.toHaveBeenCalled();
   });
 
   it("keeps the latest page while retaining monotonic verified progress", async () => {
@@ -428,10 +500,9 @@ describe("verified comic reading rewards", () => {
       completedAt: new Date("2026-08-09T00:00:00.000Z"),
       lastPageRead: 4,
       lastReadTimestamp: new Date("2026-08-09T00:00:00.000Z"),
+      ranges: [],
       totalPagesAtLastRead: 4,
-      updatedAt: new Date("2026-08-09T00:00:00.000Z"),
       verifiedThroughPage: 4,
-      xpProcessedPageRanges: [],
     };
     let updateValues: Record<string, unknown> | undefined;
     const selectChain = {
@@ -444,14 +515,14 @@ describe("verified comic reading rewards", () => {
     const tx = {
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
-          onConflictDoNothing: vi.fn(() => Promise.resolve()),
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
         })),
       })),
       select: vi.fn().mockReturnValue(selectChain),
       update: vi.fn(() => ({
         set: vi.fn((values: Record<string, unknown>) => {
           updateValues = values;
-          return { where: vi.fn(() => Promise.resolve()) };
+          return { where: vi.fn().mockResolvedValue(null) };
         }),
       })),
     };
@@ -466,6 +537,8 @@ describe("verified comic reading rewards", () => {
       correlation: { deviceHash: null, ipPrefixHash: null },
       db,
       evidence: { ...evidence, documentVisible: false },
+      impersonated: false,
+      now: new Date("2026-08-10T00:00:00.000Z"),
       page: 2,
       readingSessionId: "session-1",
       userId: "user-1",
@@ -529,6 +602,8 @@ describe("verified comic reading rewards", () => {
         typeof trackComicPageView
       >[0]["db"],
       evidence: { ...evidence, documentVisible: false },
+      impersonated: false,
+      now: new Date(),
       page: 1,
       readingSessionId: "session-1",
       userId: "user-1",
@@ -542,10 +617,11 @@ describe("verified comic reading rewards", () => {
 
     await expect(first).resolves.toMatchObject({ accepted: true });
     await expect(second).resolves.toMatchObject({
-      accepted: true,
-      lastPageRead: 2,
+      accepted: false,
+      lastPageRead: 1,
+      reason: "invalid_page",
       trackingAvailable: true,
-      verifiedThroughPage: 2,
+      verifiedThroughPage: 1,
     });
 
     expect(set).toHaveBeenNthCalledWith(
@@ -554,6 +630,52 @@ describe("verified comic reading rewards", () => {
       expect.any(String),
       { NX: true, PX: 30_000 }
     );
+  });
+
+  it("uses post-lock elapsed time for page spacing", async () => {
+    const receivedAt = new Date("2026-08-10T12:00:00.000Z");
+    const state = createState({
+      lastAcceptedAtMs: receivedAt.getTime(),
+      lastAcceptedPage: 1,
+      lastPageRead: 1,
+      lastPersistedAtMs: receivedAt.getTime(),
+      lastPersistedPage: 1,
+      startedAtMs: receivedAt.getTime() - 10_000,
+      verifiedThroughPage: 1,
+    });
+    let lockAttempts = 0;
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(JSON.stringify(state)),
+      set: vi.fn((_key: string, _value: string, options?: { NX?: boolean }) => {
+        if (!options?.NX) {
+          return "OK";
+        }
+        lockAttempts += 1;
+        return lockAttempts > 8 ? "OK" : null;
+      }),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db: { query: createAccessQueries() } as unknown as Parameters<
+          typeof trackComicPageView
+        >[0]["db"],
+        evidence: { ...evidence, documentVisible: false },
+        impersonated: false,
+        now: receivedAt,
+        page: 2,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      accepted: true,
+      lastPageRead: 2,
+      verifiedThroughPage: 2,
+    });
   });
 
   it("does not settle a reward when Redis cannot persist checkpoint evidence", async () => {
@@ -574,6 +696,8 @@ describe("verified comic reading rewards", () => {
         comicId: "comic-1",
         db,
         evidence,
+        impersonated: false,
+        now: new Date(),
         page: 1,
         readingSessionId: "session-1",
         userId: "user-1",
@@ -587,44 +711,96 @@ describe("verified comic reading rewards", () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it("does not settle verified pages after the comic reward scope is blocked", async () => {
+  it("records only reward-valid pages for the streak in the progress transaction", async () => {
     const cache = {
-      eval: vi.fn().mockResolvedValue(1),
-      get: vi.fn().mockResolvedValue(
-        JSON.stringify(
-          createState({
-            startedAtMs: Date.now() - 10_000,
-            verifiedThroughPage: 1,
-          })
-        )
-      ),
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
       set: vi.fn().mockResolvedValue("OK"),
     } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
-    let selectCall = 0;
+    const progress = createProgressSelect();
     const tx = {
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
           onConflictDoNothing: vi.fn().mockResolvedValue(null),
         })),
       })),
-      query: {
-        xpRewardBlock: {
-          findFirst: vi.fn().mockResolvedValue({ id: "block-1" }),
+      select: progress.select,
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    const db = {
+      query: createAccessQueries(),
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+    const now = new Date("2026-08-08T12:00:00.000Z");
+
+    await trackComicPageView({
+      cache,
+      comicId: "comic-1",
+      correlation: { deviceHash: null, ipPrefixHash: null },
+      db,
+      evidence,
+      impersonated: false,
+      now,
+      page: 1,
+      readingSessionId: "session-1",
+      timezone: "America/Argentina/Buenos_Aires",
+      userId: "user-1",
+    });
+
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      tx,
+      {
+        comicId: "comic-1",
+        impersonated: false,
+        integrity: {
+          correlation: { deviceHash: null, ipPrefixHash: null },
         },
+        kind: "reading",
+        page: 1,
+        timezone: "America/Argentina/Buenos_Aires",
+        userId: "user-1",
       },
-      select: vi.fn(() => {
-        selectCall += 1;
-        const chain = {
-          for: vi.fn().mockResolvedValue([{ ranges: [] }]),
-          from: vi.fn(),
-          where: vi.fn(),
-        };
-        chain.from.mockReturnValue(chain);
-        chain.where.mockReturnValue(
-          selectCall === 1 ? chain : Promise.resolve([{ total: 0 }])
-        );
-        return chain;
-      }),
+      now,
+      expect.any(Date)
+    );
+    expect(
+      streak.applyStreakEvidenceInTransaction.mock.invocationCallOrder[0]
+    ).toBeLessThan(progress.select.mock.invocationCallOrder[0] ?? 0);
+
+    await trackComicPageView({
+      cache: {
+        ...cache,
+        get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      } as unknown as Parameters<typeof trackComicPageView>[0]["cache"],
+      comicId: "comic-1",
+      correlation: { deviceHash: null, ipPrefixHash: null },
+      db,
+      evidence: { ...evidence, documentVisible: false },
+      impersonated: false,
+      now,
+      page: 1,
+      readingSessionId: "session-2",
+      userId: "user-1",
+    });
+
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledOnce();
+  });
+
+  it("records a valid streak checkpoint when comic XP already processed the page", async () => {
+    testEnv.XP_ACCRUAL_ENABLED = true;
+    const cache = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const progress = createProgressSelect({ ranges: [[1, 1]] });
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      select: progress.select,
       update: vi.fn(() => ({
         set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
       })),
@@ -637,16 +813,167 @@ describe("verified comic reading rewards", () => {
     await expect(
       trackComicPageView({
         cache,
-        correlation: { deviceHash: null, ipPrefixHash: null },
         comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
         db,
         evidence,
+        impersonated: false,
+        now: new Date("2026-08-08T12:00:00.000Z"),
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({ processed: false, rewardedXp: 0 });
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledOnce();
+  });
+
+  it("preserves a buffered checkpoint's request time after its source transaction fails", async () => {
+    const cache = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const db = {
+      query: createAccessQueries(),
+      transaction: vi.fn().mockRejectedValue(new Error("database unavailable")),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db,
+        evidence,
+        impersonated: false,
+        now: new Date("2026-08-08T23:59:59.000Z"),
+        page: 1,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).rejects.toThrow("database unavailable");
+
+    const sessionWrite = vi
+      .mocked(cache.set)
+      .mock.calls.find(([key]) => key === "comic-progress:session:session-1");
+    expect(sessionWrite).toBeDefined();
+    const persistedSession = JSON.parse(sessionWrite?.[1] as string);
+    expect(persistedSession.pendingRewardCheckpoints).toEqual([
+      { page: 1, receivedAtMs: new Date("2026-08-08T23:59:59.000Z").getTime() },
+    ]);
+
+    streak.applyStreakEvidenceInTransaction.mockClear();
+    const progress = createProgressSelect();
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      select: progress.select,
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    const retryCache = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(persistedSession)),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const retryDb = {
+      query: createAccessQueries(),
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+    const retryNow = new Date("2026-08-09T00:00:01.000Z");
+
+    await trackComicPageView({
+      cache: retryCache,
+      comicId: "comic-1",
+      correlation: { deviceHash: null, ipPrefixHash: null },
+      db: retryDb,
+      evidence,
+      impersonated: false,
+      now: retryNow,
+      page: 2,
+      readingSessionId: "session-1",
+      userId: "user-1",
+    });
+
+    expect(streak.applyStreakEvidenceInTransaction.mock.calls).toEqual([
+      [
+        tx,
+        expect.objectContaining({ kind: "reading", page: 1 }),
+        new Date("2026-08-08T23:59:59.000Z"),
+        expect.any(Date),
+      ],
+      [
+        tx,
+        expect.objectContaining({ kind: "reading", page: 2 }),
+        retryNow,
+        expect.any(Date),
+      ],
+    ]);
+    const firstProcessingNow =
+      streak.applyStreakEvidenceInTransaction.mock.calls[0]?.[3];
+    expect(firstProcessingNow).toBeInstanceOf(Date);
+    if (!(firstProcessingNow instanceof Date)) {
+      throw new Error("Expected a processing timestamp.");
+    }
+    expect(firstProcessingNow.getTime()).toBeGreaterThanOrEqual(
+      retryNow.getTime()
+    );
+  });
+
+  it("blocks comic XP without suppressing a valid streak checkpoint", async () => {
+    testEnv.XP_ACCRUAL_ENABLED = true;
+    const now = new Date("2026-08-08T12:00:00.000Z");
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify(
+          createState({
+            startedAtMs: now.getTime() - 10_000,
+            verifiedThroughPage: 1,
+          })
+        )
+      ),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const tx = {
+      insert: vi.fn(() => ({
+        values: vi.fn(() => ({
+          onConflictDoNothing: vi.fn().mockResolvedValue(null),
+        })),
+      })),
+      query: {
+        xpRewardBlock: {
+          findFirst: vi.fn().mockResolvedValue({ id: "block-1" }),
+        },
+      },
+      select: createProgressSelect().select,
+      update: vi.fn(() => ({
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+      })),
+    };
+    const db = {
+      query: createAccessQueries(),
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db,
+        evidence,
+        impersonated: false,
+        now,
         page: 1,
         readingSessionId: "session-1",
         userId: "user-1",
       })
     ).resolves.toMatchObject({ processed: true, rewardedXp: 0 });
     expect(integrity.settle).not.toHaveBeenCalled();
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledOnce();
   });
 
   it("reports deferred reward pages as unprocessed for a later retry", async () => {
@@ -720,13 +1047,15 @@ describe("verified comic reading rewards", () => {
         correlation: { deviceHash: null, ipPrefixHash: null },
         db,
         evidence,
+        impersonated: false,
+        now: new Date(),
         page: 1,
         readingSessionId: "session-1",
         userId: "user-1",
       })
     ).resolves.toMatchObject({ processed: false, rewardedXp: 0 });
 
-    expect(updateValues).toMatchObject({ xpProcessedPageRanges: [] });
+    expect(updateValues).not.toHaveProperty("xpProcessedPageRanges");
   });
 
   it("rejects checkpoints after the comic becomes inaccessible", async () => {
@@ -744,12 +1073,49 @@ describe("verified comic reading rewards", () => {
     await expect(
       trackComicPageView({
         cache,
-        correlation: { deviceHash: null, ipPrefixHash: null },
         comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
         db,
         evidence,
+        impersonated: false,
+        now: new Date("2026-08-08T12:00:00.000Z"),
         page: 1,
         readingSessionId: "session-1",
+        role: "user",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      accepted: false,
+      reason: "session_mismatch",
+      rewardedXp: 0,
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects checkpoints after the comic author becomes actively banned", async () => {
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(JSON.stringify(createState())),
+      set: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+    const transaction = vi.fn();
+    const db = {
+      query: createAccessQueries({}, null),
+      transaction,
+    } as unknown as Parameters<typeof trackComicPageView>[0]["db"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db,
+        evidence,
+        impersonated: false,
+        now: new Date("2026-08-08T12:00:00.000Z"),
+        page: 1,
+        readingSessionId: "session-1",
+        role: "user",
         userId: "user-1",
       })
     ).resolves.toMatchObject({

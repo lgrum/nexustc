@@ -81,4 +81,28 @@ describe("XP integrity disposition", () => {
       command.sourceCreatedAt?.getUTCDate()
     );
   });
+
+  it("preserves original streak metadata when Pending XP is released", () => {
+    const command = buildPendingXpReleaseCommand(
+      {
+        amount: 25,
+        createdAt: new Date("2026-08-08T12:00:00.000Z"),
+        id: "pending-streak-1",
+        kind: "streak_day",
+        metadata: { dayKey: "user-1:1:2026-08-08", path: "reading" },
+        milestone: null,
+        reasonCode: "streak_day_completed",
+        sourceRef: "comic:comic-1:page:3",
+        subjectId: null,
+        userId: "user-1",
+      },
+      "case-1"
+    );
+
+    expect(command.metadata).toEqual({
+      dayKey: "user-1:1:2026-08-08",
+      path: "reading",
+      releasedPendingEventId: "pending-streak-1",
+    });
+  });
 });

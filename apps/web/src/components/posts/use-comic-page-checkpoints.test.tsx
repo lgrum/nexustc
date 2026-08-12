@@ -3,14 +3,19 @@ import { act, renderHook } from "@testing-library/react";
 import { useComicPageCheckpoints } from "./use-comic-page-checkpoints";
 
 const api = vi.hoisted(() => ({
+  invalidateQueries: vi.fn(),
   startSession: vi.fn(),
   update: vi.fn(),
 }));
 
 vi.mock("@/lib/orpc", () => ({
+  orpc: {
+    streak: { getMine: { queryOptions: () => ({ queryKey: ["streak"] }) } },
+  },
   orpcClient: {
     comicProgress: api,
   },
+  queryClient: { invalidateQueries: api.invalidateQueries },
 }));
 
 class MockIntersectionObserver {
@@ -91,8 +96,12 @@ describe(useComicPageCheckpoints, () => {
       documentVisible: true,
       page: 2,
       readingSessionId: "session-1",
+      timezone: "America/Buenos_Aires",
       visibleDurationMs: 2000,
       visiblePercentage: 60,
+    });
+    expect(api.invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["streak"],
     });
   });
 

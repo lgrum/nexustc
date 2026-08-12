@@ -3,7 +3,11 @@ import { and, desc, eq, inArray, isNull, lt, not, or, sql } from "@repo/db";
 import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
-import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
+import {
+  ratingCreateSchema,
+  ratingReviewSchema,
+  ratingUpdateSchema,
+} from "@repo/shared/schemas";
 import z from "zod";
 
 import type { Context } from "../context";
@@ -18,7 +22,6 @@ import {
   getReviewDeletionWarning,
   isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction,
-  reconcileEditedReviewRewardsInTransaction,
   reconcileRemovedContributionLikeInTransaction,
   runContributionRewardTransaction,
   settleReviewMilestonesInTransaction,
@@ -28,6 +31,7 @@ import {
   canReadPublicProfileActivity,
 } from "../services/profile";
 import { notifyXpSettlementInTransaction } from "../services/progression";
+import { saveRatingInTransaction } from "../services/rating";
 import {
   canViewPost,
   getPostEarlyAccessView,
@@ -49,6 +53,7 @@ const ratingsByUserPaginationSchema = z.object({
     .optional(),
   limit: z.number().min(1).max(30).default(10),
 });
+const reviewHasText = sql<boolean>`length(trim(${postRating.review})) > 0`;
 
 type ReviewMilestoneSettlement = Awaited<
   ReturnType<typeof settleReviewMilestonesInTransaction>
@@ -62,11 +67,16 @@ async function assertRatingsAreOpen(params: {
   };
   postId: string;
   session: Context["session"];
+  now?: Date;
 }) {
+  const now = params.now ?? new Date();
   const targetPost = await params.db.query.post.findFirst({
     columns: {
+      authorId: true,
       earlyAccessEnabled: true,
       earlyAccessStartedAt: true,
+      releasedAt: true,
+      status: true,
       type: true,
       vip12EarlyAccessHours: true,
       vip8EarlyAccessHours: true,
@@ -76,6 +86,13 @@ async function assertRatingsAreOpen(params: {
 
   if (!targetPost) {
     throw params.errors.NOT_FOUND();
+  }
+  const author = await params.db.query.user.findFirst({
+    columns: { id: true },
+    where: and(eq(user.id, targetPost.authorId), userIsNotActivelyBanned(now)),
+  });
+  if (!author) {
+    throw params.errors.FORBIDDEN();
   }
 
   const viewerTier = await getViewerPatronTier(params.db, params.session);
@@ -87,6 +104,13 @@ async function assertRatingsAreOpen(params: {
   if (earlyAccess.isActive) {
     throw params.errors.FORBIDDEN();
   }
+  if (
+    targetPost.status !== "publish" ||
+    (targetPost.releasedAt !== null && targetPost.releasedAt > now)
+  ) {
+    throw params.errors.FORBIDDEN();
+  }
+  return targetPost;
 }
 
 async function getRatingsByUser({
@@ -130,7 +154,7 @@ async function getRatingsByUser({
     .from(postRating)
     .innerJoin(user, eq(user.id, postRating.userId))
     .innerJoin(post, eq(post.id, postRating.postId))
-    .where(and(visibilityCondition, cursorCondition))
+    .where(and(visibilityCondition, reviewHasText, cursorCondition))
     .orderBy(desc(postRating.createdAt), desc(postRating.postId))
     .limit(limit);
 
@@ -173,15 +197,16 @@ export default {
     )
     .input(ratingCreateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const now = new Date();
       const logger = getLogger(ctx);
       const review = input.review ?? "";
-      const reviewWasRemoved = review.trim().length === 0;
       logger?.info(
         `User ${session.user.id} creating/updating rating for post ${input.postId}: ${input.rating} stars`
       );
-      await assertRatingsAreOpen({
+      const targetPost = await assertRatingsAreOpen({
         db,
         errors,
+        now,
         postId: input.postId,
         session,
       });
@@ -192,66 +217,53 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await runContributionRewardTransaction(db, async (tx) => {
-        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
-        const [savedReview] = await tx
-          .insert(postRating)
-          .values({
+      const ratingResult = await runContributionRewardTransaction(
+        db,
+        async (tx) => {
+          const result = await saveRatingInTransaction(tx, {
+            contentType: targetPost.type,
+            correlation: buildIntegrityCorrelationEvidence(ctx.headers),
+            impersonated: Boolean(session.session?.impersonatedBy),
+            insertIfMissing: true,
+            now,
             postId: input.postId,
             rating: input.rating,
             review,
+            timezone: input.timezone,
             userId: session.user.id,
-          })
-          .onConflictDoUpdate({
-            set: {
-              ...(reviewWasRemoved ? { pinnedAt: null } : {}),
-              rating: input.rating,
-              review,
-              updatedAt: new Date(),
-            },
-            target: [postRating.userId, postRating.postId],
-          })
-          .returning({
-            createdAt: postRating.createdAt,
-            id: postRating.id,
-            postId: postRating.postId,
-            review: postRating.review,
-            userId: postRating.userId,
           });
-        if (savedReview) {
-          const result = await reconcileEditedReviewRewardsInTransaction(
-            tx,
-            savedReview
-          );
-          for (const settlement of result.settlements) {
+          for (const settlement of result?.settlements ?? []) {
             await notifyXpSettlementInTransaction(
               tx,
               session.user.id,
               settlement
             );
           }
+          return result;
         }
-      });
+      );
+      const streak = ratingResult?.streak;
 
       logger?.debug(
         `Rating upserted for user ${session.user.id} on post ${input.postId}`
       );
-      return { success: true };
+      return { streak, success: true };
     }),
 
   // Update own rating
   update: protectedProcedure
     .input(ratingUpdateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const now = new Date();
       const logger = getLogger(ctx);
       const review = input.review ?? "";
-      const reviewWasRemoved = review.trim().length === 0;
       logger?.info(
         `User ${session.user.id} updating rating for post ${input.postId}: ${input.rating} stars`
       );
-      await assertRatingsAreOpen({
+      const targetPost = await assertRatingsAreOpen({
         db,
         errors,
+        now,
         postId: input.postId,
         session,
       });
@@ -262,64 +274,47 @@ export default {
       });
       assertTextIsNotSpammy(review, errors, session.user.role);
 
-      await runContributionRewardTransaction(db, async (tx) => {
-        await lockContributionParticipantsInTransaction(tx, [session.user.id]);
-        const [savedReview] = await tx
-          .update(postRating)
-          .set({
-            ...(reviewWasRemoved ? { pinnedAt: null } : {}),
+      const ratingResult = await runContributionRewardTransaction(
+        db,
+        async (tx) => {
+          const result = await saveRatingInTransaction(tx, {
+            contentType: targetPost.type,
+            correlation: buildIntegrityCorrelationEvidence(ctx.headers),
+            impersonated: Boolean(session.session?.impersonatedBy),
+            insertIfMissing: false,
+            now,
+            postId: input.postId,
             rating: input.rating,
             review,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(postRating.postId, input.postId),
-              eq(postRating.userId, session.user.id)
-            )
-          )
-          .returning({
-            createdAt: postRating.createdAt,
-            id: postRating.id,
-            postId: postRating.postId,
-            review: postRating.review,
-            userId: postRating.userId,
+            timezone: input.timezone,
+            userId: session.user.id,
           });
-        if (savedReview) {
-          const result = await reconcileEditedReviewRewardsInTransaction(
-            tx,
-            savedReview
-          );
-          for (const settlement of result.settlements) {
+          for (const settlement of result?.settlements ?? []) {
             await notifyXpSettlementInTransaction(
               tx,
               session.user.id,
               settlement
             );
           }
+          return result;
         }
-      });
+      );
+      const streak = ratingResult?.streak;
 
       logger?.debug(
         `Rating updated for user ${session.user.id} on post ${input.postId}`
       );
-      return { success: true };
+      return { streak, success: true };
     }),
 
   // Delete own rating
   delete: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `User ${session.user.id} deleting rating for post ${input.postId}`
       );
-      await assertRatingsAreOpen({
-        db,
-        errors,
-        postId: input.postId,
-        session,
-      });
 
       await deleteReviewWithRewards(db, {
         postId: input.postId,
@@ -383,6 +378,7 @@ export default {
             earlyAccessEnabled: post.earlyAccessEnabled,
             earlyAccessStartedAt: post.earlyAccessStartedAt,
             id: postRating.id,
+            review: postRating.review,
             releasedAt: post.releasedAt,
             status: post.status,
             type: post.type,
@@ -400,7 +396,10 @@ export default {
             )
           )
           .limit(1);
-        if (!existingRating) {
+        if (
+          !existingRating ||
+          !ratingReviewSchema.safeParse(existingRating.review).success
+        ) {
           throw errors.NOT_FOUND();
         }
         if (
@@ -617,7 +616,11 @@ export default {
         .from(postRating)
         .innerJoin(user, eq(user.id, postRating.userId))
         .where(
-          and(eq(postRating.postId, input.postId), userIsNotActivelyBanned())
+          and(
+            eq(postRating.postId, input.postId),
+            reviewHasText,
+            userIsNotActivelyBanned()
+          )
         )
         .orderBy(
           sql`${postRating.pinnedAt} DESC NULLS LAST`,
@@ -700,6 +703,7 @@ export default {
         .where(
           and(
             eq(post.status, "publish"),
+            reviewHasText,
             publicCatalogVisibilityCondition(),
             userIsNotActivelyBanned()
           )

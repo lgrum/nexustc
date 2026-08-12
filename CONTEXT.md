@@ -171,6 +171,66 @@ _Avoid_: Season level, purchasable level
 Server-validated forward reading progress through published comic pages. Each page is eligible for Account XP once per user, including pages added after an earlier completion.
 _Avoid_: Page view, repeat reading reward
 
+**Streak Reading**:
+A server-validated comic page checkpoint used toward a Streak Day. The same page may contribute once on a later Streak Day without becoming eligible for repeat Account XP.
+_Avoid_: Page view, repeat reading XP
+
+**Streak Contribution**:
+A newly published comment or review that satisfies the Account XP content rules when created. Ordinary later edits or deletion do not change its completed Streak Day.
+_Avoid_: Edited contribution, draft
+
 **Eligible Like**:
 A unique endorsement from a verified account that was at least seven days old when the endorsement was created. Self-likes and likes from banned or coordinated accounts are excluded.
 _Avoid_: Raw like, reaction count
+
+**Streak Day**:
+A calendar day in an account's Streak Timezone for which it satisfies an approved pattern of validated content participation.
+_Avoid_: Login day, active day
+
+**Streak Timezone**:
+The account-selected IANA timezone that determines its Streak Day boundaries.
+_Avoid_: Browser timezone, UTC day
+
+**Timezone Transition**:
+The controlled switch between Streak Timezones. A partial destination day neither qualifies for rewards nor breaks streak continuity.
+_Avoid_: Timezone reset, free Streak Day
+
+**Discovery Action**:
+A qualifying new bookmark, follow, or rating of one content item. Once consumed by Mixed Discovery, removing and recreating the relationship does not restore its eligibility.
+_Avoid_: Click, toggle
+
+**Mixed Discovery**:
+A Streak Day path combining Streak Reading with two Discovery Actions on distinct content items.
+_Avoid_: Activity score, browsing time
+
+**Streak Break**:
+The reset of an account's current streak after an incomplete Streak Day. It does not revoke prior rewards or the account's best streak.
+_Avoid_: XP reversal, streak deletion
+
+**Streak Challenge**:
+An account's one-time commitment to reach a selected current-streak target. A Streak Break resets its progress but does not replace or cancel the selected target.
+_Avoid_: Recurring quest, daily goal
+
+**Streak Reward**:
+Bounded Account XP awarded automatically for completing a Streak Day or Streak Challenge.
+_Avoid_: Claimable reward, compounding reward
+
+**Streak Visibility**:
+A private-by-default account preference that may expose only the current streak on the public profile.
+_Avoid_: Public streak history, public challenge progress
+
+**Invalidated Streak Day**:
+A formerly qualifying Streak Day removed after human-confirmed integrity abuse. Its linked rewards and derived streak records are corrected.
+_Avoid_: Missed day, automatic penalty
+
+**Step-Up Verification**:
+An adaptive Turnstile check required before otherwise qualifying evidence with medium automation risk may complete a Streak Day. It does not block the underlying content action.
+_Avoid_: Streak Challenge, blanket CAPTCHA
+
+**Protected Streak Day**:
+A Streak Day covered by an owner-declared platform outage or deliberate global streak pause. It preserves continuity without increasing the streak or granting rewards.
+_Avoid_: Completed day, free Streak Day
+
+**Streak-Eligible Account**:
+An authenticated, email-verified, non-banned account acting outside staff impersonation.
+_Avoid_: Anonymous visitor, impersonated account

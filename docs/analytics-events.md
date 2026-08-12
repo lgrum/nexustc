@@ -60,6 +60,11 @@ NeXusTC uses Umami for privacy-conscious analytics. Event names are emitted dire
 | `adblock_dialog_shown`               | Adblock blocker appears                  | `path`                                                                                                 |
 | `adblock_reload_clicked`             | User reloads from adblock dialog         | `path`                                                                                                 |
 | `membership_cta_clicked`             | Membership CTA is clicked                | `source`                                                                                               |
+| `streak_challenge_selected`          | A Streak Challenge is selected           | `target`                                                                                               |
+| `streak_day_completed`               | An authoritative Streak Day completes    | `qualificationPath`, `tier`, `outcome`                                                                 |
+| `streak_challenge_completed`         | A Streak Challenge completion is shown   | `target`, `outcome`                                                                                    |
+| `streak_step_up_completed`           | A requested Streak Step-Up resolves      | `outcome` (`pass`, `fail`, or `error`)                                                                 |
+| `streak_visibility_changed`          | Public current Streak visibility changes | `public`                                                                                               |
 | `url_shortener_opened`               | Admin URL shortener dialog opens         | `shortenerCount`                                                                                       |
 | `url_shortener_completed`            | Admin URL shortener completes or fails   | `result`, `shortenerCount`                                                                             |
 | `url_shortener_copy_clicked`         | Shortened URL copy succeeds              | `shortenerCount`                                                                                       |
@@ -67,9 +72,14 @@ NeXusTC uses Umami for privacy-conscious analytics. Event names are emitted dire
 | `admin_announcement_published`       | Admin global announcement publishes      | `titleLength`, `descriptionLength`, `hasImage`, `hasExpiration`                                        |
 | `admin_news_article_published`       | Admin news article publishes             | `contentId`, `titleLength`, `summaryLength`, `bodyLength`, `hasBanner`, `hasExpiration`, `isScheduled` |
 
+`streak_day_completed` keeps cardinality bounded: `qualificationPath` is
+`contribution`, `mixed_discovery`, or `reading`; `tier` is `5`, `10`, `15`, `20`,
+or `25`; and `outcome` is `immediate` or `pending`.
+
 ## Privacy Rules
 
 - Do not send email, username, display name, raw search query, comment body, or review body.
+- Streak events must not send account IDs, content IDs, timezone names, or day keys.
 - Prefer internal content IDs, categorical states, counts, booleans, and source labels.
 - Keep event data below Umami's property limits and avoid high-cardinality values unless they are intentional content IDs.
 

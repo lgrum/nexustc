@@ -1,8 +1,158 @@
 import {
   buildManualNewsDuplicateSignature,
   deriveContentUpdateEvent,
+  followContent,
   hasVersionChanged,
+  unfollowContent,
 } from "./notification";
+
+const streak = vi.hoisted(() => ({
+  applyStreakEvidenceInTransaction: vi.fn(),
+}));
+
+vi.mock("./streak", () => streak);
+
+describe("follow Discovery evidence", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("submits evidence only for a successful new follow in its transaction", async () => {
+    const { db, transaction, tx } = createFollowDb(true);
+    const now = new Date("2026-08-08T12:00:00.000Z");
+
+    await followContent(
+      db as never,
+      {
+        contentId: "comic-1",
+        impersonated: false,
+        now,
+        role: "user",
+        timezone: "America/Argentina/Buenos_Aires",
+        userId: "user-1",
+      },
+      streak.applyStreakEvidenceInTransaction
+    );
+
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      tx,
+      {
+        actionKind: "follow",
+        contentKey: "comic:comic-1",
+        impersonated: false,
+        kind: "discovery",
+        timezone: "America/Argentina/Buenos_Aires",
+        userId: "user-1",
+      },
+      now
+    );
+  });
+
+  it("does not submit evidence for a conflict insert", async () => {
+    const { db } = createFollowDb(false);
+
+    await followContent(
+      db as never,
+      {
+        contentId: "comic-1",
+        impersonated: false,
+        now: new Date("2026-08-08T12:00:00.000Z"),
+        role: "user",
+        userId: "user-1",
+      },
+      streak.applyStreakEvidenceInTransaction
+    );
+
+    expect(streak.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not submit evidence when unfollowing", async () => {
+    const { db } = createFollowDb(false);
+
+    await unfollowContent(db as never, {
+      contentId: "comic-1",
+      userId: "user-1",
+    });
+
+    expect(streak.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("keeps follow and streak writes in the same rollback boundary", async () => {
+    const failure = new Error("streak write failed");
+    streak.applyStreakEvidenceInTransaction.mockRejectedValueOnce(failure);
+    const { db } = createFollowDb(true);
+
+    await expect(
+      followContent(
+        db as never,
+        {
+          contentId: "comic-1",
+          impersonated: false,
+          now: new Date("2026-08-08T12:00:00.000Z"),
+          role: "user",
+          userId: "user-1",
+        },
+        streak.applyStreakEvidenceInTransaction
+      )
+    ).rejects.toBe(failure);
+  });
+});
+
+function createFollowDb(inserted: boolean) {
+  const contentQuery = {
+    from: vi.fn(),
+    innerJoin: vi.fn(),
+    limit: vi.fn().mockResolvedValue([
+      {
+        authorBanned: false,
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "comic-1",
+        releasedAt: null,
+        status: "publish",
+        title: "Comic",
+        type: "comic",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]),
+    where: vi.fn(),
+  };
+  contentQuery.from.mockReturnValue(contentQuery);
+  contentQuery.innerJoin.mockReturnValue(contentQuery);
+  contentQuery.where.mockReturnValue(contentQuery);
+  const countQuery = {
+    from: vi.fn(),
+    where: vi.fn().mockResolvedValue([{ count: 0 }]),
+  };
+  countQuery.from.mockReturnValue(countQuery);
+  const select = vi
+    .fn()
+    .mockReturnValueOnce(contentQuery)
+    .mockReturnValueOnce(countQuery);
+  const returning = vi
+    .fn()
+    .mockResolvedValue(inserted ? [{ contentId: "comic-1" }] : []);
+  const insert = vi.fn(() => ({
+    values: vi.fn(() => ({
+      onConflictDoNothing: vi.fn(() => ({ returning })),
+    })),
+  }));
+  const tx = {
+    delete: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
+    insert,
+    query: {
+      contentFollower: { findFirst: vi.fn().mockResolvedValue(null) },
+      patron: { findFirst: vi.fn().mockResolvedValue(null) },
+    },
+    select,
+  };
+  const transaction = vi.fn((callback: (executor: typeof tx) => unknown) =>
+    callback(tx)
+  );
+  return { db: { ...tx, transaction }, transaction, tx };
+}
 
 describe(hasVersionChanged, () => {
   it("only treats normalized version changes as updates", () => {

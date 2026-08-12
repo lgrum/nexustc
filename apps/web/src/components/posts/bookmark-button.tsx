@@ -5,7 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { useDebounceEffect } from "@/hooks/use-debounce-effect";
-import { trackEvent } from "@/lib/analytics";
+import { trackEvent, trackStreakDayCompletion } from "@/lib/analytics";
 import { authClient } from "@/lib/auth-client";
 import { orpc, queryClient } from "@/lib/orpc";
 import { cn } from "@/lib/utils";
@@ -135,10 +135,12 @@ export function BookmarkButton({ postId }: { postId: string }) {
           queryClient.invalidateQueries({
             queryKey: ["profile", "public-bookmarks"],
           }),
+          queryClient.invalidateQueries(orpc.streak.getMine.queryOptions()),
         ]);
       },
 
-      onSuccess: (_data, variables) => {
+      onSuccess: (data, variables) => {
+        trackStreakDayCompletion(data.streak);
         trackEvent("post_bookmark_toggled", {
           bookmarked: variables.bookmarked,
           postId: variables.postId,
@@ -175,6 +177,7 @@ export function BookmarkButton({ postId }: { postId: string }) {
     bookmarkMutation.mutate({
       bookmarked: !isBookmarked,
       postId,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
     });
   };
 

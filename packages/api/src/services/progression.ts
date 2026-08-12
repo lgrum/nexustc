@@ -165,6 +165,8 @@ export async function getPublicAccountLevel(
 }
 
 const HISTORY_LABELS = {
+  streak_day: "D\u00EDa de Racha",
+  streak_challenge: "Desaf\u00EDo de Racha",
   admin_adjustment: "Corrección de Account XP",
   comment_milestone: "Hito de comentario",
   comic_reading: "Lectura verificada de cómic",
@@ -482,11 +484,7 @@ export async function releasePendingXpCaseInTransaction(
       "projectionMismatch" in settlement &&
       settlement.projectionMismatch === true
     ) {
-      return {
-        completed: false,
-        settlements,
-        userId: pending[0]?.userId ?? null,
-      };
+      throw new ProgressionError("PROJECTION_MISMATCH");
     }
     await cancelPendingXpEventsInTransaction(tx, {
       actorUserId: input.actorUserId,
@@ -652,7 +650,13 @@ export async function postXpEventInTransaction(
     settledXp === 0 &&
     input.kind === "reversal" &&
     input.reversesEventId !== undefined;
-  if (settledXp === 0 && !isConsumedReversal) {
+  const isStreakCompletionLedgerEntry =
+    settledXp === 0 &&
+    (input.kind === "streak_day" || input.kind === "streak_challenge");
+  if (
+    settledXp === 0 &&
+    !(isConsumedReversal || isStreakCompletionLedgerEntry)
+  ) {
     return {
       debtCreated: false,
       eventId: null,
@@ -768,6 +772,7 @@ export async function postXpEventInTransaction(
     kind: input.kind,
     metadata: {
       ...input.metadata,
+      ...(isStreakCompletionLedgerEntry && { completionLedger: true }),
       levelAfter: level,
       levelBefore: progression.level,
       requestedAmount: input.amount,
@@ -781,7 +786,7 @@ export async function postXpEventInTransaction(
     updatedAt: now,
     userId: input.userId,
   });
-  if (!isConsumedReversal) {
+  if (!(isConsumedReversal || isStreakCompletionLedgerEntry)) {
     await tx
       .update(userProgression)
       .set({ level, totalXp, updatedAt: now })
@@ -830,7 +835,9 @@ export async function createPendingXpEventInTransaction(
       existing.userId !== input.userId ||
       existing.amount !== input.amount ||
       existing.integrityCaseId !== input.integrityCaseId ||
-      existing.state !== "pending"
+      existing.state !== "pending" ||
+      (input.sourceCreatedAt &&
+        existing.createdAt.getTime() !== input.sourceCreatedAt.getTime())
     ) {
       throw new ProgressionError("IDEMPOTENCY_CONFLICT");
     }
@@ -861,6 +868,7 @@ export async function createPendingXpEventInTransaction(
     amount: input.amount,
     availableAt: input.availableAt,
     createdBy: input.createdBy,
+    createdAt: input.sourceCreatedAt,
     id: eventId,
     idempotencyKey: input.idempotencyKey,
     integrityCaseId: input.integrityCaseId,

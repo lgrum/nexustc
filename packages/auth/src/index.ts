@@ -16,6 +16,7 @@ import {
   closeAccountAndDeleteUser,
   notifyAccountClosureCompleted,
 } from "./account-closure";
+import { AUTH_ALLOWED_HOSTS } from "./auth-hosts";
 import { resend } from "./email";
 import {
   deactivatePatreonMembershipAfterAccountDelete,
@@ -28,6 +29,8 @@ import {
   consumeTwoFactorOtpDeliveryFailure,
   markTwoFactorOtpDeliveryFailed,
 } from "./two-factor-delivery";
+
+export { verifyTurnstileToken } from "./plugins/turnstile";
 
 type NewsletterOptInUser = {
   email: string;
@@ -94,7 +97,7 @@ export const auth = betterAuth({
   },
 
   baseURL: {
-    allowedHosts: ["nexustc18.com", "*.nexustc18.com"],
+    allowedHosts: [...AUTH_ALLOWED_HOSTS],
     protocol: "https",
     fallback: env.BETTER_AUTH_URL,
   },

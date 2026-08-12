@@ -206,3 +206,45 @@ test("economy operations persist one UTC snapshot and audited reconciliation", a
   expect(migrationSql).toContain('CREATE TABLE "eteris_wallet_reconciliation"');
   expect(migrationSql).not.toMatch(/email|device_hash|ip_prefix_hash/);
 });
+
+test("daily streak state is private, bounded, and removed with its account", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0069_organic_captain_america.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(
+    `ALTER TYPE "public"."xp_event_kind" ADD VALUE 'streak_day'`
+  );
+  expect(migrationSql).toContain('CREATE TABLE "user_streak"');
+  expect(migrationSql).toContain('"current_evidence" jsonb DEFAULT');
+  expect(migrationSql).toContain(
+    'FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade'
+  );
+  expect(migrationSql).not.toMatch(/comment_body|review_body|telemetry/);
+});
+
+test("streak challenges persist one immutable target and completion", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0069_organic_captain_america.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(
+    `ALTER TYPE "public"."xp_event_kind" ADD VALUE 'streak_challenge'`
+  );
+  expect(migrationSql).toContain('"challenge_target" integer');
+  expect(migrationSql).toContain('"challenge_target" in (10, 20, 30)');
+  expect(migrationSql).toContain('"challenge_completed_day_key" text');
+});
+
+test("zero-XP streak ledger entries avoid uncommitted enum labels", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0070_hard_lucky_pierre.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain("completionLedger");
+  expect(migrationSql).not.toContain("streak_day");
+  expect(migrationSql).not.toContain("streak_challenge");
+});

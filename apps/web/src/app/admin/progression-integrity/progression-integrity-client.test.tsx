@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ProgressionIntegrityClient } from "./progression-integrity-client";
 
 const state = vi.hoisted(() => ({
+  blockAvailable: true,
   caseRows: [] as unknown[],
   getCaseOptions: vi.fn(() => ({ queryKey: ["case"] })),
   listCasesOptions: vi.fn(() => ({ queryKey: ["cases"] })),
@@ -18,6 +19,7 @@ vi.mock("@tanstack/react-query", () => ({
       ? { data: options.initialData ?? state.caseRows, refetch: state.refetch }
       : {
           data: {
+            blockAvailable: state.blockAvailable,
             evidence: { signals: [] },
             events: [
               {
@@ -55,7 +57,10 @@ const cases = [
   },
 ] as never;
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  state.blockAvailable = true;
+});
 
 it("uses generated options and submits a validated integrity decision", async () => {
   render(<ProgressionIntegrityClient initialCases={cases} />);
@@ -113,4 +118,13 @@ it("exposes released cases and uses a stable cursor for older pages", () => {
       status: "open",
     },
   });
+});
+
+it("hides the unsupported block action for streak-only cases", () => {
+  state.blockAvailable = false;
+  render(<ProgressionIntegrityClient initialCases={cases} />);
+
+  fireEvent.click(screen.getByRole("button", { name: /Actividad inusual/ }));
+
+  expect(screen.queryByRole("button", { name: "Bloquear alcance" })).toBeNull();
 });

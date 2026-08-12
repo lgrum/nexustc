@@ -17,6 +17,7 @@ export const PROFILE_SECTIONS = [
   "following",
   "notifications",
   "progression",
+  "streak",
   "wallet",
   "account",
   "security",

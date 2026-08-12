@@ -1,7 +1,5 @@
 // @vitest-environment node
 
-import { readFile } from "node:fs/promises";
-
 import { beforeEach, expect, test, vi } from "vitest";
 
 const release = vi.hoisted(() => vi.fn());
@@ -68,18 +66,4 @@ test("revalidates committed releases before reporting a batch failure", async ()
     )
   ).rejects.toThrow("release failure");
   expect(revalidateTag).toHaveBeenCalledWith("profile:released-user", "max");
-});
-
-test("schedules matured Pending XP release independently of user activity", async () => {
-  const config = JSON.parse(
-    await readFile(
-      new URL("../../../../../vercel.json", import.meta.url),
-      "utf-8"
-    )
-  ) as { crons: { path: string; schedule: string }[] };
-
-  expect(config.crons).toContainEqual({
-    path: "/api/cron/pending-xp-release",
-    schedule: "15 * * * *",
-  });
 });

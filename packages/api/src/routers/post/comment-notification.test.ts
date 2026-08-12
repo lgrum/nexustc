@@ -13,6 +13,9 @@ const rewards = vi.hoisted(() => ({
   saveCommentRewardSubjectInTransaction: vi.fn(),
   settleCommentMilestonesInTransaction: vi.fn(),
 }));
+const streak = vi.hoisted(() => ({
+  applyStreakEvidenceInTransaction: vi.fn(),
+}));
 const bans = vi.hoisted(() => ({
   userIsNotActivelyBanned: vi.fn(),
 }));
@@ -47,6 +50,7 @@ vi.mock("../../services/progression", () => ({
   notifyXpSettlement: vi.fn(),
   notifyXpSettlementInTransaction: rewards.notifyXpSettlementInTransaction,
 }));
+vi.mock("../../services/streak", () => streak);
 vi.mock("../../utils/user-ban", () => ({
   userIsNotActivelyBanned: bans.userIsNotActivelyBanned,
 }));
@@ -104,14 +108,18 @@ function createContext({
       },
       post: {
         findFirst: vi.fn().mockResolvedValue({
+          authorId: "post-author-1",
           earlyAccessEnabled: false,
           earlyAccessStartedAt: null,
+          releasedAt: new Date("2026-08-01T12:00:00.000Z"),
+          status: "publish",
           title: "Publicación de prueba",
           type: "post",
           vip12EarlyAccessHours: 0,
           vip8EarlyAccessHours: 0,
         }),
       },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "post-author-1" }) },
     },
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -137,6 +145,7 @@ function createContext({
         },
       },
     } as unknown as Context,
+    db,
     insertedValues,
   };
 }
@@ -245,6 +254,61 @@ describe("comment reply notifications", () => {
         userId: "author-1",
       })
     );
+    expect(streak.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        kind: "contribution",
+        source: { id: "reply-1", kind: "comment" },
+        userId: "author-1",
+      }),
+      expect.any(Date)
+    );
+  });
+
+  it("rejects comments on unpublished content before creating streak evidence", async () => {
+    const { context, db } = createContext();
+    db.query.post.findFirst.mockResolvedValueOnce({
+      authorId: "post-author-1",
+      earlyAccessEnabled: false,
+      earlyAccessStartedAt: null,
+      releasedAt: new Date("2026-08-01T12:00:00.000Z"),
+      status: "draft",
+      title: "Borrador privado",
+      type: "post",
+      vip12EarlyAccessHours: 0,
+      vip8EarlyAccessHours: 0,
+    });
+
+    await expect(
+      call(
+        postRouter.createComment,
+        {
+          content: "Un comentario suficientemente largo para una Racha.",
+          postId: "post-1",
+        },
+        { context }
+      )
+    ).rejects.toThrow();
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(streak.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects comments on content from an actively banned author", async () => {
+    const { context, db } = createContext();
+    db.query.user.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      call(
+        postRouter.createComment,
+        {
+          content: "Un comentario suficientemente largo para una Racha.",
+          postId: "post-1",
+        },
+        { context }
+      )
+    ).rejects.toThrow();
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(streak.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
   });
 });
 

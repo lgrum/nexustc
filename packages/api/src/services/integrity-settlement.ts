@@ -4,7 +4,6 @@ import { xpEvent, xpIntegrityCase, xpRiskSignal } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import type { XpRiskSignalKind } from "@repo/shared/xp-integrity";
 
-import type { XpEventCommand } from "./progression";
 import {
   createPendingXpEventInTransaction,
   postXpEventInTransaction,
@@ -12,7 +11,9 @@ import {
 } from "./progression";
 
 type Database = typeof database;
-type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type ProgressionExecutor = Parameters<typeof postXpEventInTransaction>[0];
+type XpEventCommand = Parameters<typeof postXpEventInTransaction>[1];
+type IntegrityExecutor = ProgressionExecutor & Pick<Database, "delete">;
 export type IntegrityRiskSignal = {
   count: number;
   evidence?: Record<string, unknown>;
@@ -25,7 +26,7 @@ export type IntegrityCorrelationEvidence = {
 };
 
 const SIGNAL_RETENTION_MS = 30 * 86_400_000;
-const MEDIUM_HOLD_MS = 24 * 60 * 60_000;
+export const MEDIUM_HOLD_MS = 24 * 60 * 60_000;
 
 export function assessXpSourceCapPressure(input: {
   correlation?: IntegrityCorrelationEvidence;
@@ -54,14 +55,14 @@ export function assessXpSourceCapPressure(input: {
 }
 
 export async function cleanupExpiredRiskSignals(
-  executor: Pick<Transaction, "delete">,
+  executor: Pick<IntegrityExecutor, "delete">,
   now: Date
 ) {
   await executor.delete(xpRiskSignal).where(lte(xpRiskSignal.expiresAt, now));
 }
 
 async function recordRiskSignals(
-  tx: Transaction,
+  tx: IntegrityExecutor,
   input: {
     correlation: IntegrityCorrelationEvidence;
     now: Date;
@@ -88,7 +89,7 @@ async function recordRiskSignals(
 }
 
 export async function settleXpWithIntegrityInTransaction(
-  tx: Transaction,
+  tx: IntegrityExecutor,
   input: XpEventCommand,
   assessment:
     | { disposition: "invalid" }
@@ -96,6 +97,7 @@ export async function settleXpWithIntegrityInTransaction(
     | {
         correlation: IntegrityCorrelationEvidence;
         disposition: "high" | "medium";
+        recordSignals?: IntegrityRiskSignal[];
         signals: IntegrityRiskSignal[];
         summary: string;
       },
@@ -169,7 +171,7 @@ export async function settleXpWithIntegrityInTransaction(
   await recordRiskSignals(tx, {
     correlation: assessment.correlation,
     now,
-    signals: assessment.signals,
+    signals: assessment.recordSignals ?? assessment.signals,
     userId: input.userId,
   });
   const pending = await createPendingXpEventInTransaction(
@@ -182,6 +184,7 @@ export async function settleXpWithIntegrityInTransaction(
     now
   );
   return {
+    availableAt: autoReleaseAt,
     caseId,
     outcome: "pending" as const,
     ...pending,

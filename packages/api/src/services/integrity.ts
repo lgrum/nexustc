@@ -3,6 +3,8 @@ import type { db as database } from "@repo/db";
 import {
   commentLikes,
   postRatingLikes,
+  user,
+  userStreak,
   xpEvent,
   xpIntegrityCase,
   xpLikeDisqualification,
@@ -13,6 +15,7 @@ import { xpRiskSignalKindSchema } from "@repo/shared/xp-integrity";
 
 import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 import {
+  ContributionProjectionMismatchError,
   reverseUnsupportedContributionMilestonesInTransaction,
   runContributionRewardTransaction,
 } from "./contribution-rewards";
@@ -31,6 +34,7 @@ import {
   releaseMaturedPendingXpInTransaction,
   releasePendingXpCaseInTransaction,
 } from "./progression";
+import { reconcileStreakAfterIntegrityDecisionInTransaction } from "./streak";
 
 type Database = typeof database;
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -200,7 +204,12 @@ async function reversePostedCaseEvents(
     .where(
       and(eq(xpEvent.integrityCaseId, caseId), eq(xpEvent.state, "posted"))
     );
-  const caseOriginals = events.filter((event) => event.amount > 0);
+  const caseOriginals = events.filter(
+    (event) =>
+      event.amount > 0 ||
+      event.kind === "streak_day" ||
+      event.kind === "streak_challenge"
+  );
   const globalReversals =
     caseOriginals.length === 0
       ? []
@@ -222,6 +231,7 @@ async function reversePostedCaseEvents(
     )
   );
   const originals = caseOriginals.filter((event) => !reversed.has(event.id));
+  const reversedEvents: typeof originals = [];
   const settlements: XpSettlement[] = [];
   for (const event of originals) {
     const settlement = await postXpEventInTransaction(
@@ -244,18 +254,22 @@ async function reversePostedCaseEvents(
       "projectionMismatch" in settlement &&
       settlement.projectionMismatch === true
     ) {
-      return {
-        completed: false,
-        settlements,
-        userId: caseOriginals[0]?.userId ?? null,
-      };
+      if (!settlement.projectionMismatchWalletIds) {
+        throw new Error("XP_PROJECTION_MISMATCH");
+      }
+      throw new ContributionProjectionMismatchError(
+        settlement.projectionMismatchWalletIds
+      );
     }
+    reversedEvents.push(event);
     settlements.push(settlement);
   }
   return {
+    caseEvents: events,
     completed: true,
+    events: reversedEvents,
     settlements,
-    userId: caseOriginals[0]?.userId ?? null,
+    userId: events[0]?.userId ?? null,
   };
 }
 
@@ -338,6 +352,27 @@ export async function decideIntegrityCase(
   now = new Date()
 ) {
   const result = await runContributionRewardTransaction(db, async (tx) => {
+    const reverseCase =
+      input.action === "reverse"
+        ? await tx.query.xpIntegrityCase.findFirst({
+            columns: { userId: true },
+            where: eq(xpIntegrityCase.id, input.caseId),
+          })
+        : null;
+    let lockedStreakRows: { userId: string }[] = [];
+    if (reverseCase?.userId) {
+      await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, reverseCase.userId))
+        .for("update");
+      lockedStreakRows = await tx
+        .select({ userId: userStreak.userId })
+        .from(userStreak)
+        .where(eq(userStreak.userId, reverseCase.userId))
+        .for("update");
+    }
+    const [lockedStreak] = lockedStreakRows;
     const [integrityCase] = await tx
       .select()
       .from(xpIntegrityCase)
@@ -383,7 +418,7 @@ export async function decideIntegrityCase(
       if (!input.actorUserId) {
         throw new Error("INTEGRITY_ACTOR_REQUIRED");
       }
-      await cancelPendingXpEventsInTransaction(tx, {
+      const pending = await cancelPendingXpEventsInTransaction(tx, {
         actorUserId: input.actorUserId,
         caseId: input.caseId,
         now,
@@ -395,8 +430,22 @@ export async function decideIntegrityCase(
         now
       );
       ({ settlements, userId } = reversal);
+      const streakDayAffected = [...pending, ...reversal.caseEvents].some(
+        ({ kind }) => kind === "streak_day"
+      );
+      if (lockedStreak && streakDayAffected) {
+        settlements.push(
+          ...(await reconcileStreakAfterIntegrityDecisionInTransaction(tx, {
+            actorUserId: input.actorUserId,
+            caseId: input.caseId,
+            now,
+            userId: lockedStreak.userId,
+          }))
+        );
+        ({ userId } = lockedStreak);
+      }
       status = reversal.completed
-        ? settlements.length
+        ? settlements.length || streakDayAffected
           ? "reversed"
           : "dismissed"
         : "open";
@@ -659,6 +708,9 @@ export async function getIntegrityCase(
     .orderBy(desc(xpEvent.createdAt));
   return {
     autoReleaseAt: integrityCase.autoReleaseAt?.toISOString() ?? null,
+    blockAvailable: events.some(
+      (event) => Boolean(event.subjectId) || event.kind === "comic_reading"
+    ),
     createdAt: integrityCase.createdAt.toISOString(),
     decidedAt: integrityCase.decidedAt?.toISOString() ?? null,
     decisionReason: integrityCase.decisionReason,

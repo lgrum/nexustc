@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { orpcClient } from "@/lib/orpc";
+import { trackStreakDayCompletion } from "@/lib/analytics";
+import { orpc, orpcClient, queryClient } from "@/lib/orpc";
 
 const MIN_VISIBLE_RATIO = 0.6;
 const MIN_VISIBLE_TIME_MS = 2000;
@@ -68,10 +69,16 @@ export function useComicPageCheckpoints(params: {
             documentVisible: true,
             page: page.page,
             readingSessionId,
+            timezone:
+              Intl.DateTimeFormat().resolvedOptions().timeZone || undefined,
             visibleDurationMs: MIN_VISIBLE_TIME_MS,
             visiblePercentage: Math.round(page.ratio * 100),
           });
           setTrackingUnavailable(!result.trackingAvailable);
+          trackStreakDayCompletion(result);
+          void queryClient.invalidateQueries(
+            orpc.streak.getMine.queryOptions()
+          );
           if (result.processed) {
             page.retryOnExit = false;
           } else {

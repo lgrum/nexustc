@@ -1,5 +1,10 @@
 import type { db as database } from "@repo/db";
-import { xpIntegrityCase, xpRiskSignal } from "@repo/db/schema/app";
+import {
+  user,
+  userStreak,
+  xpIntegrityCase,
+  xpRiskSignal,
+} from "@repo/db/schema/app";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -38,6 +43,16 @@ vi.mock("./notification", () => ({
   createUserNotification: notification.create,
 }));
 vi.mock("./contribution-rewards", () => ({
+  ContributionProjectionMismatchError: class extends Error {
+    profileUserIds: string[] = [];
+    readonly walletIds: string[];
+
+    constructor(walletIds: string[]) {
+      super("XP_PROJECTION_MISMATCH");
+      this.name = "ContributionProjectionMismatchError";
+      this.walletIds = walletIds;
+    }
+  },
   reverseUnsupportedContributionMilestonesInTransaction:
     contribution.reverseUnsupported,
   runContributionRewardTransaction: contribution.runTransaction,
@@ -654,19 +669,31 @@ describe("integrity settlement", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("keeps a released case retryable when its reversal finds a projection mismatch", async () => {
-    progression.posted.mockResolvedValue({
-      eventId: null,
-      projectionMismatch: true,
-      replayed: false,
-      settledXp: 0,
-    });
+  it("aborts all reversals when a later event finds a projection mismatch", async () => {
+    progression.posted
+      .mockResolvedValueOnce({
+        eventId: "reversal-1",
+        replayed: false,
+        settledXp: 0,
+      })
+      .mockResolvedValueOnce({
+        eventId: null,
+        projectionMismatch: true,
+        projectionMismatchWalletIds: ["wallet-user-1"],
+        replayed: false,
+        settledXp: 0,
+      });
     let selectCall = 0;
     const update = vi.fn(() => ({
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
     }));
     const tx = {
-      query: { xpEvent: { findFirst: vi.fn() } },
+      query: {
+        xpEvent: { findFirst: vi.fn() },
+        xpIntegrityCase: {
+          findFirst: vi.fn().mockResolvedValue({ userId: "user-1" }),
+        },
+      },
       select: vi.fn(() => {
         selectCall += 1;
         const chain = {
@@ -677,18 +704,34 @@ describe("integrity settlement", () => {
         chain.from.mockReturnValue(chain);
         if (selectCall === 1) {
           chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([{ id: "user-1" }]);
+        } else if (selectCall === 2) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([]);
+        } else if (selectCall === 3) {
+          chain.where.mockReturnValue(chain);
           chain.for.mockResolvedValue([
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
-        } else {
+        } else if (selectCall === 4) {
           chain.where.mockResolvedValue([
             {
               amount: 67,
               id: "event-1",
+              kind: "review_milestone",
+              reversesEventId: null,
+              userId: "user-1",
+            },
+            {
+              amount: 33,
+              id: "event-2",
+              kind: "review_milestone",
               reversesEventId: null,
               userId: "user-1",
             },
           ]);
+        } else {
+          chain.where.mockResolvedValue([]);
         }
         return chain;
       }),
@@ -705,8 +748,68 @@ describe("integrity settlement", () => {
         caseId: "case-1",
         reason: "Reversion confirmada",
       })
-    ).resolves.toMatchObject({ status: "open" });
+    ).rejects.toMatchObject({
+      name: "ContributionProjectionMismatchError",
+      walletIds: ["wallet-user-1"],
+    });
+    expect(progression.posted).toHaveBeenCalledTimes(2);
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it("locks the user and streak before its integrity case during a reversal", async () => {
+    const lockOrder: string[] = [];
+    let selectCall = 0;
+    const tx = {
+      query: {
+        xpEvent: { findFirst: vi.fn() },
+        xpIntegrityCase: {
+          findFirst: vi.fn().mockResolvedValue({ userId: "user-1" }),
+        },
+      },
+      select: vi.fn(() => {
+        selectCall += 1;
+        if (selectCall > 3) {
+          throw new Error("stop after lock audit");
+        }
+        let table: unknown;
+        const chain = {
+          for: vi.fn(),
+          from: vi.fn((selectedTable: unknown) => {
+            table = selectedTable;
+            return chain;
+          }),
+          where: vi.fn(),
+        };
+        chain.where.mockReturnValue(chain);
+        chain.for.mockImplementation(() => {
+          const lock =
+            table === user ? "user" : table === userStreak ? "streak" : "case";
+          lockOrder.push(lock);
+          return Promise.resolve(
+            table === xpIntegrityCase
+              ? [{ id: "case-1", status: "open", userId: "user-1" }]
+              : table === user
+                ? [{ id: "user-1" }]
+                : [{ userId: "user-1" }]
+          );
+        });
+        return chain;
+      }),
+    };
+    const db = {
+      transaction: vi.fn((callback) => callback(tx)),
+    } as unknown as Database;
+    progression.cancelPending.mockResolvedValue([]);
+
+    await expect(
+      decideIntegrityCase(db, {
+        action: "reverse",
+        actorUserId: "moderator-1",
+        caseId: "case-1",
+        reason: "Reversion con orden de locks estable",
+      })
+    ).rejects.toThrow("stop after lock audit");
+    expect(lockOrder.slice(0, 3)).toEqual(["user", "streak", "case"]);
   });
 
   it("does not reverse a case event twice after an unrelated workflow reversed it", async () => {
@@ -715,7 +818,12 @@ describe("integrity settlement", () => {
       set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
     }));
     const tx = {
-      query: { xpEvent: { findFirst: vi.fn() } },
+      query: {
+        xpEvent: { findFirst: vi.fn() },
+        xpIntegrityCase: {
+          findFirst: vi.fn().mockResolvedValue({ userId: "user-1" }),
+        },
+      },
       select: vi.fn(() => {
         selectCall += 1;
         const chain = {
@@ -726,10 +834,16 @@ describe("integrity settlement", () => {
         chain.from.mockReturnValue(chain);
         if (selectCall === 1) {
           chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([{ id: "user-1" }]);
+        } else if (selectCall === 2) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([]);
+        } else if (selectCall === 3) {
+          chain.where.mockReturnValue(chain);
           chain.for.mockResolvedValue([
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
-        } else if (selectCall === 2) {
+        } else if (selectCall === 4) {
           chain.where.mockResolvedValue([
             {
               amount: 25,
@@ -924,6 +1038,34 @@ describe("integrity settlement", () => {
       }),
       now
     );
+  });
+
+  it("records only newly observed signals while retaining aggregate case evidence", async () => {
+    const store = createTransaction();
+    await settleXpWithIntegrityInTransaction(store.tx, command, {
+      correlation: { deviceHash: "device-hash", ipPrefixHash: null },
+      disposition: "medium",
+      recordSignals: [{ count: 1, kind: "like_toggle_velocity" }],
+      signals: [
+        { count: 4, kind: "like_toggle_velocity" },
+        { count: 2, kind: "source_cap_pressure" },
+      ],
+      summary: "Actividad acumulada",
+    });
+
+    expect(
+      store.inserts.find(({ table }) => table === xpIntegrityCase)?.values
+    ).toMatchObject({
+      evidence: {
+        signals: [
+          { count: 4, kind: "like_toggle_velocity" },
+          { count: 2, kind: "source_cap_pressure" },
+        ],
+      },
+    });
+    expect(
+      store.inserts.find(({ table }) => table === xpRiskSignal)?.values
+    ).toEqual([expect.objectContaining({ kind: "like_toggle_velocity" })]);
   });
 
   it("holds high risk without an automatic release time", async () => {

@@ -10,6 +10,8 @@ test("account closure removes every personal integrity evidence table", async ()
   const compactSource = source.replaceAll(/\s+/g, "");
 
   for (const table of [
+    "streakDiscoveryReceipt",
+    "userStreak",
     "xpLikeDisqualification",
     "xpRiskSignal",
     "xpIntegrityCase",
@@ -26,6 +28,14 @@ test("account closure removes every personal integrity evidence table", async ()
   expect(reversalDelete).toBeLessThan(
     compactSource.lastIndexOf("tx.delete(xpEvent)")
   );
+  const streakLock = compactSource.indexOf(
+    '.from(userStreak).where(eq(userStreak.userId,userId)).for("update")'
+  );
+  const progressionLock = compactSource.indexOf(
+    '.from(userProgression).where(eq(userProgression.userId,userId)).for("update")'
+  );
+  expect(streakLock).toBeGreaterThan(-1);
+  expect(streakLock).toBeLessThan(progressionLock);
   const reportLock = compactSource.indexOf("pg_advisory_xact_lock");
   const snapshotRead = compactSource.indexOf(
     ".from(eterisDailySnapshot).where("

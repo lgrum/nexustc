@@ -8,6 +8,7 @@ import {
 import {
   adjustXp,
   cancelPendingXpEventsInTransaction,
+  createPendingXpEventInTransaction,
   getPublicAccountLevel,
   getUserProgression,
   listUserXpHistory,
@@ -161,7 +162,7 @@ function createDatabase(options?: {
     reasonCode: string;
     reversesEventId: string | null;
     sourceRef: string;
-    state: "posted";
+    state: "pending" | "posted";
     updatedAt: Date;
     userId: string;
   };
@@ -215,7 +216,7 @@ function createDatabase(options?: {
             reversesEventId:
               (values.reversesEventId as string | undefined) ?? null,
             sourceRef: values.sourceRef as string,
-            state: "posted",
+            state: values.state as "pending" | "posted",
             updatedAt: values.updatedAt as Date,
             userId: values.userId as string,
           });
@@ -386,6 +387,51 @@ beforeEach(() => {
 });
 
 describe("progression service", () => {
+  it("keeps Pending XP on its captured source timestamp", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    const sourceDay = new Date("2026-08-07T23:59:59.000Z");
+    const verificationDay = new Date("2026-08-08T00:00:01.000Z");
+
+    await store.db.transaction((tx) =>
+      createPendingXpEventInTransaction(
+        tx,
+        {
+          amount: 5,
+          idempotencyKey: "streak-day:user-1:1:2026-08-07",
+          integrityCaseId: "case-1",
+          kind: "streak_day",
+          reasonCode: "streak_day_completed",
+          sourceCreatedAt: sourceDay,
+          sourceRef: "comment:comment-1",
+          userId: "user-1",
+        },
+        verificationDay
+      )
+    );
+
+    expect(store.getEvent()?.createdAt).toEqual(sourceDay);
+    expect(store.getEvent()?.updatedAt).toEqual(verificationDay);
+    await expect(
+      store.db.transaction((tx) =>
+        createPendingXpEventInTransaction(
+          tx,
+          {
+            amount: 5,
+            idempotencyKey: "streak-day:user-1:1:2026-08-07",
+            integrityCaseId: "case-1",
+            kind: "streak_day",
+            reasonCode: "streak_day_completed",
+            sourceCreatedAt: verificationDay,
+            sourceRef: "comment:comment-1",
+            userId: "user-1",
+          },
+          verificationDay
+        )
+      )
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  });
+
   it("cancels Pending XP and decrements its projection in the same transaction", async () => {
     const updates: { table: unknown; values: Record<string, unknown> }[] = [];
     const pending = [
@@ -574,9 +620,9 @@ describe("progression service", () => {
     );
   });
 
-  it("keeps Pending XP open when its level reward finds a projection mismatch", async () => {
+  it("aborts a multi-award release when a later level reward finds a projection mismatch", async () => {
     flags.accrual = true;
-    ledger.mismatchAtCall = 1;
+    ledger.mismatchAtCall = 2;
     const now = new Date("2026-08-10T00:00:00.000Z");
     const activation = {
       activatedAt: new Date("2026-08-01T00:00:00.000Z"),
@@ -588,25 +634,44 @@ describe("progression service", () => {
       totalXp: 0,
       userId: "user-1",
     };
-    const pending = {
-      amount: 67,
-      createdAt: new Date("2026-08-09T00:00:00.000Z"),
-      createdBy: null,
-      id: "pending-1",
-      idempotencyKey: "pending-source-1",
-      integrityCaseId: "case-1",
-      kind: "review_milestone" as const,
-      metadata: {},
-      milestone: 3,
-      reasonCode: "eligible_likes_3",
-      reversesEventId: null,
-      sourceRef: "review:subject-1:milestone:3",
-      state: "pending" as const,
-      subjectId: "subject-1",
-      updatedAt: now,
-      userId: "user-1",
-    };
-    const updates: Record<string, unknown>[] = [];
+    const pending = [
+      {
+        amount: 67,
+        createdAt: new Date("2026-08-09T00:00:00.000Z"),
+        createdBy: null,
+        id: "pending-1",
+        idempotencyKey: "pending-source-1",
+        integrityCaseId: "case-1",
+        kind: "review_milestone" as const,
+        metadata: {},
+        milestone: 3,
+        reasonCode: "eligible_likes_3",
+        reversesEventId: null,
+        sourceRef: "review:subject-1:milestone:3",
+        state: "pending" as const,
+        subjectId: "subject-1",
+        updatedAt: now,
+        userId: "user-1",
+      },
+      {
+        amount: 67,
+        createdAt: new Date("2026-08-09T00:00:01.000Z"),
+        createdBy: null,
+        id: "pending-2",
+        idempotencyKey: "pending-source-2",
+        integrityCaseId: "case-1",
+        kind: "streak_challenge" as const,
+        metadata: {},
+        milestone: null,
+        reasonCode: "streak_challenge_completed",
+        reversesEventId: null,
+        sourceRef: "streak-challenge:user-1:10",
+        state: "pending" as const,
+        subjectId: null,
+        updatedAt: now,
+        userId: "user-1",
+      },
+    ];
     const tx = {
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
@@ -629,7 +694,7 @@ describe("progression service", () => {
               .fn()
               .mockResolvedValue(
                 table === xpEvent
-                  ? [pending]
+                  ? pending
                   : table === progressionSystem
                     ? [activation]
                     : [progression]
@@ -638,10 +703,7 @@ describe("progression service", () => {
         })),
       })),
       update: vi.fn(() => ({
-        set: vi.fn((values: Record<string, unknown>) => {
-          updates.push(values);
-          return { where: vi.fn().mockResolvedValue(null) };
-        }),
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
       })),
     } as unknown as ProgressionExecutor;
 
@@ -650,10 +712,8 @@ describe("progression service", () => {
         caseId: "case-1",
         now,
       })
-    ).resolves.toMatchObject({ completed: false, settlements: [] });
-    expect(updates).not.toContainEqual(
-      expect.objectContaining({ state: "cancelled" })
-    );
+    ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+    expect(ledger.calls).toHaveLength(2);
   });
 
   it("clips reversals at the Account XP floor instead of rejecting the source action", async () => {
@@ -1413,6 +1473,40 @@ describe("progression service", () => {
       })
     ).resolves.toMatchObject({ eventId: null, settledXp: 0 });
     expect(store.getEvents()).toHaveLength(1);
+  });
+
+  it("keeps a zero-XP streak completion in the reconciliation ledger", async () => {
+    flags.accrual = true;
+    const store = createDatabase();
+    store.setProgression({ level: 1000, pendingXp: 0, totalXp: 365_000 });
+
+    await expect(
+      postXpEvent(store.db, {
+        amount: 25,
+        idempotencyKey: "streak-day:user-1:1:2026-08-12",
+        kind: "streak_day",
+        metadata: {
+          dayKey: "user-1:1:2026-08-12",
+          localDate: "2026-08-12",
+          previousDayKey: "user-1:1:2026-08-11",
+        },
+        reasonCode: "streak_day_completed",
+        sourceRef: "comment:comment-at-cap",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      eventId: expect.any(String),
+      settledXp: 0,
+      totalXp: 365_000,
+    });
+    expect(store.getEvent()).toMatchObject({
+      amount: 0,
+      kind: "streak_day",
+      metadata: expect.objectContaining({
+        completionLedger: true,
+        requestedAmount: 25,
+      }),
+    });
   });
 
   it("rejects a no-op owner adjustment at the XP cap", async () => {

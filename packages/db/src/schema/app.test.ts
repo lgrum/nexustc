@@ -10,11 +10,39 @@ import {
   eterisWalletStatusEvent,
   postRating,
   postRatingLikes,
+  streakDiscoveryReceipt,
   user,
+  userStreak,
   xpEvent,
   xpRewardBlock,
   xpRewardSubject,
 } from "./app";
+
+test("Discovery receipts survive content deletion and cascade with accounts", () => {
+  const receiptConfig = getTableConfig(streakDiscoveryReceipt);
+
+  expect(streakDiscoveryReceipt.actionKind.enumValues).toEqual([
+    "bookmark",
+    "follow",
+    "rating",
+  ]);
+  expect(
+    receiptConfig.primaryKeys.map(({ columns }) =>
+      columns.map(({ name }) => name)
+    )
+  ).toContainEqual(["user_id", "action_kind", "content_key"]);
+  expect(receiptConfig.foreignKeys).toHaveLength(1);
+  expect(receiptConfig.foreignKeys[0]?.reference().foreignTable).toBe(user);
+  expect(receiptConfig.foreignKeys[0]?.onDelete).toBe("cascade");
+});
+
+test("account deletion removes the private streak projection", () => {
+  const streakConfig = getTableConfig(userStreak);
+
+  expect(streakConfig.foreignKeys).toHaveLength(1);
+  expect(streakConfig.foreignKeys[0]?.reference().foreignTable).toBe(user);
+  expect(streakConfig.foreignKeys[0]?.onDelete).toBe("cascade");
+});
 
 test("a recreated review receives a new identity", () => {
   expect(postRating.id.defaultFn?.()).not.toBe(postRating.id.defaultFn?.());

@@ -5,6 +5,7 @@ import type { Context } from "../context";
 import type * as RedisOperationExports from "../utils/redis-operations";
 
 const mocks = vi.hoisted(() => ({
+  applyStreakEvidenceInTransaction: vi.fn(),
   attachComicCatalogProgress: vi.fn(),
   banUserAndReconcileRewards: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
@@ -37,6 +38,9 @@ vi.mock("../services/comic-progress", () => ({
 }));
 vi.mock("../services/profile", () => ({
   canReadPublicProfileActivity: mocks.canReadPublicProfileActivity,
+}));
+vi.mock("../services/streak", () => ({
+  applyStreakEvidenceInTransaction: mocks.applyStreakEvidenceInTransaction,
 }));
 vi.mock("../services/user-administration", () => ({
   banUserAndReconcileRewards: mocks.banUserAndReconcileRewards,
@@ -125,6 +129,147 @@ describe("public bookmark privacy", () => {
   });
 });
 
+describe("bookmark Discovery evidence", () => {
+  it("submits evidence only for a successful new bookmark in its transaction", async () => {
+    const { context, transaction, tx } = createBookmarkMutationContext(true);
+
+    await call(
+      userRouter.toggleBookmark,
+      {
+        bookmarked: true,
+        postId: "post-1",
+        timezone: "America/Argentina/Buenos_Aires",
+      },
+      { context }
+    );
+
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(mocks.applyStreakEvidenceInTransaction).toHaveBeenCalledWith(
+      tx,
+      {
+        actionKind: "bookmark",
+        contentKey: "post:post-1",
+        impersonated: false,
+        integrity: {
+          correlation: { deviceHash: null, ipPrefixHash: null },
+        },
+        kind: "discovery",
+        timezone: "America/Argentina/Buenos_Aires",
+        userId: "user-1",
+      },
+      expect.any(Date)
+    );
+  });
+
+  it("does not submit evidence for a conflict insert", async () => {
+    const { context } = createBookmarkMutationContext(false);
+
+    await call(
+      userRouter.toggleBookmark,
+      { bookmarked: true, postId: "post-1" },
+      { context }
+    );
+
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a bookmark when the post author is actively banned", async () => {
+    const { context, transaction } = createBookmarkMutationContext(true);
+    context.db.query.user.findFirst = vi.fn().mockResolvedValue(null);
+
+    await expect(
+      call(
+        userRouter.toggleBookmark,
+        { bookmarked: true, postId: "post-1" },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledOnce();
+  });
+
+  it("does not submit evidence when removing a bookmark", async () => {
+    const { context, transaction } = createBookmarkMutationContext(false);
+
+    await call(
+      userRouter.toggleBookmark,
+      { bookmarked: false, postId: "post-1" },
+      { context }
+    );
+
+    expect(transaction).not.toHaveBeenCalled();
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rolls a new bookmark through the same boundary when streak work fails", async () => {
+    const failure = new Error("streak write failed");
+    mocks.applyStreakEvidenceInTransaction.mockRejectedValueOnce(failure);
+    const { context } = createBookmarkMutationContext(true);
+
+    await expect(
+      call(
+        userRouter.toggleBookmark,
+        { bookmarked: true, postId: "post-1" },
+        { context }
+      )
+    ).rejects.toBe(failure);
+  });
+});
+
+function createBookmarkMutationContext(inserted: boolean) {
+  const returning = vi
+    .fn()
+    .mockResolvedValue(inserted ? [{ postId: "post-1" }] : []);
+  const insert = vi.fn(() => ({
+    values: vi.fn(() => ({
+      onConflictDoNothing: vi.fn(() => ({ returning })),
+    })),
+  }));
+  const select = vi.fn(() => ({
+    from: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue([{ count: 0 }]),
+    })),
+  }));
+  const remove = vi.fn().mockResolvedValue(null);
+  const deleteRow = vi.fn(() => ({ where: remove }));
+  const tx = { delete: deleteRow, insert, select };
+  const transaction = vi.fn((callback: (executor: typeof tx) => unknown) =>
+    callback(tx)
+  );
+  const db = {
+    delete: deleteRow,
+    insert,
+    query: {
+      patron: { findFirst: vi.fn().mockResolvedValue(null) },
+      post: {
+        findFirst: vi.fn().mockResolvedValue({
+          authorId: "author-1",
+          earlyAccessEnabled: false,
+          earlyAccessStartedAt: null,
+          releasedAt: null,
+          status: "publish",
+          type: "post",
+          vip12EarlyAccessHours: 0,
+          vip8EarlyAccessHours: 0,
+        }),
+      },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "author-1" }) },
+    },
+    select,
+    transaction,
+  };
+  return {
+    context: {
+      db,
+      headers: new Headers(),
+      session: { user: { id: "user-1", role: "user" } },
+    } as unknown as Context,
+    transaction,
+    tx,
+  };
+}
 describe("user administration", () => {
   it("delegates banning and reward reversal to one atomic service", async () => {
     const context = {

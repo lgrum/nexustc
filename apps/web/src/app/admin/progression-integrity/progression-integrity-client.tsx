@@ -199,8 +199,11 @@ export function ProgressionIntegrityClient({
               )}
             </form.AppField>
             <div className="flex flex-wrap gap-2">
-              {(["release", "dismiss", "reverse", "block"] as const).map(
-                (action) => (
+              {(["release", "dismiss", "reverse", "block"] as const)
+                .filter(
+                  (action) => action !== "block" || detail.data.blockAvailable
+                )
+                .map((action) => (
                   <Button
                     disabled={!reasonValid || decision.isPending}
                     key={action}
@@ -217,8 +220,7 @@ export function ProgressionIntegrityClient({
                       }[action]
                     }
                   </Button>
-                )
-              )}
+                ))}
             </div>
             <div className="grid gap-3 border-t pt-4 md:grid-cols-2">
               <form.AppField name="subjectId">

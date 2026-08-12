@@ -18,7 +18,7 @@ export const env = createEnv({
     BETTER_AUTH_URL: httpUrlSchema,
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     CLOUDFLARE_API_TOKEN: z.string().optional(),
-    CRON_SECRET: z.string().min(16),
+    CRON_SECRET: z.string().min(16).optional(),
     DATABASE_URL: z.string(),
     EXE_TOKEN: z.string(),
     PATREON_CAMPAIGN_ID: z.string(),
@@ -33,6 +33,10 @@ export const env = createEnv({
     SHRINKEARN_TOKEN: z.string(),
     SHRINKME_TOKEN: z.string(),
     TURNSTILE_SECRET_KEY: z.string(),
+    DAILY_STREAK_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     ETERIS_SPENDING_ENABLED: z
       .enum(["true", "false"])
       .default("false")
@@ -53,6 +57,7 @@ export const env = createEnv({
     CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
     CRON_SECRET: process.env.CRON_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
+    DAILY_STREAK_ENABLED: process.env.DAILY_STREAK_ENABLED,
     ETERIS_SPENDING_ENABLED: process.env.ETERIS_SPENDING_ENABLED,
     EXE_TOKEN: process.env.EXE_TOKEN,
     NEXT_PUBLIC_ADBLOCK_DETECTION_ENABLED:

@@ -14,17 +14,19 @@ const mocks = vi.hoisted(() => ({
     }
   },
   adjustXp: vi.fn(),
+  decideCase: vi.fn(),
   getWallet: vi.fn(),
   getMine: vi.fn(),
   getPublic: vi.fn(),
   grantStipend: vi.fn(),
+  hasPermission: vi.fn(),
   listCases: vi.fn(),
   listHistory: vi.fn(),
   releasePending: vi.fn(),
 }));
 
 vi.mock("@repo/auth", () => ({
-  auth: { api: { userHasPermission: vi.fn(() => ({ success: true })) } },
+  auth: { api: { userHasPermission: mocks.hasPermission } },
 }));
 vi.mock("../services/progression", () => ({
   ProgressionError: mocks.ProgressionError,
@@ -40,7 +42,7 @@ vi.mock("../services/patreon-stipend", () => ({
   grantMonthlyPatreonStipend: mocks.grantStipend,
 }));
 vi.mock("../services/integrity", () => ({
-  decideIntegrityCase: vi.fn(),
+  decideIntegrityCase: mocks.decideCase,
   getIntegrityCase: vi.fn(),
   listIntegrityCases: mocks.listCases,
   releaseMaturedPendingXp: mocks.releasePending,
@@ -56,6 +58,7 @@ function createContext(role = "user") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.hasPermission.mockResolvedValue({ success: true });
   mocks.getMine.mockResolvedValue({
     accrualEnabled: false,
     enabled: false,
@@ -79,6 +82,12 @@ beforeEach(() => {
     eventId: "event-1",
     level: 2,
     totalXp: 67,
+  });
+  mocks.decideCase.mockResolvedValue({
+    replayed: false,
+    settlements: [],
+    status: "dismissed",
+    userId: "target-user",
   });
 });
 
@@ -319,6 +328,23 @@ describe("progression router", () => {
         context: createContext("admin"),
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("requires progression-integrity permission for a permanent reversal", async () => {
+    mocks.hasPermission.mockResolvedValueOnce({ success: false });
+
+    await expect(
+      call(
+        progressionRouter.admin.decideCase,
+        {
+          action: "reverse",
+          caseId: "case-1",
+          reason: "Abuso confirmado por revision humana",
+        },
+        { context: createContext("admin") }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(mocks.decideCase).not.toHaveBeenCalled();
   });
 
   it("rejects zero corrections and missing audit reasons", async () => {

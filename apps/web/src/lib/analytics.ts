@@ -1,3 +1,5 @@
+import { DAILY_STREAK_REWARDS } from "@repo/shared/streak";
+
 type AnalyticsValue = boolean | number | string | null | undefined;
 
 export type AnalyticsData = Record<string, AnalyticsValue>;
@@ -37,6 +39,35 @@ export function trackEvent(eventName: string, data?: AnalyticsData) {
   window.umami.track(eventName, {
     path: window.location.pathname,
     ...normalizeData(data),
+  });
+}
+
+export function trackStreakDayCompletion(result: unknown) {
+  if (!(typeof result === "object" && result && "dayCompletion" in result)) {
+    return;
+  }
+  const completion = result.dayCompletion;
+  if (!(typeof completion === "object" && completion)) {
+    return;
+  }
+  const { outcome, path, tier } = completion as Record<string, unknown>;
+  if (
+    !(outcome === "immediate" || outcome === "pending") ||
+    !(
+      path === "contribution" ||
+      path === "mixed_discovery" ||
+      path === "reading"
+    ) ||
+    typeof tier !== "number" ||
+    !DAILY_STREAK_REWARDS.some((reward) => reward.xp === tier)
+  ) {
+    return;
+  }
+  trackEvent("streak_day_completed", {
+    outcome,
+    path: "/streak",
+    qualificationPath: path,
+    tier,
   });
 }
 

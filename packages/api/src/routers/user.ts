@@ -24,6 +24,7 @@ import {
   ROLE_HIERARCHY,
 } from "@repo/shared/permissions";
 import type { Role } from "@repo/shared/permissions";
+import { ianaTimezoneSchema } from "@repo/shared/schemas";
 import * as z from "zod";
 
 import {
@@ -35,6 +36,7 @@ import {
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
 import { canReadPublicProfileActivity } from "../services/profile";
+import { applyStreakEvidenceInTransaction } from "../services/streak";
 import {
   banUserAndReconcileRewards,
   unbanUserAndReconcileRewards,
@@ -45,6 +47,7 @@ import {
   getViewerPatronTier,
   publicCatalogVisibilityCondition,
 } from "../utils/early-access";
+import { buildIntegrityCorrelationEvidence } from "../utils/integrity-evidence";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { userIsNotActivelyBanned } from "../utils/user-ban";
 
@@ -229,8 +232,15 @@ export default {
 
   toggleBookmark: protectedProcedure
     .use(fixedWindowRatelimitMiddleware({ limit: 10, windowSeconds: 60 }))
-    .input(z.object({ bookmarked: z.boolean(), postId: z.string() }))
+    .input(
+      z.object({
+        bookmarked: z.boolean(),
+        postId: z.string(),
+        timezone: ianaTimezoneSchema.optional(),
+      })
+    )
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+      const now = new Date();
       const logger = getLogger(ctx);
       logger?.info(
         `User ${session.user.id} toggling bookmark for post ${input.postId} to ${input.bookmarked}`
@@ -250,6 +260,7 @@ export default {
       if (input.bookmarked) {
         const targetPost = await db.query.post.findFirst({
           columns: {
+            authorId: true,
             earlyAccessEnabled: true,
             earlyAccessStartedAt: true,
             releasedAt: true,
@@ -263,58 +274,97 @@ export default {
 
         if (
           !targetPost ||
-          !canViewPost(targetPost, { role: session.user.role, tier })
+          !canViewPost(targetPost, { role: session.user.role, tier }, now)
         ) {
           throw errors.NOT_FOUND();
         }
-
-        const bookmarks = await db
-          .select({ count: sql<number>`count(*)`.as("count") })
-          .from(postBookmark)
-          .where(eq(postBookmark.userId, session.user.id));
-        const bookmarkCount = bookmarks[0]?.count ?? 0;
-
-        if (
-          !canBookmark(
-            { role: session.user.role ?? "user", tier },
-            bookmarkCount
-          )
-        ) {
-          logger?.warn(
-            `User ${session.user.id} has reached bookmark limit for tier ${tier}`
-          );
-          throw errors.FORBIDDEN({
-            message: "Límite de favoritos alcanzado para tu nivel.",
-          });
+        const visibleAuthor = await db.query.user.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(user.id, targetPost.authorId),
+            userIsNotActivelyBanned(now)
+          ),
+        });
+        if (!visibleAuthor) {
+          throw errors.NOT_FOUND();
         }
 
-        await db
-          .insert(postBookmark)
-          .values({
-            postId: input.postId,
-            userId: session.user.id,
-          })
-          .onConflictDoNothing();
+        const streak = await db.transaction(async (tx) => {
+          const bookmarks = await tx
+            .select({ count: sql<number>`count(*)`.as("count") })
+            .from(postBookmark)
+            .where(eq(postBookmark.userId, session.user.id));
+          const bookmarkCount = bookmarks[0]?.count ?? 0;
+
+          if (
+            !canBookmark(
+              { role: session.user.role ?? "user", tier },
+              bookmarkCount
+            )
+          ) {
+            logger?.warn(
+              `User ${session.user.id} has reached bookmark limit for tier ${tier}`
+            );
+            throw errors.FORBIDDEN({
+              message: "Límite de favoritos alcanzado para tu nivel.",
+            });
+          }
+
+          const [inserted] = await tx
+            .insert(postBookmark)
+            .values({
+              postId: input.postId,
+              userId: session.user.id,
+            })
+            .onConflictDoNothing({
+              target: [postBookmark.userId, postBookmark.postId],
+            })
+            .returning({ postId: postBookmark.postId });
+          if (inserted) {
+            return applyStreakEvidenceInTransaction(
+              tx,
+              {
+                actionKind: "bookmark",
+                contentKey: `${targetPost.type}:${input.postId}`,
+                impersonated: Boolean(session.session?.impersonatedBy),
+                integrity: {
+                  correlation: buildIntegrityCorrelationEvidence(ctx.headers),
+                },
+                kind: "discovery",
+                timezone: input.timezone,
+                userId: session.user.id,
+              },
+              now
+            );
+          }
+          return null;
+        });
 
         logger?.debug(
           `Bookmark added for user ${session.user.id} on post ${input.postId}`
         );
-      } else {
-        await db
-          .delete(postBookmark)
-          .where(
-            and(
-              eq(postBookmark.postId, input.postId),
-              eq(postBookmark.userId, session.user.id)
-            )
-          );
-        logger?.debug(
-          `Bookmark removed for user ${session.user.id} on post ${input.postId}`
+        logger?.info(
+          `Bookmark toggle completed for user ${session.user.id} on post ${input.postId}`
         );
+        return { streak };
       }
+
+      await db
+        .delete(postBookmark)
+        .where(
+          and(
+            eq(postBookmark.postId, input.postId),
+            eq(postBookmark.userId, session.user.id)
+          )
+        );
+      logger?.debug(
+        `Bookmark removed for user ${session.user.id} on post ${input.postId}`
+      );
+
       logger?.info(
         `Bookmark toggle completed for user ${session.user.id} on post ${input.postId}`
       );
+      return { streak: null };
     }),
 
   toggleLike: protectedProcedure

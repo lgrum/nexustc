@@ -40,6 +40,7 @@ export type ProfileVisibilityConfig = {
   favorites: boolean;
   reviews: boolean;
   reserved: Record<string, boolean>;
+  streak: boolean;
 };
 
 export type ProfileActivityVisibility = Pick<
@@ -51,6 +52,7 @@ export const PROFILE_VISIBILITY_DEFAULTS = {
   favorites: true,
   reviews: true,
   reserved: {},
+  streak: false,
 } as const satisfies ProfileVisibilityConfig;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -79,6 +81,10 @@ export function normalizeProfileVisibilityConfig(
         ? config.reviews
         : PROFILE_VISIBILITY_DEFAULTS.reviews,
     reserved,
+    streak:
+      typeof config.streak === "boolean"
+        ? config.streak
+        : PROFILE_VISIBILITY_DEFAULTS.streak,
   };
 }
 
