@@ -1,5 +1,10 @@
 import type { db as database } from "@repo/db";
-import { userStreak, xpIntegrityCase, xpRiskSignal } from "@repo/db/schema/app";
+import {
+  user,
+  userStreak,
+  xpIntegrityCase,
+  xpRiskSignal,
+} from "@repo/db/schema/app";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -699,13 +704,16 @@ describe("integrity settlement", () => {
         chain.from.mockReturnValue(chain);
         if (selectCall === 1) {
           chain.where.mockReturnValue(chain);
-          chain.for.mockResolvedValue([]);
+          chain.for.mockResolvedValue([{ id: "user-1" }]);
         } else if (selectCall === 2) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([]);
+        } else if (selectCall === 3) {
           chain.where.mockReturnValue(chain);
           chain.for.mockResolvedValue([
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
-        } else if (selectCall === 3) {
+        } else if (selectCall === 4) {
           chain.where.mockResolvedValue([
             {
               amount: 67,
@@ -748,7 +756,7 @@ describe("integrity settlement", () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it("locks the streak before its integrity case during a reversal", async () => {
+  it("locks the user and streak before its integrity case during a reversal", async () => {
     const lockOrder: string[] = [];
     let selectCall = 0;
     const tx = {
@@ -760,7 +768,7 @@ describe("integrity settlement", () => {
       },
       select: vi.fn(() => {
         selectCall += 1;
-        if (selectCall > 2) {
+        if (selectCall > 3) {
           throw new Error("stop after lock audit");
         }
         let table: unknown;
@@ -774,12 +782,15 @@ describe("integrity settlement", () => {
         };
         chain.where.mockReturnValue(chain);
         chain.for.mockImplementation(() => {
-          const lock = table === userStreak ? "streak" : "case";
+          const lock =
+            table === user ? "user" : table === userStreak ? "streak" : "case";
           lockOrder.push(lock);
           return Promise.resolve(
             table === xpIntegrityCase
               ? [{ id: "case-1", status: "open", userId: "user-1" }]
-              : [{ userId: "user-1" }]
+              : table === user
+                ? [{ id: "user-1" }]
+                : [{ userId: "user-1" }]
           );
         });
         return chain;
@@ -798,7 +809,7 @@ describe("integrity settlement", () => {
         reason: "Reversion con orden de locks estable",
       })
     ).rejects.toThrow("stop after lock audit");
-    expect(lockOrder.slice(0, 2)).toEqual(["streak", "case"]);
+    expect(lockOrder.slice(0, 3)).toEqual(["user", "streak", "case"]);
   });
 
   it("does not reverse a case event twice after an unrelated workflow reversed it", async () => {
@@ -823,13 +834,16 @@ describe("integrity settlement", () => {
         chain.from.mockReturnValue(chain);
         if (selectCall === 1) {
           chain.where.mockReturnValue(chain);
-          chain.for.mockResolvedValue([]);
+          chain.for.mockResolvedValue([{ id: "user-1" }]);
         } else if (selectCall === 2) {
+          chain.where.mockReturnValue(chain);
+          chain.for.mockResolvedValue([]);
+        } else if (selectCall === 3) {
           chain.where.mockReturnValue(chain);
           chain.for.mockResolvedValue([
             { id: "case-1", status: "released", userId: "user-1" },
           ]);
-        } else if (selectCall === 3) {
+        } else if (selectCall === 4) {
           chain.where.mockResolvedValue([
             {
               amount: 25,

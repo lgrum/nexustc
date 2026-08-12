@@ -1,4 +1,5 @@
 import {
+  user,
   userProgression,
   userStreak,
   xpEvent,
@@ -38,6 +39,7 @@ function createStore(
   postedEvents: Record<string, unknown>[] = [],
   pendingEvents: Record<string, unknown>[] = []
 ) {
+  const lockOrder: string[] = [];
   const tx = {
     cancelPending: vi.fn().mockResolvedValue(pendingEvents),
     query: {
@@ -50,16 +52,30 @@ function createStore(
         if (table === xpIntegrityCase) {
           return {
             where: vi.fn(() => ({
-              for: vi
-                .fn()
-                .mockResolvedValue([{ status: "open", userId: "user-1" }]),
+              for: vi.fn().mockImplementation(() => {
+                lockOrder.push("case");
+                return [{ status: "open", userId: "user-1" }];
+              }),
+            })),
+          };
+        }
+        if (table === user) {
+          return {
+            where: vi.fn(() => ({
+              for: vi.fn().mockImplementation(() => {
+                lockOrder.push("user");
+                return [{ id: "user-1" }];
+              }),
             })),
           };
         }
         if (table === userStreak) {
           return {
             where: vi.fn(() => ({
-              for: vi.fn().mockResolvedValue([{ userId: "user-1" }]),
+              for: vi.fn().mockImplementation(() => {
+                lockOrder.push("streak");
+                return [{ userId: "user-1" }];
+              }),
             })),
           };
         }
@@ -82,7 +98,7 @@ function createStore(
       callback(tx)
     ),
   };
-  return { db, tx };
+  return { db, lockOrder, tx };
 }
 
 function createTransactionalStore() {
@@ -127,6 +143,13 @@ function createTransactionalStore() {
                       .mockResolvedValue([
                         { status: working.caseStatus, userId: "user-1" },
                       ]),
+                  })),
+                };
+              }
+              if (table === user) {
+                return {
+                  where: vi.fn(() => ({
+                    for: vi.fn().mockResolvedValue([{ id: "user-1" }]),
                   })),
                 };
               }
@@ -197,6 +220,19 @@ beforeEach(() => {
 });
 
 describe("streak integrity decision", () => {
+  it("locks the account before its streak projection on reversal", async () => {
+    const { db, lockOrder } = createStore();
+
+    await decideIntegrityCase(db as never, {
+      action: "reverse",
+      actorUserId: "staff-1",
+      caseId: "case-1",
+      reason: "Abuso confirmado por revision humana",
+    });
+
+    expect(lockOrder.slice(0, 2)).toEqual(["user", "streak"]);
+  });
+
   it("reconciles only an actor-attributed reverse inside the decision transaction", async () => {
     const { db, tx } = createStore([
       {

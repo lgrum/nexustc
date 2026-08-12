@@ -3,6 +3,7 @@ import type { db as database } from "@repo/db";
 import {
   commentLikes,
   postRatingLikes,
+  user,
   userStreak,
   xpEvent,
   xpIntegrityCase,
@@ -358,13 +359,19 @@ export async function decideIntegrityCase(
             where: eq(xpIntegrityCase.id, input.caseId),
           })
         : null;
-    const lockedStreakRows = reverseCase?.userId
-      ? await tx
-          .select({ userId: userStreak.userId })
-          .from(userStreak)
-          .where(eq(userStreak.userId, reverseCase.userId))
-          .for("update")
-      : [];
+    let lockedStreakRows: { userId: string }[] = [];
+    if (reverseCase?.userId) {
+      await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.id, reverseCase.userId))
+        .for("update");
+      lockedStreakRows = await tx
+        .select({ userId: userStreak.userId })
+        .from(userStreak)
+        .where(eq(userStreak.userId, reverseCase.userId))
+        .for("update");
+    }
     const [lockedStreak] = lockedStreakRows;
     const [integrityCase] = await tx
       .select()

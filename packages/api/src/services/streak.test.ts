@@ -2936,15 +2936,25 @@ function createMixedDiscoveryDb(consumed: ({ dayKey: string } | null)[] = []) {
     },
     select: vi.fn((selection) => ({
       from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          for: vi.fn(() =>
-            Promise.resolve(
-              selection
-                ? [{ banExpires: null, banned: false, emailVerified: true }]
-                : [stored]
-            )
-          ),
-        })),
+        where: vi.fn(() =>
+          selection && "actingCount" in selection
+            ? Promise.resolve([{ actingCount: 0, count: 0 }])
+            : {
+                for: vi.fn(() =>
+                  Promise.resolve(
+                    selection
+                      ? [
+                          {
+                            banExpires: null,
+                            banned: false,
+                            emailVerified: true,
+                          },
+                        ]
+                      : [stored]
+                  )
+                ),
+              }
+        ),
       })),
     })),
     update: vi.fn(() => ({
@@ -3011,11 +3021,17 @@ function createStreakDb(
     },
     select: vi.fn((selection) => ({
       from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          for: vi.fn(() =>
-            Promise.resolve(selection ? [eligibleLockedAccount] : [stored])
-          ),
-        })),
+        where: vi.fn(() =>
+          selection && "actingCount" in selection
+            ? Promise.resolve([{ actingCount: 0, count: 0 }])
+            : {
+                for: vi.fn(() =>
+                  Promise.resolve(
+                    selection ? [eligibleLockedAccount] : [stored]
+                  )
+                ),
+              }
+        ),
       })),
     })),
     update: vi.fn(() => ({

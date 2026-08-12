@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, or } from "@repo/db";
+import { and, desc, eq, gt, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import { xpRiskSignal } from "@repo/db/schema/app";
 import { xpRiskSignalKindSchema } from "@repo/shared/xp-integrity";
@@ -12,7 +12,7 @@ import type {
 } from "./integrity-settlement";
 
 type Database = typeof database;
-type RiskExecutor = Pick<Database, "query">;
+type RiskExecutor = Pick<Database, "query" | "select">;
 
 export type StreakIntegrityRequest = {
   correlation: IntegrityCorrelationEvidence;
@@ -104,14 +104,25 @@ export async function assessStreakIntegrityRisk(
       counts.set(kind, Math.min(RISK_QUERY_LIMIT, (counts.get(kind) ?? 0) + 1));
     }
   }
-  if (
-    correlation.deviceHash &&
-    new Set([
-      userId,
-      ...rows.map(({ userId: correlatedUserId }) => correlatedUserId),
-    ]).size >= 3
-  ) {
-    counts.set("account_correlation", 3);
+  if (correlation.deviceHash) {
+    const [correlationCount] = await executor
+      .select({
+        actingCount: sql<number>`count(*) filter (where ${xpRiskSignal.userId} = ${userId})::integer`,
+        count: sql<number>`count(distinct ${xpRiskSignal.userId})::integer`,
+      })
+      .from(xpRiskSignal)
+      .where(
+        and(
+          gt(xpRiskSignal.expiresAt, now),
+          eq(xpRiskSignal.deviceHash, correlation.deviceHash)
+        )
+      );
+    const distinctAccounts =
+      Number(correlationCount?.count ?? 0) +
+      (Number(correlationCount?.actingCount ?? 0) > 0 ? 0 : 1);
+    if (distinctAccounts >= 3) {
+      counts.set("account_correlation", distinctAccounts);
+    }
   }
   const signals = [...counts].map(([kind, count]) => ({ count, kind }));
   return { disposition: classifyStreakIntegrityRisk(signals), signals };

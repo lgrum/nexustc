@@ -43,10 +43,15 @@ describe("streak integrity", () => {
       { kind: "source_cap_pressure", userId: "user-1" },
       { kind: "source_cap_pressure", userId: "user-2" },
     ]);
+    const select = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue([{ actingCount: 0, count: 2 }]),
+      })),
+    }));
 
     await expect(
       assessStreakIntegrityRisk(
-        { query: { xpRiskSignal: { findMany } } } as never,
+        { query: { xpRiskSignal: { findMany } }, select } as never,
         "user-3",
         { deviceHash: "device-a", ipPrefixHash: null },
         new Date("2026-08-08T12:00:00.000Z")
@@ -55,6 +60,34 @@ describe("streak integrity", () => {
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({ limit: 100 })
     );
+  });
+
+  it("keeps device account correlation outside the bounded signal sample", async () => {
+    const findMany = vi.fn().mockResolvedValue(
+      Array.from({ length: 100 }, () => ({
+        kind: "like_correlation_observation",
+        userId: "user-1",
+      }))
+    );
+    const select = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn().mockResolvedValue([{ actingCount: 1, count: 3 }]),
+      })),
+    }));
+
+    await expect(
+      assessStreakIntegrityRisk(
+        { query: { xpRiskSignal: { findMany } }, select } as never,
+        "user-1",
+        { deviceHash: "device-a", ipPrefixHash: null },
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      disposition: "high",
+      signals: expect.arrayContaining([
+        { count: 3, kind: "account_correlation" },
+      ]),
+    });
   });
 
   it("reuses the fixed-window counter for bounded action velocity", async () => {
