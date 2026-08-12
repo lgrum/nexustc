@@ -60,7 +60,7 @@ export async function saveRatingInTransaction(
 
   if (!savedReview) {
     const [existing] = await tx
-      .select({ review: postRating.review })
+      .select({ id: postRating.id, review: postRating.review })
       .from(postRating)
       .where(
         and(
@@ -75,10 +75,17 @@ export async function saveRatingInTransaction(
     previousQualifyingReview = ratingReviewSchema.safeParse(
       existing.review
     ).success;
+    const becameQualifying =
+      !previousQualifyingReview &&
+      ratingReviewSchema.safeParse(input.review).success;
+    firstQualifyingReview =
+      becameQualifying &&
+      !(await hasReviewRewardSubjectInTransaction(tx, existing.id));
 
     [savedReview] = await tx
       .update(postRating)
       .set({
+        ...(firstQualifyingReview ? { createdAt: input.now } : {}),
         ...(input.review.length === 0 ? { pinnedAt: null } : {}),
         rating: input.rating,
         review: input.review,
@@ -91,13 +98,6 @@ export async function saveRatingInTransaction(
         )
       )
       .returning(savedReviewSelection);
-    const becameQualifying =
-      !previousQualifyingReview &&
-      ratingReviewSchema.safeParse(input.review).success;
-    firstQualifyingReview =
-      becameQualifying &&
-      savedReview !== undefined &&
-      !(await hasReviewRewardSubjectInTransaction(tx, savedReview.id));
   }
 
   if (!savedReview) {
@@ -111,9 +111,7 @@ export async function saveRatingInTransaction(
   const { settlements } = shouldReconcileReview
     ? await reconcileEditedReviewRewardsInTransaction(
         tx,
-        firstQualifyingReview
-          ? { ...savedReview, createdAt: input.now }
-          : savedReview,
+        savedReview,
         input.now
       )
     : { settlements: [] };

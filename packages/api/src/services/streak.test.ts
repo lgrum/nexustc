@@ -778,19 +778,23 @@ describe("comment streak qualification", () => {
         xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
-      select: vi.fn(() => ({
+      select: vi.fn((selection) => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            for: vi.fn().mockResolvedValue([
-              {
-                bestStreak: 0,
-                currentStreak: 0,
-                lastCompletedDayKey: null,
-                lastCompletedLocalDate: null,
-                timezone: "America/Argentina/Buenos_Aires",
-                timezoneVersion: 1,
-              },
-            ]),
+            for: vi.fn().mockResolvedValue(
+              selection
+                ? [{ banExpires: null, banned: false, emailVerified: true }]
+                : [
+                    {
+                      bestStreak: 0,
+                      currentStreak: 0,
+                      lastCompletedDayKey: null,
+                      lastCompletedLocalDate: null,
+                      timezone: "America/Argentina/Buenos_Aires",
+                      timezoneVersion: 1,
+                    },
+                  ]
+            ),
           })),
         })),
       })),
@@ -836,6 +840,31 @@ describe("comment streak qualification", () => {
       now
     );
     expect(updated).toHaveBeenCalledOnce();
+  });
+
+  it("rechecks the locked account before posting a completed day", async () => {
+    testEnv.DAILY_STREAK_ENABLED = true;
+    testEnv.XP_ACCRUAL_ENABLED = true;
+    testEnv.XP_ECONOMY_ENABLED = true;
+    activation.readProgressionActivationDate.mockResolvedValue(new Date(0));
+    const db = createStreakDb({}, [], {
+      banExpires: null,
+      banned: true,
+      emailVerified: true,
+    });
+    const now = new Date("2026-08-08T12:00:00.000Z");
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        contributionEvidence("comment-before-ban"),
+        now
+      )
+    ).resolves.toEqual({ available: true, completed: false });
+
+    expect(db.select).toHaveBeenCalledTimes(2);
+    expect(db.select.mock.calls[1]?.[0]).toBeDefined();
+    expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });
 
   it("keeps the source write successful when the initial timezone is invalid", async () => {
@@ -1076,10 +1105,16 @@ describe("comic reading streak qualification", () => {
         xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
-      select: vi.fn(() => ({
+      select: vi.fn((selection) => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            for: vi.fn(() => Promise.resolve([stored])),
+            for: vi.fn(() =>
+              Promise.resolve(
+                selection
+                  ? [{ banExpires: null, banned: false, emailVerified: true }]
+                  : [stored]
+              )
+            ),
           })),
         })),
       })),
@@ -1242,10 +1277,15 @@ describe("comic reading streak qualification", () => {
         xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
-      select: vi.fn(() => ({
+      select: vi.fn((selection) => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
             for: vi.fn(() => {
+              if (selection) {
+                return Promise.resolve([
+                  { banExpires: null, banned: false, emailVerified: true },
+                ]);
+              }
               if (!locked) {
                 locked = true;
                 return Promise.resolve([stored]);
@@ -1557,10 +1597,15 @@ describe("mixed discovery streak qualification", () => {
         xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
         xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
       },
-      select: vi.fn(() => ({
+      select: vi.fn((selection) => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
             for: vi.fn(() => {
+              if (selection) {
+                return Promise.resolve([
+                  { banExpires: null, banned: false, emailVerified: true },
+                ]);
+              }
               if (!locked) {
                 locked = true;
                 return Promise.resolve([stored]);
@@ -2883,10 +2928,16 @@ function createMixedDiscoveryDb(consumed: ({ dayKey: string } | null)[] = []) {
       },
       xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
     },
-    select: vi.fn(() => ({
+    select: vi.fn((selection) => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          for: vi.fn(() => Promise.resolve([stored])),
+          for: vi.fn(() =>
+            Promise.resolve(
+              selection
+                ? [{ banExpires: null, banned: false, emailVerified: true }]
+                : [stored]
+            )
+          ),
         })),
       })),
     })),
@@ -2903,8 +2954,18 @@ function createMixedDiscoveryDb(consumed: ({ dayKey: string } | null)[] = []) {
 
 function createStreakDb(
   overrides: Record<string, unknown>,
-  windows: { endsAt: Date; startsAt: Date }[] = []
+  windows: { endsAt: Date; startsAt: Date }[] = [],
+  lockedAccount?: {
+    banExpires: Date | null;
+    banned: boolean;
+    emailVerified: boolean;
+  }
 ) {
+  const eligibleLockedAccount = lockedAccount ?? {
+    banExpires: null,
+    banned: false,
+    emailVerified: true,
+  };
   let stored = {
     bestStreak: 0,
     currentEvidence: {},
@@ -2942,10 +3003,12 @@ function createStreakDb(
         findMany: vi.fn().mockResolvedValue([]),
       },
     },
-    select: vi.fn(() => ({
+    select: vi.fn((selection) => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          for: vi.fn(() => Promise.resolve([stored])),
+          for: vi.fn(() =>
+            Promise.resolve(selection ? [eligibleLockedAccount] : [stored])
+          ),
         })),
       })),
     })),

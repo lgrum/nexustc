@@ -158,7 +158,14 @@ it("timestamps the reward subject when a bare rating first becomes a review", as
 
   expect(
     dependencies.reconcileEditedReviewRewardsInTransaction
-  ).toHaveBeenCalledWith(tx, { ...saved, createdAt: now }, now);
+  ).toHaveBeenCalledWith(
+    tx,
+    expect.objectContaining({ ...saved, createdAt: now }),
+    now
+  );
+  expect(tx.updateSet).toHaveBeenCalledWith(
+    expect.objectContaining({ createdAt: now })
+  );
 });
 
 it("does not re-award a review that qualified before its text was cleared", async () => {
@@ -194,6 +201,9 @@ it("does not re-award a review that qualified before its text was cleared", asyn
   expect(
     dependencies.reconcileEditedReviewRewardsInTransaction
   ).toHaveBeenCalledOnce();
+  expect(tx.updateSet).toHaveBeenCalledWith(
+    expect.not.objectContaining({ createdAt: now })
+  );
 });
 
 it("does not create a review reward subject for a bare rating", async () => {
@@ -234,6 +244,11 @@ function createRatingTransaction(input: {
     userId: string;
   };
 }) {
+  const updateSet = vi.fn((values: Partial<typeof input.saved>) => ({
+    where: vi.fn(() => ({
+      returning: vi.fn().mockResolvedValue([{ ...input.saved, ...values }]),
+    })),
+  }));
   return {
     insert: vi.fn(() => ({
       values: vi.fn(() => ({
@@ -249,16 +264,15 @@ function createRatingTransaction(input: {
     select: vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          for: vi.fn().mockResolvedValue([{ review: input.existingReview }]),
+          for: vi
+            .fn()
+            .mockResolvedValue([
+              { id: input.saved.id, review: input.existingReview },
+            ]),
         })),
       })),
     })),
-    update: vi.fn(() => ({
-      set: vi.fn(() => ({
-        where: vi.fn(() => ({
-          returning: vi.fn().mockResolvedValue([input.saved]),
-        })),
-      })),
-    })),
+    update: vi.fn(() => ({ set: updateSet })),
+    updateSet,
   };
 }

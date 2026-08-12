@@ -390,21 +390,34 @@ async function isEligible(
   executor: StreakExecutor,
   userId: string,
   impersonated: boolean,
-  now: Date
+  now: Date,
+  lockAccount = false
 ) {
   if (impersonated) {
     return false;
   }
-  const [account, wallet] = await Promise.all([
-    executor.query.user.findFirst({
+  let account;
+  if (lockAccount) {
+    const [lockedAccount] = await executor
+      .select({
+        banExpires: user.banExpires,
+        banned: user.banned,
+        emailVerified: user.emailVerified,
+      })
+      .from(user)
+      .where(eq(user.id, userId))
+      .for("update");
+    account = lockedAccount;
+  } else {
+    account = await executor.query.user.findFirst({
       columns: { banExpires: true, banned: true, emailVerified: true },
       where: eq(user.id, userId),
-    }),
-    executor.query.eterisWallet.findFirst({
-      columns: { status: true },
-      where: eq(eterisWallet.userId, userId),
-    }),
-  ]);
+    });
+  }
+  const wallet = await executor.query.eterisWallet.findFirst({
+    columns: { status: true },
+    where: eq(eterisWallet.userId, userId),
+  });
   return Boolean(
     account?.emailVerified &&
     !isUserBanActive(account, now) &&
@@ -928,6 +941,17 @@ export async function applyStreakEvidenceInTransaction(
       completed: false,
       stepUpRequired: true,
     } as const;
+  }
+  if (
+    !(await isEligible(
+      tx,
+      evidence.userId,
+      evidence.impersonated,
+      processingNow,
+      true
+    ))
+  ) {
+    return { available: true, completed: false } as const;
   }
   const reviewRisk = classifyStreakReviewRisk(risk.signals);
   const assessment = reviewRisk
