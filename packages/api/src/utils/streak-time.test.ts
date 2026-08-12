@@ -1,4 +1,5 @@
 import {
+  getCanonicalIanaTimezone,
   getStreakDayPeriod,
   getTimezoneChangeEffectiveAt,
   isValidIanaTimezone,
@@ -67,6 +68,7 @@ describe("streak civil days", () => {
     expect(getStreakDayPeriod(now, "america/new_york")).toEqual(
       getStreakDayPeriod(now, "America/New_York")
     );
+    expect(getCanonicalIanaTimezone("US/Eastern")).toBe("America/New_York");
   });
 
   it("rejects invalid timezone names instead of falling back to UTC", () => {

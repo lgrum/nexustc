@@ -98,11 +98,14 @@ function parseLocalDate(localDate: string): LocalDateParts {
 }
 
 export function isValidIanaTimezone(timezone: string) {
+  return getCanonicalIanaTimezone(timezone) !== null;
+}
+
+export function getCanonicalIanaTimezone(timezone: string) {
   try {
-    getFormatter(timezone).format(0);
-    return true;
+    return getFormatter(timezone).resolvedOptions().timeZone;
   } catch {
-    return false;
+    return null;
   }
 }
 

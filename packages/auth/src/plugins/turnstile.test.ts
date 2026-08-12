@@ -34,9 +34,28 @@ it("accepts only the configured hostname and expected action", async () => {
   );
 });
 
+it("accepts configured production subdomains", async () => {
+  vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    Response.json({
+      action: "streak_step_up",
+      hostname: "www.nexustc18.com",
+      success: true,
+    })
+  );
+
+  await expect(
+    verifyTurnstileToken("token", { action: "streak_step_up" })
+  ).resolves.toBe("pass");
+});
+
 it.each([
   { action: "login", hostname: "nexustc.example", success: true },
   { action: "streak_step_up", hostname: "evil.example", success: true },
+  {
+    action: "streak_step_up",
+    hostname: "evilnexustc18.com",
+    success: true,
+  },
   { action: "streak_step_up", hostname: "nexustc.example", success: false },
 ])("rejects an invalid provider response", async (response) => {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(response));

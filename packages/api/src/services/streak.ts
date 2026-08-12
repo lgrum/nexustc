@@ -27,6 +27,7 @@ import {
 import type { StreakChallengeTarget } from "@repo/shared/streak";
 
 import {
+  getCanonicalIanaTimezone,
   getNextLocalDate,
   getPreviousLocalDate,
   getStreakDayPeriod,
@@ -35,6 +36,7 @@ import {
   isValidIanaTimezone,
 } from "../utils/streak-time";
 import { isUserBanActive } from "../utils/user-ban";
+import { ContributionProjectionMismatchError } from "./contribution-rewards";
 import { settleXpWithIntegrityInTransaction } from "./integrity-settlement";
 import type { IntegrityRiskSignal } from "./integrity-settlement";
 import { createUserNotification } from "./notification";
@@ -1431,19 +1433,28 @@ export async function setStreakTimezoneInTransaction(
   if (!(await isStreakAvailable(tx))) {
     return { available: false } as const;
   }
-  if (!isValidIanaTimezone(timezone)) {
+  const canonicalTimezone = getCanonicalIanaTimezone(timezone);
+  if (!canonicalTimezone) {
     throw new StreakError("INVALID_TIMEZONE");
   }
   if (!(await isEligible(tx, userId, false, now))) {
     return { available: true, initialized: false } as const;
   }
-  const lockedStreak = await lockStreak(tx, userId, timezone, now);
+  const lockedStreak = await lockStreak(tx, userId, canonicalTimezone, now);
   const streak = await activateTimezoneIfDue(tx, lockedStreak, now);
-  if (streak.timezone === timezone && !streak.pendingTimezone) {
+  const currentTimezone =
+    getCanonicalIanaTimezone(streak.timezone) ?? streak.timezone;
+  if (currentTimezone === canonicalTimezone && !streak.pendingTimezone) {
+    if (streak.timezone !== currentTimezone) {
+      await tx
+        .update(userStreak)
+        .set({ timezone: currentTimezone, updatedAt: now })
+        .where(eq(userStreak.userId, userId));
+    }
     return {
       available: true,
       initialized: true,
-      timezone: streak.timezone,
+      timezone: currentTimezone,
     } as const;
   }
   if (streak.pendingTimezone) {
@@ -1458,14 +1469,15 @@ export async function setStreakTimezoneInTransaction(
 
   const effectiveAt = getTimezoneChangeEffectiveAt(
     now,
-    streak.timezone,
-    timezone
+    currentTimezone,
+    canonicalTimezone
   );
   const availableAt = new Date(now.getTime() + TIMEZONE_CHANGE_COOLDOWN_MS);
   await tx
     .update(userStreak)
     .set({
-      pendingTimezone: timezone,
+      pendingTimezone: canonicalTimezone,
+      timezone: currentTimezone,
       timezoneChangeAvailableAt: availableAt,
       timezoneChangeEffectiveAt: effectiveAt,
       updatedAt: now,
@@ -1475,8 +1487,8 @@ export async function setStreakTimezoneInTransaction(
   return {
     available: true,
     initialized: true,
-    pendingTimezone: timezone,
-    timezone: streak.timezone,
+    pendingTimezone: canonicalTimezone,
+    timezone: currentTimezone,
     timezoneChangeAvailableAt: availableAt.toISOString(),
     timezoneChangeEffectiveAt: effectiveAt.toISOString(),
   } as const;
@@ -1491,7 +1503,13 @@ type StreakLedgerEvent = Pick<
   | "metadata"
   | "reversesEventId"
   | "state"
->;
+> &
+  Partial<
+    Pick<
+      typeof xpEvent.$inferSelect,
+      "availableAt" | "integrityCaseId" | "reasonCode" | "sourceRef"
+    >
+  >;
 
 type StreakDay = {
   dayKey: string;
@@ -1564,6 +1582,7 @@ function rebuildStreakProjectionFromLedger(events: StreakLedgerEvent[]) {
     compareLedgerEvents(a.event, b.event)
   );
   const chainByDayKey = new Map<string, number>();
+  const repricedDays: { amount: number; day: StreakDay }[] = [];
   let bestStreak = 0;
   for (const day of orderedDays) {
     const currentStreak = day.previousDayKey
@@ -1571,6 +1590,13 @@ function rebuildStreakProjectionFromLedger(events: StreakLedgerEvent[]) {
       : 1;
     chainByDayKey.set(day.dayKey, currentStreak);
     bestStreak = Math.max(bestStreak, currentStreak);
+    const amount = Math.min(
+      day.event.amount,
+      getDailyStreakReward(currentStreak)
+    );
+    if (amount < day.event.amount) {
+      repricedDays.push({ amount, day });
+    }
   }
 
   const invalidChallengeEvents: StreakLedgerEvent[] = [];
@@ -1609,7 +1635,25 @@ function rebuildStreakProjectionFromLedger(events: StreakLedgerEvent[]) {
       lastCompletedDayKey: latestDay?.dayKey ?? null,
       lastCompletedLocalDate: latestDay?.localDate ?? null,
     },
+    repricedDays,
   };
+}
+
+function requireStreakReconciliationSettlement(
+  settlement: Awaited<ReturnType<typeof postXpEventInTransaction>>
+) {
+  if (
+    "projectionMismatch" in settlement &&
+    settlement.projectionMismatch === true
+  ) {
+    if (settlement.projectionMismatchWalletIds) {
+      throw new ContributionProjectionMismatchError(
+        settlement.projectionMismatchWalletIds
+      );
+    }
+    throw new Error("XP_PROJECTION_MISMATCH");
+  }
+  return settlement;
 }
 
 export async function reconcileStreakAfterIntegrityDecisionInTransaction(
@@ -1624,19 +1668,29 @@ export async function reconcileStreakAfterIntegrityDecisionInTransaction(
   const events = await tx
     .select({
       amount: xpEvent.amount,
+      availableAt: xpEvent.availableAt,
       createdAt: xpEvent.createdAt,
       id: xpEvent.id,
+      integrityCaseId: xpEvent.integrityCaseId,
       kind: xpEvent.kind,
       metadata: xpEvent.metadata,
+      reasonCode: xpEvent.reasonCode,
       reversesEventId: xpEvent.reversesEventId,
+      sourceRef: xpEvent.sourceRef,
       state: xpEvent.state,
     })
     .from(xpEvent)
     .where(eq(xpEvent.userId, input.userId));
   const rebuilt = rebuildStreakProjectionFromLedger(events);
-  const pending = rebuilt.invalidChallengeEvents.filter(
-    ({ state }) => state === "pending"
+  const pendingReprices = rebuilt.repricedDays.filter(
+    ({ day }) => day.event.state === "pending"
   );
+  const pending = [
+    ...rebuilt.invalidChallengeEvents.filter(
+      ({ state }) => state === "pending"
+    ),
+    ...pendingReprices.map(({ day }) => day.event),
+  ];
   if (pending.length > 0) {
     const progression = await lockUserProgressionInTransaction(
       tx,
@@ -1671,25 +1725,93 @@ export async function reconcileStreakAfterIntegrityDecisionInTransaction(
   }
 
   const settlements = [];
-  for (const event of rebuilt.invalidChallengeEvents) {
-    if (event.state !== "posted") {
+  for (const { amount, day } of rebuilt.repricedDays) {
+    const { event } = day;
+    const metadata = {
+      ...event.metadata,
+      repricedFromEventId: event.id,
+    };
+    const reasonCode = event.reasonCode ?? "streak_day_repriced";
+    const sourceRef = event.sourceRef ?? `streak-day:${day.dayKey}`;
+    if (event.state === "pending") {
+      if (!event.integrityCaseId) {
+        throw new Error("STREAK_PENDING_INTEGRITY_CASE_REQUIRED");
+      }
+      await createPendingXpEventInTransaction(
+        tx,
+        {
+          amount,
+          ...(event.availableAt ? { availableAt: event.availableAt } : {}),
+          idempotencyKey: `integrity-reprice:${input.caseId}:${event.id}`,
+          integrityCaseId: event.integrityCaseId,
+          kind: "streak_day",
+          metadata,
+          reasonCode,
+          sourceCreatedAt: event.createdAt,
+          sourceRef,
+          userId: input.userId,
+        },
+        input.now
+      );
       continue;
     }
-    settlements.push(
+    const reversal = requireStreakReconciliationSettlement(
       await postXpEventInTransaction(
         tx,
         {
           amount: -event.amount,
           createdBy: input.actorUserId,
-          idempotencyKey: `integrity-reversal:${input.caseId}:${event.id}`,
+          idempotencyKey: `integrity-reprice-reversal:${input.caseId}:${event.id}`,
           integrityCaseId: input.caseId,
           kind: "reversal",
           reasonCode: "confirmed_integrity_abuse",
           reversesEventId: event.id,
-          sourceRef: `integrity-case:${input.caseId}:reversal:${event.id}`,
+          sourceRef: `integrity-case:${input.caseId}:reprice:${event.id}`,
           userId: input.userId,
         },
         input.now
+      )
+    );
+    settlements.push(reversal);
+    requireStreakReconciliationSettlement(
+      await postXpEventInTransaction(
+        tx,
+        {
+          amount,
+          createdBy: input.actorUserId,
+          idempotencyKey: `integrity-reprice:${input.caseId}:${event.id}`,
+          kind: "streak_day",
+          metadata,
+          reasonCode,
+          sourceCreatedAt: event.createdAt,
+          sourceRef,
+          userId: input.userId,
+        },
+        input.now
+      )
+    );
+  }
+  for (const event of rebuilt.invalidChallengeEvents) {
+    if (event.state !== "posted") {
+      continue;
+    }
+    settlements.push(
+      requireStreakReconciliationSettlement(
+        await postXpEventInTransaction(
+          tx,
+          {
+            amount: -event.amount,
+            createdBy: input.actorUserId,
+            idempotencyKey: `integrity-reversal:${input.caseId}:${event.id}`,
+            integrityCaseId: input.caseId,
+            kind: "reversal",
+            reasonCode: "confirmed_integrity_abuse",
+            reversesEventId: event.id,
+            sourceRef: `integrity-case:${input.caseId}:reversal:${event.id}`,
+            userId: input.userId,
+          },
+          input.now
+        )
       )
     );
   }

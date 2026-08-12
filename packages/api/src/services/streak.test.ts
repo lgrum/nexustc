@@ -1565,6 +1565,26 @@ describe("streak continuity", () => {
     });
   });
 
+  it("canonicalizes equivalent zones without starting a cooldown", async () => {
+    const db = createStreakDb({ timezone: "US/Eastern" });
+
+    await expect(
+      setStreakTimezoneInTransaction(
+        db as never,
+        "user-1",
+        "america/new_york",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      timezone: "America/New_York",
+    });
+    await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({
+      pendingTimezone: null,
+      timezone: "America/New_York",
+      timezoneChangeAvailableAt: null,
+    });
+  });
+
   it("skips the partial destination day then activates a versioned full day", async () => {
     const db = createStreakDb({
       bestStreak: 3,

@@ -1,6 +1,8 @@
 import { env } from "@repo/env";
 import { captcha } from "better-auth/plugins";
 
+import { isAuthHostnameAllowed } from "../auth-hosts";
+
 export const turnstilePlugin = () =>
   captcha({
     provider: "cloudflare-turnstile",
@@ -43,7 +45,7 @@ export async function verifyTurnstileToken(
       return "error" as const;
     }
     return result.action === options.action &&
-      result.hostname === new URL(env.BETTER_AUTH_URL).hostname
+      isAuthHostnameAllowed(result.hostname, env.BETTER_AUTH_URL)
       ? ("pass" as const)
       : ("fail" as const);
   } catch {

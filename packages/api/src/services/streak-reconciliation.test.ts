@@ -5,10 +5,12 @@ import { reconcileStreakAfterIntegrityDecisionInTransaction } from "./streak";
 
 const progression = vi.hoisted(() => ({
   lock: vi.fn(),
+  pending: vi.fn(),
   post: vi.fn(),
 }));
 
 vi.mock("./progression", () => ({
+  createPendingXpEventInTransaction: progression.pending,
   lockUserProgressionInTransaction: progression.lock,
   postXpEventInTransaction: progression.post,
 }));
@@ -22,7 +24,13 @@ type LedgerEvent = Pick<
   | "metadata"
   | "reversesEventId"
   | "state"
->;
+> &
+  Partial<
+    Pick<
+      typeof xpEvent.$inferSelect,
+      "availableAt" | "integrityCaseId" | "reasonCode" | "sourceRef"
+    >
+  >;
 
 function createTransaction(events: LedgerEvent[]) {
   const updates: { table: unknown; values: unknown }[] = [];
@@ -74,6 +82,9 @@ describe("streak ledger reconciliation", () => {
       userId: "user-1",
     });
     progression.post.mockReset().mockResolvedValue({ eventId: "reversal-1" });
+    progression.pending.mockReset().mockResolvedValue({
+      eventId: "pending-reprice-1",
+    });
   });
 
   it("groups a Pending release by day key and repairs a broken middle chain", async () => {
@@ -149,6 +160,99 @@ describe("streak ledger reconciliation", () => {
       currentStreak: 2,
       lastCompletedDayKey: "user-1:1:2026-08-02",
     });
+  });
+
+  it("reprices posted descendants after a broken middle chain", async () => {
+    const days = Array.from({ length: 8 }, (_, index) => {
+      const day = index + 1;
+      return streakDay(day, index === 0 ? null : index, {
+        amount: day >= 8 ? 15 : day >= 4 ? 10 : 5,
+      });
+    });
+    const { tx, updates } = createTransaction([
+      ...days,
+      {
+        ...streakDay(4, 3),
+        id: "reverse-day-4",
+        kind: "reversal",
+        metadata: {},
+        reversesEventId: "day-4",
+      },
+    ]);
+
+    await reconcileStreakAfterIntegrityDecisionInTransaction(tx as never, {
+      actorUserId: "staff-1",
+      caseId: "case-1",
+      now: new Date("2026-08-09T12:00:00.000Z"),
+      userId: "user-1",
+    });
+
+    expect(progression.post).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        amount: -10,
+        idempotencyKey: "integrity-reprice-reversal:case-1:day-5",
+        reversesEventId: "day-5",
+      }),
+      expect.any(Date)
+    );
+    expect(progression.post).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        amount: 5,
+        idempotencyKey: "integrity-reprice:case-1:day-5",
+        kind: "streak_day",
+      }),
+      expect.any(Date)
+    );
+    expect(
+      updates.find(({ table }) => table === userStreak)?.values
+    ).toMatchObject({ currentStreak: 4 });
+  });
+
+  it("reprices Pending descendants without releasing their XP", async () => {
+    const pendingDay5 = streakDay(5, 4, {
+      amount: 10,
+      availableAt: new Date("2026-08-12T12:00:00.000Z"),
+      integrityCaseId: "case-day-5",
+      reasonCode: "streak_day_completed",
+      sourceRef: "comment:day-5",
+      state: "pending",
+    });
+    const { tx } = createTransaction([
+      streakDay(1, null),
+      streakDay(2, 1),
+      streakDay(3, 2),
+      streakDay(4, 3, { amount: 10 }),
+      pendingDay5,
+      {
+        ...streakDay(4, 3),
+        id: "reverse-day-4",
+        kind: "reversal",
+        metadata: {},
+        reversesEventId: "day-4",
+      },
+    ]);
+
+    await reconcileStreakAfterIntegrityDecisionInTransaction(tx as never, {
+      actorUserId: "staff-1",
+      caseId: "case-1",
+      now: new Date("2026-08-09T12:00:00.000Z"),
+      userId: "user-1",
+    });
+
+    expect(progression.pending).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        amount: 5,
+        availableAt: new Date("2026-08-12T12:00:00.000Z"),
+        idempotencyKey: "integrity-reprice:case-1:day-5",
+        integrityCaseId: "case-day-5",
+        sourceCreatedAt: pendingDay5.createdAt,
+      }),
+      expect.any(Date)
+    );
+    expect(progression.post).not.toHaveBeenCalled();
   });
 
   it("reopens an unsupported challenge and accepts a later day-keyed achievement", async () => {
@@ -345,6 +449,43 @@ describe("streak ledger reconciliation", () => {
       }),
       new Date("2026-08-11T12:00:00.000Z")
     );
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it("aborts before projection updates when a challenge reversal mismatches", async () => {
+    const challenge = {
+      amount: 50,
+      createdAt: new Date("2026-08-10T12:00:01.000Z"),
+      id: "posted-challenge",
+      kind: "streak_challenge",
+      metadata: {
+        completedDayKey: "user-1:1:2026-08-10",
+        target: 10,
+      },
+      reversesEventId: null,
+      state: "posted",
+    } satisfies LedgerEvent;
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn().mockResolvedValue([streakDay(10, 9), challenge]),
+        })),
+      })),
+      update: vi.fn(),
+    };
+    progression.post.mockResolvedValueOnce({
+      projectionMismatch: true,
+      projectionMismatchWalletIds: ["wallet-1"],
+    });
+
+    await expect(
+      reconcileStreakAfterIntegrityDecisionInTransaction(tx as never, {
+        actorUserId: "staff-1",
+        caseId: "case-1",
+        now: new Date("2026-08-11T12:00:00.000Z"),
+        userId: "user-1",
+      })
+    ).rejects.toThrow("XP_PROJECTION_MISMATCH");
     expect(tx.update).not.toHaveBeenCalled();
   });
 });
