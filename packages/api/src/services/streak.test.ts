@@ -1530,7 +1530,7 @@ describe("mixed discovery streak qualification", () => {
     expect(JSON.stringify(state)).not.toContain("private-1");
   });
 
-  it("clears private Mixed candidates after their local day rolls over", async () => {
+  it("hides prior-day Mixed candidates until new evidence replaces them", async () => {
     const db = createStreakDb({
       currentEvidence: {
         discoveryCandidates: [
@@ -1554,24 +1554,29 @@ describe("mixed discovery streak qualification", () => {
       },
     });
     await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({
-      currentEvidence: {},
-      currentEvidenceDayKey: null,
+      currentEvidence: {
+        discoveryCandidates: [
+          { actionKind: "bookmark", contentKey: "post:private-1" },
+        ],
+        readingPageKeys: ["comic-private:1"],
+      },
+      currentEvidenceDayKey: "user-1:1:2026-08-07",
     });
   });
 
-  it("retains prior-day reading evidence during the checkpoint retry window", async () => {
+  it("retains prior-day reading evidence after a renewable checkpoint retry", async () => {
     const db = createStreakDb({
       currentEvidence: {
         readingPageKeys: ["comic-private:1", "comic-private:2"],
       },
       currentEvidenceDayKey: "user-1:1:2026-08-07",
-      updatedAt: new Date("2026-08-08T00:30:00.000Z"),
+      updatedAt: new Date("2026-08-07T18:00:00.000Z"),
     });
 
     await getStreakState(
       db as never,
       "user-1",
-      new Date("2026-08-08T02:00:00.000Z")
+      new Date("2026-08-08T12:00:00.000Z")
     );
 
     await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({

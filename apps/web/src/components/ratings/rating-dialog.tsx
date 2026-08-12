@@ -22,7 +22,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { trackEvent, trackStreakDayCompletion } from "@/lib/analytics";
 import { getClientErrorMessage, orpc, orpcClient } from "@/lib/orpc";
 
-import { getReviewDeletionDescription } from "./review-deletion-warning";
+import {
+  getReviewDeletionDescription,
+  getReviewRemovalDescription,
+} from "./review-deletion-warning";
 import { StarRatingInput } from "./star-rating-input";
 
 type RatingDialogProps = {
@@ -185,6 +188,26 @@ function RatingDialogContent({
     !isOverLimit &&
     !isUnderReviewMinimum &&
     !hasBlockedReviewContent;
+  const handleSubmit = async () => {
+    if (existingRating?.review?.trim() && trimmedReviewLength === 0) {
+      try {
+        const warning = await orpcClient.rating.getDeletionWarning({ postId });
+        const confirmed = await confirm({
+          cancelText: "Cancelar",
+          confirmText: "Quitar y guardar",
+          description: getReviewRemovalDescription(warning),
+          title: "Quitar reseña",
+        });
+        if (!confirmed) {
+          return;
+        }
+      } catch {
+        toast.error("No pudimos comprobar el impacto de quitar tu reseña.");
+        return;
+      }
+    }
+    createMutation.mutate();
+  };
 
   return (
     <Dialog.Root onOpenChange={handleOpenChange} open={open}>
@@ -369,7 +392,7 @@ function RatingDialogContent({
             <Button
               className="group h-11 w-full gap-2 rounded-lg font-semibold text-[13.5px] tracking-wide shadow-glow-primary/25 transition-[background-color,box-shadow] duration-200 hover:shadow-glow-primary/45 sm:flex-1"
               disabled={!canSubmit}
-              onClick={() => createMutation.mutate()}
+              onClick={handleSubmit}
               type="button"
             >
               <HugeiconsIcon

@@ -248,10 +248,17 @@ function createDatabase(options?: {
     },
     select: vi.fn((shape: Record<string, unknown>) => ({
       from: vi.fn((table: unknown) => {
-        if (table === userProgression) {
+        if (table === userStreak || table === userProgression) {
           return {
             where: vi.fn(() => ({
-              for: vi.fn(() => Promise.resolve([])),
+              for: vi.fn(() => {
+                operations.push(
+                  table === userStreak
+                    ? "lock-user-streak"
+                    : "lock-user-progression"
+                );
+                return Promise.resolve([]);
+              }),
             })),
           };
         }
@@ -1251,6 +1258,8 @@ test("account closure deletes the identity in the same transaction", async () =>
   expect(store.operations).toEqual([
     "lock-patron",
     "lock-user",
+    "lock-user-streak",
+    "lock-user-progression",
     "reconcile-likes",
     "reconcile-comments",
     "delete-user",

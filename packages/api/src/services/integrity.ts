@@ -248,20 +248,22 @@ async function reversePostedCaseEvents(
       settlement.projectionMismatch === true
     ) {
       return {
+        caseEvents: events,
         completed: false,
         events: reversedEvents,
         settlements,
-        userId: caseOriginals[0]?.userId ?? null,
+        userId: events[0]?.userId ?? null,
       };
     }
     reversedEvents.push(event);
     settlements.push(settlement);
   }
   return {
+    caseEvents: events,
     completed: true,
     events: reversedEvents,
     settlements,
-    userId: caseOriginals[0]?.userId ?? null,
+    userId: events[0]?.userId ?? null,
   };
 }
 
@@ -416,7 +418,7 @@ export async function decideIntegrityCase(
         now
       );
       ({ settlements, userId } = reversal);
-      const streakDayAffected = [...pending, ...reversal.events].some(
+      const streakDayAffected = [...pending, ...reversal.caseEvents].some(
         ({ kind }) => kind === "streak_day"
       );
       if (lockedStreak && streakDayAffected) {

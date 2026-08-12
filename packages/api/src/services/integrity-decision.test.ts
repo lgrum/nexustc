@@ -228,6 +228,32 @@ describe("streak integrity decision", () => {
     });
   });
 
+  it("reconciles a capped zero-XP Streak Day without posting a reversal", async () => {
+    const { db, tx } = createStore([
+      {
+        amount: 0,
+        id: "capped-streak-day-1",
+        kind: "streak_day",
+        reversesEventId: null,
+        subjectId: null,
+        userId: "user-1",
+      },
+    ]);
+
+    await decideIntegrityCase(db as never, {
+      action: "reverse",
+      actorUserId: "staff-1",
+      caseId: "case-1",
+      reason: "Abuso confirmado por revision humana",
+    });
+
+    expect(progression.post).not.toHaveBeenCalled();
+    expect(reconciliation.run).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ userId: "user-1" })
+    );
+  });
+
   it("does not rewrite streak history for a non-reversal decision", async () => {
     const { db } = createStore();
     await decideIntegrityCase(db as never, {

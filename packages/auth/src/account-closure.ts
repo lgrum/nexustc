@@ -178,6 +178,11 @@ async function closeAccountInTransaction(
   now: Date
 ) {
   await tx
+    .select({ userId: userStreak.userId })
+    .from(userStreak)
+    .where(eq(userStreak.userId, userId))
+    .for("update");
+  await tx
     .select({ userId: userProgression.userId })
     .from(userProgression)
     .where(eq(userProgression.userId, userId))

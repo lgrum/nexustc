@@ -105,7 +105,6 @@ type StreakErrorCode =
   | "TIMEZONE_COOLDOWN";
 
 const TIMEZONE_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
-const STREAK_EVIDENCE_RETRY_GRACE_MS = 6 * 60 * 60 * 1000;
 
 type StreakCompletionEvent = {
   amount: number;
@@ -615,35 +614,6 @@ async function activateTimezoneIfDue(
     })
     .where(eq(userStreak.userId, streak.userId));
   return activated;
-}
-
-async function clearStaleEvidence(
-  executor: StreakExecutor,
-  streak: {
-    currentEvidenceDayKey: string | null;
-    updatedAt: Date;
-    userId: string;
-  },
-  currentDayKey: string | null,
-  now: Date
-) {
-  const staleDayKey = streak.currentEvidenceDayKey;
-  if (
-    !staleDayKey ||
-    staleDayKey === currentDayKey ||
-    now.getTime() - streak.updatedAt.getTime() < STREAK_EVIDENCE_RETRY_GRACE_MS
-  ) {
-    return;
-  }
-  await executor
-    .update(userStreak)
-    .set({ currentEvidence: {}, currentEvidenceDayKey: null, updatedAt: now })
-    .where(
-      and(
-        eq(userStreak.userId, streak.userId),
-        eq(userStreak.currentEvidenceDayKey, staleDayKey)
-      )
-    );
 }
 
 export async function applyStreakEvidenceInTransaction(
@@ -1247,7 +1217,6 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
 
   const transition = getPendingTimezoneTransition(storedStreak);
   if (transition && isPartialTimezoneDay(transition, now)) {
-    await clearStaleEvidence(db, storedStreak, null, now);
     const currentStreak = (await preservesContinuityIntoTimezoneChange(
       db,
       storedStreak,
@@ -1315,7 +1284,6 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
     streak.timezoneVersion,
     period.localDate
   );
-  await clearStaleEvidence(db, storedStreak, currentDayKey, now);
   const event =
     streak.lastCompletedDayKey === currentDayKey
       ? await getXpSettlementEvent(db, userId, `streak-day:${currentDayKey}`)
@@ -1335,6 +1303,9 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
     period.localDate,
     protection.missedDaysProtected
   );
+  // Buffered comic retries renew outside this transaction, so a read cannot
+  // know when prior-day evidence is safe to delete. The next accepted action
+  // replaces this bounded payload.
   const currentEvidence =
     !protection.currentDayProtected &&
     streak.currentEvidenceDayKey === currentDayKey
