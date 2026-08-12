@@ -681,6 +681,17 @@ export async function applyStreakEvidenceInTransaction(
   if (!timezone || !isValidIanaTimezone(timezone)) {
     return { available: true, completed: false } as const;
   }
+  if (
+    !(await isEligible(
+      tx,
+      evidence.userId,
+      evidence.impersonated,
+      processingNow,
+      true
+    ))
+  ) {
+    return { available: true, completed: false } as const;
+  }
 
   const lockedStreak = await lockStreak(tx, evidence.userId, timezone, now);
   const transition = getPendingTimezoneTransition(lockedStreak);
@@ -942,17 +953,6 @@ export async function applyStreakEvidenceInTransaction(
       stepUpRequired: true,
     } as const;
   }
-  if (
-    !(await isEligible(
-      tx,
-      evidence.userId,
-      evidence.impersonated,
-      processingNow,
-      true
-    ))
-  ) {
-    return { available: true, completed: false } as const;
-  }
   const reviewRisk = classifyStreakReviewRisk(risk.signals);
   const assessment = reviewRisk
     ? {
@@ -1204,6 +1204,9 @@ export async function completeStreakStepUpInTransaction(
     where: eq(userStreak.userId, userId),
   });
   if (!existing) {
+    return { available: true, completed: false } as const;
+  }
+  if (!(await isEligible(tx, userId, false, now, true))) {
     return { available: true, completed: false } as const;
   }
   const streak = await lockStreak(tx, userId, existing.timezone, now);

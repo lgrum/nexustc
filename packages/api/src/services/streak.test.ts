@@ -839,6 +839,8 @@ describe("comment streak qualification", () => {
       }),
       now
     );
+    expect(tx.select.mock.calls[0]?.[0]).toBeDefined();
+    expect(tx.select.mock.calls[1]?.[0]).toBeUndefined();
     expect(updated).toHaveBeenCalledOnce();
   });
 
@@ -862,8 +864,8 @@ describe("comment streak qualification", () => {
       )
     ).resolves.toEqual({ available: true, completed: false });
 
-    expect(db.select).toHaveBeenCalledTimes(2);
-    expect(db.select.mock.calls[1]?.[0]).toBeDefined();
+    expect(db.select).toHaveBeenCalledOnce();
+    expect(db.select.mock.calls[0]?.[0]).toBeDefined();
     expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });
 
@@ -1206,21 +1208,25 @@ describe("comic reading streak qualification", () => {
           }),
         },
       },
-      select: vi.fn(() => ({
+      select: vi.fn((selection) => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
-            for: vi.fn().mockResolvedValue([
-              {
-                bestStreak: 0,
-                currentEvidence: { readingPageKeys: ["comic-1:1"] },
-                currentEvidenceDayKey: "user-1:1:2026-08-07",
-                currentStreak: 0,
-                lastCompletedDayKey: null,
-                lastCompletedLocalDate: null,
-                timezone: "UTC",
-                timezoneVersion: 1,
-              },
-            ]),
+            for: vi.fn().mockResolvedValue(
+              selection
+                ? [{ banExpires: null, banned: false, emailVerified: true }]
+                : [
+                    {
+                      bestStreak: 0,
+                      currentEvidence: { readingPageKeys: ["comic-1:1"] },
+                      currentEvidenceDayKey: "user-1:1:2026-08-07",
+                      currentStreak: 0,
+                      lastCompletedDayKey: null,
+                      lastCompletedLocalDate: null,
+                      timezone: "UTC",
+                      timezoneVersion: 1,
+                    },
+                  ]
+            ),
           })),
         })),
       })),

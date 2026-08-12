@@ -203,7 +203,12 @@ async function reversePostedCaseEvents(
     .where(
       and(eq(xpEvent.integrityCaseId, caseId), eq(xpEvent.state, "posted"))
     );
-  const caseOriginals = events.filter((event) => event.amount > 0);
+  const caseOriginals = events.filter(
+    (event) =>
+      event.amount > 0 ||
+      event.kind === "streak_day" ||
+      event.kind === "streak_challenge"
+  );
   const globalReversals =
     caseOriginals.length === 0
       ? []

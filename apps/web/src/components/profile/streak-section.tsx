@@ -39,6 +39,7 @@ export function StreakSection({
   const { data } = useSuspenseQuery(orpc.streak.getMine.queryOptions());
   const [offerDismissed, setOfferDismissed] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean | null>(null);
+  const [detectedTimezone, setDetectedTimezone] = useState<string | null>(null);
   const completionChallenge =
     data.available && data.initialized ? data.challenge : null;
   useEffect(() => {
@@ -141,6 +142,10 @@ export function StreakSection({
   );
 
   useEffect(() => {
+    setDetectedTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  }, []);
+
+  useEffect(() => {
     try {
       setSoundEnabled(localStorage.getItem(CHALLENGE_SOUND_KEY) === "on");
     } catch {
@@ -239,7 +244,6 @@ export function StreakSection({
     timeStyle: "short",
     timeZone: displayTimezone,
   });
-  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const canChangeTimezone =
     detectedTimezone &&
     detectedTimezone !== data.timezone &&
@@ -598,7 +602,9 @@ export function StreakSection({
         ) : null}
       </dl>
 
-      {detectedTimezone !== data.timezone && !data.pendingTimezone ? (
+      {detectedTimezone &&
+      detectedTimezone !== data.timezone &&
+      !data.pendingTimezone ? (
         <Button
           className="mt-5"
           disabled={!canChangeTimezone || timezoneMutation.isPending}

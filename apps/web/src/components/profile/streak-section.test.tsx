@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 
 import { StreakSection } from "./streak-section";
 
@@ -180,6 +181,12 @@ beforeEach(() => {
 });
 
 afterEach(() => vi.useRealTimers());
+
+it("defers browser timezone markup until after hydration", () => {
+  expect(renderToString(<StreakSection streakPublic={false} />)).not.toContain(
+    "Cambiar a"
+  );
+});
 
 it("refreshes the streak state when the local day deadline passes", () => {
   vi.useFakeTimers();

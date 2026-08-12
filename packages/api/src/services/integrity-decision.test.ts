@@ -228,7 +228,7 @@ describe("streak integrity decision", () => {
     });
   });
 
-  it("reconciles a capped zero-XP Streak Day without posting a reversal", async () => {
+  it("reverses and reconciles a capped zero-XP Streak Day", async () => {
     const { db, tx } = createStore([
       {
         amount: 0,
@@ -247,7 +247,14 @@ describe("streak integrity decision", () => {
       reason: "Abuso confirmado por revision humana",
     });
 
-    expect(progression.post).not.toHaveBeenCalled();
+    expect(progression.post).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        amount: -0,
+        reversesEventId: "capped-streak-day-1",
+      }),
+      expect.any(Date)
+    );
     expect(reconciliation.run).toHaveBeenCalledWith(
       tx,
       expect.objectContaining({ userId: "user-1" })
