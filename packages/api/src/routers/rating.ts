@@ -3,7 +3,11 @@ import { and, desc, eq, inArray, isNull, lt, not, or, sql } from "@repo/db";
 import { post, postRating, postRatingLikes, user } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { MAX_PINNED_ITEMS_PER_POST } from "@repo/shared/constants";
-import { ratingCreateSchema, ratingUpdateSchema } from "@repo/shared/schemas";
+import {
+  ratingCreateSchema,
+  ratingReviewSchema,
+  ratingUpdateSchema,
+} from "@repo/shared/schemas";
 import z from "zod";
 
 import type { Context } from "../context";
@@ -49,6 +53,7 @@ const ratingsByUserPaginationSchema = z.object({
     .optional(),
   limit: z.number().min(1).max(30).default(10),
 });
+const reviewHasText = sql<boolean>`length(trim(${postRating.review})) > 0`;
 
 type ReviewMilestoneSettlement = Awaited<
   ReturnType<typeof settleReviewMilestonesInTransaction>
@@ -141,7 +146,7 @@ async function getRatingsByUser({
     .from(postRating)
     .innerJoin(user, eq(user.id, postRating.userId))
     .innerJoin(post, eq(post.id, postRating.postId))
-    .where(and(visibilityCondition, cursorCondition))
+    .where(and(visibilityCondition, reviewHasText, cursorCondition))
     .orderBy(desc(postRating.createdAt), desc(postRating.postId))
     .limit(limit);
 
@@ -371,6 +376,7 @@ export default {
             earlyAccessEnabled: post.earlyAccessEnabled,
             earlyAccessStartedAt: post.earlyAccessStartedAt,
             id: postRating.id,
+            review: postRating.review,
             releasedAt: post.releasedAt,
             status: post.status,
             type: post.type,
@@ -388,7 +394,10 @@ export default {
             )
           )
           .limit(1);
-        if (!existingRating) {
+        if (
+          !existingRating ||
+          !ratingReviewSchema.safeParse(existingRating.review).success
+        ) {
           throw errors.NOT_FOUND();
         }
         if (
@@ -605,7 +614,11 @@ export default {
         .from(postRating)
         .innerJoin(user, eq(user.id, postRating.userId))
         .where(
-          and(eq(postRating.postId, input.postId), userIsNotActivelyBanned())
+          and(
+            eq(postRating.postId, input.postId),
+            reviewHasText,
+            userIsNotActivelyBanned()
+          )
         )
         .orderBy(
           sql`${postRating.pinnedAt} DESC NULLS LAST`,
@@ -688,6 +701,7 @@ export default {
         .where(
           and(
             eq(post.status, "publish"),
+            reviewHasText,
             publicCatalogVisibilityCondition(),
             userIsNotActivelyBanned()
           )

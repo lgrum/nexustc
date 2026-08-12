@@ -54,6 +54,7 @@ export async function saveRatingInTransaction(
   let firstQualifyingReview = Boolean(
     inserted && ratingReviewSchema.safeParse(inserted.review).success
   );
+  let previousQualifyingReview = false;
   let savedReview = inserted;
 
   if (!savedReview) {
@@ -70,6 +71,9 @@ export async function saveRatingInTransaction(
     if (!existing) {
       return;
     }
+    previousQualifyingReview = ratingReviewSchema.safeParse(
+      existing.review
+    ).success;
 
     [savedReview] = await tx
       .update(postRating)
@@ -87,18 +91,27 @@ export async function saveRatingInTransaction(
       )
       .returning(savedReviewSelection);
     firstQualifyingReview =
-      !ratingReviewSchema.safeParse(existing.review).success &&
+      !previousQualifyingReview &&
       ratingReviewSchema.safeParse(input.review).success;
   }
 
   if (!savedReview) {
     return;
   }
-  const { settlements } = await reconcileEditedReviewRewardsInTransaction(
-    tx,
-    savedReview,
-    input.now
-  );
+  const currentQualifyingReview = ratingReviewSchema.safeParse(
+    savedReview.review
+  ).success;
+  const shouldReconcileReview =
+    currentQualifyingReview || previousQualifyingReview;
+  const { settlements } = shouldReconcileReview
+    ? await reconcileEditedReviewRewardsInTransaction(
+        tx,
+        firstQualifyingReview
+          ? { ...savedReview, createdAt: input.now }
+          : savedReview,
+        input.now
+      )
+    : { settlements: [] };
   let streak = null;
   if (firstQualifyingReview) {
     streak = await applyStreakEvidenceInTransaction(

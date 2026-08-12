@@ -4,8 +4,8 @@ import {
   postRating,
   postRatingLikes,
   user,
+  xpRewardSubject,
 } from "@repo/db/schema/app";
-import type { xpRewardSubject } from "@repo/db/schema/app";
 
 import {
   deleteCommentWithRewards,
@@ -1497,6 +1497,10 @@ describe("review daily cap", () => {
       returning.mockResolvedValue([{ ...subject, ...input }]);
       return { returning };
     });
+    const activeEarlierQuery = {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockResolvedValue([{ count }]),
+    };
     const select = vi
       .fn()
       .mockReturnValueOnce({
@@ -1504,10 +1508,7 @@ describe("review daily cap", () => {
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
       })
-      .mockReturnValueOnce({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockResolvedValue([{ count }]),
-      })
+      .mockReturnValueOnce(activeEarlierQuery)
       .mockReturnValueOnce({
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockResolvedValue([{ count: 0 }]),
@@ -1522,6 +1523,7 @@ describe("review daily cap", () => {
     } as unknown as Transaction;
 
     await saveReviewRewardSubjectInTransaction(tx, review);
+    expect(activeEarlierQuery.from).toHaveBeenCalledWith(xpRewardSubject);
     expect(values).toHaveBeenCalledWith(
       expect.objectContaining({ dailyCapEligible: expected })
     );

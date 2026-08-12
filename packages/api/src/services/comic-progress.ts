@@ -190,7 +190,7 @@ async function acquireReadingSessionLock(
         PX: COMIC_READING_SESSION_LOCK_TTL_MS,
       })) === "OK"
     ) {
-      return { acquired: true, waited: attempt > 0 };
+      return { acquired: true };
     }
     if (attempt < COMIC_READING_SESSION_LOCK_RETRY_ATTEMPTS - 1) {
       await new Promise((resolve) =>
@@ -198,7 +198,7 @@ async function acquireReadingSessionLock(
       );
     }
   }
-  return { acquired: false, waited: true };
+  return { acquired: false };
 }
 
 async function releaseReadingSessionLock(
@@ -1265,7 +1265,6 @@ async function trackComicPageViewWithLockHeld(params: {
   role?: string | null;
   timezone?: string;
   userId: string;
-  waitedForLock?: boolean;
 }) {
   let state: ReadingSessionState | null;
   try {
@@ -1331,15 +1330,8 @@ async function trackComicPageViewWithLockHeld(params: {
   }
 
   const nowMs = params.now.getTime();
-  const checkpointNowMs =
-    params.waitedForLock &&
-    state.lastAcceptedAtMs !== null &&
-    state.lastAcceptedPage !== null &&
-    params.page > state.lastAcceptedPage
-      ? Math.max(nowMs, state.lastAcceptedAtMs + MIN_PAGE_ADVANCE_INTERVAL_MS)
-      : nowMs;
   const checkpoint = applyCheckpoint({
-    nowMs: checkpointNowMs,
+    nowMs,
     page: params.page,
     state,
   });
@@ -1436,13 +1428,9 @@ async function trackComicPageViewWithLockHeld(params: {
 }
 
 export async function trackComicPageView(
-  params: Omit<
-    Parameters<typeof trackComicPageViewWithLockHeld>[0],
-    "waitedForLock"
-  >
+  params: Parameters<typeof trackComicPageViewWithLockHeld>[0]
 ) {
   const token = generateId();
-  let waitedForLock = false;
   try {
     const lock = await acquireReadingSessionLock(
       params.cache,
@@ -1452,13 +1440,12 @@ export async function trackComicPageView(
     if (!lock.acquired) {
       return getTrackingUnavailableResult();
     }
-    waitedForLock = lock.waited;
   } catch {
     return getTrackingUnavailableResult();
   }
 
   try {
-    return await trackComicPageViewWithLockHeld({ ...params, waitedForLock });
+    return await trackComicPageViewWithLockHeld(params);
   } finally {
     try {
       await releaseReadingSessionLock(

@@ -608,10 +608,11 @@ describe("verified comic reading rewards", () => {
 
     await expect(first).resolves.toMatchObject({ accepted: true });
     await expect(second).resolves.toMatchObject({
-      accepted: true,
-      lastPageRead: 2,
+      accepted: false,
+      lastPageRead: 1,
+      reason: "invalid_page",
       trackingAvailable: true,
-      verifiedThroughPage: 2,
+      verifiedThroughPage: 1,
     });
 
     expect(set).toHaveBeenNthCalledWith(

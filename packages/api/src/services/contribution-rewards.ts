@@ -444,17 +444,19 @@ export async function saveReviewRewardSubjectInTransaction(
   const { end, start } = getUtcDayRange(review.createdAt);
   const [activeEarlier] = await tx
     .select({ count: sql<number>`COUNT(*)::integer` })
-    .from(postRating)
+    .from(xpRewardSubject)
     .where(
       and(
-        eq(postRating.userId, review.userId),
-        gte(postRating.createdAt, start),
-        lt(postRating.createdAt, end),
+        eq(xpRewardSubject.userId, review.userId),
+        eq(xpRewardSubject.kind, "review"),
+        isNull(xpRewardSubject.deletedAt),
+        gte(xpRewardSubject.createdAt, start),
+        lt(xpRewardSubject.createdAt, end),
         or(
-          lt(postRating.createdAt, review.createdAt),
+          lt(xpRewardSubject.createdAt, review.createdAt),
           and(
-            eq(postRating.createdAt, review.createdAt),
-            lt(postRating.id, review.id)
+            eq(xpRewardSubject.createdAt, review.createdAt),
+            lt(xpRewardSubject.entityId, review.id)
           )
         )
       )

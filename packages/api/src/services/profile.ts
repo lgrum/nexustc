@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "@repo/db";
+import { and, eq, inArray, ne, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   patron,
@@ -268,6 +268,7 @@ export async function getPublicProfileActivityCounts(
         .where(
           and(
             eq(postRating.userId, userId),
+            ne(postRating.review, ""),
             eq(post.status, "publish"),
             publicCatalogVisibilityCondition(now),
             userIsNotActivelyBanned(now)
@@ -294,6 +295,14 @@ export async function getPublicCurrentStreak(
   now = new Date()
 ) {
   if (!visibility.streak) {
+    return null;
+  }
+
+  const publicAccount = await db.query.user.findFirst({
+    columns: { id: true },
+    where: and(eq(user.id, userId), userIsNotActivelyBanned(now)),
+  });
+  if (!publicAccount) {
     return null;
   }
 

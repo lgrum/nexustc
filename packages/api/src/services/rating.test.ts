@@ -1,5 +1,7 @@
 import { saveRatingInTransaction } from "./rating";
 
+beforeEach(() => vi.clearAllMocks());
+
 const dependencies = vi.hoisted(() => ({
   applyStreakEvidenceInTransaction: vi.fn(),
   lockContributionParticipantsInTransaction: vi.fn(),
@@ -124,3 +126,98 @@ it("emits one Contribution transition across competing rating transactions", asy
   ).toHaveBeenCalledWith(expect.anything(), ["user-1"]);
   expect(dependencies.applyStreakEvidenceInTransaction).toHaveBeenCalledOnce();
 });
+
+it("timestamps the reward subject when a bare rating first becomes a review", async () => {
+  const createdAt = new Date("2026-08-01T12:00:00.000Z");
+  const now = new Date("2026-08-08T12:00:00.000Z");
+  const saved = {
+    createdAt,
+    id: "review-1",
+    postId: "post-1",
+    review: reviewA,
+    userId: "user-1",
+  };
+  const tx = createRatingTransaction({ existingReview: "", saved });
+
+  await saveRatingInTransaction(tx as never, {
+    contentType: "post",
+    impersonated: false,
+    insertIfMissing: false,
+    now,
+    postId: "post-1",
+    rating: 8,
+    review: reviewA,
+    userId: "user-1",
+  });
+
+  expect(
+    dependencies.reconcileEditedReviewRewardsInTransaction
+  ).toHaveBeenCalledWith(tx, { ...saved, createdAt: now }, now);
+});
+
+it("does not create a review reward subject for a bare rating", async () => {
+  const now = new Date("2026-08-08T12:00:00.000Z");
+  const tx = createRatingTransaction({
+    saved: {
+      createdAt: now,
+      id: "rating-1",
+      postId: "post-1",
+      review: "",
+      userId: "user-1",
+    },
+  });
+
+  await saveRatingInTransaction(tx as never, {
+    contentType: "post",
+    impersonated: false,
+    insertIfMissing: true,
+    now,
+    postId: "post-1",
+    rating: 8,
+    review: "",
+    userId: "user-1",
+  });
+
+  expect(
+    dependencies.reconcileEditedReviewRewardsInTransaction
+  ).not.toHaveBeenCalled();
+});
+
+function createRatingTransaction(input: {
+  existingReview?: string;
+  saved: {
+    createdAt: Date;
+    id: string;
+    postId: string;
+    review: string;
+    userId: string;
+  };
+}) {
+  return {
+    insert: vi.fn(() => ({
+      values: vi.fn(() => ({
+        onConflictDoNothing: vi.fn(() => ({
+          returning: vi
+            .fn()
+            .mockResolvedValue(
+              input.existingReview === undefined ? [input.saved] : []
+            ),
+        })),
+      })),
+    })),
+    select: vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          for: vi.fn().mockResolvedValue([{ review: input.existingReview }]),
+        })),
+      })),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({
+        where: vi.fn(() => ({
+          returning: vi.fn().mockResolvedValue([input.saved]),
+        })),
+      })),
+    })),
+  };
+}

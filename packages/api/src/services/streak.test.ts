@@ -23,6 +23,7 @@ const progression = vi.hoisted(() => ({
     pendingXp: 50,
     replayed: false,
   }),
+  notifyXpSettlementInTransaction: vi.fn(),
   postXpEventInTransaction: vi.fn(),
 }));
 const integritySettlement = vi.hoisted(() => ({
@@ -1706,6 +1707,68 @@ describe("adaptive streak integrity", () => {
         now
       )
     ).resolves.not.toHaveProperty("dayCompletion");
+  });
+
+  it("notifies standard progression changes for an immediate daily reward", async () => {
+    const db = createStreakDb({});
+    const now = new Date("2026-08-08T12:00:00.000Z");
+    const settlement = {
+      eventId: "xp-1",
+      level: 2,
+      previousLevel: 1,
+      replayed: false,
+    };
+    progression.postXpEventInTransaction.mockResolvedValue(settlement);
+
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      contributionEvidence("comment-level-up"),
+      now
+    );
+
+    expect(progression.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      db,
+      "user-1",
+      settlement
+    );
+  });
+
+  it("accepts streak evidence after a temporary ban has expired", async () => {
+    const db = createStreakDb({});
+    db.query.user.findFirst.mockResolvedValue({
+      banExpires: new Date("2026-08-07T12:00:00.000Z"),
+      banned: true,
+      emailVerified: true,
+    });
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        contributionEvidence("comment-after-ban"),
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: true });
+  });
+
+  it("ignores evidence older than the latest completed local day", async () => {
+    const db = createStreakDb({
+      currentStreak: 2,
+      lastCompletedDayKey: "user-1:1:2026-08-09",
+      lastCompletedLocalDate: "2026-08-09",
+    });
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        contributionEvidence("delayed-comment"),
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: false });
+    await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({
+      currentStreak: 2,
+      lastCompletedLocalDate: "2026-08-09",
+    });
+    expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });
 
   it("retains medium automation evidence without completing the day", async () => {

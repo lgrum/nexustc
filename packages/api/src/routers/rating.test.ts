@@ -493,6 +493,7 @@ describe("stable review likes", () => {
         earlyAccessEnabled: false,
         earlyAccessStartedAt: null,
         id: "review-current",
+        review: qualifyingReview,
         releasedAt: null,
         status: "publish",
         type: "post",
@@ -550,6 +551,7 @@ describe("stable review likes", () => {
         earlyAccessEnabled: false,
         earlyAccessStartedAt: null,
         id: "review-current",
+        review: qualifyingReview,
         releasedAt: null,
         status: "publish",
         type: "post",
@@ -632,6 +634,7 @@ describe("stable review likes", () => {
         earlyAccessEnabled: false,
         earlyAccessStartedAt: null,
         id: "review-current",
+        review: qualifyingReview,
         releasedAt: null,
         status: "publish",
         type: "post",
@@ -672,6 +675,7 @@ describe("stable review likes", () => {
         earlyAccessEnabled: false,
         earlyAccessStartedAt: null,
         id: "review-current",
+        review: qualifyingReview,
         releasedAt: null,
         status: "publish",
         type: "post",
@@ -713,12 +717,51 @@ describe("stable review likes", () => {
     });
   });
 
+  it("rejects likes on rating-only rows", async () => {
+    const ratingQuery = createPaginatedQuery([
+      {
+        earlyAccessEnabled: false,
+        earlyAccessStartedAt: null,
+        id: "rating-only",
+        releasedAt: null,
+        review: "",
+        status: "publish",
+        type: "post",
+        vip12EarlyAccessHours: 0,
+        vip8EarlyAccessHours: 0,
+      },
+    ]);
+    const insert = vi.fn();
+    const executor = {
+      insert,
+      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      select: vi.fn().mockReturnValue(ratingQuery),
+    };
+    const context = {
+      ...createContext(executor.select),
+      db: {
+        ...executor,
+        transaction: vi.fn((callback) => callback(executor)),
+      },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        ratingRouter.toggleReviewLike,
+        { liked: true, postId: "post-1", ratingUserId: "author-1" },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
   it("rejects a like when the parent post is not viewable", async () => {
     const ratingQuery = createPaginatedQuery([
       {
         earlyAccessEnabled: false,
         earlyAccessStartedAt: null,
         id: "review-hidden",
+        review: qualifyingReview,
         releasedAt: null,
         status: "draft",
         type: "post",

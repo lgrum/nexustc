@@ -33,12 +33,14 @@ import {
   getTimezoneChangeEffectiveAt,
   isValidIanaTimezone,
 } from "../utils/streak-time";
+import { isUserBanActive } from "../utils/user-ban";
 import { settleXpWithIntegrityInTransaction } from "./integrity-settlement";
 import type { IntegrityRiskSignal } from "./integrity-settlement";
 import { createUserNotification } from "./notification";
 import {
   createPendingXpEventInTransaction,
   lockUserProgressionInTransaction,
+  notifyXpSettlementInTransaction,
   postXpEventInTransaction,
 } from "./progression";
 import { readProgressionActivationDate } from "./progression-activation";
@@ -220,14 +222,15 @@ export async function isStreakAvailable(executor: Pick<Database, "select">) {
 async function isEligible(
   executor: StreakExecutor,
   userId: string,
-  impersonated: boolean
+  impersonated: boolean,
+  now: Date
 ) {
   if (impersonated) {
     return false;
   }
   const [account, wallet] = await Promise.all([
     executor.query.user.findFirst({
-      columns: { banned: true, emailVerified: true },
+      columns: { banExpires: true, banned: true, emailVerified: true },
       where: eq(user.id, userId),
     }),
     executor.query.eterisWallet.findFirst({
@@ -237,7 +240,7 @@ async function isEligible(
   ]);
   return Boolean(
     account?.emailVerified &&
-    !account.banned &&
+    !isUserBanActive(account, now) &&
     (!wallet || wallet.status === "active")
   );
 }
@@ -469,7 +472,7 @@ export async function applyStreakEvidenceInTransaction(
     return { available: false, completed: false } as const;
   }
   if (
-    !(await isEligible(tx, evidence.userId, evidence.impersonated)) ||
+    !(await isEligible(tx, evidence.userId, evidence.impersonated, now)) ||
     (evidence.kind === "contribution" &&
       (evidence.source.kind === "review"
         ? !ratingReviewSchema.safeParse(evidence.text).success
@@ -498,6 +501,12 @@ export async function applyStreakEvidenceInTransaction(
   }
   const streak = await activateTimezoneIfDue(tx, lockedStreak, now);
   const period = getStreakDayPeriod(now, streak.timezone);
+  if (
+    streak.lastCompletedLocalDate &&
+    period.localDate < streak.lastCompletedLocalDate
+  ) {
+    return { available: true, completed: false } as const;
+  }
   const currentDayKey = getDayKey(
     evidence.userId,
     streak.timezoneVersion,
@@ -777,6 +786,7 @@ export async function applyStreakEvidenceInTransaction(
   let result;
   if (assessment.disposition === "low") {
     result = await postXpEventInTransaction(tx, dailyCommand, now);
+    await notifyXpSettlementInTransaction(tx, evidence.userId, result);
   } else {
     const integrityResult = await settleXpWithIntegrityInTransaction(
       tx,
@@ -823,19 +833,31 @@ export async function applyStreakEvidenceInTransaction(
       sourceRef: challengeIdempotencyKey,
       userId: evidence.userId,
     } as const;
-    const challengeResult = pendingCase
-      ? await createPendingXpEventInTransaction(
-          tx,
-          {
-            ...challengeCommand,
-            ...(pendingCase.availableAt
-              ? { availableAt: pendingCase.availableAt }
-              : {}),
-            integrityCaseId: pendingCase.caseId,
-          },
-          now
-        )
-      : await postXpEventInTransaction(tx, challengeCommand, now);
+    let challengeResult;
+    if (pendingCase) {
+      challengeResult = await createPendingXpEventInTransaction(
+        tx,
+        {
+          ...challengeCommand,
+          ...(pendingCase.availableAt
+            ? { availableAt: pendingCase.availableAt }
+            : {}),
+          integrityCaseId: pendingCase.caseId,
+        },
+        now
+      );
+    } else {
+      challengeResult = await postXpEventInTransaction(
+        tx,
+        challengeCommand,
+        now
+      );
+      await notifyXpSettlementInTransaction(
+        tx,
+        evidence.userId,
+        challengeResult
+      );
+    }
     const challengePending =
       pendingCase !== null ||
       ("pendingXp" in challengeResult && Boolean(challengeResult.pendingXp));
@@ -1185,7 +1207,7 @@ export async function selectStreakChallengeInTransaction(
   if (!streakChallengeTargetSchema.safeParse(target).success) {
     throw new StreakError("INVALID_CHALLENGE_TARGET");
   }
-  if (!(await isEligible(tx, userId, false))) {
+  if (!(await isEligible(tx, userId, false, now))) {
     return { available: true, initialized: false } as const;
   }
   const existing = await tx.query.userStreak.findFirst({
@@ -1250,7 +1272,7 @@ export async function setStreakTimezoneInTransaction(
   if (!isValidIanaTimezone(timezone)) {
     throw new StreakError("INVALID_TIMEZONE");
   }
-  if (!(await isEligible(tx, userId, false))) {
+  if (!(await isEligible(tx, userId, false, now))) {
     return { available: true, initialized: false } as const;
   }
   const lockedStreak = await lockStreak(tx, userId, timezone, now);

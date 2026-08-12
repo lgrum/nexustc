@@ -8,9 +8,13 @@ import {
 import {
   getProfileEntitlements,
   getProfileEntitlementsForTier,
+  getPublicCurrentStreak,
   getPublicProfileActivityCounts,
   resolveProfileVisibility,
 } from "./profile";
+
+const streak = vi.hoisted(() => ({ getStreakState: vi.fn() }));
+vi.mock("./streak", () => ({ getStreakState: streak.getStreakState }));
 
 function createCountQuery(rows: { count: number }[]) {
   const query = {
@@ -105,6 +109,24 @@ describe(getPublicProfileActivityCounts, () => {
     expect(reviewQuery.innerJoin).toHaveBeenCalledTimes(2);
     expect(favoriteQuery.where).toHaveBeenCalledOnce();
     expect(reviewQuery.where).toHaveBeenCalledOnce();
+  });
+});
+
+describe(getPublicCurrentStreak, () => {
+  it("does not expose streaks for actively banned accounts", async () => {
+    const db = {
+      query: { user: { findFirst: vi.fn().mockResolvedValue(null) } },
+    };
+
+    await expect(
+      getPublicCurrentStreak(
+        db as never,
+        "user-1",
+        { favorites: true, reserved: {}, reviews: true, streak: true },
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toBeNull();
+    expect(streak.getStreakState).not.toHaveBeenCalled();
   });
 });
 

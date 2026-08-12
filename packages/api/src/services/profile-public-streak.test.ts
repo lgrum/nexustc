@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({ getStreakState: vi.fn() }));
 vi.mock("./streak", () => ({ getStreakState: mocks.getStreakState }));
 
 const visible = { ...PROFILE_VISIBILITY_DEFAULTS, streak: true };
+const publicAccountDb = {
+  query: {
+    user: { findFirst: vi.fn().mockResolvedValue({ id: "user-1" }) },
+  },
+};
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -25,7 +30,7 @@ it.each([
   mocks.getStreakState.mockResolvedValueOnce(state);
 
   await expect(
-    getPublicCurrentStreak({} as never, "user-1", visible)
+    getPublicCurrentStreak(publicAccountDb as never, "user-1", visible)
   ).resolves.toBeNull();
 });
 
@@ -42,7 +47,7 @@ it("returns only the authoritative effective current streak", async () => {
 
   await expect(
     getPublicCurrentStreak(
-      {} as never,
+      publicAccountDb as never,
       "user-1",
       visible,
       new Date("2026-08-08T12:00:00.000Z")
