@@ -29,17 +29,25 @@ describe("streak integrity", () => {
     expect(classifyStreakReviewRisk(signals)).toBe("medium");
   });
 
-  it("derives high risk from existing multi-account device correlation", async () => {
+  it("keeps neutral like observations out of streak review", () => {
+    const signals = [
+      { count: 1, kind: "like_correlation_observation" as const },
+    ];
+
+    expect(classifyStreakIntegrityRisk(signals)).toBe("low");
+    expect(classifyStreakReviewRisk(signals)).toBeNull();
+  });
+
+  it("counts the acting account in multi-account device correlation", async () => {
     const findMany = vi.fn().mockResolvedValue([
       { kind: "source_cap_pressure", userId: "user-1" },
       { kind: "source_cap_pressure", userId: "user-2" },
-      { kind: "source_cap_pressure", userId: "user-3" },
     ]);
 
     await expect(
       assessStreakIntegrityRisk(
         { query: { xpRiskSignal: { findMany } } } as never,
-        "user-1",
+        "user-3",
         { deviceHash: "device-a", ipPrefixHash: null },
         new Date("2026-08-08T12:00:00.000Z")
       )

@@ -776,6 +776,7 @@ export async function postXpEventInTransaction(
     kind: input.kind,
     metadata: {
       ...input.metadata,
+      ...(isStreakCompletionLedgerEntry && { completionLedger: true }),
       levelAfter: level,
       levelBefore: progression.level,
       requestedAmount: input.amount,

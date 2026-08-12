@@ -24,6 +24,9 @@ const AUTOMATION_SIGNAL_KINDS: ReadonlySet<string> = new Set([
   "like_toggle_velocity",
   "rejected_sequence",
 ]);
+const NEUTRAL_SIGNAL_KINDS: ReadonlySet<string> = new Set([
+  "like_correlation_observation",
+]);
 const CLEARANCE_SECONDS = 30 * 60;
 const RISK_QUERY_LIMIT = 100;
 const ACTION_RISK_WINDOWS = {
@@ -58,7 +61,12 @@ export function classifyStreakReviewRisk(signals: IntegrityRiskSignal[]) {
   if (signals.some(({ kind }) => kind === "account_correlation")) {
     return "high" as const;
   }
-  if (signals.some(({ kind }) => !AUTOMATION_SIGNAL_KINDS.has(kind))) {
+  if (
+    signals.some(
+      ({ kind }) =>
+        !AUTOMATION_SIGNAL_KINDS.has(kind) && !NEUTRAL_SIGNAL_KINDS.has(kind)
+    )
+  ) {
     return "medium" as const;
   }
   return null;
@@ -98,8 +106,10 @@ export async function assessStreakIntegrityRisk(
   }
   if (
     correlation.deviceHash &&
-    new Set(rows.map(({ userId: correlatedUserId }) => correlatedUserId))
-      .size >= 3
+    new Set([
+      userId,
+      ...rows.map(({ userId: correlatedUserId }) => correlatedUserId),
+    ]).size >= 3
   ) {
     counts.set("account_correlation", 3);
   }

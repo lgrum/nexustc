@@ -1,4 +1,4 @@
-import { and, eq, getRedis, gt, inArray, lte, sql } from "@repo/db";
+import { and, desc, eq, getRedis, gt, inArray, lte, or, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisWallet,
@@ -193,18 +193,40 @@ function getChallengeState(
   };
 }
 
+function getLatestStreakSettlementEvent(
+  executor: Pick<Database, "query">,
+  userId: string,
+  idempotencyKey: string
+) {
+  return executor.query.xpEvent.findFirst({
+    columns: {
+      amount: true,
+      id: true,
+      idempotencyKey: true,
+      metadata: true,
+      state: true,
+    },
+    orderBy: [desc(xpEvent.createdAt), desc(xpEvent.id)],
+    where: and(
+      eq(xpEvent.userId, userId),
+      or(
+        eq(xpEvent.idempotencyKey, idempotencyKey),
+        sql`starts_with(${xpEvent.idempotencyKey}, ${`${idempotencyKey}:retry:`})`
+      )
+    ),
+  });
+}
+
 async function getXpSettlementEvent(
   executor: Pick<Database, "query">,
   userId: string,
   idempotencyKey: string
 ) {
-  const original = await executor.query.xpEvent.findFirst({
-    columns: { amount: true, id: true, metadata: true, state: true },
-    where: and(
-      eq(xpEvent.userId, userId),
-      eq(xpEvent.idempotencyKey, idempotencyKey)
-    ),
-  });
+  const original = await getLatestStreakSettlementEvent(
+    executor,
+    userId,
+    idempotencyKey
+  );
   if (!original || original.state !== "cancelled") {
     return original ?? null;
   }
@@ -220,34 +242,34 @@ async function getXpSettlementEvent(
   );
 }
 
-async function getStreakDayIdempotencyKey(
+async function getRetryableStreakIdempotencyKey(
   executor: Pick<Database, "query">,
   userId: string,
-  dayKey: string,
+  baseKey: string,
   now: Date
 ) {
-  const baseKey = `streak-day:${dayKey}`;
-  const original = await executor.query.xpEvent.findFirst({
-    columns: { id: true, state: true },
-    where: and(eq(xpEvent.userId, userId), eq(xpEvent.idempotencyKey, baseKey)),
-  });
-  if (!original) {
+  const latest = await getLatestStreakSettlementEvent(
+    executor,
+    userId,
+    baseKey
+  );
+  if (!latest) {
     return baseKey;
   }
   const reversal =
-    original.state === "posted"
+    latest.state === "posted"
       ? await executor.query.xpEvent.findFirst({
           columns: { id: true },
           where: and(
             eq(xpEvent.kind, "reversal"),
-            eq(xpEvent.reversesEventId, original.id),
+            eq(xpEvent.reversesEventId, latest.id),
             eq(xpEvent.state, "posted")
           ),
         })
       : null;
-  return original.state === "cancelled" || reversal
+  return latest.state === "cancelled" || reversal
     ? `${baseKey}:retry:${now.getTime()}`
-    : baseKey;
+    : latest.idempotencyKey;
 }
 
 function getChallengeCompletionEvent(
@@ -850,10 +872,10 @@ export async function applyStreakEvidenceInTransaction(
   }
   const dailyCommand = {
     amount,
-    idempotencyKey: await getStreakDayIdempotencyKey(
+    idempotencyKey: await getRetryableStreakIdempotencyKey(
       tx,
       evidence.userId,
-      currentDayKey,
+      `streak-day:${currentDayKey}`,
       now
     ),
     kind: "streak_day",
@@ -923,7 +945,12 @@ export async function applyStreakEvidenceInTransaction(
       : null;
   let challenge;
   if (challengeAmount) {
-    const challengeIdempotencyKey = `streak-challenge:${currentDayKey}:${challengeTarget}`;
+    const challengeIdempotencyKey = await getRetryableStreakIdempotencyKey(
+      tx,
+      evidence.userId,
+      `streak-challenge:${currentDayKey}:${challengeTarget}`,
+      now
+    );
     const challengeCommand = {
       amount: challengeAmount,
       idempotencyKey: challengeIdempotencyKey,

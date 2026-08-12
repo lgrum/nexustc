@@ -237,3 +237,14 @@ test("streak challenges persist one immutable target and completion", async () =
   expect(migrationSql).toContain('"challenge_target" in (10, 20, 30)');
   expect(migrationSql).toContain('"challenge_completed_day_key" text');
 });
+
+test("zero-XP streak ledger entries avoid uncommitted enum labels", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0070_hard_lucky_pierre.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain("completionLedger");
+  expect(migrationSql).not.toContain("streak_day");
+  expect(migrationSql).not.toContain("streak_challenge");
+});

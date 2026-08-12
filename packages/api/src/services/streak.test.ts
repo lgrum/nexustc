@@ -159,6 +159,37 @@ describe("streak challenge", () => {
     expect(notifications.createUserNotification).toHaveBeenCalledOnce();
   });
 
+  it("uses a fresh challenge key after the same completion was reversed", async () => {
+    const db = createStreakDb({
+      challengeSelectedAt: new Date("2026-08-01T12:00:00.000Z"),
+      challengeTarget: 10,
+      currentStreak: 9,
+      lastCompletedDayKey: "user-1:1:2026-08-07",
+      lastCompletedLocalDate: "2026-08-07",
+    });
+    const now = new Date("2026-08-08T12:00:00.000Z");
+    db.query.xpEvent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "original-challenge", state: "posted" })
+      .mockResolvedValueOnce({ id: "challenge-reversal", state: "posted" });
+
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      contributionEvidence("comment-after-challenge-reversal"),
+      now
+    );
+
+    expect(progression.postXpEventInTransaction).toHaveBeenNthCalledWith(
+      2,
+      db,
+      expect.objectContaining({
+        idempotencyKey:
+          "streak-challenge:user-1:1:2026-08-08:10:retry:1786190400000",
+      }),
+      now
+    );
+  });
+
   it("reports a challenge bonus as pending until its XP is reviewed", async () => {
     progression.postXpEventInTransaction
       .mockResolvedValueOnce({
@@ -383,6 +414,37 @@ describe("streak challenge", () => {
       pendingXp: false,
       todayXp: 0,
     });
+  });
+
+  it("reports the latest retry settlement for the current local day", async () => {
+    const db = createStreakDb({
+      currentEvidence: { completedPath: "reading" },
+      currentEvidenceDayKey: "user-1:1:2026-08-08",
+      currentStreak: 1,
+      lastCompletedDayKey: "user-1:1:2026-08-08",
+      lastCompletedLocalDate: "2026-08-08",
+    });
+    db.query.xpEvent.findFirst.mockResolvedValueOnce({
+      amount: 10,
+      id: "retry-daily",
+      metadata: { path: "reading" },
+      state: "posted",
+    });
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      pendingXp: false,
+      reading: { completed: true },
+      todayXp: 10,
+    });
+    expect(db.query.xpEvent.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: expect.any(Array) })
+    );
   });
 
   it("completes a challenge without claiming XP at the Account cap", async () => {

@@ -6372,7 +6372,7 @@
       "checkConstraints": {
         "xp_event_amount_check": {
           "name": "xp_event_amount_check",
-          "value": "\"xp_event\".\"amount\" <> 0 or (\"xp_event\".\"kind\" = 'reversal' and \"xp_event\".\"reverses_event_id\" is not null and \"xp_event\".\"state\" = 'posted') or (\"xp_event\".\"kind\" in ('streak_day', 'streak_challenge') and \"xp_event\".\"state\" = 'posted')"
+          "value": "\"xp_event\".\"amount\" <> 0 or (\"xp_event\".\"kind\" = 'reversal' and \"xp_event\".\"reverses_event_id\" is not null and \"xp_event\".\"state\" = 'posted') or (\"xp_event\".\"state\" = 'posted' and \"xp_event\".\"metadata\"->>'completionLedger' = 'true')"
         }
       },
       "isRLSEnabled": false

@@ -1488,7 +1488,10 @@ describe("progression service", () => {
     expect(store.getEvent()).toMatchObject({
       amount: 0,
       kind: "streak_day",
-      metadata: expect.objectContaining({ requestedAmount: 25 }),
+      metadata: expect.objectContaining({
+        completionLedger: true,
+        requestedAmount: 25,
+      }),
     });
   });
 
