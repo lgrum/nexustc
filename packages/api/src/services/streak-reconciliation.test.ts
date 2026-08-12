@@ -167,6 +167,7 @@ describe("streak ledger reconciliation", () => {
       const day = index + 1;
       return streakDay(day, index === 0 ? null : index, {
         amount: day >= 8 ? 15 : day >= 4 ? 10 : 5,
+        ...(day === 5 ? { integrityCaseId: "case-day-5" } : {}),
       });
     });
     const { tx, updates } = createTransaction([
@@ -180,12 +181,13 @@ describe("streak ledger reconciliation", () => {
       },
     ]);
 
-    await reconcileStreakAfterIntegrityDecisionInTransaction(tx as never, {
-      actorUserId: "staff-1",
-      caseId: "case-1",
-      now: new Date("2026-08-09T12:00:00.000Z"),
-      userId: "user-1",
-    });
+    const settlements =
+      await reconcileStreakAfterIntegrityDecisionInTransaction(tx as never, {
+        actorUserId: "staff-1",
+        caseId: "case-1",
+        now: new Date("2026-08-09T12:00:00.000Z"),
+        userId: "user-1",
+      });
 
     expect(progression.post).toHaveBeenCalledWith(
       tx,
@@ -201,13 +203,18 @@ describe("streak ledger reconciliation", () => {
       expect.objectContaining({
         amount: 5,
         idempotencyKey: "integrity-reprice:case-1:day-5",
+        integrityCaseId: "case-day-5",
         kind: "streak_day",
       }),
       expect.any(Date)
     );
+    expect(settlements).toHaveLength(8);
     expect(
       updates.find(({ table }) => table === userStreak)?.values
-    ).toMatchObject({ currentStreak: 4 });
+    ).toMatchObject({
+      currentEvidence: expect.anything(),
+      currentStreak: 4,
+    });
   });
 
   it("reprices Pending descendants without releasing their XP", async () => {

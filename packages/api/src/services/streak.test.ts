@@ -447,6 +447,42 @@ describe("streak challenge", () => {
     );
   });
 
+  it("reports a repriced replacement for the current local day", async () => {
+    const db = createStreakDb({
+      currentStreak: 1,
+      lastCompletedDayKey: "user-1:1:2026-08-08",
+      lastCompletedLocalDate: "2026-08-08",
+    });
+    db.query.xpEvent.findFirst
+      .mockResolvedValueOnce({
+        amount: 10,
+        id: "original-daily",
+        metadata: { path: "reading" },
+        state: "posted",
+      })
+      .mockResolvedValueOnce({
+        amount: 5,
+        id: "repriced-daily",
+        metadata: {
+          path: "reading",
+          repricedFromEventId: "original-daily",
+        },
+        state: "pending",
+      });
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      pendingXp: true,
+      reading: { completed: true },
+      todayXp: 5,
+    });
+  });
+
   it("completes a challenge without claiming XP at the Account cap", async () => {
     progression.postXpEventInTransaction.mockResolvedValue({
       eventId: null,
@@ -1522,6 +1558,29 @@ describe("mixed discovery streak qualification", () => {
       currentEvidenceDayKey: null,
     });
   });
+
+  it("retains prior-day reading evidence during the checkpoint retry window", async () => {
+    const db = createStreakDb({
+      currentEvidence: {
+        readingPageKeys: ["comic-private:1", "comic-private:2"],
+      },
+      currentEvidenceDayKey: "user-1:1:2026-08-07",
+      updatedAt: new Date("2026-08-08T00:30:00.000Z"),
+    });
+
+    await getStreakState(
+      db as never,
+      "user-1",
+      new Date("2026-08-08T02:00:00.000Z")
+    );
+
+    await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({
+      currentEvidence: {
+        readingPageKeys: ["comic-private:1", "comic-private:2"],
+      },
+      currentEvidenceDayKey: "user-1:1:2026-08-07",
+    });
+  });
 });
 
 describe("streak continuity", () => {
@@ -2203,6 +2262,39 @@ describe("adaptive streak integrity", () => {
     );
   });
 
+  it("rejects retained evidence when the account is banned before Step-Up", async () => {
+    const db = createStreakDb({});
+    db.query.xpRiskSignal.findMany.mockResolvedValue([
+      { kind: "rejected_sequence" },
+    ]);
+    const correlation = { deviceHash: "device-a", ipPrefixHash: null };
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      {
+        ...contributionEvidence("comment-1"),
+        integrity: { correlation, stepUpCleared: false },
+      },
+      new Date("2026-08-08T12:00:00.000Z")
+    );
+    db.query.user.findFirst.mockResolvedValue({
+      banned: true,
+      banExpires: new Date("2026-08-09T12:00:00.000Z"),
+      emailVerified: true,
+    });
+    redis.client.set.mockClear();
+
+    await expect(
+      completeStreakStepUpInTransaction(
+        db as never,
+        "user-1",
+        correlation,
+        new Date("2026-08-08T12:05:00.000Z")
+      )
+    ).resolves.toEqual({ available: true, completed: false });
+    expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
+    expect(redis.client.set).not.toHaveBeenCalled();
+  });
+
   it("preserves review qualification when Step-Up replays collapsed whitespace", async () => {
     const db = createStreakDb({});
     db.query.xpRiskSignal.findMany.mockResolvedValue([
@@ -2570,6 +2662,7 @@ function createStreakDb(
     timezoneChangeAvailableAt: null,
     timezoneChangeEffectiveAt: null,
     timezoneVersion: 1,
+    updatedAt: new Date(0),
     userId: "user-1",
     ...overrides,
   };

@@ -105,6 +105,7 @@ type StreakErrorCode =
   | "TIMEZONE_COOLDOWN";
 
 const TIMEZONE_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+const STREAK_EVIDENCE_RETRY_GRACE_MS = 6 * 60 * 60 * 1000;
 
 type StreakCompletionEvent = {
   amount: number;
@@ -219,12 +220,43 @@ function getLatestStreakSettlementEvent(
   });
 }
 
-async function getXpSettlementEvent(
+async function getLatestEffectiveStreakSettlementEvent(
   executor: Pick<Database, "query">,
   userId: string,
   idempotencyKey: string
 ) {
   const original = await getLatestStreakSettlementEvent(
+    executor,
+    userId,
+    idempotencyKey
+  );
+  if (!original) {
+    return null;
+  }
+  return (
+    (await executor.query.xpEvent.findFirst({
+      columns: {
+        amount: true,
+        id: true,
+        idempotencyKey: true,
+        metadata: true,
+        state: true,
+      },
+      orderBy: [desc(xpEvent.createdAt), desc(xpEvent.id)],
+      where: and(
+        eq(xpEvent.userId, userId),
+        sql`${xpEvent.metadata}->>'repricedFromEventId' = ${original.id}`
+      ),
+    })) ?? original
+  );
+}
+
+async function getXpSettlementEvent(
+  executor: Pick<Database, "query">,
+  userId: string,
+  idempotencyKey: string
+) {
+  const original = await getLatestEffectiveStreakSettlementEvent(
     executor,
     userId,
     idempotencyKey
@@ -560,12 +592,20 @@ async function activateTimezoneIfDue(
 
 async function clearStaleEvidence(
   executor: StreakExecutor,
-  streak: { currentEvidenceDayKey: string | null; userId: string },
+  streak: {
+    currentEvidenceDayKey: string | null;
+    updatedAt: Date;
+    userId: string;
+  },
   currentDayKey: string | null,
   now: Date
 ) {
   const staleDayKey = streak.currentEvidenceDayKey;
-  if (!staleDayKey || staleDayKey === currentDayKey) {
+  if (
+    !staleDayKey ||
+    staleDayKey === currentDayKey ||
+    now.getTime() - streak.updatedAt.getTime() < STREAK_EVIDENCE_RETRY_GRACE_MS
+  ) {
     return;
   }
   await executor
@@ -1090,6 +1130,9 @@ export async function completeStreakStepUpInTransaction(
 ) {
   if (!(await isStreakAvailable(tx))) {
     return { available: false, completed: false } as const;
+  }
+  if (!(await isEligible(tx, userId, false, now))) {
+    return { available: true, completed: false } as const;
   }
 
   const existing = await tx.query.userStreak.findFirst({
@@ -1729,7 +1772,9 @@ export async function reconcileStreakAfterIntegrityDecisionInTransaction(
     const { event } = day;
     const metadata = {
       ...event.metadata,
-      repricedFromEventId: event.id,
+      repricedFromEventId:
+        getLedgerMetadataString(event.metadata, "repricedFromEventId") ??
+        event.id,
     };
     const reasonCode = event.reasonCode ?? "streak_day_repriced";
     const sourceRef = event.sourceRef ?? `streak-day:${day.dayKey}`;
@@ -1773,13 +1818,16 @@ export async function reconcileStreakAfterIntegrityDecisionInTransaction(
       )
     );
     settlements.push(reversal);
-    requireStreakReconciliationSettlement(
+    const replacement = requireStreakReconciliationSettlement(
       await postXpEventInTransaction(
         tx,
         {
           amount,
           createdBy: input.actorUserId,
           idempotencyKey: `integrity-reprice:${input.caseId}:${event.id}`,
+          ...(event.integrityCaseId
+            ? { integrityCaseId: event.integrityCaseId }
+            : {}),
           kind: "streak_day",
           metadata,
           reasonCode,
@@ -1790,6 +1838,7 @@ export async function reconcileStreakAfterIntegrityDecisionInTransaction(
         input.now
       )
     );
+    settlements.push(replacement);
   }
   for (const event of rebuilt.invalidChallengeEvents) {
     if (event.state !== "posted") {
@@ -1818,7 +1867,16 @@ export async function reconcileStreakAfterIntegrityDecisionInTransaction(
 
   await tx
     .update(userStreak)
-    .set({ ...rebuilt.projection, updatedAt: input.now })
+    .set({
+      ...rebuilt.projection,
+      currentEvidence: sql`case
+        when ${rebuilt.projection.lastCompletedDayKey} is not null
+          and ${userStreak.currentEvidenceDayKey} = ${rebuilt.projection.lastCompletedDayKey}
+          then ${userStreak.currentEvidence}
+        else ${userStreak.currentEvidence} - 'completedPath'
+      end`,
+      updatedAt: input.now,
+    })
     .where(eq(userStreak.userId, input.userId));
   return settlements;
 }
