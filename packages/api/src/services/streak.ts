@@ -863,11 +863,14 @@ export async function applyStreakEvidenceInTransaction(
     now,
     currentRiskSignals
   );
+  const retainedStepUpRequired = Boolean(
+    streak.currentEvidenceDayKey === currentDayKey &&
+    streak.currentEvidence.pendingCompletion
+  );
+  const stepUpRequired =
+    risk.disposition === "step_up" || retainedStepUpRequired;
   let stepUpCleared = evidence.integrity?.stepUpCleared ?? false;
-  if (
-    risk.disposition === "step_up" &&
-    evidence.integrity?.stepUpCleared === undefined
-  ) {
+  if (stepUpRequired && evidence.integrity?.stepUpCleared === undefined) {
     try {
       stepUpCleared = await getStreakStepUpClearance(
         await getRedis(),
@@ -878,7 +881,7 @@ export async function applyStreakEvidenceInTransaction(
       stepUpCleared = false;
     }
   }
-  if (risk.disposition === "step_up" && !stepUpCleared) {
+  if (stepUpRequired && !stepUpCleared) {
     const trigger =
       evidence.kind === "contribution"
         ? {
@@ -905,11 +908,15 @@ export async function applyStreakEvidenceInTransaction(
             ? streak.currentEvidence
             : {}),
           discoveryCandidates,
-          pendingCompletion: {
-            path,
-            receivedAt: now.toISOString(),
-            trigger,
-          },
+          pendingCompletion:
+            streak.currentEvidenceDayKey === currentDayKey &&
+            streak.currentEvidence.pendingCompletion
+              ? streak.currentEvidence.pendingCompletion
+              : {
+                  path,
+                  receivedAt: now.toISOString(),
+                  trigger,
+                },
           readingPageKeys,
         },
         currentEvidenceDayKey: currentDayKey,

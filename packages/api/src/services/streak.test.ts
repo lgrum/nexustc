@@ -2440,6 +2440,42 @@ describe("adaptive streak integrity", () => {
     expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });
 
+  it("keeps retained completion behind Step-Up after transient risk expires", async () => {
+    const db = createStreakDb({});
+    db.query.xpRiskSignal.findMany.mockResolvedValueOnce([
+      { kind: "rejected_sequence" },
+    ]);
+    const correlation = { deviceHash: "device-a", ipPrefixHash: null };
+    const retainedAt = new Date("2026-08-08T12:00:00.000Z");
+
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      {
+        ...contributionEvidence("comment-1"),
+        integrity: { correlation, stepUpCleared: false },
+      },
+      retainedAt
+    );
+    db.query.xpRiskSignal.findMany.mockResolvedValue([]);
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        {
+          ...contributionEvidence("comment-after-risk-window"),
+          integrity: { correlation, stepUpCleared: false },
+        },
+        new Date("2026-08-08T12:02:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: false, stepUpRequired: true });
+    await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({
+      currentEvidence: {
+        pendingCompletion: { receivedAt: retainedAt.toISOString() },
+      },
+    });
+    expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
+  });
+
   it("re-evaluates retained evidence after a passing Step-Up", async () => {
     const db = createStreakDb({});
     db.query.xpRiskSignal.findMany.mockResolvedValue([
