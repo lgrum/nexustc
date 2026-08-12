@@ -620,9 +620,9 @@ describe("progression service", () => {
     );
   });
 
-  it("keeps Pending XP open when its level reward finds a projection mismatch", async () => {
+  it("aborts a multi-award release when a later level reward finds a projection mismatch", async () => {
     flags.accrual = true;
-    ledger.mismatchAtCall = 1;
+    ledger.mismatchAtCall = 2;
     const now = new Date("2026-08-10T00:00:00.000Z");
     const activation = {
       activatedAt: new Date("2026-08-01T00:00:00.000Z"),
@@ -634,25 +634,44 @@ describe("progression service", () => {
       totalXp: 0,
       userId: "user-1",
     };
-    const pending = {
-      amount: 67,
-      createdAt: new Date("2026-08-09T00:00:00.000Z"),
-      createdBy: null,
-      id: "pending-1",
-      idempotencyKey: "pending-source-1",
-      integrityCaseId: "case-1",
-      kind: "review_milestone" as const,
-      metadata: {},
-      milestone: 3,
-      reasonCode: "eligible_likes_3",
-      reversesEventId: null,
-      sourceRef: "review:subject-1:milestone:3",
-      state: "pending" as const,
-      subjectId: "subject-1",
-      updatedAt: now,
-      userId: "user-1",
-    };
-    const updates: Record<string, unknown>[] = [];
+    const pending = [
+      {
+        amount: 67,
+        createdAt: new Date("2026-08-09T00:00:00.000Z"),
+        createdBy: null,
+        id: "pending-1",
+        idempotencyKey: "pending-source-1",
+        integrityCaseId: "case-1",
+        kind: "review_milestone" as const,
+        metadata: {},
+        milestone: 3,
+        reasonCode: "eligible_likes_3",
+        reversesEventId: null,
+        sourceRef: "review:subject-1:milestone:3",
+        state: "pending" as const,
+        subjectId: "subject-1",
+        updatedAt: now,
+        userId: "user-1",
+      },
+      {
+        amount: 67,
+        createdAt: new Date("2026-08-09T00:00:01.000Z"),
+        createdBy: null,
+        id: "pending-2",
+        idempotencyKey: "pending-source-2",
+        integrityCaseId: "case-1",
+        kind: "streak_challenge" as const,
+        metadata: {},
+        milestone: null,
+        reasonCode: "streak_challenge_completed",
+        reversesEventId: null,
+        sourceRef: "streak-challenge:user-1:10",
+        state: "pending" as const,
+        subjectId: null,
+        updatedAt: now,
+        userId: "user-1",
+      },
+    ];
     const tx = {
       insert: vi.fn(() => ({
         values: vi.fn(() => ({
@@ -675,7 +694,7 @@ describe("progression service", () => {
               .fn()
               .mockResolvedValue(
                 table === xpEvent
-                  ? [pending]
+                  ? pending
                   : table === progressionSystem
                     ? [activation]
                     : [progression]
@@ -684,10 +703,7 @@ describe("progression service", () => {
         })),
       })),
       update: vi.fn(() => ({
-        set: vi.fn((values: Record<string, unknown>) => {
-          updates.push(values);
-          return { where: vi.fn().mockResolvedValue(null) };
-        }),
+        set: vi.fn(() => ({ where: vi.fn().mockResolvedValue(null) })),
       })),
     } as unknown as ProgressionExecutor;
 
@@ -696,10 +712,8 @@ describe("progression service", () => {
         caseId: "case-1",
         now,
       })
-    ).resolves.toMatchObject({ completed: false, settlements: [] });
-    expect(updates).not.toContainEqual(
-      expect.objectContaining({ state: "cancelled" })
-    );
+    ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+    expect(ledger.calls).toHaveLength(2);
   });
 
   it("clips reversals at the Account XP floor instead of rejecting the source action", async () => {

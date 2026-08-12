@@ -484,11 +484,7 @@ export async function releasePendingXpCaseInTransaction(
       "projectionMismatch" in settlement &&
       settlement.projectionMismatch === true
     ) {
-      return {
-        completed: false,
-        settlements,
-        userId: pending[0]?.userId ?? null,
-      };
+      throw new ProgressionError("PROJECTION_MISMATCH");
     }
     await cancelPendingXpEventsInTransaction(tx, {
       actorUserId: input.actorUserId,
