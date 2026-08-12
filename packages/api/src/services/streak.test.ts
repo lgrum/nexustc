@@ -2241,6 +2241,49 @@ describe("adaptive streak integrity", () => {
     ).resolves.toMatchObject({ completed: true });
   });
 
+  it("checks a buffered checkpoint's ban eligibility at processing time", async () => {
+    const db = createStreakDb({});
+    db.query.user.findFirst.mockResolvedValue({
+      banExpires: new Date("2026-08-08T12:01:00.000Z"),
+      banned: true,
+      emailVerified: true,
+    });
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        contributionEvidence("buffered-comment"),
+        new Date("2026-08-08T12:00:00.000Z"),
+        new Date("2026-08-08T12:02:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: true });
+  });
+
+  it("does not replace newer-day evidence with a historical retry", async () => {
+    const newerEvidence = {
+      discoveryCandidates: [
+        { actionKind: "bookmark" as const, contentKey: "post:newer" },
+      ],
+    };
+    const db = createStreakDb({
+      currentEvidence: newerEvidence,
+      currentEvidenceDayKey: "user-1:1:2026-08-09",
+    });
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        readingEvidence(1),
+        new Date("2026-08-08T23:59:00.000Z"),
+        new Date("2026-08-09T00:05:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: false });
+    await expect(db.query.userStreak.findFirst()).resolves.toMatchObject({
+      currentEvidence: newerEvidence,
+      currentEvidenceDayKey: "user-1:1:2026-08-09",
+    });
+  });
+
   it("ignores evidence older than the latest completed local day", async () => {
     const db = createStreakDb({
       currentStreak: 2,

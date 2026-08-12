@@ -626,7 +626,12 @@ export async function applyStreakEvidenceInTransaction(
     return { available: false, completed: false } as const;
   }
   if (
-    !(await isEligible(tx, evidence.userId, evidence.impersonated, now)) ||
+    !(await isEligible(
+      tx,
+      evidence.userId,
+      evidence.impersonated,
+      processingNow
+    )) ||
     (evidence.kind === "contribution" &&
       (evidence.source.kind === "review"
         ? !ratingReviewSchema.safeParse(evidence.text).success
@@ -673,6 +678,15 @@ export async function applyStreakEvidenceInTransaction(
       currentStreak: streak.currentStreak,
       replayed: true,
     } as const;
+  }
+  const existingEvidenceLocalDate = streak.currentEvidenceDayKey?.slice(
+    -period.localDate.length
+  );
+  if (
+    existingEvidenceLocalDate &&
+    existingEvidenceLocalDate > period.localDate
+  ) {
+    return { available: true, completed: false } as const;
   }
 
   const protection = await getProtectionState(
