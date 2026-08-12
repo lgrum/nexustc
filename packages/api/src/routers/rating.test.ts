@@ -104,7 +104,10 @@ function createPostQuery(rows: unknown[]) {
 function createContext(select = vi.fn()) {
   return {
     db: {
-      query: { patron: { findFirst: vi.fn().mockResolvedValue(null) } },
+      query: {
+        patron: { findFirst: vi.fn().mockResolvedValue(null) },
+        user: { findFirst: vi.fn().mockResolvedValue({ id: "author-1" }) },
+      },
       select,
     },
     headers: new Headers(),
@@ -178,6 +181,7 @@ function createRatingMutationContext(
       patron: { findFirst: vi.fn().mockResolvedValue(null) },
       post: {
         findFirst: vi.fn().mockResolvedValue({
+          authorId: "author-1",
           earlyAccessEnabled: false,
           earlyAccessStartedAt: null,
           releasedAt: null,
@@ -187,6 +191,7 @@ function createRatingMutationContext(
           vip8EarlyAccessHours: 0,
         }),
       },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "author-1" }) },
     },
     transaction: vi.fn((callback: (executor: typeof tx) => Promise<unknown>) =>
       callback(tx)
@@ -198,6 +203,7 @@ function createRatingMutationContext(
       headers: new Headers(),
       session: { user: { id: "owner-1", role: "user" } },
     } as unknown as Context,
+    db,
     selectForUpdate,
     tx,
   };
@@ -453,6 +459,22 @@ describe("qualifying review streak evidence", () => {
       )
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
+    expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("does not publish review evidence for an actively banned author", async () => {
+    const { context, db } = createRatingMutationContext();
+    db.query.user.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      call(
+        ratingRouter.create,
+        { postId: "post-1", rating: 8, review: qualifyingReview },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+    expect(db.transaction).not.toHaveBeenCalled();
     expect(mocks.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
   });
 
@@ -844,6 +866,7 @@ describe("post review visibility", () => {
           patron: { findFirst: vi.fn().mockResolvedValue(null) },
           post: {
             findFirst: vi.fn().mockResolvedValue({
+              authorId: "post-author-1",
               earlyAccessEnabled: false,
               earlyAccessStartedAt: null,
               releasedAt: null,
@@ -853,6 +876,9 @@ describe("post review visibility", () => {
               vip8EarlyAccessHours: 0,
             }),
           },
+          user: {
+            findFirst: vi.fn().mockResolvedValue({ id: "post-author-1" }),
+          },
         },
         select,
       },
@@ -861,6 +887,6 @@ describe("post review visibility", () => {
 
     await call(ratingRouter.getByPostId, { postId: "post-1" }, { context });
 
-    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledTimes(2);
+    expect(mocks.userIsNotActivelyBanned).toHaveBeenCalledTimes(3);
   });
 });

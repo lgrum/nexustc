@@ -69,8 +69,10 @@ async function assertRatingsAreOpen(params: {
   session: Context["session"];
   now?: Date;
 }) {
+  const now = params.now ?? new Date();
   const targetPost = await params.db.query.post.findFirst({
     columns: {
+      authorId: true,
       earlyAccessEnabled: true,
       earlyAccessStartedAt: true,
       releasedAt: true,
@@ -85,6 +87,13 @@ async function assertRatingsAreOpen(params: {
   if (!targetPost) {
     throw params.errors.NOT_FOUND();
   }
+  const author = await params.db.query.user.findFirst({
+    columns: { id: true },
+    where: and(eq(user.id, targetPost.authorId), userIsNotActivelyBanned(now)),
+  });
+  if (!author) {
+    throw params.errors.FORBIDDEN();
+  }
 
   const viewerTier = await getViewerPatronTier(params.db, params.session);
   const earlyAccess = getPostEarlyAccessView(targetPost, {
@@ -97,8 +106,7 @@ async function assertRatingsAreOpen(params: {
   }
   if (
     targetPost.status !== "publish" ||
-    (targetPost.releasedAt !== null &&
-      targetPost.releasedAt > (params.now ?? new Date()))
+    (targetPost.releasedAt !== null && targetPost.releasedAt > now)
   ) {
     throw params.errors.FORBIDDEN();
   }

@@ -623,6 +623,52 @@ describe("verified comic reading rewards", () => {
     );
   });
 
+  it("uses post-lock elapsed time for page spacing", async () => {
+    const receivedAt = new Date("2026-08-10T12:00:00.000Z");
+    const state = createState({
+      lastAcceptedAtMs: receivedAt.getTime(),
+      lastAcceptedPage: 1,
+      lastPageRead: 1,
+      lastPersistedAtMs: receivedAt.getTime(),
+      lastPersistedPage: 1,
+      startedAtMs: receivedAt.getTime() - 10_000,
+      verifiedThroughPage: 1,
+    });
+    let lockAttempts = 0;
+    const cache = {
+      eval: vi.fn().mockResolvedValue(1),
+      get: vi.fn().mockResolvedValue(JSON.stringify(state)),
+      set: vi.fn((_key: string, _value: string, options?: { NX?: boolean }) => {
+        if (!options?.NX) {
+          return "OK";
+        }
+        lockAttempts += 1;
+        return lockAttempts > 8 ? "OK" : null;
+      }),
+    } as unknown as Parameters<typeof trackComicPageView>[0]["cache"];
+
+    await expect(
+      trackComicPageView({
+        cache,
+        comicId: "comic-1",
+        correlation: { deviceHash: null, ipPrefixHash: null },
+        db: { query: createAccessQueries() } as unknown as Parameters<
+          typeof trackComicPageView
+        >[0]["db"],
+        evidence: { ...evidence, documentVisible: false },
+        impersonated: false,
+        now: receivedAt,
+        page: 2,
+        readingSessionId: "session-1",
+        userId: "user-1",
+      })
+    ).resolves.toMatchObject({
+      accepted: true,
+      lastPageRead: 2,
+      verifiedThroughPage: 2,
+    });
+  });
+
   it("does not settle a reward when Redis cannot persist checkpoint evidence", async () => {
     const cache = {
       get: vi.fn().mockResolvedValue(JSON.stringify(createState())),

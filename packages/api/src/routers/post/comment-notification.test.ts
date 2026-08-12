@@ -108,6 +108,7 @@ function createContext({
       },
       post: {
         findFirst: vi.fn().mockResolvedValue({
+          authorId: "post-author-1",
           earlyAccessEnabled: false,
           earlyAccessStartedAt: null,
           releasedAt: new Date("2026-08-01T12:00:00.000Z"),
@@ -118,6 +119,7 @@ function createContext({
           vip8EarlyAccessHours: 0,
         }),
       },
+      user: { findFirst: vi.fn().mockResolvedValue({ id: "post-author-1" }) },
     },
     select: vi.fn(() => ({
       from: vi.fn(() => ({
@@ -266,6 +268,7 @@ describe("comment reply notifications", () => {
   it("rejects comments on unpublished content before creating streak evidence", async () => {
     const { context, db } = createContext();
     db.query.post.findFirst.mockResolvedValueOnce({
+      authorId: "post-author-1",
       earlyAccessEnabled: false,
       earlyAccessStartedAt: null,
       releasedAt: new Date("2026-08-01T12:00:00.000Z"),
@@ -275,6 +278,24 @@ describe("comment reply notifications", () => {
       vip12EarlyAccessHours: 0,
       vip8EarlyAccessHours: 0,
     });
+
+    await expect(
+      call(
+        postRouter.createComment,
+        {
+          content: "Un comentario suficientemente largo para una Racha.",
+          postId: "post-1",
+        },
+        { context }
+      )
+    ).rejects.toThrow();
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(streak.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects comments on content from an actively banned author", async () => {
+    const { context, db } = createContext();
+    db.query.user.findFirst.mockResolvedValueOnce(null);
 
     await expect(
       call(

@@ -1412,6 +1412,7 @@ export default {
         const viewerTier = await getViewerPatronTier(db, session);
         const targetPost = await db.query.post.findFirst({
           columns: {
+            authorId: true,
             earlyAccessEnabled: true,
             earlyAccessStartedAt: true,
             releasedAt: true,
@@ -1426,6 +1427,16 @@ export default {
 
         if (!targetPost) {
           throw errors.NOT_FOUND();
+        }
+        const author = await db.query.user.findFirst({
+          columns: { id: true },
+          where: and(
+            eq(user.id, targetPost.authorId),
+            userIsNotActivelyBanned(now)
+          ),
+        });
+        if (!author) {
+          throw errors.FORBIDDEN();
         }
 
         if (

@@ -1260,6 +1260,7 @@ async function trackComicPageViewWithLockHeld(params: {
   comicId: string;
   impersonated: boolean;
   now: Date;
+  processingNow: Date;
   page: number;
   readingSessionId: string;
   role?: string | null;
@@ -1329,7 +1330,7 @@ async function trackComicPageViewWithLockHeld(params: {
     };
   }
 
-  const nowMs = params.now.getTime();
+  const nowMs = params.processingNow.getTime();
   const checkpoint = applyCheckpoint({
     nowMs,
     page: params.page,
@@ -1337,7 +1338,7 @@ async function trackComicPageViewWithLockHeld(params: {
   });
   const rewardCheckpoint = applyRewardCheckpoint({
     evidence: params.evidence,
-    nowMs,
+    nowMs: params.now.getTime(),
     page: params.page,
     state: checkpoint.nextState,
   });
@@ -1428,9 +1429,13 @@ async function trackComicPageViewWithLockHeld(params: {
 }
 
 export async function trackComicPageView(
-  params: Parameters<typeof trackComicPageViewWithLockHeld>[0]
+  params: Omit<
+    Parameters<typeof trackComicPageViewWithLockHeld>[0],
+    "processingNow"
+  >
 ) {
   const token = generateId();
+  const lockWaitStartedAtMs = Date.now();
   try {
     const lock = await acquireReadingSessionLock(
       params.cache,
@@ -1445,7 +1450,12 @@ export async function trackComicPageView(
   }
 
   try {
-    return await trackComicPageViewWithLockHeld(params);
+    return await trackComicPageViewWithLockHeld({
+      ...params,
+      processingNow: new Date(
+        params.now.getTime() + Math.max(0, Date.now() - lockWaitStartedAtMs)
+      ),
+    });
   } finally {
     try {
       await releaseReadingSessionLock(
