@@ -18,7 +18,7 @@ export const env = createEnv({
     BETTER_AUTH_URL: httpUrlSchema,
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     CLOUDFLARE_API_TOKEN: z.string().optional(),
-    CRON_SECRET: z.string().min(16),
+    CRON_SECRET: z.string().min(16).optional(),
     DATABASE_URL: z.string(),
     EXE_TOKEN: z.string(),
     PATREON_CAMPAIGN_ID: z.string(),

@@ -242,7 +242,7 @@ async function handleMemberUpdate(
     await grantMonthlyPatreonStipend(db, patreonAccount.userId);
   } catch (error) {
     console.error(
-      "Monthly Patreon stipend settlement failed; the recurring stipend job will retry it:",
+      "Monthly Patreon stipend settlement failed; a later progression, wallet, or Patreon sync will retry it:",
       error
     );
   }
