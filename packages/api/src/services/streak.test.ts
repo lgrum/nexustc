@@ -1918,6 +1918,44 @@ describe("adaptive streak integrity", () => {
     );
   });
 
+  it("notifies progression changes released before a pending daily reward", async () => {
+    const db = createStreakDb({});
+    const releasedSettlement = {
+      eventId: "released-xp",
+      level: 3,
+      previousLevel: 2,
+      replayed: false,
+    };
+    db.query.xpRiskSignal.findMany.mockResolvedValue([
+      { kind: "source_cap_pressure" },
+    ]);
+    integritySettlement.settleXpWithIntegrityInTransaction.mockResolvedValue({
+      caseId: "case-1",
+      eventId: "daily-xp",
+      outcome: "pending",
+      releasedSettlements: [releasedSettlement],
+      replayed: false,
+    });
+
+    await applyStreakEvidenceInTransaction(
+      db as never,
+      {
+        ...contributionEvidence("comment-release"),
+        integrity: {
+          correlation: { deviceHash: "device-a", ipPrefixHash: null },
+          stepUpCleared: true,
+        },
+      },
+      new Date("2026-08-08T12:00:00.000Z")
+    );
+
+    expect(progression.notifyXpSettlementInTransaction).toHaveBeenCalledWith(
+      db,
+      "user-1",
+      releasedSettlement
+    );
+  });
+
   it("accepts streak evidence after a temporary ban has expired", async () => {
     const db = createStreakDb({});
     db.query.user.findFirst.mockResolvedValue({
@@ -2294,7 +2332,7 @@ describe("adaptive streak integrity", () => {
     ).toHaveBeenCalledWith(
       db,
       expect.objectContaining({ kind: "streak_day" }),
-      expect.objectContaining({ disposition }),
+      expect.objectContaining({ disposition, recordSignals: [] }),
       expect.any(Date)
     );
     expect(progression.createPendingXpEventInTransaction).toHaveBeenCalledWith(

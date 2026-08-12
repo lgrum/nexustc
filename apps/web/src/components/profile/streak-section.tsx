@@ -38,6 +38,22 @@ export function StreakSection({
   const { data } = useSuspenseQuery(orpc.streak.getMine.queryOptions());
   const [offerDismissed, setOfferDismissed] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!(data.available && data.initialized)) {
+      return;
+    }
+    const deadline = Date.parse(data.deadline);
+    if (!Number.isFinite(deadline)) {
+      return;
+    }
+    const timer = window.setTimeout(
+      () => {
+        void queryClient.invalidateQueries(orpc.streak.getMine.queryOptions());
+      },
+      Math.max(0, deadline - Date.now())
+    );
+    return () => window.clearTimeout(timer);
+  }, [data]);
   const timezoneMutation = useMutation(
     orpc.streak.setTimezone.mutationOptions({
       onError: (error) =>

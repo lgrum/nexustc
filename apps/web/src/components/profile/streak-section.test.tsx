@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 
 import { StreakSection } from "./streak-section";
 
@@ -75,6 +75,7 @@ const notifications = vi.hoisted(() => ({
   error: vi.fn(),
   success: vi.fn(),
 }));
+const query = vi.hoisted(() => ({ invalidateQueries: vi.fn() }));
 
 vi.mock("@/lib/analytics", () => analytics);
 vi.mock("sonner", () => ({ toast: notifications }));
@@ -125,7 +126,7 @@ vi.mock("@/lib/orpc", () => ({
       setTimezone: { mutationOptions: vi.fn((options) => options) },
     },
   },
-  queryClient: { invalidateQueries: vi.fn() },
+  queryClient: query,
 }));
 
 vi.mock("@marsidev/react-turnstile", () => ({
@@ -166,6 +167,7 @@ beforeEach(() => {
   state.data.challenge.target = null;
   state.data.challenge.upcomingBonus = null;
   state.data.currentStreak = 4;
+  state.data.deadline = new Date(Date.now() + 86_400_000).toISOString();
   state.data.partialTimezoneDay = false;
   state.data.pendingXp = false;
   state.data.pendingTimezone = null;
@@ -175,6 +177,19 @@ beforeEach(() => {
   state.data.timezoneChangeAllowed = true;
   state.data.timezoneChangeEffectiveAt = null;
   state.data.todayXp = 10;
+});
+
+afterEach(() => vi.useRealTimers());
+
+it("refreshes the streak state when the local day deadline passes", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-08T12:00:00.000Z"));
+  state.data.deadline = "2026-08-08T12:01:00.000Z";
+
+  render(<StreakSection streakPublic={false} />);
+  act(() => vi.advanceTimersByTime(60_000));
+
+  expect(query.invalidateQueries).toHaveBeenCalledOnce();
 });
 
 it("renders Turnstile only when Step-Up is requested", () => {

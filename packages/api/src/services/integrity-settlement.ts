@@ -97,6 +97,7 @@ export async function settleXpWithIntegrityInTransaction(
     | {
         correlation: IntegrityCorrelationEvidence;
         disposition: "high" | "medium";
+        recordSignals?: IntegrityRiskSignal[];
         signals: IntegrityRiskSignal[];
         summary: string;
       },
@@ -170,7 +171,7 @@ export async function settleXpWithIntegrityInTransaction(
   await recordRiskSignals(tx, {
     correlation: assessment.correlation,
     now,
-    signals: assessment.signals,
+    signals: assessment.recordSignals ?? assessment.signals,
     userId: input.userId,
   });
   const pending = await createPendingXpEventInTransaction(

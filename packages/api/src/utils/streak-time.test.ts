@@ -52,6 +52,23 @@ describe("streak civil days", () => {
     ).toBe("2026-08-08");
   });
 
+  it("uses the first representable instant when a timezone skips midnight", () => {
+    const period = getStreakDayPeriod(
+      new Date("2026-09-05T12:00:00.000Z"),
+      "America/Santiago"
+    );
+
+    expect(period.endsAt.toISOString()).toBe("2026-09-06T04:00:00.000Z");
+  });
+
+  it("resolves case variants through the same canonical timezone", () => {
+    const now = new Date("2026-08-08T12:00:00.000Z");
+
+    expect(getStreakDayPeriod(now, "america/new_york")).toEqual(
+      getStreakDayPeriod(now, "America/New_York")
+    );
+  });
+
   it("rejects invalid timezone names instead of falling back to UTC", () => {
     expect(isValidIanaTimezone("Not/A_Zone")).toBe(false);
     expect(isValidIanaTimezone("America/Argentina/Buenos_Aires")).toBe(true);

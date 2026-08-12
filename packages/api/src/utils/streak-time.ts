@@ -7,22 +7,28 @@ type LocalDateParts = {
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
 
 function getFormatter(timezone: string) {
-  let formatter = formatterCache.get(timezone);
-  if (!formatter) {
-    formatter = new Intl.DateTimeFormat("en-CA", {
-      day: "2-digit",
-      hour: "2-digit",
-      hour12: false,
-      hourCycle: "h23",
-      minute: "2-digit",
-      month: "2-digit",
-      second: "2-digit",
-      timeZone: timezone,
-      year: "numeric",
-    });
-    formatterCache.set(timezone, formatter);
+  const cached = formatterCache.get(timezone);
+  if (cached) {
+    return cached;
   }
-  return formatter;
+  const candidate = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false,
+    hourCycle: "h23",
+    minute: "2-digit",
+    month: "2-digit",
+    second: "2-digit",
+    timeZone: timezone,
+    year: "numeric",
+  });
+  const canonicalTimezone = candidate.resolvedOptions().timeZone;
+  const formatter = formatterCache.get(canonicalTimezone);
+  if (formatter) {
+    return formatter;
+  }
+  formatterCache.set(canonicalTimezone, candidate);
+  return candidate;
 }
 
 function getLocalParts(instant: Date, timezone: string) {
@@ -44,27 +50,22 @@ function getLocalParts(instant: Date, timezone: string) {
 
 function localMidnightToUtc(date: LocalDateParts, timezone: string) {
   const target = Date.UTC(date.year, date.month - 1, date.day);
-  let instant = target;
+  const searchWindow = 48 * 60 * 60_000;
+  let lower = target - searchWindow;
+  let upper = target + searchWindow;
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const actual = getLocalParts(new Date(instant), timezone);
-    const delta =
-      target -
-      Date.UTC(
-        actual.year,
-        actual.month - 1,
-        actual.day,
-        actual.hour,
-        actual.minute,
-        actual.second
-      );
-    instant += delta;
-    if (delta === 0) {
-      break;
+  while (lower < upper) {
+    const middle = Math.floor((lower + upper) / 2);
+    const local = getLocalParts(new Date(middle), timezone);
+    const localDate = Date.UTC(local.year, local.month - 1, local.day);
+    if (localDate < target) {
+      lower = middle + 1;
+    } else {
+      upper = middle;
     }
   }
 
-  return new Date(instant);
+  return new Date(lower);
 }
 
 function addLocalDays(date: LocalDateParts, days: number): LocalDateParts {

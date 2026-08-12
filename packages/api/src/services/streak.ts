@@ -799,6 +799,7 @@ export async function applyStreakEvidenceInTransaction(
     ? {
         correlation,
         disposition: reviewRisk,
+        recordSignals: currentRiskSignals,
         signals: risk.signals,
         summary:
           reviewRisk === "high"
@@ -859,6 +860,11 @@ export async function applyStreakEvidenceInTransaction(
       assessment,
       now
     );
+    if ("releasedSettlements" in integrityResult) {
+      for (const settlement of integrityResult.releasedSettlements ?? []) {
+        await notifyXpSettlementInTransaction(tx, evidence.userId, settlement);
+      }
+    }
     if (integrityResult.outcome !== "pending" || !integrityResult.caseId) {
       throw new Error("STREAK_INTEGRITY_SETTLEMENT_FAILED");
     }

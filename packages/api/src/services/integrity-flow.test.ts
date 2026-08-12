@@ -933,6 +933,34 @@ describe("integrity settlement", () => {
     );
   });
 
+  it("records only newly observed signals while retaining aggregate case evidence", async () => {
+    const store = createTransaction();
+    await settleXpWithIntegrityInTransaction(store.tx, command, {
+      correlation: { deviceHash: "device-hash", ipPrefixHash: null },
+      disposition: "medium",
+      recordSignals: [{ count: 1, kind: "like_toggle_velocity" }],
+      signals: [
+        { count: 4, kind: "like_toggle_velocity" },
+        { count: 2, kind: "source_cap_pressure" },
+      ],
+      summary: "Actividad acumulada",
+    });
+
+    expect(
+      store.inserts.find(({ table }) => table === xpIntegrityCase)?.values
+    ).toMatchObject({
+      evidence: {
+        signals: [
+          { count: 4, kind: "like_toggle_velocity" },
+          { count: 2, kind: "source_cap_pressure" },
+        ],
+      },
+    });
+    expect(
+      store.inserts.find(({ table }) => table === xpRiskSignal)?.values
+    ).toEqual([expect.objectContaining({ kind: "like_toggle_velocity" })]);
+  });
+
   it("holds high risk without an automatic release time", async () => {
     const store = createTransaction();
     await settleXpWithIntegrityInTransaction(store.tx, command, {

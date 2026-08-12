@@ -687,6 +687,9 @@ export async function getIntegrityCase(
     .orderBy(desc(xpEvent.createdAt));
   return {
     autoReleaseAt: integrityCase.autoReleaseAt?.toISOString() ?? null,
+    blockAvailable: events.some(
+      (event) => Boolean(event.subjectId) || event.kind === "comic_reading"
+    ),
     createdAt: integrityCase.createdAt.toISOString(),
     decidedAt: integrityCase.decidedAt?.toISOString() ?? null,
     decisionReason: integrityCase.decisionReason,
