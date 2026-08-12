@@ -848,6 +848,26 @@ async function persistProgressRecord(params: {
       ).values(),
     ];
     let dayCompletion: StreakDayCompletion | undefined;
+    for (const checkpoint of pendingRewardCheckpoints) {
+      const streak = await applyStreakEvidenceInTransaction(
+        tx,
+        {
+          comicId: params.state.comicId,
+          impersonated: params.impersonated,
+          integrity: { correlation: params.correlation },
+          kind: "reading",
+          page: checkpoint.page,
+          timezone: params.timezone,
+          userId: params.state.userId,
+        },
+        new Date(checkpoint.receivedAtMs),
+        params.processingNow
+      );
+      if (streak && "dayCompletion" in streak) {
+        dayCompletion ??= streak.dayCompletion;
+      }
+    }
+
     await tx
       .insert(userComicProgress)
       .values(incomingProgressValues)
@@ -904,26 +924,6 @@ async function persistProgressRecord(params: {
         incomingProgressValues.verifiedThroughPage
       ),
     };
-
-    for (const checkpoint of pendingRewardCheckpoints) {
-      const streak = await applyStreakEvidenceInTransaction(
-        tx,
-        {
-          comicId: params.state.comicId,
-          impersonated: params.impersonated,
-          integrity: { correlation: params.correlation },
-          kind: "reading",
-          page: checkpoint.page,
-          timezone: params.timezone,
-          userId: params.state.userId,
-        },
-        new Date(checkpoint.receivedAtMs),
-        params.processingNow
-      );
-      if (streak && "dayCompletion" in streak) {
-        dayCompletion ??= streak.dayCompletion;
-      }
-    }
 
     let processedPageRanges: [number, number][] | undefined;
     const processedPages: number[] = [];

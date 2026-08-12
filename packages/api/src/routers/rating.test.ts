@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   applyStreakEvidenceInTransaction: vi.fn(),
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  deleteReviewWithRewards: vi.fn(),
   hasReviewRewardSubjectInTransaction: vi.fn(),
   isContributionLikerEligibleInTransaction: vi.fn(),
   lockContributionParticipantsInTransaction: vi.fn(),
@@ -34,7 +35,7 @@ vi.mock("../services/profile", () => ({
   canReadPublicProfileActivity: mocks.canReadPublicProfileActivity,
 }));
 vi.mock("../services/contribution-rewards", () => ({
-  deleteReviewWithRewards: vi.fn(),
+  deleteReviewWithRewards: mocks.deleteReviewWithRewards,
   getReviewDeletionWarning: vi.fn(),
   hasReviewRewardSubjectInTransaction:
     mocks.hasReviewRewardSubjectInTransaction,
@@ -228,6 +229,22 @@ beforeEach(() => {
   );
   mocks.isContributionLikerEligibleInTransaction.mockResolvedValue(true);
   mocks.hasReviewRewardSubjectInTransaction.mockResolvedValue(false);
+  mocks.deleteReviewWithRewards.mockResolvedValue({ reversedXp: 0 });
+});
+
+describe("owned rating deletion", () => {
+  it("allows deletion after the source post becomes unpublished", async () => {
+    const { context, db } = createRatingMutationContext(undefined, "draft");
+
+    await expect(
+      call(ratingRouter.delete, { postId: "post-1" }, { context })
+    ).resolves.toEqual({ success: true });
+    expect(mocks.deleteReviewWithRewards).toHaveBeenCalledWith(db, {
+      postId: "post-1",
+      reason: "voluntary",
+      userId: "owner-1",
+    });
+  });
 });
 
 describe("profile review privacy", () => {

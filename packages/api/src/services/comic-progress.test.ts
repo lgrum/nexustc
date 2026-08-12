@@ -755,6 +755,9 @@ describe("verified comic reading rewards", () => {
       now,
       expect.any(Date)
     );
+    expect(
+      streak.applyStreakEvidenceInTransaction.mock.invocationCallOrder[0]
+    ).toBeLessThan(progress.select.mock.invocationCallOrder[0] ?? 0);
 
     await trackComicPageView({
       cache: {

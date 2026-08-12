@@ -310,17 +310,11 @@ export default {
   // Delete own rating
   delete: protectedProcedure
     .input(z.object({ postId: z.string() }))
-    .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `User ${session.user.id} deleting rating for post ${input.postId}`
       );
-      await assertRatingsAreOpen({
-        db,
-        errors,
-        postId: input.postId,
-        session,
-      });
 
       await deleteReviewWithRewards(db, {
         postId: input.postId,
