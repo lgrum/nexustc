@@ -29,6 +29,7 @@ import { trackEvent, trackStreakDayCompletion } from "@/lib/analytics";
 import { getClientErrorMessage, orpc, queryClient } from "@/lib/orpc";
 
 const CHALLENGE_SOUND_KEY = "streak-challenge-sound";
+const STREAK_DEADLINE_RETRY_MS = 60_000;
 
 export function StreakSection({
   streakPublic = false,
@@ -38,6 +39,8 @@ export function StreakSection({
   const { data } = useSuspenseQuery(orpc.streak.getMine.queryOptions());
   const [offerDismissed, setOfferDismissed] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState<boolean | null>(null);
+  const completionChallenge =
+    data.available && data.initialized ? data.challenge : null;
   useEffect(() => {
     if (!(data.available && data.initialized)) {
       return;
@@ -46,14 +49,15 @@ export function StreakSection({
     if (!Number.isFinite(deadline)) {
       return;
     }
+    const deadlineDelay = deadline - Date.now();
     const timer = window.setTimeout(
       () => {
         void queryClient.invalidateQueries(orpc.streak.getMine.queryOptions());
       },
-      Math.max(0, deadline - Date.now())
+      deadlineDelay > 0 ? deadlineDelay : STREAK_DEADLINE_RETRY_MS
     );
     return () => window.clearTimeout(timer);
-  }, [data]);
+  }, [data.available, data.deadline, data.initialized]);
   const timezoneMutation = useMutation(
     orpc.streak.setTimezone.mutationOptions({
       onError: (error) =>
@@ -148,15 +152,15 @@ export function StreakSection({
     if (
       !data.available ||
       !data.initialized ||
-      !data.challenge.completed ||
-      !data.challenge.completedAt ||
-      !data.challenge.selectedAt ||
-      !data.challenge.target ||
+      !completionChallenge?.completed ||
+      !completionChallenge.completedAt ||
+      !completionChallenge.selectedAt ||
+      !completionChallenge.target ||
       soundEnabled === null
     ) {
       return;
     }
-    const marker = `streak-challenge-completed:${data.challenge.selectedAt}`;
+    const marker = `streak-challenge-completed:${completionChallenge.selectedAt}:${completionChallenge.completedAt}`;
     try {
       if (localStorage.getItem(marker)) {
         return;
@@ -166,13 +170,22 @@ export function StreakSection({
       // Presentation state may fail closed without affecting the reward.
     }
     trackEvent("streak_challenge_completed", {
-      outcome: data.challenge.completionOutcome ?? "immediate",
-      target: data.challenge.target,
+      outcome: completionChallenge.completionOutcome ?? "immediate",
+      target: completionChallenge.target,
     });
     if (soundEnabled) {
       playCompletionSound();
     }
-  }, [data, soundEnabled]);
+  }, [
+    data.available,
+    completionChallenge?.completed,
+    completionChallenge?.completedAt,
+    completionChallenge?.completionOutcome,
+    completionChallenge?.selectedAt,
+    completionChallenge?.target,
+    data.initialized,
+    soundEnabled,
+  ]);
 
   if (!data.available) {
     return null;

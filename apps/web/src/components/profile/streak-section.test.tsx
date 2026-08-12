@@ -192,6 +192,23 @@ it("refreshes the streak state when the local day deadline passes", () => {
   expect(query.invalidateQueries).toHaveBeenCalledOnce();
 });
 
+it("backs off deadline refreshes when the client clock is ahead", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-08-08T12:05:00.000Z"));
+  state.data.deadline = "2026-08-08T12:00:00.000Z";
+
+  const { rerender } = render(<StreakSection streakPublic={false} />);
+  act(() => vi.advanceTimersByTime(0));
+  expect(query.invalidateQueries).not.toHaveBeenCalled();
+
+  act(() => vi.advanceTimersByTime(60_000));
+  expect(query.invalidateQueries).toHaveBeenCalledOnce();
+  state.data = { ...state.data };
+  rerender(<StreakSection streakPublic={false} />);
+  act(() => vi.advanceTimersByTime(120_000));
+  expect(query.invalidateQueries).toHaveBeenCalledOnce();
+});
+
 it("renders Turnstile only when Step-Up is requested", () => {
   const { rerender } = render(<StreakSection streakPublic={false} />);
   expect(
@@ -323,6 +340,29 @@ it("shows selected progress and reduced-motion completion feedback", () => {
       .getByRole("switch", { name: "Sonido de celebraci\u00F3n" })
       .getAttribute("aria-checked")
   ).toBe("false");
+});
+
+it("records a challenge again after an authoritative recompletion", () => {
+  state.data.challenge.availableTargets = [];
+  state.data.challenge.completed = true;
+  state.data.challenge.completedAt = "2026-08-08T12:00:00.000Z";
+  state.data.challenge.completedDays = 10;
+  state.data.challenge.completionOutcome = "immediate";
+  state.data.challenge.remainingDays = 0;
+  state.data.challenge.selectedAt = "2026-08-01T12:00:00.000Z";
+  state.data.challenge.target = 10;
+  state.data.challenge.upcomingBonus = 50;
+  const { rerender } = render(<StreakSection />);
+
+  expect(analytics.trackEvent).toHaveBeenCalledWith(
+    "streak_challenge_completed",
+    { outcome: "immediate", target: 10 }
+  );
+
+  state.data.challenge.completedAt = "2026-08-12T12:00:00.000Z";
+  state.data = { ...state.data };
+  rerender(<StreakSection />);
+  expect(analytics.trackEvent).toHaveBeenCalledTimes(2);
 });
 
 it("describes a completed challenge bonus as Pending XP while under review", () => {

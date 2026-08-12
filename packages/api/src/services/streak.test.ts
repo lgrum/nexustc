@@ -501,22 +501,25 @@ describe("streak challenge", () => {
       lastCompletedDayKey: "user-1:1:2026-08-08",
       lastCompletedLocalDate: "2026-08-08",
     });
-    db.query.xpEvent.findFirst
-      .mockResolvedValueOnce({
-        amount: 10,
-        id: "original-daily",
-        metadata: { path: "reading" },
-        state: "posted",
-      })
-      .mockResolvedValueOnce({
-        amount: 5,
-        id: "repriced-daily",
-        metadata: {
-          path: "reading",
-          repricedFromEventId: "original-daily",
+    db.query.xpEvent.findFirst.mockResolvedValueOnce({
+      amount: 10,
+      id: "original-daily",
+      metadata: { path: "reading" },
+      state: "posted",
+    });
+    db.query.xpEvent.findMany
+      .mockResolvedValueOnce([
+        {
+          amount: 5,
+          id: "repriced-daily",
+          metadata: {
+            path: "reading",
+            repricedFromEventId: "original-daily",
+          },
+          state: "pending",
         },
-        state: "pending",
-      });
+      ])
+      .mockResolvedValueOnce([]);
 
     await expect(
       getStreakState(
@@ -526,6 +529,54 @@ describe("streak challenge", () => {
       )
     ).resolves.toMatchObject({
       pendingXp: true,
+      reading: { completed: true },
+      todayXp: 5,
+    });
+  });
+
+  it("reports the active replacement after the same day is repriced twice", async () => {
+    const db = createStreakDb({
+      currentStreak: 1,
+      lastCompletedDayKey: "user-1:1:2026-08-08",
+      lastCompletedLocalDate: "2026-08-08",
+    });
+    db.query.xpEvent.findFirst.mockResolvedValueOnce({
+      amount: 15,
+      id: "original-daily",
+      metadata: { path: "reading" },
+      state: "posted",
+    });
+    db.query.xpEvent.findMany
+      .mockResolvedValueOnce([
+        {
+          amount: 10,
+          id: "first-reprice",
+          metadata: {
+            path: "reading",
+            repricedFromEventId: "original-daily",
+          },
+          state: "posted",
+        },
+        {
+          amount: 5,
+          id: "second-reprice",
+          metadata: {
+            path: "reading",
+            repricedFromEventId: "original-daily",
+          },
+          state: "posted",
+        },
+      ])
+      .mockResolvedValueOnce([{ reversesEventId: "first-reprice" }]);
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      pendingXp: false,
       reading: { completed: true },
       todayXp: 5,
     });
@@ -1272,6 +1323,7 @@ describe("comic reading streak qualification", () => {
             metadata: { path: "reading" },
             state: "posted",
           }),
+          findMany: vi.fn().mockResolvedValue([]),
         },
       },
       select: vi.fn(),
@@ -2789,7 +2841,10 @@ function createMixedDiscoveryDb(consumed: ({ dayKey: string } | null)[] = []) {
           .mockResolvedValue({ banned: false, emailVerified: true }),
       },
       userStreak: { findFirst: vi.fn(() => Promise.resolve(stored)) },
-      xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
+      xpEvent: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
       xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
     },
     select: vi.fn(() => ({
@@ -2846,7 +2901,10 @@ function createStreakDb(
       },
       userStreak: { findFirst: vi.fn(() => Promise.resolve(stored)) },
       xpRiskSignal: { findMany: vi.fn().mockResolvedValue([]) },
-      xpEvent: { findFirst: vi.fn().mockResolvedValue(null) },
+      xpEvent: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     },
     select: vi.fn(() => ({
       from: vi.fn(() => ({

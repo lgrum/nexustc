@@ -232,21 +232,41 @@ async function getLatestEffectiveStreakSettlementEvent(
   if (!original) {
     return null;
   }
+  const replacements = await executor.query.xpEvent.findMany({
+    columns: {
+      amount: true,
+      id: true,
+      idempotencyKey: true,
+      metadata: true,
+      state: true,
+    },
+    orderBy: [desc(xpEvent.updatedAt), desc(xpEvent.id)],
+    where: and(
+      eq(xpEvent.userId, userId),
+      sql`${xpEvent.metadata}->>'repricedFromEventId' = ${original.id}`
+    ),
+  });
+  if (replacements.length === 0) {
+    return original;
+  }
+  const replacementReversals = await executor.query.xpEvent.findMany({
+    columns: { reversesEventId: true },
+    where: and(
+      eq(xpEvent.kind, "reversal"),
+      eq(xpEvent.state, "posted"),
+      inArray(
+        xpEvent.reversesEventId,
+        replacements.map(({ id }) => id)
+      )
+    ),
+  });
+  const reversedReplacementIds = new Set(
+    replacementReversals.flatMap(({ reversesEventId }) =>
+      reversesEventId ? [reversesEventId] : []
+    )
+  );
   return (
-    (await executor.query.xpEvent.findFirst({
-      columns: {
-        amount: true,
-        id: true,
-        idempotencyKey: true,
-        metadata: true,
-        state: true,
-      },
-      orderBy: [desc(xpEvent.createdAt), desc(xpEvent.id)],
-      where: and(
-        eq(xpEvent.userId, userId),
-        sql`${xpEvent.metadata}->>'repricedFromEventId' = ${original.id}`
-      ),
-    })) ?? original
+    replacements.find(({ id }) => !reversedReplacementIds.has(id)) ?? original
   );
 }
 
