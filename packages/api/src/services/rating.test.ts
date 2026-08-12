@@ -1,14 +1,20 @@
 import { saveRatingInTransaction } from "./rating";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  dependencies.hasReviewRewardSubjectInTransaction.mockResolvedValue(false);
+});
 
 const dependencies = vi.hoisted(() => ({
   applyStreakEvidenceInTransaction: vi.fn(),
+  hasReviewRewardSubjectInTransaction: vi.fn(),
   lockContributionParticipantsInTransaction: vi.fn(),
   reconcileEditedReviewRewardsInTransaction: vi.fn(),
 }));
 
 vi.mock("./contribution-rewards", () => ({
+  hasReviewRewardSubjectInTransaction:
+    dependencies.hasReviewRewardSubjectInTransaction,
   lockContributionParticipantsInTransaction:
     dependencies.lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction:
@@ -153,6 +159,41 @@ it("timestamps the reward subject when a bare rating first becomes a review", as
   expect(
     dependencies.reconcileEditedReviewRewardsInTransaction
   ).toHaveBeenCalledWith(tx, { ...saved, createdAt: now }, now);
+});
+
+it("does not re-award a review that qualified before its text was cleared", async () => {
+  dependencies.hasReviewRewardSubjectInTransaction.mockResolvedValue(true);
+  const now = new Date("2026-08-08T12:00:00.000Z");
+  const tx = createRatingTransaction({
+    existingReview: "",
+    saved: {
+      createdAt: new Date("2026-08-01T12:00:00.000Z"),
+      id: "review-1",
+      postId: "post-1",
+      review: reviewA,
+      userId: "user-1",
+    },
+  });
+
+  await saveRatingInTransaction(tx as never, {
+    contentType: "post",
+    impersonated: false,
+    insertIfMissing: false,
+    now,
+    postId: "post-1",
+    rating: 8,
+    review: reviewA,
+    userId: "user-1",
+  });
+
+  expect(dependencies.hasReviewRewardSubjectInTransaction).toHaveBeenCalledWith(
+    tx,
+    "review-1"
+  );
+  expect(dependencies.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
+  expect(
+    dependencies.reconcileEditedReviewRewardsInTransaction
+  ).toHaveBeenCalledOnce();
 });
 
 it("does not create a review reward subject for a bare rating", async () => {

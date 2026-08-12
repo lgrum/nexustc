@@ -1414,6 +1414,8 @@ export default {
           columns: {
             earlyAccessEnabled: true,
             earlyAccessStartedAt: true,
+            releasedAt: true,
+            status: true,
             title: true,
             type: true,
             vip12EarlyAccessHours: true,
@@ -1424,6 +1426,16 @@ export default {
 
         if (!targetPost) {
           throw errors.NOT_FOUND();
+        }
+
+        if (
+          !canViewPost(
+            targetPost,
+            { role: session.user.role, tier: viewerTier },
+            now
+          )
+        ) {
+          throw errors.FORBIDDEN();
         }
 
         const earlyAccess = getPostEarlyAccessView(targetPost, {

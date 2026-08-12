@@ -507,6 +507,21 @@ export async function saveReviewRewardSubjectInTransaction(
   return subject;
 }
 
+export async function hasReviewRewardSubjectInTransaction(
+  tx: Transaction,
+  reviewId: string
+) {
+  return Boolean(
+    await tx.query.xpRewardSubject.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(xpRewardSubject.kind, "review"),
+        eq(xpRewardSubject.entityId, reviewId)
+      ),
+    })
+  );
+}
+
 export async function saveCommentRewardSubjectInTransaction(
   tx: Transaction,
   snapshot: CommentSnapshot,

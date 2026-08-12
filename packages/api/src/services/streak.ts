@@ -1,4 +1,4 @@
-import { and, eq, getRedis, gt, inArray, lte } from "@repo/db";
+import { and, eq, getRedis, gt, inArray, lte, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisWallet,
@@ -10,6 +10,7 @@ import {
   xpEvent,
 } from "@repo/db/schema/app";
 import { env } from "@repo/env";
+import { RATING_REVIEW_MIN_LENGTH } from "@repo/shared/constants";
 import { normalizeContributionText } from "@repo/shared/contribution-rewards";
 import { ratingReviewSchema } from "@repo/shared/schemas";
 import {
@@ -103,6 +104,40 @@ type StreakErrorCode =
 
 const TIMEZONE_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
+type StreakCompletionEvent = {
+  amount: number;
+  metadata: unknown;
+  state: "cancelled" | "pending" | "posted";
+};
+
+function getChallengeCompletionOutcome(
+  completed: boolean,
+  completionEvent: StreakCompletionEvent | null
+) {
+  if (completed === false) {
+    return null;
+  }
+  if (completionEvent === null) {
+    return "capped" as const;
+  }
+  if (completionEvent.state === "pending") {
+    return "pending" as const;
+  }
+  if (completionEvent.state === "cancelled") {
+    return "cancelled" as const;
+  }
+  if (
+    typeof completionEvent.metadata === "object" &&
+    completionEvent.metadata !== null &&
+    "requestedAmount" in completionEvent.metadata &&
+    typeof completionEvent.metadata.requestedAmount === "number" &&
+    completionEvent.metadata.requestedAmount > completionEvent.amount
+  ) {
+    return "capped" as const;
+  }
+  return "immediate" as const;
+}
+
 function getChallengeState(
   streak: {
     challengeCompletedAt: Date | null;
@@ -111,7 +146,7 @@ function getChallengeState(
   },
   currentStreak: number,
   completedToday: boolean,
-  completionEvent: { amount: number; state: string } | null = null
+  completionEvent: StreakCompletionEvent | null = null
 ) {
   const challengeTarget = streakChallengeTargetSchema.safeParse(
     streak.challengeTarget
@@ -129,16 +164,17 @@ function getChallengeState(
           ({ target }) => target > currentStreak
         ).map(({ target, xp }) => ({ target, xp }));
 
+  const completionOutcome = getChallengeCompletionOutcome(
+    completed,
+    completionEvent
+  );
+
   return {
     availableTargets,
     completed,
     completedAt: streak.challengeCompletedAt?.toISOString() ?? null,
     completedDays,
-    completionOutcome: completed
-      ? completionEvent?.state === "pending"
-        ? "pending"
-        : "immediate"
-      : null,
+    completionOutcome,
     offerAvailable: !challengeTarget && completedToday && currentStreak === 1,
     remainingDays: challengeTarget
       ? Math.max(0, challengeTarget - completedDays)
@@ -147,10 +183,41 @@ function getChallengeState(
     target: challengeTarget ?? null,
     upcomingBonus: challengeTarget
       ? completed
-        ? (completionEvent?.amount ?? null)
+        ? completionOutcome === "cancelled"
+          ? 0
+          : completionOutcome === "capped"
+            ? (completionEvent?.amount ?? 0)
+            : (completionEvent?.amount ?? null)
         : getStreakChallengeReward(challengeTarget)
       : null,
   };
+}
+
+async function getXpSettlementEvent(
+  executor: Pick<Database, "query">,
+  userId: string,
+  idempotencyKey: string
+) {
+  const original = await executor.query.xpEvent.findFirst({
+    columns: { amount: true, id: true, metadata: true, state: true },
+    where: and(
+      eq(xpEvent.userId, userId),
+      eq(xpEvent.idempotencyKey, idempotencyKey)
+    ),
+  });
+  if (!original || original.state !== "cancelled") {
+    return original ?? null;
+  }
+  return (
+    (await executor.query.xpEvent.findFirst({
+      columns: { amount: true, id: true, metadata: true, state: true },
+      where: and(
+        eq(xpEvent.userId, userId),
+        eq(xpEvent.state, "posted"),
+        sql`${xpEvent.metadata}->>'releasedPendingEventId' = ${original.id}`
+      ),
+    })) ?? original
+  );
 }
 
 function getChallengeCompletionEvent(
@@ -172,16 +239,11 @@ function getChallengeCompletionEvent(
   ) {
     return null;
   }
-  return executor.query.xpEvent.findFirst({
-    columns: { amount: true, state: true },
-    where: and(
-      eq(xpEvent.userId, userId),
-      eq(
-        xpEvent.idempotencyKey,
-        `streak-challenge:${streak.challengeCompletedDayKey}:${target}`
-      )
-    ),
-  });
+  return getXpSettlementEvent(
+    executor,
+    userId,
+    `streak-challenge:${streak.challengeCompletedDayKey}:${target}`
+  );
 }
 
 function getEffectiveCurrentStreak(
@@ -786,6 +848,9 @@ export async function applyStreakEvidenceInTransaction(
   let result;
   if (assessment.disposition === "low") {
     result = await postXpEventInTransaction(tx, dailyCommand, now);
+    if ("projectionMismatch" in result && result.projectionMismatch) {
+      throw new Error("STREAK_XP_SETTLEMENT_FAILED");
+    }
     await notifyXpSettlementInTransaction(tx, evidence.userId, result);
   } else {
     const integrityResult = await settleXpWithIntegrityInTransaction(
@@ -852,6 +917,12 @@ export async function applyStreakEvidenceInTransaction(
         challengeCommand,
         now
       );
+      if (
+        "projectionMismatch" in challengeResult &&
+        challengeResult.projectionMismatch
+      ) {
+        throw new Error("STREAK_CHALLENGE_SETTLEMENT_FAILED");
+      }
       await notifyXpSettlementInTransaction(
         tx,
         evidence.userId,
@@ -861,17 +932,30 @@ export async function applyStreakEvidenceInTransaction(
     const challengePending =
       pendingCase !== null ||
       ("pendingXp" in challengeResult && Boolean(challengeResult.pendingXp));
-    const challengeOutcome = challengePending ? "pending" : "immediate";
+    const challengeSettledAmount = challengePending
+      ? challengeAmount
+      : "settledXp" in challengeResult
+        ? challengeResult.settledXp
+        : challengeAmount;
+    const challengeOutcome = challengePending
+      ? "pending"
+      : challengeSettledAmount < challengeAmount
+        ? "capped"
+        : "immediate";
     await createUserNotification(tx, {
       dedupeKey: challengeIdempotencyKey,
       description: challengePending
         ? `Completaste tu desaf\u00EDo de ${challengeTarget} d\u00EDas. Tus ${challengeAmount} XP quedaron pendientes de revisi\u00F3n.`
-        : `Completaste tu desaf\u00EDo de ${challengeTarget} d\u00EDas y recibiste ${challengeAmount} XP.`,
+        : challengeOutcome === "capped"
+          ? challengeSettledAmount === 0
+            ? `Completaste tu desaf\u00EDo de ${challengeTarget} d\u00EDas. No se sum\u00F3 XP porque alcanzaste el m\u00E1ximo.`
+            : `Completaste tu desaf\u00EDo de ${challengeTarget} d\u00EDas. Se sumaron ${challengeSettledAmount} XP; no se sum\u00F3 el resto porque alcanzaste el m\u00E1ximo.`
+          : `Completaste tu desaf\u00EDo de ${challengeTarget} d\u00EDas y recibiste ${challengeAmount} XP.`,
       metadata: {
         category: "streak_challenge_completed",
         outcome: challengeOutcome,
         target: challengeTarget,
-        xp: challengeAmount,
+        xp: challengeSettledAmount,
       },
       publishedAt: now,
       targetUserId: evidence.userId,
@@ -879,7 +963,7 @@ export async function applyStreakEvidenceInTransaction(
     });
 
     challenge = {
-      amount: challengeAmount,
+      amount: challengeSettledAmount,
       completed: true as const,
       eventId: challengeResult.eventId,
       outcome: challengeOutcome,
@@ -895,8 +979,8 @@ export async function applyStreakEvidenceInTransaction(
         challengeCompletedAt: now,
         challengeCompletedDayKey: currentDayKey,
       }),
-      currentEvidence: {},
-      currentEvidenceDayKey: null,
+      currentEvidence: { completedPath: path },
+      currentEvidenceDayKey: currentDayKey,
       currentStreak,
       lastCompletedAt: now,
       lastCompletedDayKey: currentDayKey,
@@ -985,7 +1069,14 @@ export async function completeStreakStepUpInTransaction(
           ...base,
           kind: "contribution",
           source: retained.trigger.source,
-          text: "x".repeat(retained.trigger.normalizedLength),
+          text: "x".repeat(
+            retained.trigger.source.kind === "review"
+              ? Math.max(
+                  retained.trigger.normalizedLength,
+                  RATING_REVIEW_MIN_LENGTH
+                )
+              : retained.trigger.normalizedLength
+          ),
         }
       : retained.trigger.kind === "reading"
         ? {
@@ -1087,16 +1178,10 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
   await clearStaleEvidence(db, storedStreak, currentDayKey, now);
   const event =
     streak.lastCompletedDayKey === currentDayKey
-      ? await db.query.xpEvent.findFirst({
-          columns: { amount: true, metadata: true, state: true },
-          where: and(
-            eq(xpEvent.userId, userId),
-            eq(xpEvent.idempotencyKey, `streak-day:${currentDayKey}`)
-          ),
-        })
+      ? await getXpSettlementEvent(db, userId, `streak-day:${currentDayKey}`)
       : null;
   const challengeEvent = await getChallengeCompletionEvent(db, userId, streak);
-  const completed = Boolean(event);
+  const completed = streak.lastCompletedDayKey === currentDayKey;
   const protection = completed
     ? { currentDayProtected: false, missedDaysProtected: false }
     : await getProtectionState(
@@ -1110,7 +1195,17 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
     period.localDate,
     protection.missedDaysProtected
   );
-  const completionPath = event?.metadata.path;
+  const currentEvidence =
+    !protection.currentDayProtected &&
+    streak.currentEvidenceDayKey === currentDayKey
+      ? streak.currentEvidence
+      : {};
+  const completionPath =
+    event?.metadata &&
+    typeof event.metadata === "object" &&
+    "path" in event.metadata
+      ? event.metadata.path
+      : currentEvidence.completedPath;
   const readingProgress =
     completionPath === "reading"
       ? STREAK_READING_PAGE_REQUIREMENT
@@ -1121,11 +1216,6 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
             STREAK_READING_PAGE_REQUIREMENT
           )
         : 0;
-  const currentEvidence =
-    !protection.currentDayProtected &&
-    streak.currentEvidenceDayKey === currentDayKey
-      ? streak.currentEvidence
-      : {};
   const mixedCompleted = completionPath === "mixed_discovery";
   const nextStreak = currentStreak + 1;
   const upcoming = DAILY_STREAK_REWARDS.find(
@@ -1190,7 +1280,11 @@ export async function getStreakState(db: Database, userId: string, now: Date) {
       streak.timezoneChangeEffectiveAt?.toISOString() ?? null,
     todayXp: protection.currentDayProtected
       ? 0
-      : (event?.amount ?? getDailyStreakReward(Math.max(1, nextStreak))),
+      : completed
+        ? event?.state === "cancelled"
+          ? 0
+          : (event?.amount ?? 0)
+        : getDailyStreakReward(Math.max(1, nextStreak)),
     upcomingReward: upcoming ?? DAILY_STREAK_REWARDS.at(-1)!,
   } as const;
 }

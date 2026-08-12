@@ -4,6 +4,7 @@ import { postRating } from "@repo/db/schema/app";
 import { ratingReviewSchema } from "@repo/shared/schemas";
 
 import {
+  hasReviewRewardSubjectInTransaction,
   lockContributionParticipantsInTransaction,
   reconcileEditedReviewRewardsInTransaction,
 } from "./contribution-rewards";
@@ -90,9 +91,13 @@ export async function saveRatingInTransaction(
         )
       )
       .returning(savedReviewSelection);
-    firstQualifyingReview =
+    const becameQualifying =
       !previousQualifyingReview &&
       ratingReviewSchema.safeParse(input.review).success;
+    firstQualifyingReview =
+      becameQualifying &&
+      savedReview !== undefined &&
+      !(await hasReviewRewardSubjectInTransaction(tx, savedReview.id));
   }
 
   if (!savedReview) {

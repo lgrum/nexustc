@@ -380,7 +380,13 @@ export function StreakSection({
               {data.challenge.completed
                 ? data.challenge.completionOutcome === "pending"
                   ? `${data.challenge.upcomingBonus} XP pendientes de revisi\u00F3n.`
-                  : `Bonus recibido: ${data.challenge.upcomingBonus} XP.`
+                  : data.challenge.completionOutcome === "capped"
+                    ? data.challenge.upcomingBonus
+                      ? `Se sumaron ${data.challenge.upcomingBonus} XP; alcanzaste el m\u00E1ximo.`
+                      : "No se sum\u00F3 XP porque alcanzaste el m\u00E1ximo."
+                    : data.challenge.completionOutcome === "cancelled"
+                      ? "El bonus fue cancelado durante la revisi\u00F3n."
+                      : `Bonus recibido: ${data.challenge.upcomingBonus} XP.`
                 : `${data.challenge.remainingDays} d\u00EDas restantes \u00B7 ${data.challenge.upcomingBonus} XP al completar.`}
             </p>
           </div>
@@ -406,6 +412,24 @@ export function StreakSection({
               <>
                 Desaf&iacute;o completado. Tu bonus est&aacute; en
                 revisi&oacute;n como Pending XP.
+              </>
+            ) : data.challenge.completionOutcome === "capped" ? (
+              data.challenge.upcomingBonus ? (
+                <>
+                  Desaf&iacute;o completado. Se sumaron{" "}
+                  {data.challenge.upcomingBonus} XP; alcanzaste el
+                  m&aacute;ximo.
+                </>
+              ) : (
+                <>
+                  Desaf&iacute;o completado. No se sum&oacute; XP porque
+                  alcanzaste el m&aacute;ximo.
+                </>
+              )
+            ) : data.challenge.completionOutcome === "cancelled" ? (
+              <>
+                Desaf&iacute;o completado. El bonus fue cancelado durante la
+                revisi&oacute;n.
               </>
             ) : (
               <>

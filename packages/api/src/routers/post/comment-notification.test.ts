@@ -110,6 +110,8 @@ function createContext({
         findFirst: vi.fn().mockResolvedValue({
           earlyAccessEnabled: false,
           earlyAccessStartedAt: null,
+          releasedAt: new Date("2026-08-01T12:00:00.000Z"),
+          status: "publish",
           title: "Publicación de prueba",
           type: "post",
           vip12EarlyAccessHours: 0,
@@ -141,6 +143,7 @@ function createContext({
         },
       },
     } as unknown as Context,
+    db,
     insertedValues,
   };
 }
@@ -258,6 +261,33 @@ describe("comment reply notifications", () => {
       }),
       expect.any(Date)
     );
+  });
+
+  it("rejects comments on unpublished content before creating streak evidence", async () => {
+    const { context, db } = createContext();
+    db.query.post.findFirst.mockResolvedValueOnce({
+      earlyAccessEnabled: false,
+      earlyAccessStartedAt: null,
+      releasedAt: new Date("2026-08-01T12:00:00.000Z"),
+      status: "draft",
+      title: "Borrador privado",
+      type: "post",
+      vip12EarlyAccessHours: 0,
+      vip8EarlyAccessHours: 0,
+    });
+
+    await expect(
+      call(
+        postRouter.createComment,
+        {
+          content: "Un comentario suficientemente largo para una Racha.",
+          postId: "post-1",
+        },
+        { context }
+      )
+    ).rejects.toThrow();
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(streak.applyStreakEvidenceInTransaction).not.toHaveBeenCalled();
   });
 });
 

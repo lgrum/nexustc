@@ -16,7 +16,12 @@ const state = vi.hoisted(() => ({
       completed: false,
       completedAt: null as string | null,
       completedDays: 0,
-      completionOutcome: null as "immediate" | "pending" | null,
+      completionOutcome: null as
+        | "cancelled"
+        | "capped"
+        | "immediate"
+        | "pending"
+        | null,
       offerAvailable: false,
       remainingDays: null as number | null,
       selectedAt: null as string | null,
@@ -321,6 +326,31 @@ it("describes a completed challenge bonus as Pending XP while under review", () 
   expect(screen.getByText(/bonus est\u00E1 en revisi\u00F3n/i)).toBeTruthy();
   expect(screen.queryByText(/bonus recibido/i)).toBeNull();
 });
+
+it.each([
+  ["capped", "No se sumó XP porque alcanzaste el máximo"],
+  ["cancelled", "El bonus fue cancelado durante la revisión"],
+] as const)(
+  "describes a %s challenge without claiming its XP was paid",
+  (outcome, copy) => {
+    state.data.challenge.availableTargets = [];
+    state.data.challenge.completed = true;
+    state.data.challenge.completedAt = "2026-08-08T12:00:00.000Z";
+    state.data.challenge.completedDays = 10;
+    state.data.challenge.completionOutcome = outcome;
+    state.data.challenge.remainingDays = 0;
+    state.data.challenge.selectedAt = "2026-08-01T12:00:00.000Z";
+    state.data.challenge.target = 10;
+    state.data.challenge.upcomingBonus = 0;
+    render(<StreakSection />);
+
+    expect(screen.getAllByText(new RegExp(copy, "i")).length).toBeGreaterThan(
+      0
+    );
+    expect(screen.queryByText(/bonus recibido/i)).toBeNull();
+    expect(screen.queryByText(/se acreditó/i)).toBeNull();
+  }
+);
 
 it("shows bounded authoritative reading progress without page history", () => {
   render(<StreakSection />);

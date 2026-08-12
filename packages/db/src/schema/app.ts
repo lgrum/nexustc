@@ -982,6 +982,7 @@ export const userProgression = pgTable(
 );
 
 export type StreakEvidence = {
+  completedPath?: "contribution" | "mixed_discovery" | "reading";
   contribution?: { sourceId: string; sourceKind: "comment" | "review" };
   discoveryCandidates?: {
     actionKind: "bookmark" | "follow" | "rating";

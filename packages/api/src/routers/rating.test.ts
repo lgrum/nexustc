@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   applyStreakEvidenceInTransaction: vi.fn(),
   buildProfileSummaries: vi.fn(),
   canReadPublicProfileActivity: vi.fn(),
+  hasReviewRewardSubjectInTransaction: vi.fn(),
   isContributionLikerEligibleInTransaction: vi.fn(),
   lockContributionParticipantsInTransaction: vi.fn(),
   notifyXpSettlement: vi.fn(),
@@ -35,6 +36,8 @@ vi.mock("../services/profile", () => ({
 vi.mock("../services/contribution-rewards", () => ({
   deleteReviewWithRewards: vi.fn(),
   getReviewDeletionWarning: vi.fn(),
+  hasReviewRewardSubjectInTransaction:
+    mocks.hasReviewRewardSubjectInTransaction,
   isContributionLikerEligibleInTransaction:
     mocks.isContributionLikerEligibleInTransaction,
   lockContributionParticipantsInTransaction:
@@ -218,6 +221,7 @@ beforeEach(() => {
     Promise.resolve()
   );
   mocks.isContributionLikerEligibleInTransaction.mockResolvedValue(true);
+  mocks.hasReviewRewardSubjectInTransaction.mockResolvedValue(false);
 });
 
 describe("profile review privacy", () => {

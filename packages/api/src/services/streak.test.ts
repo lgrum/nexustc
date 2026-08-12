@@ -281,6 +281,191 @@ describe("streak challenge", () => {
     });
   });
 
+  it("reports a cancelled challenge bonus instead of claiming it was paid", async () => {
+    const db = createStreakDb({
+      challengeCompletedAt: new Date("2026-08-01T12:00:00.000Z"),
+      challengeCompletedDayKey: "user-1:1:2026-08-01",
+      challengeSelectedAt: new Date("2026-07-20T12:00:00.000Z"),
+      challengeTarget: 10,
+      currentStreak: 10,
+      lastCompletedDayKey: "user-1:1:2026-08-01",
+      lastCompletedLocalDate: "2026-08-01",
+    });
+    db.query.xpEvent.findFirst
+      .mockResolvedValueOnce({
+        amount: 50,
+        id: "pending-challenge",
+        metadata: {},
+        state: "cancelled",
+      })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      challenge: {
+        completed: true,
+        completionOutcome: "cancelled",
+        upcomingBonus: 0,
+      },
+    });
+  });
+
+  it("resolves the posted release of a formerly pending challenge bonus", async () => {
+    const db = createStreakDb({
+      challengeCompletedAt: new Date("2026-08-01T12:00:00.000Z"),
+      challengeCompletedDayKey: "user-1:1:2026-08-01",
+      challengeSelectedAt: new Date("2026-07-20T12:00:00.000Z"),
+      challengeTarget: 10,
+      currentStreak: 10,
+      lastCompletedDayKey: "user-1:1:2026-08-01",
+      lastCompletedLocalDate: "2026-08-01",
+    });
+    db.query.xpEvent.findFirst
+      .mockResolvedValueOnce({
+        amount: 50,
+        id: "pending-challenge",
+        metadata: {},
+        state: "cancelled",
+      })
+      .mockResolvedValueOnce({
+        amount: 50,
+        id: "released-challenge",
+        metadata: { releasedPendingEventId: "pending-challenge" },
+        state: "posted",
+      });
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      challenge: {
+        completed: true,
+        completionOutcome: "immediate",
+        upcomingBonus: 50,
+      },
+    });
+  });
+
+  it("keeps a cancelled daily reward completed without reporting its XP", async () => {
+    const db = createStreakDb({
+      currentEvidence: { completedPath: "contribution" },
+      currentEvidenceDayKey: "user-1:1:2026-08-08",
+      currentStreak: 1,
+      lastCompletedDayKey: "user-1:1:2026-08-08",
+      lastCompletedLocalDate: "2026-08-08",
+    });
+    db.query.xpEvent.findFirst
+      .mockResolvedValueOnce({
+        amount: 5,
+        id: "pending-daily",
+        metadata: { path: "contribution" },
+        state: "cancelled",
+      })
+      .mockResolvedValueOnce(null);
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      contribution: { completed: true },
+      currentStreak: 1,
+      pendingXp: false,
+      todayXp: 0,
+    });
+  });
+
+  it("completes a challenge without claiming XP at the Account cap", async () => {
+    progression.postXpEventInTransaction.mockResolvedValue({
+      eventId: null,
+      replayed: false,
+      settledXp: 0,
+    });
+    const db = createStreakDb({
+      challengeSelectedAt: new Date("2026-08-01T12:00:00.000Z"),
+      challengeTarget: 10,
+      currentStreak: 9,
+      lastCompletedDayKey: "user-1:1:2026-08-07",
+      lastCompletedLocalDate: "2026-08-07",
+    });
+    const now = new Date("2026-08-08T12:00:00.000Z");
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        contributionEvidence("comment-10"),
+        now
+      )
+    ).resolves.toMatchObject({
+      challenge: { amount: 0, completed: true, outcome: "capped", target: 10 },
+      completed: true,
+    });
+    expect(notifications.createUserNotification).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        description: expect.stringContaining("máximo"),
+        metadata: expect.objectContaining({ outcome: "capped", xp: 0 }),
+      })
+    );
+
+    await expect(
+      getStreakState(db as never, "user-1", now)
+    ).resolves.toMatchObject({
+      challenge: { completionOutcome: "capped", upcomingBonus: 0 },
+      contribution: { completed: true },
+      currentStreak: 10,
+      todayXp: 0,
+    });
+  });
+
+  it("reports only the clipped challenge XP credited at the Account cap", async () => {
+    progression.postXpEventInTransaction
+      .mockResolvedValueOnce({
+        eventId: "daily-xp",
+        replayed: false,
+        settledXp: 15,
+      })
+      .mockResolvedValueOnce({
+        eventId: "challenge-xp",
+        replayed: false,
+        settledXp: 10,
+      });
+    const db = createStreakDb({
+      challengeSelectedAt: new Date("2026-08-01T12:00:00.000Z"),
+      challengeTarget: 10,
+      currentStreak: 9,
+      lastCompletedDayKey: "user-1:1:2026-08-07",
+      lastCompletedLocalDate: "2026-08-07",
+    });
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        contributionEvidence("comment-10"),
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({
+      challenge: { amount: 10, outcome: "capped" },
+    });
+    expect(notifications.createUserNotification).toHaveBeenCalledWith(
+      db,
+      expect.objectContaining({
+        description: expect.stringContaining("Se sumaron 10 XP"),
+        metadata: expect.objectContaining({ outcome: "capped", xp: 10 }),
+      })
+    );
+  });
+
   it("rolls challenge completion back when its notification cannot be created", async () => {
     notifications.createUserNotification.mockRejectedValueOnce(
       new Error("notification unavailable")
@@ -1871,6 +2056,39 @@ describe("adaptive streak integrity", () => {
       "1",
       { EX: 30 * 60 }
     );
+  });
+
+  it("preserves review qualification when Step-Up replays collapsed whitespace", async () => {
+    const db = createStreakDb({});
+    db.query.xpRiskSignal.findMany.mockResolvedValue([
+      { kind: "rejected_sequence" },
+    ]);
+    const correlation = { deviceHash: "device-a", ipPrefixHash: null };
+    const reviewWithCollapsibleWhitespace = `x${" ".repeat(98)}x`;
+
+    await expect(
+      applyStreakEvidenceInTransaction(
+        db as never,
+        {
+          impersonated: false,
+          integrity: { correlation, stepUpCleared: false },
+          kind: "contribution",
+          source: { id: "review-1", kind: "review" },
+          text: reviewWithCollapsibleWhitespace,
+          userId: "user-1",
+        },
+        new Date("2026-08-08T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: false, stepUpRequired: true });
+
+    await expect(
+      completeStreakStepUpInTransaction(
+        db as never,
+        "user-1",
+        correlation,
+        new Date("2026-08-08T12:05:00.000Z")
+      )
+    ).resolves.toMatchObject({ completed: true, currentStreak: 1 });
   });
 
   it("does not grant clearance without retained Step-Up evidence", async () => {
