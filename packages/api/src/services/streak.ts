@@ -469,35 +469,62 @@ async function getProtectionState(
   lastCompletedLocalDate: string | null,
   currentPeriod: ReturnType<typeof getStreakDayPeriod>
 ) {
-  const missedDeadlines: Date[] = [];
-  if (
-    lastCompletedLocalDate &&
-    lastCompletedLocalDate < currentPeriod.localDate
-  ) {
-    let localDate = getNextLocalDate(lastCompletedLocalDate);
-    while (localDate < currentPeriod.localDate) {
-      missedDeadlines.push(
-        getStreakDayPeriodForLocalDate(localDate, timezone).endsAt
-      );
-      localDate = getNextLocalDate(localDate);
-    }
-  }
-  const deadlines = [...missedDeadlines, currentPeriod.endsAt];
+  const firstMissedLocalDate = lastCompletedLocalDate
+    ? getNextLocalDate(lastCompletedLocalDate)
+    : null;
+  const hasMissedDays = Boolean(
+    firstMissedLocalDate && firstMissedLocalDate < currentPeriod.localDate
+  );
+  const firstMissedDeadline =
+    hasMissedDays && firstMissedLocalDate
+      ? getStreakDayPeriodForLocalDate(firstMissedLocalDate, timezone).endsAt
+      : null;
+  const lastMissedDeadline = hasMissedDays
+    ? getStreakDayPeriodForLocalDate(
+        getPreviousLocalDate(currentPeriod.localDate),
+        timezone
+      ).endsAt
+    : null;
+  const firstRelevantDeadline = firstMissedDeadline ?? currentPeriod.endsAt;
   const windows = await executor.query.streakProtectionWindow.findMany({
     columns: { endsAt: true, startsAt: true },
     where: and(
-      lte(streakProtectionWindow.startsAt, deadlines.at(-1)!),
-      gt(streakProtectionWindow.endsAt, deadlines[0]!)
+      lte(streakProtectionWindow.startsAt, currentPeriod.endsAt),
+      gt(streakProtectionWindow.endsAt, firstRelevantDeadline)
     ),
   });
   const isProtected = (deadline: Date) =>
     windows.some(
       (window) => window.startsAt <= deadline && deadline < window.endsAt
     );
+  let nextUncoveredDeadline = firstMissedDeadline;
+  for (const window of windows.toSorted(
+    (a, b) => a.startsAt.getTime() - b.startsAt.getTime()
+  )) {
+    if (
+      !nextUncoveredDeadline ||
+      !lastMissedDeadline ||
+      nextUncoveredDeadline > lastMissedDeadline
+    ) {
+      break;
+    }
+    if (window.endsAt <= nextUncoveredDeadline) {
+      continue;
+    }
+    if (window.startsAt > nextUncoveredDeadline) {
+      break;
+    }
+    nextUncoveredDeadline = getStreakDayPeriod(
+      new Date(window.endsAt.getTime() - 1),
+      timezone
+    ).endsAt;
+  }
   return {
     currentDayProtected: isProtected(currentPeriod.endsAt),
     missedDaysProtected:
-      missedDeadlines.length > 0 && missedDeadlines.every(isProtected),
+      lastMissedDeadline && nextUncoveredDeadline
+        ? nextUncoveredDeadline > lastMissedDeadline
+        : false,
   };
 }
 

@@ -1975,6 +1975,32 @@ describe("streak continuity", () => {
     expect(progression.postXpEventInTransaction).not.toHaveBeenCalled();
   });
 
+  it("bounds protection checks for a long-inactive public streak", async () => {
+    const db = createStreakDb(
+      {
+        bestStreak: 3,
+        currentStreak: 3,
+        lastCompletedDayKey: "user-1:1:2000-01-01",
+        lastCompletedLocalDate: "2000-01-01",
+      },
+      [
+        {
+          endsAt: new Date("2026-08-10T00:00:00.000Z"),
+          startsAt: new Date("2000-01-03T00:00:00.000Z"),
+        },
+      ]
+    );
+
+    await expect(
+      getStreakState(
+        db as never,
+        "user-1",
+        new Date("2026-08-09T12:00:00.000Z")
+      )
+    ).resolves.toMatchObject({ currentStreak: 3 });
+    expect(db.query.streakProtectionWindow.findMany).toHaveBeenCalledOnce();
+  });
+
   it("resolves a due timezone on reads without an unlocked projection write", async () => {
     const db = createStreakDb({
       currentStreak: 1,
