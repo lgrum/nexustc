@@ -27,7 +27,7 @@ test("authenticated catalog fetches bypass anonymous cache context", () => {
   expect(source).toContain("await orpcClient.post.search({");
 });
 
-test("public streak resolution stays outside the hours-cached profile", () => {
+test("public scalar Showcases stay outside the hours-cached profile", () => {
   const source = read("src/app/(main)/user/[id]/page.tsx");
   const cachedProfile = source.slice(
     source.indexOf("async function getProfile"),
@@ -40,10 +40,40 @@ test("public streak resolution stays outside the hours-cached profile", () => {
   expect(cachedProfile).toContain("includeCurrentStreak: false");
   expect(cachedProfile).toContain("orpcClient.profile.getPublic(");
   expect(cachedProfile).toContain("context: { cache: true }");
-  expect(cachedProfile).not.toContain("getPublicCurrentStreak");
-  expect(page).toContain("orpcClient.profile.getPublicCurrentStreak({");
+  expect(cachedProfile).not.toContain("getPublicScalarShowcases");
+  expect(page).toContain("orpcClient.profile.getPublicScalarShowcases({");
+  expect(page).toMatch(
+    /getPublicCurrentStreak\(\{ userId: id \}\)\s*\.catch\(\(\) => null\)/
+  );
   expect(source).not.toContain("@repo/api/services/profile");
   expect(source).not.toContain('from "@repo/db"');
+});
+
+test("profile customization and owner catalog state stay request-bound", () => {
+  const editorPage = read("src/app/(main)/profile/customize/page.tsx");
+  const skinAdminPage = read(
+    "src/app/admin/profile/skins/profile-skins-admin-page.tsx"
+  );
+  const decorationAdminPage = read(
+    "src/app/admin/profile/decorations/profile-decorations-admin-page.tsx"
+  );
+
+  for (const source of [editorPage, skinAdminPage, decorationAdminPage]) {
+    expect(source).not.toContain('"use cache"');
+    expect(source).not.toContain("context: { cache: true }");
+  }
+  expect(editorPage).toContain(
+    "orpcClient.profile.getCustomizationEditorState()"
+  );
+  expect(editorPage).toContain(
+    "orpcClient.profile.getFavoriteGamesEditorState()"
+  );
+  expect(skinAdminPage).toContain(
+    "orpc.profileCatalogAdmin.skins.list.queryOptions()"
+  );
+  expect(decorationAdminPage).toContain(
+    "orpc.profileCatalogAdmin.decorations.list.queryOptions()"
+  );
 });
 
 test("server oRPC client keeps cached calls public and live calls request-bound", () => {

@@ -517,8 +517,11 @@ export default {
         const uploadedKeys: string[] = [];
 
         try {
+          const optimizedUploads: { isAnimated: boolean; objectKey: string }[] =
+            [];
           for (const file of input.files) {
-            const { buffer, extension, mimeType } = await optimizeFile(file);
+            const { buffer, extension, isAnimated, mimeType } =
+              await optimizeFile(file);
             const objectKey = `media/${generateId()}.${extension}`;
 
             await getS3Client().send(
@@ -532,6 +535,7 @@ export default {
             );
 
             uploadedKeys.push(objectKey);
+            optimizedUploads.push({ isAnimated, objectKey });
           }
 
           const createdRows = await db
@@ -539,6 +543,10 @@ export default {
             .values(
               uploadedKeys.map((objectKey) => ({
                 folderId: targetFolder?.id ?? null,
+                isAnimated:
+                  optimizedUploads.find(
+                    (upload) => upload.objectKey === objectKey
+                  )?.isAnimated ?? null,
                 objectKey,
               }))
             )
@@ -546,6 +554,7 @@ export default {
               createdAt: media.createdAt,
               folderId: media.folderId,
               id: media.id,
+              isAnimated: media.isAnimated,
               objectKey: media.objectKey,
             });
           const createdRowsByKey = new Map(

@@ -153,6 +153,12 @@ export default {
     .use(fixedWindowRatelimitMiddleware({ limit: 10, windowSeconds: 60 }))
     .input(z.object({ publicBalance: z.boolean() }))
     .handler(async ({ context: { db, session }, errors, input }) => {
+      if (session.session?.impersonatedBy) {
+        throw errors.FORBIDDEN({
+          message:
+            "No puedes cambiar la visibilidad mientras est\u00E1s suplantando una cuenta.",
+        });
+      }
       try {
         return await setPublicWalletBalance(
           db,

@@ -25,6 +25,10 @@ export const env = createEnv({
     PATREON_CLIENT_ID: z.string(),
     PATREON_CLIENT_SECRET: z.string(),
     PATREON_WEBHOOK_SECRET: z.string(),
+    PROFILE_CUSTOMIZATION_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     R2_ACCESS_KEY_ID: z.string(),
     R2_ASSETS_BUCKET_NAME: z.string(),
     R2_SECRET_ACCESS_KEY: z.string(),
@@ -68,6 +72,7 @@ export const env = createEnv({
     PATREON_CLIENT_ID: process.env.PATREON_CLIENT_ID,
     PATREON_CLIENT_SECRET: process.env.PATREON_CLIENT_SECRET,
     PATREON_WEBHOOK_SECRET: process.env.PATREON_WEBHOOK_SECRET,
+    PROFILE_CUSTOMIZATION_ENABLED: process.env.PROFILE_CUSTOMIZATION_ENABLED,
     R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
     R2_ASSETS_BUCKET_NAME: process.env.R2_ASSETS_BUCKET_NAME,
     R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,

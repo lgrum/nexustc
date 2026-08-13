@@ -21,6 +21,16 @@ import type {
   ProfileRoleVisualConfig,
   ProfileVisibilityConfig,
 } from "@repo/shared/profile";
+import {
+  PROFILE_CATALOG_KINDS,
+  PROFILE_CATALOG_LIFECYCLES,
+  PROFILE_CATALOG_OWNERSHIP_SOURCES,
+  PROFILE_CATALOG_REVISION_STATES,
+  PROFILE_DECORATION_SLOTS,
+  PROFILE_LAYOUT_KEYS,
+  PROFILE_SHOWCASE_TYPE_KEYS,
+  PROFILE_SHOWCASE_VARIANTS,
+} from "@repo/shared/profile-customization";
 import type { MarqueeItem as SiteMarqueeItem } from "@repo/shared/schemas";
 import { relations, sql } from "drizzle-orm";
 import {
@@ -558,6 +568,7 @@ export const media = pgTable(
       onDelete: "set null",
     }),
     id: text("id").primaryKey().$defaultFn(generateId),
+    isAnimated: boolean("is_animated"),
     objectKey: text("object_key").notNull().unique(),
   },
   (table) => [
@@ -1612,6 +1623,355 @@ export const profileSettings = pgTable(
       columns: [table.bannerAssetId],
       foreignColumns: [profileMediaAsset.id],
       name: "ps_banner_asset_fk",
+    }).onDelete("set null"),
+  ]
+);
+
+export const profileCatalogKindEnum = pgEnum(
+  "profile_catalog_kind",
+  PROFILE_CATALOG_KINDS
+);
+export const profileCatalogLifecycleEnum = pgEnum(
+  "profile_catalog_lifecycle",
+  PROFILE_CATALOG_LIFECYCLES
+);
+export const profileCatalogRevisionStateEnum = pgEnum(
+  "profile_catalog_revision_state",
+  PROFILE_CATALOG_REVISION_STATES
+);
+export const profileDecorationSlotEnum = pgEnum(
+  "profile_decoration_slot",
+  PROFILE_DECORATION_SLOTS
+);
+export const profileLayoutKeyEnum = pgEnum(
+  "profile_layout_key",
+  PROFILE_LAYOUT_KEYS
+);
+export const profileShowcaseTypeKeyEnum = pgEnum(
+  "profile_showcase_type_key",
+  PROFILE_SHOWCASE_TYPE_KEYS
+);
+export const profileShowcaseVariantEnum = pgEnum(
+  "profile_showcase_variant",
+  PROFILE_SHOWCASE_VARIANTS
+);
+export const profileCatalogOwnershipSourceEnum = pgEnum(
+  "profile_catalog_ownership_source",
+  PROFILE_CATALOG_OWNERSHIP_SOURCES
+);
+
+export const profileCatalogItem = pgTable(
+  "profile_catalog_item",
+  {
+    currentPublishedRevisionId: text("current_published_revision_id"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isProtectedDefault: boolean("is_protected_default")
+      .notNull()
+      .default(false),
+    kind: profileCatalogKindEnum("kind").notNull(),
+    lifecycle: profileCatalogLifecycleEnum("lifecycle")
+      .notNull()
+      .default("draft"),
+    stableKey: text("stable_key").notNull().unique(),
+    ...timestamps,
+  },
+  (table) => [index("profile_catalog_item_kind_idx").on(table.kind)]
+);
+
+export const profileCatalogItemRevision = pgTable(
+  "profile_catalog_item_revision",
+  {
+    catalogOrder: integer("catalog_order").notNull().default(0),
+    createdByUserId: text("created_by_user_id"),
+    description: text("description").notNull().default(""),
+    eterisPrice: bigint("eteris_price", { mode: "bigint" }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    isFree: boolean("is_free").notNull().default(false),
+    itemId: text("item_id").notNull(),
+    name: text("name").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedByUserId: text("published_by_user_id"),
+    requiredTier:
+      text("required_tier").$type<(typeof PATRON_TIER_KEYS)[number]>(),
+    revision: integer("revision").notNull(),
+    state: profileCatalogRevisionStateEnum("state").notNull().default("draft"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("profile_catalog_item_revision_number_uq").on(
+      table.itemId,
+      table.revision
+    ),
+    check(
+      "profile_catalog_item_revision_price_nonnegative",
+      sql`${table.eterisPrice} IS NULL OR ${table.eterisPrice} >= 0`
+    ),
+    foreignKey({
+      columns: [table.itemId],
+      foreignColumns: [profileCatalogItem.id],
+      name: "pcir_item_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.createdByUserId],
+      foreignColumns: [user.id],
+      name: "pcir_creator_fk",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.publishedByUserId],
+      foreignColumns: [user.id],
+      name: "pcir_publisher_fk",
+    }).onDelete("set null"),
+  ]
+);
+
+export const profileCatalogLayoutRevision = pgTable(
+  "profile_catalog_layout_revision",
+  {
+    revisionId: text("revision_id").primaryKey(),
+    rendererKey: profileLayoutKeyEnum("renderer_key").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.revisionId],
+      foreignColumns: [profileCatalogItemRevision.id],
+      name: "pclr_revision_fk",
+    }).onDelete("cascade"),
+  ]
+);
+
+export const profileCatalogSkinRevision = pgTable(
+  "profile_catalog_skin_revision",
+  {
+    backgroundAssetId: text("background_asset_id"),
+    revisionId: text("revision_id").primaryKey(),
+    tokens: jsonb("tokens").$type<Record<string, unknown>>().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.revisionId],
+      foreignColumns: [profileCatalogItemRevision.id],
+      name: "pcsr_revision_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.backgroundAssetId],
+      foreignColumns: [media.id],
+      name: "pcsr_background_asset_fk",
+    }).onDelete("restrict"),
+  ]
+);
+
+export const profileCatalogDecorationRevision = pgTable(
+  "profile_catalog_decoration_revision",
+  {
+    effectKey: text("effect_key"),
+    fontKey: text("font_key"),
+    mediaAssetId: text("media_asset_id"),
+    reducedMotion: jsonb("reduced_motion").$type<Record<string, unknown>>(),
+    revisionId: text("revision_id").primaryKey(),
+    slot: profileDecorationSlotEnum("slot").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.revisionId],
+      foreignColumns: [profileCatalogItemRevision.id],
+      name: "pcdr_revision_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.mediaAssetId],
+      foreignColumns: [profileMediaAsset.id],
+      name: "pcdr_media_asset_fk",
+    }).onDelete("restrict"),
+  ]
+);
+
+export const profileCustomization = pgTable(
+  "profile_customization",
+  {
+    revision: integer("revision").notNull().default(1),
+    selectedLayoutItemId: text("selected_layout_item_id").notNull(),
+    selectedSkinItemId: text("selected_skin_item_id").notNull(),
+    userId: text("user_id").primaryKey(),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "profile_customization_revision_positive",
+      sql`${table.revision} > 0`
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [user.id],
+      name: "pc_user_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.selectedLayoutItemId],
+      foreignColumns: [profileCatalogItem.id],
+      name: "pc_layout_item_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.selectedSkinItemId],
+      foreignColumns: [profileCatalogItem.id],
+      name: "pc_skin_item_fk",
+    }).onDelete("restrict"),
+  ]
+);
+
+export const profileEquippedDecoration = pgTable(
+  "profile_equipped_decoration",
+  {
+    catalogItemId: text("catalog_item_id").notNull(),
+    slot: profileDecorationSlotEnum("slot").notNull(),
+    userId: text("user_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.slot] }),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [user.id],
+      name: "ped_user_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.catalogItemId],
+      foreignColumns: [profileCatalogItem.id],
+      name: "ped_catalog_item_fk",
+    }).onDelete("restrict"),
+  ]
+);
+
+export const profileShowcaseType = pgTable("profile_showcase_type", {
+  isActive: boolean("is_active").notNull().default(true),
+  key: profileShowcaseTypeKeyEnum("key").primaryKey(),
+  requiredTier: text("required_tier")
+    .$type<(typeof PATRON_TIER_KEYS)[number]>()
+    .notNull()
+    .default("none"),
+  publishedConfigRevision: integer("published_config_revision")
+    .notNull()
+    .default(1),
+  ...timestamps,
+});
+
+export const profileShowcaseConfig = pgTable(
+  "profile_showcase_config",
+  {
+    enabled: boolean("enabled").notNull().default(false),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    order: integer("display_order").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    payloadSchemaVersion: integer("payload_schema_version").notNull(),
+    typeKey: profileShowcaseTypeKeyEnum("type_key").notNull(),
+    userId: text("user_id").notNull(),
+    variant: profileShowcaseVariantEnum("variant")
+      .notNull()
+      .default("standard"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("profile_showcase_config_user_type_uq").on(
+      table.userId,
+      table.typeKey
+    ),
+    uniqueIndex("profile_showcase_config_user_order_uq").on(
+      table.userId,
+      table.order
+    ),
+    check(
+      "profile_showcase_config_order_nonnegative",
+      sql`${table.order} >= 0`
+    ),
+    check(
+      "profile_showcase_config_payload_version_positive",
+      sql`${table.payloadSchemaVersion} > 0`
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [user.id],
+      name: "psc_user_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.typeKey],
+      foreignColumns: [profileShowcaseType.key],
+      name: "psc_type_fk",
+    }).onDelete("restrict"),
+  ]
+);
+
+export const profileCatalogOwnership = pgTable(
+  "profile_catalog_ownership",
+  {
+    catalogItemId: text("catalog_item_id").notNull(),
+    grantedAt: timestamp("granted_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    grantedByUserId: text("granted_by_user_id"),
+    grantReason: text("grant_reason"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedByUserId: text("revoked_by_user_id"),
+    revokeReason: text("revoke_reason"),
+    sourceReference: text("source_reference").notNull(),
+    sourceType: profileCatalogOwnershipSourceEnum("source_type").notNull(),
+    userId: text("user_id").notNull(),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("profile_catalog_ownership_source_uq").on(
+      table.sourceType,
+      table.sourceReference
+    ),
+    index("profile_catalog_ownership_user_item_idx").on(
+      table.userId,
+      table.catalogItemId
+    ),
+    foreignKey({
+      columns: [table.userId],
+      foreignColumns: [user.id],
+      name: "pco_user_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.catalogItemId],
+      foreignColumns: [profileCatalogItem.id],
+      name: "pco_catalog_item_fk",
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.grantedByUserId],
+      foreignColumns: [user.id],
+      name: "pco_granter_fk",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.revokedByUserId],
+      foreignColumns: [user.id],
+      name: "pco_revoker_fk",
+    }).onDelete("set null"),
+  ]
+);
+
+export const profileCatalogAudit = pgTable(
+  "profile_catalog_audit",
+  {
+    action: text("action").notNull(),
+    actorUserId: text("actor_user_id"),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    note: text("note"),
+    targetId: text("target_id").notNull(),
+    targetKind: text("target_kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("profile_catalog_audit_target_idx").on(
+      table.targetKind,
+      table.targetId,
+      table.createdAt
+    ),
+    foreignKey({
+      columns: [table.actorUserId],
+      foreignColumns: [user.id],
+      name: "pca_actor_fk",
     }).onDelete("set null"),
   ]
 );

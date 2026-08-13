@@ -195,18 +195,26 @@ export function setPublicWalletBalance(
   if (!env.XP_ECONOMY_ENABLED) {
     throw new EterisError("VISIBILITY_DISABLED");
   }
-  return db.transaction(async (tx) => {
-    const wallet = await getOrCreateUserWalletInTransaction(tx, userId);
-    const [locked] = await lockEterisWalletsInTransaction(tx, [wallet.id]);
-    if (publicBalance && locked?.status !== "active") {
-      throw new EterisError("CLOSED_OR_FROZEN");
-    }
-    await tx
-      .update(eterisWallet)
-      .set({ publicBalance })
-      .where(eq(eterisWallet.id, wallet.id));
-    return { publicBalance };
-  });
+  return db.transaction((tx) =>
+    setPublicWalletBalanceInTransaction(tx, userId, publicBalance)
+  );
+}
+
+export async function setPublicWalletBalanceInTransaction(
+  executor: EterisExecutor,
+  userId: string,
+  publicBalance: boolean
+) {
+  const wallet = await getOrCreateUserWalletInTransaction(executor, userId);
+  const [locked] = await lockEterisWalletsInTransaction(executor, [wallet.id]);
+  if (publicBalance && locked?.status !== "active") {
+    throw new EterisError("CLOSED_OR_FROZEN");
+  }
+  await executor
+    .update(eterisWallet)
+    .set({ publicBalance })
+    .where(eq(eterisWallet.id, wallet.id));
+  return { publicBalance };
 }
 
 export async function getPublicWalletBalance(
@@ -588,7 +596,7 @@ export async function adjustEteris(
 }
 
 export async function reverseEterisTransaction(
-  db: Database,
+  db: Database | EterisExecutor,
   input: {
     actorUserId: string;
     idempotencyKey: string;
@@ -603,7 +611,7 @@ export async function reverseEterisTransaction(
     throw new EterisError("WALLET_NOT_FOUND");
   }
   const originalPostings = await loadExistingPostings(db, original.id);
-  return postEterisTransaction(db, {
+  const reversal = {
     actorUserId: input.actorUserId,
     debtPolicy: "trusted-recovery",
     idempotencyKey: input.idempotencyKey,
@@ -617,7 +625,10 @@ export async function reverseEterisTransaction(
     reversesTransactionId: original.id,
     sourceModule: "account",
     sourceRef: `reversal:${original.id}`,
-  });
+  } satisfies EterisTransactionInput;
+  return "transaction" in db
+    ? postEterisTransaction(db, reversal)
+    : postEterisTransactionInTransaction(db, reversal);
 }
 
 const HISTORY_LABELS: Record<EterisTransactionKind, string> = {

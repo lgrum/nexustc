@@ -10,6 +10,7 @@ import {
 import { useMemo } from "react";
 import { toast } from "sonner";
 
+import { ProfileCustomizationVisibilityStatus } from "@/components/profile/profile-customization-visibility-status";
 import {
   ProfilePanel,
   ProfileSectionHeader,
@@ -40,7 +41,11 @@ function getWalletStatusMessage(data: WalletState) {
   return "La Billetera a\u00FAn no est\u00E1 activa. Tu saldo comienza en cero.";
 }
 
-export function EterisSection() {
+export function EterisSection({
+  customizationEnabled = false,
+}: {
+  customizationEnabled?: boolean;
+}) {
   const queryClient = useQueryClient();
   const { data } = useSuspenseQuery(orpc.eteris.getMine.queryOptions());
   const history = useInfiniteQuery({
@@ -89,26 +94,39 @@ export function EterisSection() {
             {getWalletStatusMessage(data)}
           </p>
         </div>
-        <div className="mt-5 flex items-center justify-between gap-4 rounded-[1.25rem] border border-border/70 bg-background/45 p-4">
-          <span>
-            <label
-              className="block font-medium"
-              htmlFor="public-eteris-balance"
-            >
-              Mostrar saldo en mi perfil
-            </label>
-            <span className="mt-1 block text-muted-foreground text-sm">
-              El historial y el estado interno siempre permanecen privados.
+        {customizationEnabled ? (
+          <div className="mt-5">
+            <ProfileCustomizationVisibilityStatus
+              description="El historial, el estado interno y cualquier deuda siempre permanecen privados."
+              status={
+                data.publicBalance
+                  ? "Saldo visible en tu perfil"
+                  : "Saldo oculto en tu perfil"
+              }
+            />
+          </div>
+        ) : (
+          <div className="mt-5 flex items-center justify-between gap-4 rounded-[1.25rem] border border-border/70 bg-background/45 p-4">
+            <span>
+              <label
+                className="block font-medium"
+                htmlFor="public-eteris-balance"
+              >
+                Mostrar saldo en mi perfil
+              </label>
+              <span className="mt-1 block text-muted-foreground text-sm">
+                El historial y el estado interno siempre permanecen privados.
+              </span>
             </span>
-          </span>
-          <Switch
-            aria-label={"Mostrar saldo de Eteris en mi perfil p\u00FAblico"}
-            checked={data.publicBalance}
-            disabled={!data.enabled || visibility.isPending}
-            id="public-eteris-balance"
-            onCheckedChange={(checked) => visibility.mutate(checked)}
-          />
-        </div>
+            <Switch
+              aria-label={"Mostrar saldo de Eteris en mi perfil p\u00FAblico"}
+              checked={data.publicBalance}
+              disabled={!data.enabled || visibility.isPending}
+              id="public-eteris-balance"
+              onCheckedChange={(checked) => visibility.mutate(checked)}
+            />
+          </div>
+        )}
       </ProfilePanel>
 
       {data.enabled ? (
