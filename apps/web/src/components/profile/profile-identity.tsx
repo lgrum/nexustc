@@ -38,14 +38,16 @@ export function ProfileIdentity({
         className
       )}
     >
-      <ProfileAvatar
-        className={cn(
-          "shrink-0 border-background shadow-xl",
-          isPublic ? "size-28 border-4 sm:size-32" : "size-14 border-2",
-          avatarClassName
-        )}
-        user={user}
-      />
+      <div className="relative shrink-0" data-profile-avatar-decoration>
+        <ProfileAvatar
+          className={cn(
+            "shrink-0 border-background shadow-xl",
+            isPublic ? "size-28 border-4 sm:size-32" : "size-14 border-2",
+            avatarClassName
+          )}
+          user={user}
+        />
+      </div>
       <div className={cn("min-w-0 flex-1", isPublic && "pb-1")}>
         <ProfileNameplate
           nameAs={nameAs}

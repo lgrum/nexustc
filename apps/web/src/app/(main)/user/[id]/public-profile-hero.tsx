@@ -9,6 +9,7 @@ import {
 import type { PublicProfile } from "@repo/api/services/profile";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Link from "next/link";
 
 import { ProfileBanner } from "@/components/profile/profile-banner";
 import { ProfileIdentity } from "@/components/profile/profile-identity";
@@ -16,6 +17,7 @@ import {
   ProfileStat,
   ProfileStatList,
 } from "@/components/profile/profile-section";
+import { Button } from "@/components/ui/button";
 
 const COMPACT_FORMATTER = new Intl.NumberFormat("es", {
   maximumFractionDigits: 1,
@@ -26,7 +28,15 @@ function formatActivityCount(value: number | null) {
   return value === null ? "Privado" : COMPACT_FORMATTER.format(value);
 }
 
-export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
+export function PublicProfileHero({
+  profile,
+  showLegacyStats = true,
+  customizationHref,
+}: {
+  profile: PublicProfile;
+  showLegacyStats?: boolean;
+  customizationHref?: string;
+}) {
   const memberSince = format(profile.createdAt, "MMMM yyyy", { locale: es });
   const identity = {
     avatar: profile.avatar,
@@ -43,7 +53,10 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
   };
 
   return (
-    <section className="relative isolate overflow-hidden rounded-[2rem] border border-white/10 bg-card/80 shadow-2xl shadow-black/20">
+    <section
+      className="relative isolate overflow-hidden rounded-[2rem] border border-white/10 bg-card/80 shadow-2xl shadow-black/20"
+      data-profile-shell
+    >
       <ProfileBanner
         banner={profile.banner}
         className="absolute inset-0 h-full rounded-none border-0 opacity-75"
@@ -78,6 +91,16 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
             </p>
           </ProfileIdentity>
           <div className="glow-line mt-6 max-w-sm" />
+          {customizationHref ? (
+            <Button
+              className="mt-5 w-fit"
+              nativeButton={false}
+              render={<Link href={customizationHref} />}
+              variant="outline"
+            >
+              Personalizar perfil
+            </Button>
+          ) : null}
         </div>
 
         <ProfileStatList className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-2">
@@ -93,30 +116,34 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
             label="Miembro desde"
             value={format(profile.createdAt, "yyyy")}
           />
-          {profile.eterisBalance === null ? null : (
+          {!showLegacyStats || profile.eterisBalance === null ? null : (
             <ProfileStat
               icon={Coins01Icon}
               label="Eteris"
               value={profile.eterisBalance}
             />
           )}
-          {profile.currentStreak === undefined ? null : (
+          {!showLegacyStats || profile.currentStreak === undefined ? null : (
             <ProfileStat
               icon={Fire03Icon}
               label="Racha actual"
               value={`${profile.currentStreak} días`}
             />
           )}
-          <ProfileStat
-            icon={FavouriteIcon}
-            label="Favoritos"
-            value={formatActivityCount(profile.activityCounts.favorites)}
-          />
-          <ProfileStat
-            icon={StarIcon}
-            label="Reseñas"
-            value={formatActivityCount(profile.activityCounts.reviews)}
-          />
+          {showLegacyStats ? (
+            <>
+              <ProfileStat
+                icon={FavouriteIcon}
+                label="Favoritos"
+                value={formatActivityCount(profile.activityCounts.favorites)}
+              />
+              <ProfileStat
+                icon={StarIcon}
+                label="Reseñas"
+                value={formatActivityCount(profile.activityCounts.reviews)}
+              />
+            </>
+          ) : null}
         </ProfileStatList>
       </div>
     </section>

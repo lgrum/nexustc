@@ -127,3 +127,37 @@ it("renders only a positive opted-in current streak", () => {
   expect(screen.queryByText(/mejor racha|zona horaria|desafío/i)).toBeNull();
   expect(screen.queryByText(/^XP$/i)).toBeNull();
 });
+
+it("keeps legacy activity signals out of the protected Profile Shell", () => {
+  const profile = {
+    accountLevel: 7,
+    activityCounts: { favorites: 12, reviews: 3 },
+    avatar: null,
+    avatarFallbackColor: "#111827",
+    banner: { asset: null, color: "#111827", mode: "color" },
+    createdAt: new Date("2025-01-01T00:00:00.000Z"),
+    currentStreak: 7,
+    eterisBalance: "100",
+    href: "/user/user-1",
+    id: "user-1",
+    image: null,
+    maxVisibleEmblems: 3,
+    name: "Nexus",
+    patronBadge: null,
+    patronTier: "none",
+    profileEmblems: [],
+    profileRoles: [],
+    role: "user",
+    roleBadge: null,
+    roleGradient: null,
+    visibility: { favorites: true, reviews: true },
+  } satisfies PublicProfile;
+
+  render(<PublicProfileHero profile={profile} showLegacyStats={false} />);
+
+  expect(screen.getByText("Account Level")).toBeTruthy();
+  expect(screen.queryByText("Eteris")).toBeNull();
+  expect(screen.queryByText("Racha actual")).toBeNull();
+  expect(screen.queryByText("Favoritos")).toBeNull();
+  expect(screen.queryByText("Reseñas")).toBeNull();
+});
