@@ -31,6 +31,7 @@ import {
   PROFILE_DECORATION_SLOTS,
   FAVORITE_GAMES_CAPACITY_LADDER,
   PROFILE_LAYOUT_REGISTRY,
+  PROFILE_SHOWCASE_VARIANTS_BY_TYPE,
   EMPTY_PROFILE_DECORATIONS,
 } from "@repo/shared/profile-customization";
 import Link from "next/link";
@@ -94,7 +95,7 @@ const SHOWCASE_COPY = {
   },
   xp: {
     description: "Tu nivel y el avance dentro del nivel actual, sin historial.",
-    label: "Account XP",
+    label: "Experiencia",
   },
   streak: {
     description: "Solo tu racha actual y los hitos derivados de ella.",
@@ -105,6 +106,18 @@ const SHOWCASE_COPY = {
       "Solo tu saldo actual no negativo; el historial sigue privado.",
     label: "Eteris",
   },
+} as const;
+
+const SHOWCASE_VARIANT_COPY = {
+  compact: "Compacta",
+  featured: "Destacada",
+  standard: "Estándar",
+} as const;
+
+const LAYOUT_DESCRIPTION_COPY = {
+  grid: "Dos columnas cuando hay espacio.",
+  spotlight: "Destaca la primera sección.",
+  stack: "Una sección debajo de otra.",
 } as const;
 
 const DECORATION_SLOT_COPY = {
@@ -206,6 +219,9 @@ function FavoriteGamesControl({
   onChange: (gameIds: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<
+    FavoriteGameProjection[] | null
+  >(null);
   const [isSearching, setIsSearching] = useState(false);
   const pendingFocus = useRef<string | null>(null);
   const removeButtons = useRef(new Map<string, HTMLButtonElement>());
@@ -225,16 +241,22 @@ function FavoriteGamesControl({
   }, [gameIds]);
 
   const runSearch = async () => {
+    if (!search.trim()) {
+      setSearchResults(null);
+      return;
+    }
     setIsSearching(true);
     try {
-      onCatalogChange(await orpcClient.profile.searchFavoriteGames({ search }));
+      const games = await orpcClient.profile.searchFavoriteGames({ search });
+      onCatalogChange(games);
+      setSearchResults(games);
     } finally {
       setIsSearching(false);
     }
   };
 
   return (
-    <div className="mt-4 rounded-2xl border border-primary/15 bg-primary/5 p-3">
+    <div className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
       <div className="flex items-center justify-between gap-3">
         <p className="font-semibold text-sm">Ranking guardado</p>
         <span className="rounded-full bg-background px-2.5 py-1 text-xs">
@@ -358,33 +380,38 @@ function FavoriteGamesControl({
           <HugeiconsIcon aria-hidden className="size-4" icon={Search01Icon} />
         </Button>
       </div>
-      <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-        {catalog
-          .filter(({ id }) => !gameIds.includes(id))
-          .map((game) => (
-            <li
-              className="flex min-w-0 items-center gap-2 rounded-xl border bg-background/60 p-2"
-              key={game.id}
-            >
-              <span className="min-w-0 flex-1 truncate text-sm">
-                {game.title}
-              </span>
-              <Button
-                aria-label={`Agregar ${game.title}`}
-                disabled={gameIds.length >= capacity}
-                onClick={() => onChange([...gameIds, game.id])}
-                size="icon-sm"
-                variant="outline"
+      {searchResults ? (
+        <ul
+          aria-label="Resultados de búsqueda"
+          className="mt-3 grid gap-2 sm:grid-cols-2"
+        >
+          {searchResults
+            .filter(({ id }) => !gameIds.includes(id))
+            .map((game) => (
+              <li
+                className="flex min-w-0 items-center gap-2 rounded-xl border bg-background/60 p-2"
+                key={game.id}
               >
-                <HugeiconsIcon
-                  aria-hidden
-                  className="size-3.5"
-                  icon={Add01Icon}
-                />
-              </Button>
-            </li>
-          ))}
-      </ul>
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {game.title}
+                </span>
+                <Button
+                  aria-label={`Agregar ${game.title}`}
+                  disabled={gameIds.length >= capacity}
+                  onClick={() => onChange([...gameIds, game.id])}
+                  size="icon-sm"
+                  variant="outline"
+                >
+                  <HugeiconsIcon
+                    aria-hidden
+                    className="size-3.5"
+                    icon={Add01Icon}
+                  />
+                </Button>
+              </li>
+            ))}
+        </ul>
+      ) : null}
       {gameIds.length >= capacity ? (
         <p className="mt-3 text-muted-foreground text-xs">
           Alcanzaste tu capacidad actual. Puedes reordenar o quitar juegos
@@ -417,6 +444,58 @@ function moveShowcase(
     ...draft,
     showcases: showcases.map((showcase, order) => ({ ...showcase, order })),
   };
+}
+
+function createShowcaseDragImage(source: HTMLElement, label: string) {
+  const sourceStyle = window.getComputedStyle(source);
+  const image = document.createElement("div");
+  const handle = document.createElement("span");
+  const title = document.createElement("span");
+  const width = Math.min(
+    360,
+    Math.max(220, Math.round(source.getBoundingClientRect().width))
+  );
+
+  image.setAttribute("aria-hidden", "true");
+  Object.assign(image.style, {
+    alignItems: "center",
+    backgroundColor: sourceStyle.backgroundColor,
+    border: sourceStyle.border,
+    borderRadius: sourceStyle.borderRadius,
+    boxShadow: "0 14px 32px rgb(0 0 0 / 0.28)",
+    color: sourceStyle.color,
+    display: "flex",
+    fontFamily: sourceStyle.fontFamily,
+    fontSize: "14px",
+    fontWeight: "600",
+    gap: "12px",
+    height: "56px",
+    left: "-10000px",
+    overflow: "hidden",
+    padding: "0 16px",
+    pointerEvents: "none",
+    position: "fixed",
+    top: "0",
+    width: `${width}px`,
+    zIndex: "9999",
+  });
+  Object.assign(handle.style, {
+    color: sourceStyle.color,
+    flex: "0 0 auto",
+    fontSize: "18px",
+    letterSpacing: "-4px",
+    opacity: "0.55",
+  });
+  Object.assign(title.style, {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  });
+  handle.textContent = "⠿";
+  title.textContent = label;
+  image.append(handle, title);
+  document.body.append(image);
+  return image;
 }
 
 export function ProfileCustomizer({
@@ -461,6 +540,7 @@ export function ProfileCustomizer({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const pendingShowcaseFocus = useRef<string | null>(null);
   const showcaseMoveButtons = useRef(new Map<string, HTMLButtonElement>());
+  const showcaseDragImage = useRef<HTMLDivElement | null>(null);
   const [previewFavoriteCapacity, setPreviewFavoriteCapacity] = useState(
     favoriteGames?.capacity ?? 1
   );
@@ -673,18 +753,17 @@ export function ProfileCustomizer({
     }));
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-3 py-5 pb-12 sm:px-4 md:py-8">
-      <header className="mb-5 flex flex-col gap-4 rounded-[2rem] border border-primary/15 bg-card/80 p-5 shadow-lg shadow-black/10 sm:flex-row sm:items-end sm:justify-between sm:p-7">
+    <main className="mx-auto w-full max-w-7xl px-3 py-4 pb-12 sm:px-4 md:py-6">
+      <header className="mb-4 flex flex-col gap-4 rounded-3xl border border-primary/15 bg-card/80 p-4 shadow-lg shadow-black/10 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div>
           <p className="font-semibold text-primary text-xs uppercase tracking-[0.24em]">
             Tu espacio público
           </p>
-          <h1 className="mt-2 font-black text-3xl tracking-tight sm:text-4xl">
+          <h1 className="mt-1 font-black text-2xl tracking-tight sm:text-3xl">
             Personalizar perfil
           </h1>
-          <p className="mt-2 max-w-2xl text-muted-foreground text-sm leading-6">
-            Ordena lo que cuenta tu perfil. Los cambios solo se publican cuando
-            eliges Guardar cambios.
+          <p className="mt-1 max-w-2xl text-muted-foreground text-sm leading-5">
+            Organiza tu perfil y publica cuando esté listo.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -743,6 +822,7 @@ export function ProfileCustomizer({
         {(["edit", "preview"] as const).map((value) => (
           <Button
             aria-pressed={mode === value}
+            className="max-sm:min-h-11"
             key={value}
             onClick={() => setMode(value)}
             variant={mode === value ? "default" : "ghost"}
@@ -752,18 +832,14 @@ export function ProfileCustomizer({
         ))}
       </div>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1.28fr)]">
+      <div className="grid items-start gap-4 lg:grid-cols-[26rem_minmax(0,1fr)]">
         <section
           aria-label={"Controles de personalizaci\u00F3n"}
-          className={cn("space-y-4", mode === "preview" && "hidden lg:block")}
+          className={cn("space-y-3", mode === "preview" && "hidden lg:block")}
         >
-          <fieldset className="rounded-[1.5rem] border bg-card/75 p-5">
-            <legend className="px-1 font-bold text-xl">Diseño</legend>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Elige cómo se distribuyen tus Showcases. El orden guardado no
-              cambia al pasar de un diseño a otro.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+          <fieldset className="rounded-2xl border bg-card/75 p-4">
+            <legend className="px-1 font-bold text-lg">Diseño</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
               {availableLayouts
                 .filter(
                   (layout) =>
@@ -772,7 +848,7 @@ export function ProfileCustomizer({
                 )
                 .map((layout) => (
                   <label
-                    className="group relative cursor-pointer rounded-2xl border bg-background/60 p-3 transition-colors has-checked:border-primary has-checked:bg-primary/8 has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+                    className="group relative cursor-pointer rounded-xl border bg-background/60 p-2.5 transition-colors has-checked:border-primary has-checked:bg-primary/8 has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
                     key={layout.key}
                   >
                     <input
@@ -815,8 +891,8 @@ export function ProfileCustomizer({
                     <span className="block font-semibold text-sm">
                       {layout.name}
                     </span>
-                    <span className="mt-1 block text-muted-foreground text-xs leading-5">
-                      {layout.description}
+                    <span className="mt-1 block text-muted-foreground text-xs leading-4">
+                      {LAYOUT_DESCRIPTION_COPY[layout.key]}
                     </span>
                     <LockedLabel
                       entitled={layout.entitled}
@@ -844,13 +920,9 @@ export function ProfileCustomizer({
               </p>
             ) : null}
           </fieldset>
-          <fieldset className="rounded-[1.5rem] border bg-card/75 p-5">
-            <legend className="px-1 font-bold text-xl">Skin</legend>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Cambia la atmósfera del perfil sin alterar el tema de la
-              aplicación.
-            </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <fieldset className="rounded-2xl border bg-card/75 p-4">
+            <legend className="px-1 font-bold text-lg">Apariencia</legend>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {(savedState.skins ?? [])
                 .filter(
                   (skin) =>
@@ -858,7 +930,7 @@ export function ProfileCustomizer({
                 )
                 .map((skin) => (
                   <label
-                    className="group cursor-pointer overflow-hidden rounded-2xl border bg-background/60 transition-colors has-checked:border-primary has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
+                    className="group cursor-pointer overflow-hidden rounded-xl border bg-background/60 transition-colors has-checked:border-primary has-focus-visible:ring-3 has-focus-visible:ring-ring/50"
                     key={skin.key}
                   >
                     <input
@@ -879,16 +951,19 @@ export function ProfileCustomizer({
                     />
                     <span aria-hidden className="flex h-11">
                       {[
-                        skin.tokens.background.kind === "solid"
-                          ? skin.tokens.background.color
-                          : skin.tokens.background.stops[0]!.color,
-                        skin.tokens.shellSurface,
-                        skin.tokens.showcaseSurface,
-                        skin.tokens.accent,
-                      ].map((color) => (
+                        [
+                          "background",
+                          skin.tokens.background.kind === "solid"
+                            ? skin.tokens.background.color
+                            : skin.tokens.background.stops[0]!.color,
+                        ],
+                        ["shell-surface", skin.tokens.shellSurface],
+                        ["showcase-surface", skin.tokens.showcaseSurface],
+                        ["accent", skin.tokens.accent],
+                      ].map(([token, color]) => (
                         <span
                           className="flex-1"
-                          key={color}
+                          key={token}
                           style={{ backgroundColor: color }}
                         />
                       ))}
@@ -927,13 +1002,9 @@ export function ProfileCustomizer({
               </p>
             ) : null}
           </fieldset>
-          <fieldset className="rounded-[1.5rem] border bg-card/75 p-5">
-            <legend className="px-1 font-bold text-xl">Decorations</legend>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Equipa una pieza por slot. Los efectos conservan la identidad y
-              respetan el movimiento reducido.
-            </p>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <fieldset className="rounded-2xl border bg-card/75 p-4">
+            <legend className="px-1 font-bold text-lg">Adornos</legend>
+            <div className="mt-2 grid gap-3 sm:grid-cols-2">
               {PROFILE_DECORATION_SLOTS.map((slot) => (
                 <div className="grid gap-2" key={slot}>
                   <label
@@ -961,12 +1032,20 @@ export function ProfileCustomizer({
                           : undefined
                       }
                       aria-invalid={Boolean(fieldErrors[`decorations.${slot}`])}
+                      className="w-full"
                       id={`decoration-${slot}`}
                     >
-                      <SelectValue />
+                      <SelectValue>
+                        {draft.decorations[slot]
+                          ? savedState.decorations?.find(
+                              (decoration) =>
+                                decoration.key === draft.decorations[slot]
+                            )?.name
+                          : "Sin adorno"}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Sin Decoration</SelectItem>
+                      <SelectItem value="none">Sin adorno</SelectItem>
                       {(savedState.decorations ?? [])
                         .filter(
                           (decoration) =>
@@ -1020,21 +1099,17 @@ export function ProfileCustomizer({
               ))}
             </div>
           </fieldset>
-          <div className="rounded-[1.5rem] border bg-card/75 p-5">
+          <div className="rounded-2xl border bg-card/75 p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-bold text-xl">Showcases</h2>
-                <p className="mt-1 text-muted-foreground text-sm">
-                  El orden de esta lista es el orden del perfil en cualquier
-                  pantalla.
-                </p>
+                <h2 className="font-bold text-lg">Secciones</h2>
               </div>
               <span className="rounded-full bg-muted px-3 py-1 font-medium text-xs">
                 {draft.showcases.filter(({ enabled }) => enabled).length}{" "}
                 visibles
               </span>
             </div>
-            <ol className="mt-5 space-y-3">
+            <ol className="mt-3 space-y-2">
               {draft.showcases.map((showcase, index) => {
                 const copy =
                   SHOWCASE_COPY[showcase.type as keyof typeof SHOWCASE_COPY];
@@ -1046,10 +1121,25 @@ export function ProfileCustomizer({
                   : undefined;
                 return (
                   <li
-                    className="rounded-2xl border bg-background/60 p-4"
+                    className="rounded-xl border bg-background/60 p-3"
                     draggable
                     key={showcase.instanceId}
-                    onDragStart={() => setDraggedIndex(index)}
+                    onDragEnd={() => {
+                      setDraggedIndex(null);
+                      showcaseDragImage.current?.remove();
+                      showcaseDragImage.current = null;
+                    }}
+                    onDragStart={(event) => {
+                      setDraggedIndex(index);
+                      showcaseDragImage.current?.remove();
+                      const dragImage = createShowcaseDragImage(
+                        event.currentTarget,
+                        copy?.label ?? showcase.type
+                      );
+                      showcaseDragImage.current = dragImage;
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setDragImage(dragImage, 24, 28);
+                    }}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={() => {
                       if (draggedIndex !== null) {
@@ -1058,6 +1148,8 @@ export function ProfileCustomizer({
                         );
                       }
                       setDraggedIndex(null);
+                      showcaseDragImage.current?.remove();
+                      showcaseDragImage.current = null;
                     }}
                   >
                     <div className="flex items-start gap-3">
@@ -1087,9 +1179,6 @@ export function ProfileCustomizer({
                             }
                           />
                         </div>
-                        <p className="mt-1 text-muted-foreground text-sm">
-                          {copy?.description}
-                        </p>
                         {(() => {
                           const entitlement =
                             savedState.showcaseEntitlements?.[showcase.type];
@@ -1176,15 +1265,20 @@ export function ProfileCustomizer({
                               aria-describedby={showcaseErrorId}
                               aria-label={`Variante de ${copy?.label}`}
                               aria-invalid={Boolean(showcaseError)}
+                              className="min-w-0 flex-1"
                             >
-                              <SelectValue />
+                              <SelectValue>
+                                {SHOWCASE_VARIANT_COPY[showcase.variant]}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="compact">Compacta</SelectItem>
-                              <SelectItem value="standard">Estándar</SelectItem>
-                              <SelectItem value="featured">
-                                Destacada
-                              </SelectItem>
+                              {PROFILE_SHOWCASE_VARIANTS_BY_TYPE[
+                                showcase.type
+                              ].map((variant) => (
+                                <SelectItem key={variant} value={variant}>
+                                  {SHOWCASE_VARIANT_COPY[variant]}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                           <Button
@@ -1204,6 +1298,7 @@ export function ProfileCustomizer({
                                 showcaseMoveButtons.current.delete(key);
                               }
                             }}
+                            className="max-sm:size-10"
                             size="icon"
                             variant="outline"
                           >
@@ -1230,6 +1325,7 @@ export function ProfileCustomizer({
                                 showcaseMoveButtons.current.delete(key);
                               }
                             }}
+                            className="max-sm:size-10"
                             size="icon"
                             variant="outline"
                           >
@@ -1256,11 +1352,10 @@ export function ProfileCustomizer({
               })}
             </ol>
           </div>
-          <div className="rounded-[1.5rem] border bg-card/75 p-5">
+          <div className="rounded-2xl border bg-card/75 p-4">
             <h2 className="font-bold text-lg">Volver a empezar</h2>
             <p className="mt-1 text-muted-foreground text-sm">
-              Restaura los valores actuales en este borrador. Tus elementos
-              adquiridos no cambian.
+              Restaura la configuración predeterminada de tu borrador.
             </p>
             <Button
               className="mt-4"
@@ -1317,17 +1412,17 @@ export function ProfileCustomizer({
               </Button>
             </div>
           </div>
-          <div className="sticky top-4 overflow-auto rounded-[1.75rem] border bg-background/70 p-3 shadow-xl shadow-black/10">
+          <div className="sticky top-4 overflow-auto rounded-2xl border bg-background/70 p-2 shadow-xl shadow-black/10 sm:p-3">
             {previewSkin ? (
               <ProfileSkinSurface
                 className={cn(
-                  "mx-auto flex flex-col gap-8 rounded-2xl p-4 transition-[max-width]",
+                  "mx-auto flex flex-col gap-6 rounded-xl p-3 transition-[max-width] sm:p-4",
                   previewWidth === "mobile" ? "max-w-sm" : "max-w-none"
                 )}
                 skin={previewSkin}
               >
                 <ProfileDecorationSurface
-                  className="flex flex-col gap-8"
+                  className="flex flex-col gap-6"
                   decorations={(savedState.decorations ?? []).filter(
                     (decoration) =>
                       draft.decorations[decoration.slot] === decoration.key

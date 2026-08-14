@@ -29,7 +29,7 @@ it("always renders public Account Level without private XP totals", () => {
 
   render(<PublicProfileHero profile={profile} />);
 
-  expect(screen.getByText("Account Level")).toBeTruthy();
+  expect(screen.getByText("Nivel de cuenta")).toBeTruthy();
   expect(screen.getByText("42")).toBeTruthy();
   expect(screen.queryByText("Racha actual")).toBeNull();
   expect(screen.queryByText(/XP/)).toBeNull();
@@ -61,7 +61,7 @@ it("omits Account Level when the economy is unavailable", () => {
 
   render(<PublicProfileHero profile={profile} />);
 
-  expect(screen.queryByText("Account Level")).toBeNull();
+  expect(screen.queryByText("Nivel de cuenta")).toBeNull();
 });
 
 it("renders only an opted-in public Eteris balance", () => {
@@ -155,7 +155,7 @@ it("keeps legacy activity signals out of the protected Profile Shell", () => {
 
   render(<PublicProfileHero profile={profile} showLegacyStats={false} />);
 
-  expect(screen.getByText("Account Level")).toBeTruthy();
+  expect(screen.getByText("Nivel de cuenta")).toBeTruthy();
   expect(screen.queryByText("Eteris")).toBeNull();
   expect(screen.queryByText("Racha actual")).toBeNull();
   expect(screen.queryByText("Favoritos")).toBeNull();

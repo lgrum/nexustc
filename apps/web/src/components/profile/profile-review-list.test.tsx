@@ -17,6 +17,16 @@ const reviews: ProfileReviewItem[] = [
 ];
 
 describe(ProfileReviewList, () => {
+  it("derives review columns from the showcase width", () => {
+    const { container } = render(<ProfileReviewList items={reviews} />);
+
+    const wrapper = container.firstElementChild;
+    const list = wrapper?.querySelector("ul");
+    expect(wrapper?.className).toContain("@container/profile-reviews");
+    expect(list?.className).toContain("@3xl/profile-reviews:grid-cols-2");
+    expect(list?.className).not.toContain("xl:grid-cols-2");
+  });
+
   it("links reviews to the correct content route and renders markdown", () => {
     render(<ProfileReviewList items={reviews} />);
 

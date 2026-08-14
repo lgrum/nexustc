@@ -198,9 +198,11 @@ describe(UserClient, () => {
     ]);
 
     expect(screen.getByText("Elección principal")).toBeTruthy();
-    expect(
-      screen.getByRole("link", { name: /Juego Uno/ }).getAttribute("href")
-    ).toBe("/post/juego-uno");
+    const featuredGame = screen.getByRole("link", { name: /Juego Uno/ });
+    expect(featuredGame.getAttribute("href")).toBe("/post/juego-uno");
+    expect(featuredGame.className).toContain(
+      "@2xl/favorite-games:grid-cols-[minmax(13rem,0.7fr)_1fr]"
+    );
   });
 
   it("renders larger favorite selections in saved rank order", () => {
@@ -222,6 +224,9 @@ describe(UserClient, () => {
       expect.stringContaining("Segundo"),
       expect.stringContaining("Primero"),
     ]);
+    expect(links[0]?.closest("ol")?.className).toContain(
+      "@2xl/favorite-games:grid-cols-2"
+    );
   });
 
   it("renders privacy-safe XP, Streak, and Eteris fields", () => {
@@ -259,5 +264,45 @@ describe(UserClient, () => {
     expect(screen.getByText("Próximo hito: 30 días")).toBeTruthy();
     expect(screen.getByText("420")).toBeTruthy();
     expect(screen.queryByText(/historial|deuda|mejor racha/i)).toBeNull();
+  });
+
+  it("keeps both standard experience panels the same height", () => {
+    const { container } = renderClient({ favorites: true, reviews: true }, [
+      {
+        accountLevel: 8,
+        currentLevelXp: 14,
+        nextLevelRequirement: 80,
+        order: 0,
+        progress: 0.175,
+        rendererKey: "xp",
+        type: "xp",
+        variant: "standard",
+        xpRemaining: 66,
+      },
+    ]);
+
+    const panels = container.querySelectorAll(
+      "[data-profile-experience-panels] > *"
+    );
+    expect(panels).toHaveLength(2);
+    expect(
+      [...panels].every((panel) => panel.className.includes("h-full"))
+    ).toBe(true);
+  });
+
+  it("does not stretch standalone scalar cards beyond their showcase", () => {
+    const { container } = renderClient({ favorites: true, reviews: true }, [
+      {
+        balance: "420",
+        order: 0,
+        rendererKey: "eteris",
+        type: "eteris",
+        variant: "standard",
+      },
+    ]);
+
+    const card = container.querySelector("[data-profile-scalar-card]");
+    expect(card).not.toBeNull();
+    expect(card?.className).not.toContain("h-full");
   });
 });

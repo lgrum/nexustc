@@ -32,6 +32,7 @@ import {
   PROFILE_DECORATION_SLOTS,
   PROFILE_LAYOUT_REGISTRY,
   PROFILE_SHOWCASE_PAGE_SIZES,
+  PROFILE_SHOWCASE_VARIANTS_BY_TYPE,
   profileCustomizationDraftSchema,
 } from "@repo/shared/profile-customization";
 import type {
@@ -139,7 +140,7 @@ export const PROFILE_SHOWCASE_REGISTRY = [
       standardPageSize: PROFILE_SHOWCASE_PAGE_SIZES.library.standard,
       visibilityKey: "favorites",
     },
-    supportedVariants: ["compact", "standard", "featured"],
+    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.library,
   },
   {
     defaultPayload: {},
@@ -156,7 +157,7 @@ export const PROFILE_SHOWCASE_REGISTRY = [
       standardPageSize: PROFILE_SHOWCASE_PAGE_SIZES.reviews.standard,
       visibilityKey: "reviews",
     },
-    supportedVariants: ["compact", "standard", "featured"],
+    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.reviews,
   },
   {
     defaultPayload: { gameIds: [] },
@@ -167,7 +168,7 @@ export const PROFILE_SHOWCASE_REGISTRY = [
     migratePayload: migrateFavoriteGamesPayload,
     payloadSchemaVersion: 1,
     rendererKey: "favorite-games",
-    supportedVariants: ["compact", "standard", "featured"],
+    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE["favorite-games"],
   },
   {
     defaultPayload: {},
@@ -178,7 +179,7 @@ export const PROFILE_SHOWCASE_REGISTRY = [
     migratePayload: migrateAutomaticPayload,
     payloadSchemaVersion: 1,
     rendererKey: "xp",
-    supportedVariants: ["compact", "standard"],
+    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.xp,
   },
   {
     defaultPayload: {},
@@ -189,7 +190,7 @@ export const PROFILE_SHOWCASE_REGISTRY = [
     migratePayload: migrateAutomaticPayload,
     payloadSchemaVersion: 1,
     rendererKey: "streak",
-    supportedVariants: ["compact", "standard"],
+    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.streak,
   },
   {
     defaultPayload: {},
@@ -200,7 +201,7 @@ export const PROFILE_SHOWCASE_REGISTRY = [
     migratePayload: migrateAutomaticPayload,
     payloadSchemaVersion: 1,
     rendererKey: "eteris",
-    supportedVariants: ["compact", "standard"],
+    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.eteris,
   },
 ] as const satisfies readonly ShowcaseDefinition[];
 

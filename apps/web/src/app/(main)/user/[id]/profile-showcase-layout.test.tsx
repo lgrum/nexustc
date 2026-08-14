@@ -16,12 +16,20 @@ describe(ProfileShowcaseLayout, () => {
       );
 
       const layout = container.firstElementChild as HTMLElement | null;
+      const grid = layout?.querySelector<HTMLElement>(
+        "[data-profile-showcase-grid]"
+      );
       expect(layout?.dataset.profileLayout).toBe(rendererKey);
-      expect(layout?.className).toContain(
+      expect(layout?.className).toContain("@container/profile");
+      expect(grid?.className).toContain(
         rendererKey === "stack" ? "flex flex-col" : "grid grid-cols-1"
       );
+      expect(grid?.className).toContain("[&>div>section]:p-5");
+      if (rendererKey !== "stack") {
+        expect(grid?.className).toContain("@md/profile:grid-cols-2");
+      }
       if (rendererKey === "spotlight") {
-        expect(layout?.className).toContain("section:first-of-type");
+        expect(grid?.className).toContain("section:first-of-type");
       }
       expect(
         [...(layout?.querySelectorAll("section") ?? [])].map(
