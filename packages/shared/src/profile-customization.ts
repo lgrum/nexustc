@@ -189,6 +189,17 @@ export type ProfileLayoutKey = (typeof PROFILE_LAYOUT_KEYS)[number];
 export type ProfileShowcaseVariant = (typeof PROFILE_SHOWCASE_VARIANTS)[number];
 export type ProfileShowcaseTypeKey =
   (typeof PROFILE_SHOWCASE_TYPE_KEYS)[number];
+export const PROFILE_SHOWCASE_VARIANTS_BY_TYPE = {
+  eteris: ["compact", "standard"],
+  "favorite-games": PROFILE_SHOWCASE_VARIANTS,
+  library: PROFILE_SHOWCASE_VARIANTS,
+  reviews: PROFILE_SHOWCASE_VARIANTS,
+  streak: ["compact", "standard"],
+  xp: ["compact", "standard"],
+} as const satisfies Record<
+  ProfileShowcaseTypeKey,
+  readonly ProfileShowcaseVariant[]
+>;
 export type ProfileDecorationSlot = (typeof PROFILE_DECORATION_SLOTS)[number];
 export type ProfileDecorationEffectKey =
   (typeof PROFILE_DECORATION_EFFECT_KEYS)[number];

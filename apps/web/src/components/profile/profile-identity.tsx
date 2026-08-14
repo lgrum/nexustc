@@ -33,7 +33,7 @@ export function ProfileIdentity({
       className={cn(
         "flex min-w-0",
         isPublic
-          ? "flex-col items-start gap-5 sm:flex-row sm:items-end"
+          ? "flex-col items-start gap-5 @xl/profile-hero:flex-row @xl/profile-hero:items-end"
           : "items-center gap-3",
         className
       )}
@@ -42,7 +42,9 @@ export function ProfileIdentity({
         <ProfileAvatar
           className={cn(
             "shrink-0 border-background shadow-xl",
-            isPublic ? "size-28 border-4 sm:size-32" : "size-14 border-2",
+            isPublic
+              ? "size-28 border-4 @xl/profile-hero:size-32"
+              : "size-14 border-2",
             avatarClassName
           )}
           user={user}
@@ -53,7 +55,7 @@ export function ProfileIdentity({
           nameAs={nameAs}
           nameClassName={cn(
             isPublic
-              ? "display-heading text-4xl leading-none sm:text-5xl md:text-6xl"
+              ? "display-heading text-4xl leading-none @xl/profile-hero:text-5xl @3xl/profile-hero:text-6xl"
               : "font-lexend text-xl font-bold"
           )}
           showEmblems

@@ -1,37 +1,20 @@
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const mojibakeSequences = ["Ã", "Â", "â€¦", "â€”", "�"];
+const mojibakeSequences = [
+  String.fromCodePoint(0x00_c3),
+  String.fromCodePoint(0x00_c2),
+  String.fromCodePoint(0x00_e2),
+  String.fromCodePoint(0x00_f0),
+  String.fromCodePoint(0xff_fd),
+];
 const sourceRoots = [
-  resolve(process.cwd(), "src/app/(main)/profile/customize"),
-  resolve(process.cwd(), "src/app/(main)/user/[id]"),
-  resolve(process.cwd(), "src/app/admin/profile"),
-  resolve(process.cwd(), "src/components/profile"),
-  resolve(
-    process.cwd(),
-    "../../packages/api/src/routers/profile-catalog-admin.ts"
-  ),
-  resolve(
-    process.cwd(),
-    "../../packages/api/src/services/profile-catalog-lifecycle.ts"
-  ),
-  resolve(
-    process.cwd(),
-    "../../packages/api/src/services/profile-catalog-purchase.ts"
-  ),
-  resolve(
-    process.cwd(),
-    "../../packages/api/src/services/profile-customization.ts"
-  ),
-  resolve(
-    process.cwd(),
-    "../../packages/api/src/services/profile-decoration-catalog.ts"
-  ),
-  resolve(
-    process.cwd(),
-    "../../packages/api/src/services/profile-skin-catalog.ts"
-  ),
-  resolve(process.cwd(), "../../packages/shared/src/profile-customization.ts"),
+  resolve(process.cwd(), "src"),
+  resolve(process.cwd(), "../../packages/api/src"),
+  resolve(process.cwd(), "../../packages/auth/src"),
+  resolve(process.cwd(), "../../packages/db/src"),
+  resolve(process.cwd(), "../../packages/shared/src"),
+  resolve(process.cwd(), "../../docs"),
 ];
 
 async function collectSourceFiles(path: string): Promise<string[]> {
@@ -45,10 +28,10 @@ async function collectSourceFiles(path: string): Promise<string[]> {
       return entry.isDirectory() ? collectSourceFiles(child) : [child];
     })
   );
-  return files.flat().filter((file) => /\.(?:ts|tsx)$/.test(file));
+  return files.flat().filter((file) => /\.(?:md|sql|ts|tsx)$/.test(file));
 }
 
-it("keeps profile customization source text free of common mojibake", async () => {
+it("keeps application text free of common mojibake", async () => {
   const fileGroups = await Promise.all(sourceRoots.map(collectSourceFiles));
   const files = fileGroups.flat();
   const failures: string[] = [];
@@ -61,4 +44,4 @@ it("keeps profile customization source text free of common mojibake", async () =
     }
   }
   expect(failures).toEqual([]);
-});
+}, 15_000);

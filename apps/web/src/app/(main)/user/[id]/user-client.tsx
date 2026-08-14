@@ -121,18 +121,26 @@ export function UserClient({
 }
 
 function ScalarCard({
+  className,
   eyebrow,
   icon,
   title,
   value,
 }: {
+  className?: string;
   eyebrow: string;
   icon: IconSvgElement;
   title: string;
   value: string;
 }) {
   return (
-    <div className="mt-5 rounded-[1.5rem] border border-primary/20 bg-gradient-to-br from-primary/12 via-card to-card p-5 sm:p-6">
+    <div
+      className={cn(
+        "rounded-[1.5rem] border border-primary/20 bg-gradient-to-br from-primary/12 via-card to-card p-5",
+        className
+      )}
+      data-profile-scalar-card
+    >
       <div className="flex items-center gap-3 text-primary">
         <HugeiconsIcon aria-hidden className="size-5" icon={icon} />
         <p className="font-bold text-xs uppercase tracking-[0.18em]">
@@ -156,28 +164,32 @@ function XpShowcase({
     showcase.nextLevelRequirement === null ? null : showcase.accountLevel + 1;
   return (
     <section
+      className="@container/experience"
       aria-labelledby="xp-showcase-title"
       data-showcase-variant={showcase.variant}
     >
       <ProfileSectionHeader
         eyebrow="Progresión"
         icon={Award01Icon}
-        title="Account XP"
+        title="Experiencia"
         titleId="xp-showcase-title"
       />
       <div
         className={cn(
-          "mt-5 grid gap-4",
-          showcase.variant === "standard" && "sm:grid-cols-[0.7fr_1.3fr]"
+          "mt-5 grid items-stretch gap-4",
+          showcase.variant !== "compact" &&
+            "@md/experience:grid-cols-[minmax(14rem,0.7fr)_minmax(0,1.3fr)]"
         )}
+        data-profile-experience-panels
       >
         <ScalarCard
-          eyebrow="Account Level"
+          className="h-full"
+          eyebrow="Nivel de cuenta"
           icon={Award01Icon}
           title="Nivel actual"
           value={`Nivel ${showcase.accountLevel}`}
         />
-        <div className="rounded-[1.5rem] border bg-card/70 p-5 sm:p-6">
+        <div className="flex h-full flex-col justify-center rounded-[1.5rem] border bg-card/70 p-5">
           {nextLevel ? (
             <Progress
               aria-label={`Progreso hacia el nivel ${nextLevel}`}
@@ -219,6 +231,7 @@ function StreakShowcase({
         titleId="streak-showcase-title"
       />
       <ScalarCard
+        className="mt-5"
         eyebrow="Racha vigente"
         icon={Fire03Icon}
         title={
@@ -249,6 +262,7 @@ function EterisShowcase({
         titleId="eteris-showcase-title"
       />
       <ScalarCard
+        className="mt-5"
         eyebrow="Saldo actual"
         icon={Coins01Icon}
         title="Eteris disponibles"
@@ -302,6 +316,7 @@ function FavoriteGamesSection({
   if (games.length === 0) {
     return showEmpty ? (
       <section
+        className="@container/favorite-games"
         aria-labelledby="favorite-games-title"
         data-showcase-variant={variant}
       >
@@ -325,6 +340,7 @@ function FavoriteGamesSection({
   const [featured] = games;
   return (
     <section
+      className="@container/favorite-games"
       aria-labelledby="favorite-games-title"
       data-showcase-variant={variant}
     >
@@ -337,13 +353,13 @@ function FavoriteGamesSection({
       />
       {games.length === 1 && featured ? (
         <Link
-          className="group mt-5 grid min-h-64 overflow-hidden rounded-[1.75rem] border border-primary/25 bg-card shadow-lg shadow-black/10 sm:grid-cols-[minmax(13rem,0.7fr)_1fr]"
+          className="group mt-5 grid min-h-64 overflow-hidden rounded-[1.75rem] border border-primary/25 bg-card shadow-lg shadow-black/10 @2xl/favorite-games:grid-cols-[minmax(13rem,0.7fr)_1fr]"
           href={`/post/${featured.slug}`}
         >
           <div className="relative min-h-56 overflow-hidden">
             <FavoriteGameCover game={featured} priority />
           </div>
-          <div className="flex flex-col justify-end p-6 sm:p-8">
+          <div className="flex flex-col justify-end p-6 @2xl/favorite-games:p-8">
             <span className="font-bold text-primary text-xs uppercase tracking-[0.2em]">
               Elección principal
             </span>
@@ -357,7 +373,9 @@ function FavoriteGamesSection({
         <ol
           className={cn(
             "mt-5 grid gap-3",
-            variant === "featured" ? "sm:grid-cols-2" : "grid-cols-1"
+            variant === "featured"
+              ? "@2xl/favorite-games:grid-cols-2"
+              : "grid-cols-1"
           )}
         >
           {games.map((game, index) => (
