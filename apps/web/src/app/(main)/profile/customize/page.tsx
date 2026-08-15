@@ -21,7 +21,7 @@ export default async function Page() {
       includeCurrentStreak: false,
       userId: session.user.id,
     }),
-    orpcClient.profile.getPublicScalarShowcases({ userId: session.user.id }),
+    orpcClient.profile.getCustomizationScalarPreview(),
   ]);
 
   if (!profile) {

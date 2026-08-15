@@ -1,4 +1,4 @@
-import { resolveCurrentProfileDefaults } from "./profile-customization";
+import { resolveCurrentProfileDefaults } from "./profile-customization-manifest";
 import {
   resolveEffectiveProfileConfiguration,
   resolveProfileEntitlements,

@@ -8,7 +8,6 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { PublicProfile } from "@repo/api/services/profile";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 import Link from "next/link";
 
 import { ProfileBanner } from "@/components/profile/profile-banner";
@@ -37,7 +36,6 @@ export function PublicProfileHero({
   showLegacyStats?: boolean;
   customizationHref?: string;
 }) {
-  const memberSince = format(profile.createdAt, "MMMM yyyy", { locale: es });
   const identity = {
     avatar: profile.avatar,
     avatarFallbackColor: profile.avatarFallbackColor,
@@ -84,12 +82,7 @@ export function PublicProfileHero({
             density="public"
             nameAs="h1"
             user={identity}
-          >
-            <p className="max-w-2xl text-pretty text-sm leading-6 sm:text-base">
-              Miembro de NeXusTC desde {memberSince}. Explora el contenido que
-              ha guardado y las reseñas que ha compartido con la comunidad.
-            </p>
-          </ProfileIdentity>
+          />
           <div className="glow-line mt-6 max-w-sm" />
           {customizationHref ? (
             <Button

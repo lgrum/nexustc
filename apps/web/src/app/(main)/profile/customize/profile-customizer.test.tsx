@@ -185,6 +185,51 @@ it("offers only variants supported by each showcase type", async () => {
   expect(screen.queryByRole("option", { name: "Destacada" })).toBeNull();
 });
 
+it("previews scalar source data before the newly enabled Showcase is saved", () => {
+  const scalarConfiguration = {
+    ...configuration,
+    showcases: [
+      ...configuration.showcases,
+      {
+        enabled: false,
+        instanceId: "xp-1",
+        order: 2,
+        payload: {},
+        payloadSchemaVersion: 1,
+        type: "xp" as const,
+        variant: "standard" as const,
+      },
+    ],
+  };
+  render(
+    <ProfileCustomizer
+      initialState={{
+        ...initialState,
+        configuration: scalarConfiguration,
+        defaultConfiguration: scalarConfiguration,
+      }}
+      profile={{ id: "user-1", name: "Ana" } as never}
+      scalarShowcases={[
+        {
+          accountLevel: 3,
+          currentLevelXp: 10,
+          nextLevelRequirement: 50,
+          order: 2,
+          progress: 0.2,
+          rendererKey: "xp",
+          type: "xp",
+          variant: "standard",
+          xpRemaining: 40,
+        },
+      ]}
+    />
+  );
+
+  expect(screen.getByText("Vista: library,reviews")).toBeTruthy();
+  fireEvent.click(screen.getByRole("switch", { name: "Experiencia" }));
+  expect(screen.getByText("Vista: library,reviews,xp")).toBeTruthy();
+});
+
 it("confirms the exact price and purchases without publishing the draft", async () => {
   const purchasableState = {
     ...initialState,

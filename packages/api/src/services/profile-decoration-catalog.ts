@@ -1,7 +1,6 @@
 import { and, desc, eq, inArray } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
-  profileCatalogAudit,
   profileCatalogDecorationRevision,
   profileCatalogItem,
   profileCatalogItemRevision,
@@ -23,10 +22,12 @@ import type {
 } from "@repo/shared/profile-customization";
 import z from "zod";
 
+import { publishProfileCatalogRevision } from "./profile-catalog-publication";
+
 type Database = typeof database;
 
 const animatedEffects = new Set(["soft-pulse", "orbit-sparkles"]);
-const decorationDraftSchema = z
+export const profileDecorationDraftSchema = z
   .object({
     catalogOrder: z.number().int().min(0).max(10_000),
     description: z.string().trim().max(500),
@@ -113,7 +114,7 @@ export function validateProfileDecorationVisual(
 }
 
 function parseDraft(input: unknown) {
-  const parsed = decorationDraftSchema.safeParse(input);
+  const parsed = profileDecorationDraftSchema.safeParse(input);
   if (!parsed.success) {
     throw new ProfileDecorationCatalogError(
       "INVALID_DRAFT",
@@ -429,38 +430,14 @@ export function publishProfileDecorationDraft(
       reducedMotion: detail.reducedMotion,
       slot: detail.slot,
     });
-    const publishedAt = new Date();
-    const before = {
-      currentPublishedRevisionId: item.currentPublishedRevisionId,
-      lifecycle: item.lifecycle,
-    };
-    await tx
-      .update(profileCatalogItemRevision)
-      .set({
-        publishedAt,
-        publishedByUserId: actorUserId,
-        state: "published",
-      })
-      .where(eq(profileCatalogItemRevision.id, draft.id));
-    await tx
-      .update(profileCatalogItem)
-      .set({
-        currentPublishedRevisionId: draft.id,
-        lifecycle: "active",
-      })
-      .where(eq(profileCatalogItem.id, itemId));
-    await tx.insert(profileCatalogAudit).values({
-      action: "publish",
+    return publishProfileCatalogRevision(tx, {
       actorUserId,
-      after: {
-        currentPublishedRevisionId: draft.id,
-        lifecycle: "active",
-        revision: draft.revision,
-      },
-      before,
-      targetId: itemId,
+      currentPublishedRevisionId: item.currentPublishedRevisionId,
+      draftRevisionId: draft.id,
+      itemId,
+      previousLifecycle: item.lifecycle,
+      revision: draft.revision,
       targetKind: "decoration",
     });
-    return { itemId, publishedAt, revision: draft.revision };
   });
 }

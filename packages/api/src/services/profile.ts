@@ -39,13 +39,17 @@ import type {
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { userIsNotActivelyBanned } from "../utils/user-ban";
-import { getPublicWalletBalance } from "./eteris";
 import {
-  loadPublicFavoriteGamesShowcase,
-  loadProfileCustomizationEditorState,
+  getProfileCustomizationWalletBalance,
+  getPublicWalletBalance,
+} from "./eteris";
+import { loadProfileCustomizationEditorState } from "./profile-customization";
+import {
+  resolveCurrentProfileDefaults,
   resolvePublicProfileManifest,
-} from "./profile-customization";
-import type { resolveVirtualDefaultManifest } from "./profile-customization";
+} from "./profile-customization-manifest";
+import type { resolveVirtualDefaultManifest } from "./profile-customization-manifest";
+import { loadPublicFavoriteGamesShowcase } from "./profile-favorite-games";
 import { getPublicAccountLevel } from "./progression";
 import { getStreakState } from "./streak";
 
@@ -238,6 +242,31 @@ export async function getPublicScalarProfileShowcases(
     progression: getPublicAccountLevel(db, userId),
     publicWallet: getPublicWalletBalance(db, userId),
   });
+}
+
+export function getProfileCustomizationScalarPreview(
+  db: Database,
+  userId: string
+) {
+  const previewConfiguration = resolveCurrentProfileDefaults();
+  return resolveIsolatedScalarProfileShowcases(
+    Promise.resolve({
+      ...previewConfiguration,
+      showcases: previewConfiguration.showcases.map((showcase) => ({
+        ...showcase,
+        enabled: true,
+      })),
+    }),
+    {
+      currentStreak: getPublicCurrentStreak(
+        db,
+        userId,
+        normalizeProfileVisibilityConfig({ streak: true })
+      ),
+      progression: getPublicAccountLevel(db, userId),
+      publicWallet: getProfileCustomizationWalletBalance(db, userId),
+    }
+  );
 }
 
 const PROFILE_ENTITLEMENT_RULES = {

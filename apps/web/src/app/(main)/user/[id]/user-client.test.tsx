@@ -31,7 +31,8 @@ vi.mock("@/components/profile/profile-review-list", () => ({
 
 function renderClient(
   visibility: { favorites: boolean; reviews: boolean },
-  showcases?: EffectiveProfileShowcase[]
+  showcases?: EffectiveProfileShowcase[],
+  preview = false
 ) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -40,6 +41,7 @@ function renderClient(
   return render(
     <QueryClientProvider client={queryClient}>
       <UserClient
+        preview={preview}
         userId="user-1"
         userName="Nexus User"
         visibility={visibility}
@@ -145,6 +147,50 @@ describe(UserClient, () => {
     expect(await screen.findByText("Reseñas cargadas: 1")).toBeTruthy();
     expect(orpcClient.user.getUserBookmarks).not.toHaveBeenCalled();
     expect(screen.queryByText("Favoritos privados")).toBeNull();
+  });
+
+  it("uses self-preview loaders for unsaved collection visibility", async () => {
+    vi.mocked(orpcClient.user.getUserBookmarks).mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+    vi.mocked(orpcClient.rating.getByUserId).mockResolvedValue({
+      nextCursor: null,
+      posts: [],
+      ratings: [],
+    });
+
+    renderClient(
+      { favorites: false, reviews: false },
+      [
+        {
+          order: 0,
+          rendererKey: "library",
+          type: "library",
+          variant: "standard",
+        },
+        {
+          order: 1,
+          rendererKey: "reviews",
+          type: "reviews",
+          variant: "standard",
+        },
+      ],
+      true
+    );
+
+    await waitFor(() => {
+      expect(orpcClient.user.getUserBookmarks).toHaveBeenCalledWith({
+        limit: 12,
+        preview: true,
+        userId: "user-1",
+      });
+      expect(orpcClient.rating.getByUserId).toHaveBeenCalledWith({
+        limit: 10,
+        preview: true,
+        userId: "user-1",
+      });
+    });
   });
 
   it("bounds compact previews and omits load-more controls", async () => {

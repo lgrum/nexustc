@@ -44,12 +44,14 @@ type PublicReviewsPage = Awaited<
 type PublicReviewsCursor = NonNullable<PublicReviewsPage["nextCursor"]>;
 
 export function UserClient({
+  preview = false,
   showEmptyShowcases = false,
   showcases,
   userId,
   userName,
   visibility,
 }: {
+  preview?: boolean;
   userId: string;
   userName: string;
   visibility: ProfileActivityVisibility;
@@ -85,6 +87,7 @@ export function UserClient({
               isPublic
               key={showcase.type}
               omitUnavailable
+              preview={preview}
               userId={userId}
               userName={userName}
               variant={showcase.variant}
@@ -94,6 +97,7 @@ export function UserClient({
               isPublic
               key={showcase.type}
               omitUnavailable
+              preview={preview}
               userId={userId}
               userName={userName}
               variant={showcase.variant}
@@ -405,12 +409,14 @@ function FavoriteGamesSection({
 function PublicBookmarksSection({
   isPublic,
   omitUnavailable = false,
+  preview = false,
   userId,
   userName,
   variant = "standard",
 }: {
   isPublic: boolean;
   omitUnavailable?: boolean;
+  preview?: boolean;
   userId: string;
   userName: string;
   variant?: EffectiveProfileShowcase["variant"];
@@ -429,9 +435,10 @@ function PublicBookmarksSection({
       orpcClient.user.getUserBookmarks({
         ...(pageParam ? { cursor: pageParam } : {}),
         limit: pageSize,
+        ...(preview ? { preview: true } : {}),
         userId,
       }),
-    queryKey: ["profile", "public-bookmarks", userId, variant],
+    queryKey: ["profile", "public-bookmarks", userId, variant, preview],
   });
   const bookmarks = useMemo(
     () => query.data?.pages.flatMap((page) => page.items) ?? [],
@@ -505,12 +512,14 @@ function PublicBookmarksSection({
 function PublicReviewsSection({
   isPublic,
   omitUnavailable = false,
+  preview = false,
   userId,
   userName,
   variant = "standard",
 }: {
   isPublic: boolean;
   omitUnavailable?: boolean;
+  preview?: boolean;
   userId: string;
   userName: string;
   variant?: EffectiveProfileShowcase["variant"];
@@ -525,9 +534,10 @@ function PublicReviewsSection({
       orpcClient.rating.getByUserId({
         ...(pageParam ? { cursor: pageParam } : {}),
         limit: pageSize,
+        ...(preview ? { preview: true } : {}),
         userId,
       }),
-    queryKey: ["profile", "public-reviews", userId, variant],
+    queryKey: ["profile", "public-reviews", userId, variant, preview],
   });
   const reviews = useMemo(() => {
     const seen = new Set<string>();

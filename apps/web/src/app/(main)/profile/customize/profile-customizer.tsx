@@ -1434,6 +1434,7 @@ export function ProfileCustomizer({
                   />
                   <ProfileShowcaseLayout rendererKey={draft.layoutKey}>
                     <UserClient
+                      preview
                       showEmptyShowcases
                       showcases={previewShowcases}
                       userId={profile.id}

@@ -69,6 +69,22 @@ beforeEach(() => {
 });
 
 describe("public bookmark privacy", () => {
+  it("rejects a collection preview for a different account", async () => {
+    const { context } = createContext();
+    context.session = {
+      user: { id: "viewer-1", role: "user" },
+    } as never;
+
+    await expect(
+      call(
+        userRouter.getUserBookmarks,
+        { limit: 12, preview: true, userId: "user-1" },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(mocks.canReadPublicProfileActivity).not.toHaveBeenCalled();
+  });
+
   it("returns no items and skips bookmark work when favorites are hidden", async () => {
     mocks.canReadPublicProfileActivity.mockResolvedValue(false);
     const { context, db } = createContext();

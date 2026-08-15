@@ -68,6 +68,9 @@ test("profile customization and owner catalog state stay request-bound", () => {
   expect(editorPage).toContain(
     "orpcClient.profile.getFavoriteGamesEditorState()"
   );
+  expect(editorPage).toContain(
+    "orpcClient.profile.getCustomizationScalarPreview()"
+  );
   expect(skinAdminPage).toContain(
     "orpc.profileCatalogAdmin.skins.list.queryOptions()"
   );

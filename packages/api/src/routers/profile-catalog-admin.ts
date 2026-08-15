@@ -23,6 +23,7 @@ import {
 } from "../services/profile-catalog-purchase-correction";
 import {
   listOwnerProfileDecorations,
+  profileDecorationDraftSchema,
   ProfileDecorationCatalogError,
   publishProfileDecorationDraft,
   saveProfileDecorationDraft,
@@ -34,6 +35,7 @@ import {
 } from "../services/profile-entitlement-admin";
 import {
   listOwnerProfileSkins,
+  profileSkinDraftSchema,
   ProfileSkinCatalogError,
   publishProfileSkinDraft,
   saveProfileSkinDraft,
@@ -296,19 +298,19 @@ export default {
     publishLayoutRequirement: ownerProcedure
       .input(
         z.object({
+          expectedRevision: z.number().int().positive(),
           key: z.enum(PROFILE_LAYOUT_KEYS),
+          reason: supportReasonSchema,
           requiredTier: z.enum(PATRON_TIER_KEYS),
         })
       )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
-          return await publishProfileLayoutRequirement(
-            db,
-            session.user.id,
-            input.key,
-            input.requiredTier
-          );
+          return await publishProfileLayoutRequirement(db, {
+            ...input,
+            actorUserId: session.user.id,
+          });
         } catch (error) {
           if (error instanceof ProfileEntitlementAdminError) {
             throw errors.BAD_REQUEST({ message: error.message });
@@ -319,19 +321,19 @@ export default {
     publishShowcaseRequirement: ownerProcedure
       .input(
         z.object({
+          expectedRevision: z.number().int().positive(),
           key: z.enum(PROFILE_SHOWCASE_TYPE_KEYS),
+          reason: supportReasonSchema,
           requiredTier: z.enum(PATRON_TIER_KEYS),
         })
       )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
-          return await publishProfileShowcaseRequirement(
-            db,
-            session.user.id,
-            input.key,
-            input.requiredTier
-          );
+          return await publishProfileShowcaseRequirement(db, {
+            ...input,
+            actorUserId: session.user.id,
+          });
         } catch (error) {
           if (error instanceof ProfileEntitlementAdminError) {
             throw errors.BAD_REQUEST({ message: error.message });
@@ -359,7 +361,7 @@ export default {
         }
       }),
     saveDraft: ownerProcedure
-      .input(z.object({ draft: z.unknown() }))
+      .input(z.object({ draft: profileDecorationDraftSchema }))
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
@@ -392,7 +394,7 @@ export default {
         }
       }),
     saveDraft: ownerProcedure
-      .input(z.object({ draft: z.unknown() }))
+      .input(z.object({ draft: profileSkinDraftSchema }))
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {

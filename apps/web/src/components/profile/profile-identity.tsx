@@ -55,7 +55,7 @@ export function ProfileIdentity({
           nameAs={nameAs}
           nameClassName={cn(
             isPublic
-              ? "display-heading text-4xl leading-none @xl/profile-hero:text-5xl @3xl/profile-hero:text-6xl"
+              ? "profile-display-name display-heading text-4xl @xl/profile-hero:text-5xl @3xl/profile-hero:text-6xl"
               : "font-lexend text-xl font-bold"
           )}
           showEmblems
