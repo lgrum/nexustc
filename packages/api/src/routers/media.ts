@@ -11,6 +11,7 @@ import {
   mediaFolder,
   post,
   postMedia,
+  profileCatalogSkinRevision,
   sticker,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
@@ -125,10 +126,23 @@ function buildMediaUsageAggs(db: Database) {
     .groupBy(featuredPost.thumbnailMediaId)
     .as("featured_media_usage");
 
+  const profileSkinUsageAgg = db
+    .select({
+      mediaId: profileCatalogSkinRevision.backgroundAssetId,
+      profileSkinUsageCount: sql<number>`COUNT(*)::integer`.as(
+        "profile_skin_usage_count"
+      ),
+    })
+    .from(profileCatalogSkinRevision)
+    .where(sql`${profileCatalogSkinRevision.backgroundAssetId} IS NOT NULL`)
+    .groupBy(profileCatalogSkinRevision.backgroundAssetId)
+    .as("profile_skin_media_usage");
+
   return {
     coverUsageAgg,
     emojiUsageAgg,
     featuredUsageAgg,
+    profileSkinUsageAgg,
     postUsageAgg,
     stickerUsageAgg,
   };
@@ -326,6 +340,7 @@ export default {
           coverUsageAgg,
           emojiUsageAgg,
           featuredUsageAgg,
+          profileSkinUsageAgg,
           postUsageAgg,
           stickerUsageAgg,
         } = buildMediaUsageAggs(db);
@@ -360,6 +375,7 @@ export default {
               + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
               + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
               + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
+              + COALESCE(${profileSkinUsageAgg.profileSkinUsageCount}, 0)
               + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
             `,
           })
@@ -368,6 +384,10 @@ export default {
           .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
           .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
           .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
+          .leftJoin(
+            profileSkinUsageAgg,
+            eq(profileSkinUsageAgg.mediaId, media.id)
+          )
           .leftJoin(stickerUsageAgg, eq(stickerUsageAgg.mediaId, media.id))
           .where(
             targetFolder
@@ -427,6 +447,7 @@ export default {
         coverUsageAgg,
         emojiUsageAgg,
         featuredUsageAgg,
+        profileSkinUsageAgg,
         postUsageAgg,
         stickerUsageAgg,
       } = buildMediaUsageAggs(db);
@@ -442,6 +463,7 @@ export default {
             + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
             + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
             + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
+            + COALESCE(${profileSkinUsageAgg.profileSkinUsageCount}, 0)
             + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
           `,
         })
@@ -450,6 +472,10 @@ export default {
         .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
         .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
         .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
+        .leftJoin(
+          profileSkinUsageAgg,
+          eq(profileSkinUsageAgg.mediaId, media.id)
+        )
         .leftJoin(stickerUsageAgg, eq(stickerUsageAgg.mediaId, media.id))
         .orderBy(sql`${media.createdAt} DESC`);
     }),

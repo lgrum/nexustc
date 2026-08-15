@@ -256,6 +256,30 @@ export function closeAccountAndDeleteUser(
           )
         )
       );
+    await tx.execute(sql`
+      WITH owned_assets AS (
+        SELECT id, object_key
+        FROM profile_media_asset
+        WHERE owner_user_id = ${userId}
+      ), retired_assets AS (
+        INSERT INTO profile_media_deletion (object_key, updated_at)
+        SELECT owned_assets.object_key, now()
+        FROM owned_assets
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM profile_catalog_decoration_revision
+          WHERE profile_catalog_decoration_revision.media_asset_id = owned_assets.id
+        )
+        ON CONFLICT (object_key) DO NOTHING
+      )
+      DELETE FROM profile_media_asset
+      WHERE owner_user_id = ${userId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_catalog_decoration_revision
+          WHERE profile_catalog_decoration_revision.media_asset_id = profile_media_asset.id
+        )
+    `);
     await tx.delete(user).where(eq(user.id, userId));
     return result;
   });

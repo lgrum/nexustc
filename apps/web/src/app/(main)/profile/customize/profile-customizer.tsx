@@ -565,15 +565,29 @@ export function ProfileCustomizer({
     const editorUrl = window.location.href;
     const editorHistoryState = window.history.state;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    const warnHistory = async () => {
-      const isConfirmed = await confirm({
-        title: "Cambios sin guardar",
-        description: "Si sales ahora, perderás los cambios de este borrador.",
-        confirmText: "Salir sin guardar",
-      });
-      if (!isConfirmed) {
-        window.history.pushState(editorHistoryState, "", editorUrl);
+    let historyPromptOpen = false;
+    const warnHistory = () => {
+      const destinationUrl = window.location.href;
+      window.history.pushState(editorHistoryState, "", editorUrl);
+      if (historyPromptOpen) {
+        return;
       }
+      historyPromptOpen = true;
+      void (async () => {
+        try {
+          const isConfirmed = await confirm({
+            title: "Cambios sin guardar",
+            description:
+              "Si sales ahora, perderás los cambios de este borrador.",
+            confirmText: "Salir sin guardar",
+          });
+          if (isConfirmed) {
+            window.location.assign(destinationUrl);
+          }
+        } finally {
+          historyPromptOpen = false;
+        }
+      })();
     };
     const warnLinks = async (event: MouseEvent) => {
       const link = (event.target as Element | null)?.closest("a[href]");

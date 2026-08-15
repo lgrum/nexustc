@@ -144,7 +144,7 @@ function parseDraft(input: unknown) {
   validateProfileDecorationVisual({
     effectKey: parsed.data.effectKey,
     fontKey: parsed.data.fontKey,
-    mediaAssetKey: null,
+    mediaAssetKey: parsed.data.mediaAssetId ? "managed-media" : null,
     reducedMotion: parsed.data.reducedMotion,
     slot: parsed.data.slot,
   });
@@ -334,14 +334,18 @@ export async function saveProfileDecorationDraft(
     draft.reducedMotion
   );
   return db.transaction(async (tx) => {
-    const item = draft.itemId
-      ? await tx.query.profileCatalogItem.findFirst({
-          where: and(
-            eq(profileCatalogItem.id, draft.itemId),
-            eq(profileCatalogItem.kind, "decoration")
-          ),
-        })
-      : null;
+    const [item] = draft.itemId
+      ? await tx
+          .select()
+          .from(profileCatalogItem)
+          .where(
+            and(
+              eq(profileCatalogItem.id, draft.itemId),
+              eq(profileCatalogItem.kind, "decoration")
+            )
+          )
+          .for("update")
+      : [];
     if (draft.itemId && !item) {
       throw new ProfileDecorationCatalogError(
         "NOT_FOUND",
@@ -510,7 +514,7 @@ export function publishProfileDecorationDraft(
     validateProfileDecorationVisual({
       effectKey: detail.effectKey,
       fontKey: detail.fontKey,
-      mediaAssetKey: null,
+      mediaAssetKey: detail.mediaAssetId ? "managed-media" : null,
       reducedMotion: detail.reducedMotion,
       slot: detail.slot,
     });

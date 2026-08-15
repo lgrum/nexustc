@@ -376,14 +376,18 @@ export function saveProfileSkinDraft(
 ) {
   const draft = parseDraft(input);
   return db.transaction(async (tx) => {
-    const existingItem = draft.itemId
-      ? await tx.query.profileCatalogItem.findFirst({
-          where: and(
-            eq(profileCatalogItem.id, draft.itemId),
-            eq(profileCatalogItem.kind, "skin")
-          ),
-        })
-      : null;
+    const [existingItem] = draft.itemId
+      ? await tx
+          .select()
+          .from(profileCatalogItem)
+          .where(
+            and(
+              eq(profileCatalogItem.id, draft.itemId),
+              eq(profileCatalogItem.kind, "skin")
+            )
+          )
+          .for("update")
+      : [];
     if (draft.itemId && !existingItem) {
       throw new ProfileSkinCatalogError("NOT_FOUND", "El Skin no existe.");
     }

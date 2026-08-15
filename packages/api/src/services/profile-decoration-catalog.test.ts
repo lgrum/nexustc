@@ -20,7 +20,7 @@ describe("Profile Decoration publication validation", () => {
       validateProfileDecorationVisual({
         effectKey,
         fontKey: slot === "nameplate-effect" ? "lexend" : null,
-        mediaAssetKey: null,
+        mediaAssetKey: slot === "ambient-effect" ? "asset-key" : null,
         reducedMotion: effectKey === "shimmer" ? null : { behavior: "static" },
         slot,
       }).slot
@@ -54,7 +54,7 @@ describe("Profile Decoration publication validation", () => {
       validateProfileDecorationVisual({
         effectKey: "soft-pulse",
         fontKey: null,
-        mediaAssetKey: null,
+        mediaAssetKey: "asset-key",
         reducedMotion: null,
         slot: "ambient-effect",
       })
@@ -63,7 +63,7 @@ describe("Profile Decoration publication validation", () => {
       validateProfileDecorationVisual({
         effectKey: "orbit-sparkles",
         fontKey: null,
-        mediaAssetKey: null,
+        mediaAssetKey: "asset-key",
         reducedMotion: { behavior: "omit" },
         slot: "ambient-effect",
       }).reducedMotion

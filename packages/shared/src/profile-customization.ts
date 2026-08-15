@@ -263,6 +263,13 @@ export const profileDecorationVisualSchema = z
         path: ["slot"],
       });
     }
+    if (visual.slot === "ambient-effect" && !visual.mediaAssetKey) {
+      context.addIssue({
+        code: "custom",
+        message: "El Efecto ambiental necesita un recurso de imagen.",
+        path: ["mediaAssetKey"],
+      });
+    }
     if (
       visual.effectKey &&
       visual.effectKey !== "shimmer" &&
