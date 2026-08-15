@@ -8,6 +8,7 @@ import {
   FAVORITE_GAMES_MAX_SAVED,
   FAVORITE_GAMES_SEARCH_LIMIT,
 } from "@repo/shared/profile-customization";
+import type { EffectiveProfileShowcase } from "@repo/shared/profile-customization";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
@@ -154,6 +155,11 @@ export async function loadPublicFavoriteGamesShowcase(
   db: Database,
   userId: string
 ) {
+  const data = await loadPublicFavoriteGamesData(db, userId);
+  return data?.games ?? [];
+}
+
+async function loadPublicFavoriteGamesData(db: Database, userId: string) {
   const [row, entitlement] = await Promise.all([
     db.query.profileShowcaseConfig.findFirst({
       where: and(
@@ -165,18 +171,38 @@ export async function loadPublicFavoriteGamesShowcase(
     loadFavoriteGamesEntitlement(db, userId),
   ]);
   if (!(row && entitlement.exists)) {
-    return [];
+    return null;
   }
   try {
     const { gameIds } = migrateFavoriteGamesPayload(
       row.payloadSchemaVersion,
       row.payload
     );
-    return loadPublicGameProjections(
+    const games = await loadPublicGameProjections(
       db,
       gameIds.slice(0, entitlement.capacity)
     );
+    return { games, row };
   } catch {
+    return null;
+  }
+}
+
+export async function loadPublicFavoriteGamesShowcaseEntry(
+  db: Database,
+  userId: string
+): Promise<EffectiveProfileShowcase[]> {
+  const data = await loadPublicFavoriteGamesData(db, userId);
+  if (!(data && data.games.length > 0)) {
     return [];
   }
+  return [
+    {
+      games: data.games,
+      order: data.row.order,
+      rendererKey: "favorite-games",
+      type: "favorite-games",
+      variant: data.row.variant,
+    },
+  ];
 }

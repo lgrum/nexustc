@@ -38,10 +38,14 @@ test("public scalar Showcases stay outside the hours-cached profile", () => {
   );
 
   expect(cachedProfile).toContain("includeCurrentStreak: false");
+  expect(cachedProfile).toContain("includeFavoriteGames: false");
   expect(cachedProfile).toContain("orpcClient.profile.getPublic(");
   expect(cachedProfile).toContain("context: { cache: true }");
   expect(cachedProfile).not.toContain("getPublicScalarShowcases");
-  expect(page).toContain("orpcClient.profile.getPublicScalarShowcases({");
+  expect(page).toMatch(/orpcClient\.profile\s*\.getPublicScalarShowcases\(\{/);
+  expect(page).toMatch(
+    /orpcClient\.profile\s*\.getPublicFavoriteGamesShowcase\(\{/
+  );
   expect(page).toMatch(
     /getPublicCurrentStreak\(\{ userId: id \}\)\s*\.catch\(\(\) => null\)/
   );

@@ -859,9 +859,11 @@ export async function getPublicProfile(
   {
     customizationEnabled = env.PROFILE_CUSTOMIZATION_ENABLED,
     includeCurrentStreak = true,
+    includeFavoriteGames = true,
   }: {
     customizationEnabled?: boolean;
     includeCurrentStreak?: boolean;
+    includeFavoriteGames?: boolean;
   } = {}
 ) {
   const now = new Date();
@@ -912,7 +914,9 @@ export async function getPublicProfile(
             userId,
             settings.visibilityConfig
           ),
-          loadPublicFavoriteGamesShowcase(db, userId),
+          includeFavoriteGames
+            ? loadPublicFavoriteGamesShowcase(db, userId)
+            : Promise.resolve([]),
         ])
       : Promise.resolve(null),
   ]);

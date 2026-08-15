@@ -22,7 +22,11 @@ async function getProfile(id: string) {
   cacheTag("profiles", `profile:${id}`);
 
   const profile = await orpcClient.profile.getPublic(
-    { includeCurrentStreak: false, userId: id },
+    {
+      includeCurrentStreak: false,
+      includeFavoriteGames: false,
+      userId: id,
+    },
     { context: { cache: true } }
   );
   if (!profile) {
@@ -46,15 +50,33 @@ export default async function Page({ params }: PageProps) {
   const { id } = await params;
   const sessionPromise = (async () =>
     auth.api.getSession({ headers: await headers() }))();
-  const [profile, scalarShowcases, currentStreak, session] = await Promise.all([
-    getProfile(id),
-    orpcClient.profile.getPublicScalarShowcases({ userId: id }).catch(() => []),
-    orpcClient.profile.getPublicCurrentStreak({ userId: id }).catch(() => null),
-    sessionPromise,
-  ]);
-  const publicProfile =
-    currentStreak === null ? profile : { ...profile, currentStreak };
-  const { manifest } = profile;
+  const [profile, favoriteGames, scalarShowcases, currentStreak, session] =
+    await Promise.all([
+      getProfile(id),
+      orpcClient.profile
+        .getPublicFavoriteGamesShowcase({ userId: id })
+        .catch(() => []),
+      orpcClient.profile
+        .getPublicScalarShowcases({ userId: id })
+        .catch(() => []),
+      orpcClient.profile
+        .getPublicCurrentStreak({ userId: id })
+        .catch(() => null),
+      sessionPromise,
+    ]);
+  const manifest = profile.manifest
+    ? {
+        ...profile.manifest,
+        showcases: [...profile.manifest.showcases, ...favoriteGames].toSorted(
+          (left, right) => left.order - right.order
+        ),
+      }
+    : undefined;
+  const publicProfile = {
+    ...profile,
+    ...(currentStreak === null ? {} : { currentStreak }),
+    ...(manifest ? { manifest } : {}),
+  };
   const showcases = manifest
     ? [...manifest.showcases, ...scalarShowcases].toSorted(
         (left, right) => left.order - right.order

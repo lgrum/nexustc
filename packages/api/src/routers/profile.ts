@@ -33,6 +33,7 @@ import {
 } from "../services/profile-customization";
 import {
   loadFavoriteGamesEditorState,
+  loadPublicFavoriteGamesShowcaseEntry,
   searchPublicFavoriteGames,
 } from "../services/profile-favorite-games";
 import {
@@ -274,6 +275,7 @@ export default {
     .input(
       z.object({
         includeCurrentStreak: z.boolean().optional(),
+        includeFavoriteGames: z.boolean().optional(),
         userId: z.string(),
       })
     )
@@ -282,6 +284,7 @@ export default {
       logger?.info(`Fetching public profile for user ${input.userId}`);
       return getPublicProfile(db, input.userId, {
         includeCurrentStreak: input.includeCurrentStreak,
+        includeFavoriteGames: input.includeFavoriteGames,
       });
     }),
 
@@ -297,6 +300,15 @@ export default {
     .handler(({ context: { db }, input }) =>
       env.PROFILE_CUSTOMIZATION_ENABLED
         ? getPublicScalarProfileShowcases(db, input.userId)
+        : []
+    ),
+
+  getPublicFavoriteGamesShowcase: publicProcedure
+    .use(slidingWindowRatelimitMiddleware(30, 60))
+    .input(z.object({ userId: z.string().min(1) }))
+    .handler(({ context: { db }, input }) =>
+      env.PROFILE_CUSTOMIZATION_ENABLED
+        ? loadPublicFavoriteGamesShowcaseEntry(db, input.userId)
         : []
     ),
 

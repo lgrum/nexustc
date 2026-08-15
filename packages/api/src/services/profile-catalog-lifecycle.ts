@@ -156,6 +156,19 @@ export function rollbackProfileCatalogRevision(
         "La revisión publicada no existe."
       );
     }
+    const pendingDraft = await tx.query.profileCatalogItemRevision.findFirst({
+      columns: { id: true },
+      where: and(
+        eq(profileCatalogItemRevision.itemId, itemId),
+        eq(profileCatalogItemRevision.state, "draft")
+      ),
+    });
+    if (pendingDraft) {
+      throw new ProfileCatalogLifecycleError(
+        "INVALID_TRANSITION",
+        "Publica o elimina el borrador pendiente antes de recuperar una revisión."
+      );
+    }
     const latest = await tx.query.profileCatalogItemRevision.findFirst({
       orderBy: desc(profileCatalogItemRevision.revision),
       where: eq(profileCatalogItemRevision.itemId, itemId),

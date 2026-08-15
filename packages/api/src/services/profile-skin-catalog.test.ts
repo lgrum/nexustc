@@ -69,4 +69,20 @@ describe("Profile Skin publication validation", () => {
       }).success
     ).toBe(false);
   });
+
+  it("requires opaque surfaces when a background image is used", () => {
+    expect(
+      profileSkinDraftSchema.safeParse({
+        backgroundAssetId: "background-1",
+        catalogOrder: 1,
+        description: "",
+        eterisPrice: null,
+        isFree: true,
+        name: "Image skin",
+        requiredTier: null,
+        stableKey: "image-skin",
+        tokens: PROFILE_DEFAULT_SKIN_TOKENS,
+      }).success
+    ).toBe(false);
+  });
 });

@@ -70,6 +70,23 @@ export const profileSkinDraftSchema = z
         path: ["eterisPrice"],
       });
     }
+    if (
+      draft.backgroundAssetId &&
+      (draft.tokens.shellOpacity < 1 || draft.tokens.showcaseOpacity < 1)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Los fondos de imagen necesitan superficies opacas para conservar el contraste.",
+        path: ["tokens", "shellOpacity"],
+      });
+      context.addIssue({
+        code: "custom",
+        message:
+          "Los fondos de imagen necesitan superficies opacas para conservar el contraste.",
+        path: ["tokens", "showcaseOpacity"],
+      });
+    }
   });
 
 export type ProfileSkinDraftInput = z.input<typeof profileSkinDraftSchema>;
@@ -186,6 +203,27 @@ export function validateProfileSkinTokens(input: unknown): ProfileSkinTokens {
   return parsed.data;
 }
 
+function validateOpaqueSurfacesForBackgroundAsset(
+  tokens: ProfileSkinTokens,
+  hasBackgroundAsset: boolean
+) {
+  if (
+    hasBackgroundAsset &&
+    (tokens.shellOpacity < 1 || tokens.showcaseOpacity < 1)
+  ) {
+    throw new ProfileSkinCatalogError(
+      "INVALID_DRAFT",
+      "Los fondos de imagen necesitan superficies opacas para conservar el contraste.",
+      {
+        "tokens.shellOpacity":
+          "Usa una opacidad de 1 cuando el Skin tiene una imagen de fondo.",
+        "tokens.showcaseOpacity":
+          "Usa una opacidad de 1 cuando el Skin tiene una imagen de fondo.",
+      }
+    );
+  }
+}
+
 function parseDraft(input: unknown) {
   const parsed = profileSkinDraftSchema.safeParse(input);
   if (!parsed.success) {
@@ -202,7 +240,14 @@ function parseDraft(input: unknown) {
   }
   return {
     ...parsed.data,
-    tokens: validateProfileSkinTokens(parsed.data.tokens),
+    tokens: (() => {
+      const tokens = validateProfileSkinTokens(parsed.data.tokens);
+      validateOpaqueSurfacesForBackgroundAsset(
+        tokens,
+        Boolean(parsed.data.backgroundAssetId)
+      );
+      return tokens;
+    })(),
   };
 }
 
@@ -478,7 +523,11 @@ export function publishProfileSkinDraft(
         "El borrador no tiene tokens visuales."
       );
     }
-    validateProfileSkinTokens(detail.tokens);
+    const tokens = validateProfileSkinTokens(detail.tokens);
+    validateOpaqueSurfacesForBackgroundAsset(
+      tokens,
+      Boolean(detail.backgroundAssetId)
+    );
     if (detail.backgroundAssetId) {
       const asset = await tx.query.media.findFirst({
         columns: { isAnimated: true },
