@@ -48,7 +48,7 @@ export default async function Page({ params }: PageProps) {
     auth.api.getSession({ headers: await headers() }))();
   const [profile, scalarShowcases, currentStreak, session] = await Promise.all([
     getProfile(id),
-    orpcClient.profile.getPublicScalarShowcases({ userId: id }),
+    orpcClient.profile.getPublicScalarShowcases({ userId: id }).catch(() => []),
     orpcClient.profile.getPublicCurrentStreak({ userId: id }).catch(() => null),
     sessionPromise,
   ]);

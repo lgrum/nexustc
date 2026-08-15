@@ -16,7 +16,6 @@ import {
   user,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
-import { getPatronTierRank } from "@repo/shared/constants";
 import {
   favoriteGamesShowcasePayloadSchema,
   PROFILE_DEFAULT_LAYOUT_KEY,
@@ -703,22 +702,11 @@ export async function saveProfileCustomization(
       items: [skin],
     }).items[skin.id]!;
     if (current?.selectedSkinItemId !== skin.id && !skinAccess.selectable) {
-      const activeMembership = await tx.query.patron.findFirst({
-        columns: { isActivePatron: true, tier: true },
-        where: eq(patron.userId, input.userId),
-      });
-      const entitled =
-        skin.requiredTier !== null &&
-        activeMembership?.isActivePatron &&
-        getPatronTierRank(activeMembership.tier) >=
-          getPatronTierRank(skin.requiredTier);
-      if (!entitled) {
-        throw new ProfileCustomizationError(
-          "INVALID_DRAFT",
-          "No tienes acceso al Skin elegido.",
-          { skinKey: "Este Skin requiere una membresía activa." }
-        );
-      }
+      throw new ProfileCustomizationError(
+        "INVALID_DRAFT",
+        "No tienes acceso al Skin elegido.",
+        { skinKey: "Este Skin requiere una membresía activa." }
+      );
     }
 
     const selectedDecorationKeys = Object.values(
