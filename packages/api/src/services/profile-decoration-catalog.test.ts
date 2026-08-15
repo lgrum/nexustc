@@ -144,6 +144,25 @@ describe("Profile Decoration publication validation", () => {
     ).toBe(false);
   });
 
+  it("rejects prices outside the Eteris storage range", () => {
+    expect(
+      profileDecorationDraftSchema.safeParse({
+        catalogOrder: 1,
+        description: "",
+        effectKey: null,
+        eterisPrice: 9_223_372_036_854_775_808n,
+        fontKey: null,
+        isFree: false,
+        mediaAssetId: null,
+        name: "Expensive decoration",
+        reducedMotion: null,
+        requiredTier: null,
+        slot: "profile-frame",
+        stableKey: "expensive-decoration",
+      }).success
+    ).toBe(false);
+  });
+
   it("keeps a published decoration in its original slot", () => {
     expect(() =>
       validatePublishedDecorationSlot("avatar-frame", "profile-frame")

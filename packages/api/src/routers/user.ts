@@ -602,6 +602,7 @@ export default {
     }),
 
   getUserBookmarks: publicProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .input(
       z.object({
         cursor: z

@@ -82,50 +82,7 @@ export async function purchaseProfileCatalogItem(
   db: Database,
   input: ProfileCatalogPurchaseInput
 ) {
-  if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
-    throw new ProfileCatalogPurchaseError(
-      "CUSTOMIZATION_DISABLED",
-      "La personalización de perfiles no está disponible."
-    );
-  }
-  if (!(env.XP_ECONOMY_ENABLED && env.ETERIS_SPENDING_ENABLED)) {
-    throw new ProfileCatalogPurchaseError(
-      "SPENDING_DISABLED",
-      "Las compras con Eteris no están disponibles."
-    );
-  }
-
   const result = await db.transaction(async (tx) => {
-    const [item] = await tx
-      .select({
-        currentPublishedRevisionId:
-          profileCatalogItem.currentPublishedRevisionId,
-        eterisPrice: profileCatalogItemRevision.eterisPrice,
-        id: profileCatalogItem.id,
-        isFree: profileCatalogItemRevision.isFree,
-        kind: profileCatalogItem.kind,
-        lifecycle: profileCatalogItem.lifecycle,
-        revision: profileCatalogItemRevision.revision,
-        stableKey: profileCatalogItem.stableKey,
-      })
-      .from(profileCatalogItem)
-      .innerJoin(
-        profileCatalogItemRevision,
-        eq(
-          profileCatalogItem.currentPublishedRevisionId,
-          profileCatalogItemRevision.id
-        )
-      )
-      .where(eq(profileCatalogItem.id, input.itemId))
-      .for("update");
-
-    if (!item) {
-      throw new ProfileCatalogPurchaseError(
-        "ITEM_UNAVAILABLE",
-        "Este elemento ya no está disponible."
-      );
-    }
-
     const replay = await tx.query.eterisTransaction.findFirst({
       where: eq(eterisTransaction.idempotencyKey, input.idempotencyKey),
     });
@@ -159,6 +116,49 @@ export async function purchaseProfileCatalogItem(
         revision: input.expectedRevision,
         transactionId: replay.id,
       };
+    }
+
+    if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
+      throw new ProfileCatalogPurchaseError(
+        "CUSTOMIZATION_DISABLED",
+        "La personalización de perfiles no está disponible."
+      );
+    }
+    if (!(env.XP_ECONOMY_ENABLED && env.ETERIS_SPENDING_ENABLED)) {
+      throw new ProfileCatalogPurchaseError(
+        "SPENDING_DISABLED",
+        "Las compras con Eteris no están disponibles."
+      );
+    }
+
+    const [item] = await tx
+      .select({
+        currentPublishedRevisionId:
+          profileCatalogItem.currentPublishedRevisionId,
+        eterisPrice: profileCatalogItemRevision.eterisPrice,
+        id: profileCatalogItem.id,
+        isFree: profileCatalogItemRevision.isFree,
+        kind: profileCatalogItem.kind,
+        lifecycle: profileCatalogItem.lifecycle,
+        revision: profileCatalogItemRevision.revision,
+        stableKey: profileCatalogItem.stableKey,
+      })
+      .from(profileCatalogItem)
+      .innerJoin(
+        profileCatalogItemRevision,
+        eq(
+          profileCatalogItem.currentPublishedRevisionId,
+          profileCatalogItemRevision.id
+        )
+      )
+      .where(eq(profileCatalogItem.id, input.itemId))
+      .for("update");
+
+    if (!item) {
+      throw new ProfileCatalogPurchaseError(
+        "ITEM_UNAVAILABLE",
+        "Este elemento ya no está disponible."
+      );
     }
 
     if (item.lifecycle !== "active") {

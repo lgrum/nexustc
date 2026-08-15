@@ -8,6 +8,7 @@ import {
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { PATRON_TIER_KEYS } from "@repo/shared/constants";
+import { ETERIS_MAX_AMOUNT } from "@repo/shared/eteris";
 import {
   PROFILE_DEFAULT_SKIN_KEY,
   PROFILE_DEFAULT_SKIN_TOKENS,
@@ -28,12 +29,23 @@ const MIN_TEXT_CONTRAST = 4.5;
 const MIN_MUTED_CONTRAST = 3;
 const MIN_FOCUS_CONTRAST = 3;
 
+function isCatalogStableKeyConflict(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  return (
+    candidate.code === "23505" &&
+    candidate.constraint === "profile_catalog_item_stable_key_unique"
+  );
+}
+
 export const profileSkinDraftSchema = z
   .object({
     backgroundAssetId: z.string().min(1).nullable(),
     catalogOrder: z.number().int().min(0).max(10_000),
     description: z.string().trim().max(500),
-    eterisPrice: z.bigint().nonnegative().nullable(),
+    eterisPrice: z.bigint().nonnegative().max(ETERIS_MAX_AMOUNT).nullable(),
     isFree: z.boolean(),
     itemId: z.string().min(1).optional(),
     name: z.string().trim().min(1).max(80),
@@ -146,6 +158,18 @@ function interpolateHex(left: string, right: string, progress: number) {
     .join("")}`;
 }
 
+function compositeHex(foreground: string, background: string, opacity: number) {
+  const foregroundChannels = parseHex(foreground);
+  const backgroundChannels = parseHex(background);
+  return `#${foregroundChannels
+    .map((channel, index) =>
+      Math.round(channel * opacity + backgroundChannels[index]! * (1 - opacity))
+        .toString(16)
+        .padStart(2, "0")
+    )
+    .join("")}`;
+}
+
 export function getProfileSkinContrast(left: string, right: string) {
   const [bright, dark] = [luminance(left), luminance(right)].toSorted(
     (a, b) => b - a
@@ -182,11 +206,18 @@ export function validateProfileSkinTokens(input: unknown): ProfileSkinTokens {
     );
   }
 
-  const surfaces = [
-    ...representativeBackgrounds(parsed.data),
-    parsed.data.shellSurface,
-    parsed.data.showcaseSurface,
-  ];
+  const backgrounds = representativeBackgrounds(parsed.data);
+  const shellSurfaces = backgrounds.map((background) =>
+    compositeHex(parsed.data.shellSurface, background, parsed.data.shellOpacity)
+  );
+  const showcaseSurfaces = backgrounds.map((background) =>
+    compositeHex(
+      parsed.data.showcaseSurface,
+      background,
+      parsed.data.showcaseOpacity
+    )
+  );
+  const surfaces = [...backgrounds, ...shellSurfaces, ...showcaseSurfaces];
   if (
     surfaces.some(
       (surface) =>
@@ -216,7 +247,7 @@ export function validateProfileSkinTokens(input: unknown): ProfileSkinTokens {
     );
   }
   if (
-    [parsed.data.shellSurface, parsed.data.showcaseSurface].some(
+    [...shellSurfaces, ...showcaseSurfaces].some(
       (surface) =>
         getProfileSkinContrast(parsed.data.focus, surface) < MIN_FOCUS_CONTRAST
     )
@@ -448,12 +479,23 @@ export function saveProfileSkinDraft(
     }
 
     if (!existingItem) {
-      await tx.insert(profileCatalogItem).values({
-        id: itemId,
-        kind: "skin",
-        lifecycle: "draft",
-        stableKey: `skin.${draft.stableKey}`,
-      });
+      try {
+        await tx.insert(profileCatalogItem).values({
+          id: itemId,
+          kind: "skin",
+          lifecycle: "draft",
+          stableKey: `skin.${draft.stableKey}`,
+        });
+      } catch (error) {
+        if (isCatalogStableKeyConflict(error)) {
+          throw new ProfileSkinCatalogError(
+            "CONFLICT",
+            "La clave estable del Skin ya está en uso.",
+            { stableKey: "Elige una clave estable diferente." }
+          );
+        }
+        throw error;
+      }
     }
     const currentDraft = await tx.query.profileCatalogItemRevision.findFirst({
       orderBy: desc(profileCatalogItemRevision.revision),

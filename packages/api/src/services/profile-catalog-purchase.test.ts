@@ -174,6 +174,40 @@ it("returns a matching replay without charging or creating ownership again", asy
   expect(store.ownerships).toHaveLength(0);
 });
 
+it.each(["customization", "economy", "spending"] as const)(
+  "replays a completed purchase after the %s gate is disabled",
+  async (flag) => {
+    flags[flag] = false;
+    const store = createDatabase({
+      item: { lifecycle: "archived", revision: 4 },
+      ownership: {
+        id: "ownership-1",
+        sourceReference: "transaction-1",
+      },
+      replay: {
+        actorUserId: "user-1",
+        id: "transaction-1",
+        kind: "purchase",
+        metadata: {
+          catalogItemId: "item-grid",
+          price: "75",
+          publishedRevision: 3,
+        },
+        sourceModule: "commerce",
+      },
+    });
+
+    await expect(
+      purchaseProfileCatalogItem(store.db as never, command)
+    ).resolves.toMatchObject({
+      replayed: true,
+      transactionId: "transaction-1",
+    });
+    expect(ledger.post).not.toHaveBeenCalled();
+    expect(store.ownerships).toHaveLength(0);
+  }
+);
+
 it.each([
   [{ lifecycle: "archived" }, "ITEM_UNAVAILABLE"],
   [{ currentPublishedRevisionId: null }, "ITEM_UNAVAILABLE"],

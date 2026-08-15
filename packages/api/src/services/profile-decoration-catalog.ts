@@ -8,6 +8,7 @@ import {
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { PATRON_TIER_KEYS } from "@repo/shared/constants";
+import { ETERIS_MAX_AMOUNT } from "@repo/shared/eteris";
 import { MANAGED_PROFILE_MEDIA_SLOTS } from "@repo/shared/profile";
 import {
   PROFILE_DECORATION_EFFECT_KEYS,
@@ -27,12 +28,23 @@ import { publishProfileCatalogRevision } from "./profile-catalog-publication";
 type Database = typeof database;
 
 const animatedEffects = new Set(["soft-pulse", "orbit-sparkles"]);
+
+function isCatalogStableKeyConflict(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  return (
+    candidate.code === "23505" &&
+    candidate.constraint === "profile_catalog_item_stable_key_unique"
+  );
+}
 export const profileDecorationDraftSchema = z
   .object({
     catalogOrder: z.number().int().min(0).max(10_000),
     description: z.string().trim().max(500),
     effectKey: z.enum(PROFILE_DECORATION_EFFECT_KEYS).nullable(),
-    eterisPrice: z.bigint().nonnegative().nullable(),
+    eterisPrice: z.bigint().nonnegative().max(ETERIS_MAX_AMOUNT).nullable(),
     fontKey: z.enum(PROFILE_DECORATION_FONT_KEYS).nullable(),
     isFree: z.boolean(),
     itemId: z.string().min(1).optional(),
@@ -368,12 +380,23 @@ export async function saveProfileDecorationDraft(
     }
     const itemId = item?.id ?? generateId();
     if (!item) {
-      await tx.insert(profileCatalogItem).values({
-        id: itemId,
-        kind: "decoration",
-        lifecycle: "draft",
-        stableKey: `decoration.${draft.stableKey}`,
-      });
+      try {
+        await tx.insert(profileCatalogItem).values({
+          id: itemId,
+          kind: "decoration",
+          lifecycle: "draft",
+          stableKey: `decoration.${draft.stableKey}`,
+        });
+      } catch (error) {
+        if (isCatalogStableKeyConflict(error)) {
+          throw new ProfileDecorationCatalogError(
+            "CONFLICT",
+            "La clave estable de la Decoration ya está en uso.",
+            { stableKey: "Elige una clave estable diferente." }
+          );
+        }
+        throw error;
+      }
     }
     const currentDraft = await tx.query.profileCatalogItemRevision.findFirst({
       orderBy: desc(profileCatalogItemRevision.revision),

@@ -66,7 +66,19 @@ describe("Profile Skin publication validation", () => {
             { color: "#ffffff", position: 100 },
           ],
         },
-        foreground: "#767676",
+        foreground: "#757575",
+      })
+    ).toThrow("contraste");
+  });
+
+  it("rejects contrast loss after translucent surfaces are composited", () => {
+    expect(() =>
+      validateProfileSkinTokens({
+        ...PROFILE_DEFAULT_SKIN_TOKENS,
+        background: { color: "#ffffff", kind: "solid" },
+        foreground: "#757575",
+        shellOpacity: 0.72,
+        shellSurface: "#000000",
       })
     ).toThrow("contraste");
   });
@@ -98,6 +110,22 @@ describe("Profile Skin publication validation", () => {
         name: "Free skin",
         requiredTier: null,
         stableKey: "free-skin",
+        tokens: PROFILE_DEFAULT_SKIN_TOKENS,
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects prices outside the Eteris storage range", () => {
+    expect(
+      profileSkinDraftSchema.safeParse({
+        backgroundAssetId: null,
+        catalogOrder: 1,
+        description: "",
+        eterisPrice: 9_223_372_036_854_775_808n,
+        isFree: false,
+        name: "Expensive skin",
+        requiredTier: null,
+        stableKey: "expensive-skin",
         tokens: PROFILE_DEFAULT_SKIN_TOKENS,
       }).success
     ).toBe(false);

@@ -746,6 +746,7 @@ export default {
     }),
 
   getByUserId: publicProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
     .input(ratingsByUserPaginationSchema.extend({ userId: z.string() }))
     .handler(async ({ context: { db, session, ...ctx }, errors, input }) => {
       const logger = getLogger(ctx);
