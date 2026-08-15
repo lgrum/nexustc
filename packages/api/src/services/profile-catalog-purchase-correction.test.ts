@@ -33,8 +33,12 @@ function createDatabase(options?: {
   const updates: Record<string, unknown>[] = [];
   const ownershipSequence =
     options && "revokedOwnership" in options
-      ? [options.existingOwnership ?? null, options.remainingOwnership ?? null]
-      : [options?.remainingOwnership ?? null];
+      ? [
+          null,
+          options.existingOwnership ?? null,
+          options.remainingOwnership ?? null,
+        ]
+      : [purchaseOwnership, options?.remainingOwnership ?? null];
   const tx = {
     insert: vi.fn(() => ({
       values: vi.fn((value: Record<string, unknown>) => {
@@ -210,12 +214,14 @@ it("requires a non-empty reason at the service boundary", async () => {
   expect(ledger.reverse).not.toHaveBeenCalled();
 });
 
-it("rolls back ownership when the ledger projection is inconsistent", async () => {
+it("commits a projection freeze without revoking ownership", async () => {
   ledger.reverse.mockResolvedValue({ mismatched: ["wallet-user-1"] });
   const store = createDatabase();
 
   await expect(
     correctProfileCatalogPurchase(store.db as never, command)
   ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+  expect(ledger.reverse).toHaveBeenCalledOnce();
+  expect(store.updates).toHaveLength(0);
   expect(store.inserts).toHaveLength(0);
 });

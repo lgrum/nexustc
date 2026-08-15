@@ -667,7 +667,14 @@ export function ProfileCustomizer({
         itemId: item.itemId,
       });
       const refreshed = await orpcClient.profile.getCustomizationEditorState();
-      setSavedState(withEditorDecorationDefaults(refreshed));
+      const normalizedState = withEditorDecorationDefaults(refreshed);
+      if (refreshed.revision !== savedState.revision) {
+        if (dirty) {
+          setPendingReapply(draft);
+        }
+        setDraft(normalizedState.configuration);
+      }
+      setSavedState(normalizedState);
       purchaseKeys.current.delete(item.itemId);
       toast.success(`${item.name} ahora es tuyo permanentemente`);
     } catch (error) {
@@ -1226,7 +1233,7 @@ export function ProfileCustomizer({
                               )}
                             </div>
                             <FavoriteGamesControl
-                              capacity={previewFavoriteCapacity}
+                              capacity={favoriteGames?.capacity ?? 1}
                               catalog={favoriteGamesCatalog}
                               gameIds={
                                 Array.isArray(showcase.payload.gameIds)

@@ -206,6 +206,25 @@ export type ProfileDecorationEffectKey =
 export type ProfileDecorationFontKey =
   (typeof PROFILE_DECORATION_FONT_KEYS)[number];
 
+export const PROFILE_DECORATION_EFFECT_KEYS_BY_SLOT = {
+  "ambient-effect": PROFILE_DECORATION_EFFECT_KEYS,
+  "avatar-frame": ["soft-pulse", "orbit-sparkles"],
+  "nameplate-effect": ["soft-pulse", "shimmer"],
+  "profile-frame": PROFILE_DECORATION_EFFECT_KEYS,
+} as const satisfies Record<
+  ProfileDecorationSlot,
+  readonly ProfileDecorationEffectKey[]
+>;
+
+export function isProfileDecorationEffectAllowed(
+  slot: ProfileDecorationSlot,
+  effectKey: ProfileDecorationEffectKey
+) {
+  return PROFILE_DECORATION_EFFECT_KEYS_BY_SLOT[slot].some(
+    (allowedEffect) => allowedEffect === effectKey
+  );
+}
+
 export const profileDecorationReducedMotionSchema = z
   .object({ behavior: z.enum(["static", "omit"]) })
   .strict();
@@ -220,6 +239,16 @@ export const profileDecorationVisualSchema = z
   })
   .strict()
   .superRefine((visual, context) => {
+    if (
+      visual.effectKey &&
+      !isProfileDecorationEffectAllowed(visual.slot, visual.effectKey)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Este efecto no está disponible para el slot elegido.",
+        path: ["effectKey"],
+      });
+    }
     if (visual.fontKey && visual.slot !== "nameplate-effect") {
       context.addIssue({
         code: "custom",

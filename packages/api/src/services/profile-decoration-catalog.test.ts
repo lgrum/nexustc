@@ -1,5 +1,6 @@
 import {
   ProfileDecorationCatalogError,
+  profileDecorationDraftSchema,
   validateProfileDecorationVisual,
 } from "./profile-decoration-catalog";
 
@@ -10,12 +11,16 @@ describe("Profile Decoration publication validation", () => {
     "profile-frame",
     "ambient-effect",
   ] as const)("accepts exactly one registered %s slot", (slot) => {
+    const effectKey =
+      slot === "avatar-frame" || slot === "profile-frame"
+        ? "soft-pulse"
+        : "shimmer";
     expect(
       validateProfileDecorationVisual({
-        effectKey: "shimmer",
+        effectKey,
         fontKey: slot === "nameplate-effect" ? "lexend" : null,
         mediaAssetKey: null,
-        reducedMotion: null,
+        reducedMotion: effectKey === "shimmer" ? null : { behavior: "static" },
         slot,
       }).slot
     ).toBe(slot);
@@ -74,5 +79,36 @@ describe("Profile Decoration publication validation", () => {
         slot: "profile-frame",
       })
     ).toThrow("apariencia");
+  });
+
+  it("rejects effects that the selected slot does not render", () => {
+    expect(() =>
+      validateProfileDecorationVisual({
+        effectKey: "shimmer",
+        fontKey: null,
+        mediaAssetKey: null,
+        reducedMotion: null,
+        slot: "avatar-frame",
+      })
+    ).toThrow(ProfileDecorationCatalogError);
+  });
+
+  it("rejects zero-valued Eteris prices", () => {
+    expect(
+      profileDecorationDraftSchema.safeParse({
+        catalogOrder: 1,
+        description: "",
+        effectKey: null,
+        eterisPrice: 0n,
+        fontKey: null,
+        isFree: false,
+        mediaAssetId: null,
+        name: "Paid decoration",
+        reducedMotion: null,
+        requiredTier: null,
+        slot: "profile-frame",
+        stableKey: "paid-decoration",
+      }).success
+    ).toBe(false);
   });
 });

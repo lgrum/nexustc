@@ -180,7 +180,7 @@ VALUES ('profile-layout-default-r1', 'stack');
 INSERT INTO "profile_catalog_skin_revision" ("revision_id", "tokens")
 VALUES (
 	'profile-skin-default-r1',
-	'{"cardAccent":"none","radius":"default","shadow":"default"}'::jsonb
+	'{"accent":"#a855f7","background":{"color":"#09090b","kind":"solid"},"borderColor":"#3f3f46","borderWidth":"thin","cardAccent":"none","focus":"#c084fc","foreground":"#fafafa","mutedForeground":"#a1a1aa","radius":"soft","shadow":"soft","shellOpacity":0.94,"shellSurface":"#18181b","showcaseOpacity":0.9,"showcaseSurface":"#18181b"}'::jsonb
 );
 --> statement-breakpoint
 UPDATE "profile_catalog_item"

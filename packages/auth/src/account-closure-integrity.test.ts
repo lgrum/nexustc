@@ -63,5 +63,10 @@ test("account closure anonymizes catalog audits before cascading personal custom
   expect(compactSource).toContain("profileCatalogAudit.after}-'userId'");
   expect(compactSource).toContain("grantedByUserId");
   expect(compactSource).toContain("revokedByUserId");
+  const catalogMediaDetach = compactSource.indexOf(
+    "tx.update(profileCatalogDecorationRevision).set({mediaAssetId:null})"
+  );
+  expect(catalogMediaDetach).toBeGreaterThan(-1);
+  expect(catalogMediaDetach).toBeLessThan(userDeletion);
   expect(auditCleanup).toBeLessThan(userDeletion);
 });

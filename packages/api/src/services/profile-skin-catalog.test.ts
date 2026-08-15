@@ -3,6 +3,7 @@ import { PROFILE_DEFAULT_SKIN_TOKENS } from "@repo/shared/profile-customization"
 import {
   getProfileSkinContrast,
   ProfileSkinCatalogError,
+  profileSkinDraftSchema,
   validateProfileSkinTokens,
 } from "./profile-skin-catalog";
 
@@ -51,5 +52,21 @@ describe("Profile Skin publication validation", () => {
         focus: "#18181b",
       })
     ).toThrow("foco");
+  });
+
+  it("rejects zero-valued Eteris prices", () => {
+    expect(
+      profileSkinDraftSchema.safeParse({
+        backgroundAssetId: null,
+        catalogOrder: 1,
+        description: "",
+        eterisPrice: 0n,
+        isFree: false,
+        name: "Paid skin",
+        requiredTier: null,
+        stableKey: "paid-skin",
+        tokens: PROFILE_DEFAULT_SKIN_TOKENS,
+      }).success
+    ).toBe(false);
   });
 });

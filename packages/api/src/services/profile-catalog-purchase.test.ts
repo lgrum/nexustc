@@ -132,6 +132,16 @@ it("settles a balanced User-to-Sink purchase and creates permanent ownership", a
   ]);
 });
 
+it("commits a projection freeze before reporting a settlement mismatch", async () => {
+  ledger.post.mockResolvedValueOnce({ mismatched: ["wallet-user-1"] });
+  const store = createDatabase();
+
+  await expect(
+    purchaseProfileCatalogItem(store.db as never, command)
+  ).rejects.toMatchObject({ code: "PROJECTION_MISMATCH" });
+  expect(store.ownerships).toHaveLength(0);
+});
+
 it("returns a matching replay without charging or creating ownership again", async () => {
   const store = createDatabase({
     item: { lifecycle: "archived", revision: 4 },

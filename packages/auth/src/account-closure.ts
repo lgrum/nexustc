@@ -8,6 +8,8 @@ import {
   eterisWalletBalance,
   patron,
   profileCatalogAudit,
+  profileCatalogDecorationRevision,
+  profileMediaAsset,
   streakDiscoveryReceipt,
   user,
   userComicProgress,
@@ -218,6 +220,18 @@ export function closeAccountAndDeleteUser(
           sql`${profileCatalogAudit.before} ->> 'userId' = ${userId}`,
           sql`${profileCatalogAudit.before} ->> 'grantedByUserId' = ${userId}`,
           sql`${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}`
+        )
+      );
+    await tx
+      .update(profileCatalogDecorationRevision)
+      .set({ mediaAssetId: null })
+      .where(
+        inArray(
+          profileCatalogDecorationRevision.mediaAssetId,
+          tx
+            .select({ id: profileMediaAsset.id })
+            .from(profileMediaAsset)
+            .where(eq(profileMediaAsset.ownerUserId, userId))
         )
       );
     await tx.delete(user).where(eq(user.id, userId));

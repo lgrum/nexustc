@@ -63,6 +63,13 @@ export const profileSkinDraftSchema = z
         path: ["isFree"],
       });
     }
+    if (draft.eterisPrice !== null && draft.eterisPrice <= 0n) {
+      context.addIssue({
+        code: "custom",
+        message: "El precio en Eteris debe ser mayor que cero.",
+        path: ["eterisPrice"],
+      });
+    }
   });
 
 export type ProfileSkinDraftInput = z.input<typeof profileSkinDraftSchema>;

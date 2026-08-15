@@ -62,21 +62,19 @@ function parseProfileCatalogPurchase(transaction: {
  * linked to that journal transaction. The ownership update serializes
  * concurrent corrections; any later ledger or audit failure rolls it back.
  */
-export function correctProfileCatalogPurchase(
+export async function correctProfileCatalogPurchase(
   db: Database,
   input: ProfileCatalogPurchaseCorrectionInput
 ) {
   const reason = input.reason.trim();
   if (!reason) {
-    return Promise.reject(
-      new ProfileCatalogPurchaseCorrectionError(
-        "REASON_REQUIRED",
-        "Debes indicar el motivo de la correcci\u00F3n."
-      )
+    throw new ProfileCatalogPurchaseCorrectionError(
+      "REASON_REQUIRED",
+      "Debes indicar el motivo de la correcci\u00F3n."
     );
   }
 
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [original] = await tx
       .select({
         actorUserId: eterisTransaction.actorUserId,
@@ -96,29 +94,22 @@ export function correctProfileCatalogPurchase(
     }
     const purchase = parseProfileCatalogPurchase(original);
     const correctedAt = new Date();
-    const [ownership] = await tx
-      .update(profileCatalogOwnership)
-      .set({
-        revokedAt: correctedAt,
-        revokedByUserId: input.actorUserId,
-        revokeReason: reason,
-      })
-      .where(
-        and(
-          eq(profileCatalogOwnership.userId, purchase.userId),
-          eq(profileCatalogOwnership.catalogItemId, purchase.itemId),
-          eq(profileCatalogOwnership.sourceType, "purchase"),
-          eq(profileCatalogOwnership.sourceReference, original.id),
-          sql`${profileCatalogOwnership.revokedAt} IS NULL`
-        )
-      )
-      .returning({
-        catalogItemId: profileCatalogOwnership.catalogItemId,
-        id: profileCatalogOwnership.id,
-        userId: profileCatalogOwnership.userId,
-      });
+    const activeOwnership = await tx.query.profileCatalogOwnership.findFirst({
+      columns: {
+        catalogItemId: true,
+        id: true,
+        userId: true,
+      },
+      where: and(
+        eq(profileCatalogOwnership.userId, purchase.userId),
+        eq(profileCatalogOwnership.catalogItemId, purchase.itemId),
+        eq(profileCatalogOwnership.sourceType, "purchase"),
+        eq(profileCatalogOwnership.sourceReference, original.id),
+        sql`${profileCatalogOwnership.revokedAt} IS NULL`
+      ),
+    });
 
-    if (!ownership) {
+    if (!activeOwnership) {
       const correctedOwnership =
         await tx.query.profileCatalogOwnership.findFirst({
           where: and(
@@ -168,9 +159,31 @@ export function correctProfileCatalogPurchase(
       transactionId: original.id,
     });
     if ("mismatched" in reversal) {
+      return { mismatched: reversal.mismatched } as const;
+    }
+
+    const [ownership] = await tx
+      .update(profileCatalogOwnership)
+      .set({
+        revokedAt: correctedAt,
+        revokedByUserId: input.actorUserId,
+        revokeReason: reason,
+      })
+      .where(
+        and(
+          eq(profileCatalogOwnership.id, activeOwnership.id),
+          sql`${profileCatalogOwnership.revokedAt} IS NULL`
+        )
+      )
+      .returning({
+        catalogItemId: profileCatalogOwnership.catalogItemId,
+        id: profileCatalogOwnership.id,
+        userId: profileCatalogOwnership.userId,
+      });
+    if (!ownership) {
       throw new ProfileCatalogPurchaseCorrectionError(
-        "PROJECTION_MISMATCH",
-        "La billetera necesita revisi\u00F3n antes de corregir la compra."
+        "PURCHASE_NOT_FOUND",
+        "La compra no tiene una propiedad activa asociada."
       );
     }
 
@@ -217,4 +230,12 @@ export function correctProfileCatalogPurchase(
       userId: ownership.userId,
     };
   });
+
+  if ("mismatched" in result) {
+    throw new ProfileCatalogPurchaseCorrectionError(
+      "PROJECTION_MISMATCH",
+      "La billetera necesita revisión antes de corregir la compra."
+    );
+  }
+  return result;
 }

@@ -585,7 +585,7 @@ export async function saveProfileCustomization(
       );
     }
 
-    const [account, membership, ownerships, existingEquipped] =
+    const [account, membership, ownerships, existingEquipped, wallet] =
       await Promise.all([
         tx.query.user.findFirst({
           columns: { role: true },
@@ -604,6 +604,10 @@ export async function saveProfileCustomization(
         }),
         tx.query.profileEquippedDecoration.findMany({
           where: eq(profileEquippedDecoration.userId, input.userId),
+        }),
+        tx.query.eterisWallet.findFirst({
+          columns: { status: true },
+          where: eq(eterisWallet.userId, input.userId),
         }),
       ]);
     const entitlementBase = {
@@ -960,7 +964,9 @@ export async function saveProfileCustomization(
     await setPublicWalletBalanceInTransaction(
       tx,
       input.userId,
-      prepared.visibility.eteris
+      prepared.visibility.eteris && wallet && wallet.status !== "active"
+        ? false
+        : prepared.visibility.eteris
     );
   });
 

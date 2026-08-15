@@ -8,9 +8,10 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PATRON_TIER_KEYS, PATRON_TIERS } from "@repo/shared/constants";
 import {
-  PROFILE_DECORATION_EFFECT_KEYS,
+  PROFILE_DECORATION_EFFECT_KEYS_BY_SLOT,
   PROFILE_DECORATION_FONT_KEYS,
   PROFILE_DECORATION_SLOTS,
+  isProfileDecorationEffectAllowed,
   profileDecorationVisualSchema,
 } from "@repo/shared/profile-customization";
 import type { ProfileDecorationVisual } from "@repo/shared/profile-customization";
@@ -34,23 +35,41 @@ const tierOptions = [
     value: tier,
   })),
 ];
-const formSchema = z.object({
-  catalogOrder: z.string().regex(/^\d+$/, "Usa un número entero no negativo."),
-  description: z.string().max(500),
-  effectKey: z.enum(["disabled", ...PROFILE_DECORATION_EFFECT_KEYS]),
-  eterisPrice: z
-    .string()
-    .regex(/^$|^\d+$/, "Usa un precio entero no negativo."),
-  fontKey: z.enum(["disabled", ...PROFILE_DECORATION_FONT_KEYS]),
-  isFree: z.enum(["true", "false"]),
-  itemId: z.string(),
-  mediaAssetId: z.string(),
-  name: z.string().trim().min(1).max(80),
-  reducedMotion: z.enum(["disabled", "static", "omit"]),
-  requiredTier: z.enum(["disabled", ...PATRON_TIER_KEYS]),
-  slot: z.enum(PROFILE_DECORATION_SLOTS),
-  stableKey: z.string(),
-});
+const formSchema = z
+  .object({
+    catalogOrder: z
+      .string()
+      .regex(/^\d+$/, "Usa un número entero no negativo."),
+    description: z.string().max(500),
+    effectKey: z.enum([
+      "disabled",
+      ...PROFILE_DECORATION_EFFECT_KEYS_BY_SLOT["profile-frame"],
+    ]),
+    eterisPrice: z
+      .string()
+      .regex(/^$|^\d+$/, "Usa un precio entero no negativo."),
+    fontKey: z.enum(["disabled", ...PROFILE_DECORATION_FONT_KEYS]),
+    isFree: z.enum(["true", "false"]),
+    itemId: z.string(),
+    mediaAssetId: z.string(),
+    name: z.string().trim().min(1).max(80),
+    reducedMotion: z.enum(["disabled", "static", "omit"]),
+    requiredTier: z.enum(["disabled", ...PATRON_TIER_KEYS]),
+    slot: z.enum(PROFILE_DECORATION_SLOTS),
+    stableKey: z.string(),
+  })
+  .superRefine((values, context) => {
+    if (
+      values.effectKey !== "disabled" &&
+      !isProfileDecorationEffectAllowed(values.slot, values.effectKey)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Este efecto no está disponible para el slot elegido.",
+        path: ["effectKey"],
+      });
+    }
+  });
 type DecorationFormValues = z.input<typeof formSchema>;
 
 const emptyValues: DecorationFormValues = {
@@ -120,7 +139,7 @@ export function ProfileDecorationsAdminPage() {
   });
 
   const loadRevision = (item: (typeof data)[number]) => {
-    const effectKey = PROFILE_DECORATION_EFFECT_KEYS.find(
+    const effectKey = PROFILE_DECORATION_EFFECT_KEYS_BY_SLOT[item.slot].find(
       (key) => key === item.effectKey
     );
     const fontKey = PROFILE_DECORATION_FONT_KEYS.find(
@@ -230,20 +249,23 @@ export function ProfileDecorationsAdminPage() {
                     />
                   )}
                 </form.AppField>
-                <form.AppField name="effectKey">
-                  {(field) => (
-                    <field.SelectField
-                      label="Efecto registrado"
-                      options={[
-                        optional("Sin efecto"),
-                        ...PROFILE_DECORATION_EFFECT_KEYS.map((value) => ({
-                          label: value,
-                          value,
-                        })),
-                      ]}
-                    />
+                <form.Subscribe selector={(state) => state.values.slot}>
+                  {(slot) => (
+                    <form.AppField name="effectKey">
+                      {(field) => (
+                        <field.SelectField
+                          label="Efecto registrado"
+                          options={[
+                            optional("Sin efecto"),
+                            ...PROFILE_DECORATION_EFFECT_KEYS_BY_SLOT[slot].map(
+                              (value) => ({ label: value, value })
+                            ),
+                          ]}
+                        />
+                      )}
+                    </form.AppField>
                   )}
-                </form.AppField>
+                </form.Subscribe>
                 <form.AppField name="fontKey">
                   {(field) => (
                     <field.SelectField

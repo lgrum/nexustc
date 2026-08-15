@@ -95,7 +95,7 @@ export async function purchaseProfileCatalogItem(
     );
   }
 
-  return await db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [item] = await tx
       .select({
         currentPublishedRevisionId:
@@ -235,10 +235,7 @@ export async function purchaseProfileCatalogItem(
       spending: true,
     });
     if ("mismatched" in settlement) {
-      throw new ProfileCatalogPurchaseError(
-        "PROJECTION_MISMATCH",
-        "La billetera necesita revisión antes de comprar."
-      );
+      return { mismatched: settlement.mismatched } as const;
     }
 
     const ownershipId = generateId();
@@ -259,4 +256,12 @@ export async function purchaseProfileCatalogItem(
       transactionId: settlement.id,
     };
   });
+
+  if ("mismatched" in result) {
+    throw new ProfileCatalogPurchaseError(
+      "PROJECTION_MISMATCH",
+      "La billetera necesita revisión antes de comprar."
+    );
+  }
+  return result;
 }
