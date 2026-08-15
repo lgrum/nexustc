@@ -3,6 +3,7 @@ import { call } from "@orpc/server";
 import type { Context } from "../context";
 import profileRouter from "./profile";
 
+const env = vi.hoisted(() => ({ PROFILE_CUSTOMIZATION_ENABLED: true }));
 const mocks = vi.hoisted(() => ({
   ProfileMediaError: class ProfileMediaError extends Error {
     readonly code: string;
@@ -28,10 +29,16 @@ const mocks = vi.hoisted(() => ({
   issueProfileMediaUpload: vi.fn(),
   removeUserProfileMedia: vi.fn(),
   resolveProfileVisibility: vi.fn(),
+  loadProfileCustomizationEditorState: vi.fn(),
+  purchaseProfileCatalogItem: vi.fn(),
+  saveProfileCustomization: vi.fn(),
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
-vi.mock("@repo/auth", () => ({ auth: { api: {} } }));
+vi.mock("@repo/auth", () => ({
+  auth: { api: { userHasPermission: vi.fn(() => ({ success: false })) } },
+}));
+vi.mock("@repo/env", () => ({ env }));
 vi.mock("@repo/db", () => ({
   eq: vi.fn(),
   getRedis: vi.fn(() => Promise.resolve(mocks.cache)),
@@ -65,6 +72,16 @@ vi.mock("../services/profile-media", () => ({
 }));
 vi.mock("../services/profile-media-storage", () => ({
   r2ProfileMediaStorage: { kind: "test-storage" },
+}));
+vi.mock("../services/profile-customization", () => ({
+  ProfileCustomizationError: mocks.ProfileMediaError,
+  loadProfileCustomizationEditorState:
+    mocks.loadProfileCustomizationEditorState,
+  saveProfileCustomization: mocks.saveProfileCustomization,
+}));
+vi.mock("../services/profile-catalog-purchase", () => ({
+  ProfileCatalogPurchaseError: mocks.ProfileMediaError,
+  purchaseProfileCatalogItem: mocks.purchaseProfileCatalogItem,
 }));
 const input = {
   contentLength: 123,
@@ -152,7 +169,125 @@ beforeEach(() => {
   });
 });
 
+describe("profile catalog purchase contracts", () => {
+  beforeEach(() => {
+    vi.stubEnv("NODE_ENV", "development");
+  });
+
+  it("passes stable catalog expectations separately from profile save", async () => {
+    mocks.purchaseProfileCatalogItem.mockResolvedValue({
+      itemId: "item-grid",
+      price: "75",
+      revision: 3,
+      transactionId: "transaction-1",
+    });
+
+    await expect(
+      call(
+        profileRouter.purchaseCatalogItem,
+        {
+          expectedPrice: "75",
+          expectedRevision: 3,
+          idempotencyKey: "purchase-profile-item-1",
+          itemId: "item-grid",
+        },
+        { context: createContext() }
+      )
+    ).resolves.toMatchObject({ transactionId: "transaction-1" });
+    expect(mocks.purchaseProfileCatalogItem).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        expectedPrice: 75n,
+        expectedRevision: 3,
+        idempotencyKey: "purchase-profile-item-1",
+        itemId: "item-grid",
+        userId: "user-1",
+      }
+    );
+    expect(mocks.saveProfileCustomization).not.toHaveBeenCalled();
+  });
+
+  it("blocks purchases while impersonating", async () => {
+    const context = createContext();
+    context.session!.session = { impersonatedBy: "owner-1" } as never;
+    await expect(
+      call(
+        profileRouter.purchaseCatalogItem,
+        {
+          expectedPrice: "75",
+          expectedRevision: 3,
+          idempotencyKey: "purchase-profile-item-2",
+          itemId: "item-grid",
+        },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(mocks.purchaseProfileCatalogItem).not.toHaveBeenCalled();
+  });
+});
+
+describe("profile customization contracts", () => {
+  it("rejects impersonated publication while preserving the complete draft", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+    mocks.saveProfileCustomization.mockRejectedValueOnce(
+      new mocks.ProfileMediaError("IMPERSONATION")
+    );
+    const draft = {
+      layoutKey: "stack" as const,
+      showcases: [
+        {
+          enabled: true,
+          instanceId: "virtual:library",
+          order: 0,
+          payload: {},
+          payloadSchemaVersion: 1,
+          type: "library" as const,
+          variant: "standard" as const,
+        },
+        {
+          enabled: true,
+          instanceId: "virtual:reviews",
+          order: 1,
+          payload: {},
+          payloadSchemaVersion: 1,
+          type: "reviews" as const,
+          variant: "standard" as const,
+        },
+      ],
+      skinKey: "default",
+    };
+    const context = {
+      ...createContext(),
+      session: {
+        session: { impersonatedBy: "owner-1" },
+        user: { id: "user-1", role: "user" },
+      },
+    } as unknown as Context;
+
+    await expect(
+      call(
+        profileRouter.saveCustomization,
+        { draft, expectedRevision: 0 },
+        { context }
+      )
+    ).rejects.toThrow();
+    expect(mocks.saveProfileCustomization).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ impersonated: true, userId: "user-1" })
+    );
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("profile visibility settings", () => {
+  beforeEach(() => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = false;
+  });
+
+  afterEach(() => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = true;
+  });
+
   it("returns public defaults for legacy settings rows", async () => {
     const { context } = createSettingsContext();
 
@@ -240,6 +375,26 @@ describe("profile visibility settings", () => {
         { context: anonymousContext }
       )
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
+  it("rejects visibility changes while impersonating an account", async () => {
+    const { context, set } = createSettingsContext();
+    context.session!.session = { impersonatedBy: "owner-1" } as never;
+
+    await expect(
+      call(profileRouter.updateVisibility, { favorites: false }, { context })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("rejects legacy visibility writes while customization owns visibility", async () => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = true;
+    const { context, set } = createSettingsContext();
+
+    await expect(
+      call(profileRouter.updateVisibility, { favorites: false }, { context })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(set).not.toHaveBeenCalled();
   });
 });
 

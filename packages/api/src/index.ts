@@ -30,6 +30,13 @@ export const o = os.$context<Context>().errors({
   NOT_FOUND: {
     status: 404,
   },
+  PROFILE_CUSTOMIZATION_CONFLICT: {
+    status: 409,
+  },
+  PROFILE_CUSTOMIZATION_INVALID: {
+    data: z.object({ fieldErrors: z.record(z.string(), z.string()) }),
+    status: 400,
+  },
   RATE_LIMITED: {
     data: z.object({
       retryAfter: z.number(),
@@ -66,7 +73,10 @@ export const fixedWindowRatelimitMiddleware = ({
   windowSeconds: number;
 }) =>
   o.middleware(async ({ context, errors, next, path }) => {
-    if (process.env.NODE_ENV === "development") {
+    if (
+      process.env.NODE_ENV === "development" ||
+      context.isSharedCacheContext
+    ) {
       return next();
     }
 
@@ -117,7 +127,10 @@ export const slidingWindowRatelimitMiddleware = (
   windowSeconds: number
 ) =>
   o.middleware(async ({ context, errors, next, path }) => {
-    if (process.env.NODE_ENV === "development") {
+    if (
+      process.env.NODE_ENV === "development" ||
+      context.isSharedCacheContext
+    ) {
       return next();
     }
 

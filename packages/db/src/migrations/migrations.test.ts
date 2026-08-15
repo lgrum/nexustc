@@ -248,3 +248,61 @@ test("zero-XP streak ledger entries avoid uncommitted enum labels", async () => 
   expect(migrationSql).not.toContain("streak_day");
   expect(migrationSql).not.toContain("streak_challenge");
 });
+
+test("profile customization seeds only shared protected defaults", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0071_lonely_payback.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain('CREATE TABLE "profile_customization"');
+  expect(migrationSql).toContain("'profile-layout-default'");
+  expect(migrationSql).toContain("'profile-skin-default'");
+  expect(migrationSql).toContain('INSERT INTO "profile_showcase_type"');
+  expect(migrationSql).not.toContain('INSERT INTO "profile_customization"');
+  expect(migrationSql).not.toMatch(/SELECT[\s\S]+FROM "user"/);
+});
+
+test("profile customization cascades personal state but preserves catalog history", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0071_lonely_payback.sql"),
+    "utf-8"
+  );
+
+  for (const foreignKey of [
+    "pc_user_fk",
+    "ped_user_fk",
+    "psc_user_fk",
+    "pco_user_fk",
+  ]) {
+    expect(migrationSql).toMatch(
+      new RegExp(`${foreignKey}[\\s\\S]{0,180}ON DELETE cascade`)
+    );
+  }
+  for (const foreignKey of [
+    "pcir_item_fk",
+    "pc_layout_item_fk",
+    "pc_skin_item_fk",
+    "ped_catalog_item_fk",
+    "pco_catalog_item_fk",
+  ]) {
+    expect(migrationSql).toMatch(
+      new RegExp(`${foreignKey}[\\s\\S]{0,180}ON DELETE restrict`)
+    );
+  }
+  expect(migrationSql).toMatch(/pca_actor_fk[\s\S]{0,180}ON DELETE set null/);
+});
+
+test("profile layouts have stable published catalog identities", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0072_add_profile_layout_catalog.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain("'profile-layout-grid', 'layout.grid'");
+  expect(migrationSql).toContain(
+    "'profile-layout-spotlight', 'layout.spotlight'"
+  );
+  expect(migrationSql).toContain("'profile-layout-grid-r1', 'grid'");
+  expect(migrationSql).toContain("'profile-layout-spotlight-r1', 'spotlight'");
+});

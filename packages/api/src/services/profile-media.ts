@@ -2,6 +2,7 @@ import { and, asc, eq, exists, inArray, lte, not, or } from "@repo/db";
 import {
   media,
   profileEmblemDefinition,
+  profileCatalogDecorationRevision,
   profileMediaAsset,
   profileMediaDeletion,
   profileRoleDefinition,
@@ -364,7 +365,7 @@ async function findUnreferencedAssetIds(
   if (candidates.length === 0) {
     return [];
   }
-  const [settings, roles, emblems] = await Promise.all([
+  const [settings, roles, emblems, catalogDecorations] = await Promise.all([
     tx.query.profileSettings.findMany({
       columns: { bannerAssetId: true },
       where: inArray(profileSettings.bannerAssetId, candidates),
@@ -381,6 +382,10 @@ async function findUnreferencedAssetIds(
       columns: { iconAssetId: true },
       where: (table) => inArray(table.iconAssetId, candidates),
     }),
+    tx.query.profileCatalogDecorationRevision.findMany({
+      columns: { mediaAssetId: true },
+      where: inArray(profileCatalogDecorationRevision.mediaAssetId, candidates),
+    }),
   ]);
   const referenced = new Set(
     [
@@ -390,6 +395,7 @@ async function findUnreferencedAssetIds(
         overlayAssetId,
       ]),
       ...emblems.map(({ iconAssetId }) => iconAssetId),
+      ...catalogDecorations.map(({ mediaAssetId }) => mediaAssetId),
     ].filter((id): id is string => id !== null)
   );
   return candidates.filter((id) => !referenced.has(id));
@@ -484,6 +490,19 @@ async function cleanupUnassignedManagedProfileMedia(params: {
                 .from(profileEmblemDefinition)
                 .where(
                   eq(profileEmblemDefinition.iconAssetId, profileMediaAsset.id)
+                )
+            )
+          ),
+          not(
+            exists(
+              tx
+                .select({ id: profileCatalogDecorationRevision.revisionId })
+                .from(profileCatalogDecorationRevision)
+                .where(
+                  eq(
+                    profileCatalogDecorationRevision.mediaAssetId,
+                    profileMediaAsset.id
+                  )
                 )
             )
           )

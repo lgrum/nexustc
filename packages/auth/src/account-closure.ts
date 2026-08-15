@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, inArray, isNull, not, or, sql } from "@repo/db";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  not,
+  or,
+  sql,
+} from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
@@ -7,6 +18,11 @@ import {
   eterisWallet,
   eterisWalletBalance,
   patron,
+  profileCatalogAudit,
+  profileCatalogDecorationRevision,
+  profileEmblemDefinition,
+  profileMediaAsset,
+  profileRoleDefinition,
   streakDiscoveryReceipt,
   user,
   userComicProgress,
@@ -167,6 +183,152 @@ export function closeAccountAndDeleteUser(
       now,
     });
     await reconcileAuthoredCommentRewards(tx, { now, userId });
+    await tx
+      .update(profileCatalogAudit)
+      .set({
+        after: sql`
+          (
+            CASE
+              WHEN ${profileCatalogAudit.after} ->> 'userId' = ${userId}
+                THEN ${profileCatalogAudit.after} - 'userId'
+              ELSE ${profileCatalogAudit.after}
+            END
+          )
+          - CASE
+              WHEN ${profileCatalogAudit.after} ->> 'grantedByUserId' = ${userId}
+                THEN 'grantedByUserId'
+              ELSE ''
+            END
+          - CASE
+              WHEN ${profileCatalogAudit.after} ->> 'revokedByUserId' = ${userId}
+                THEN 'revokedByUserId'
+              ELSE ''
+            END
+        `,
+        before: sql`
+          (
+            CASE
+              WHEN ${profileCatalogAudit.before} ->> 'userId' = ${userId}
+                THEN ${profileCatalogAudit.before} - 'userId'
+              ELSE ${profileCatalogAudit.before}
+            END
+          )
+          - CASE
+              WHEN ${profileCatalogAudit.before} ->> 'grantedByUserId' = ${userId}
+                THEN 'grantedByUserId'
+              ELSE ''
+            END
+          - CASE
+              WHEN ${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}
+                THEN 'revokedByUserId'
+              ELSE ''
+            END
+        `,
+      })
+      .where(
+        or(
+          sql`${profileCatalogAudit.after} ->> 'userId' = ${userId}`,
+          sql`${profileCatalogAudit.after} ->> 'grantedByUserId' = ${userId}`,
+          sql`${profileCatalogAudit.after} ->> 'revokedByUserId' = ${userId}`,
+          sql`${profileCatalogAudit.before} ->> 'userId' = ${userId}`,
+          sql`${profileCatalogAudit.before} ->> 'grantedByUserId' = ${userId}`,
+          sql`${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}`
+        )
+      );
+    // Global role, emblem, and catalog definitions outlive their author, so
+    // keep referenced media in durable ownership instead of letting the user
+    // deletion remove it through the owner foreign key.
+    await tx
+      .update(profileMediaAsset)
+      .set({ ownerUserId: null })
+      .where(
+        and(
+          eq(profileMediaAsset.ownerUserId, userId),
+          or(
+            exists(
+              tx
+                .select({ roleId: profileRoleDefinition.id })
+                .from(profileRoleDefinition)
+                .where(
+                  or(
+                    eq(profileRoleDefinition.iconAssetId, profileMediaAsset.id),
+                    eq(
+                      profileRoleDefinition.overlayAssetId,
+                      profileMediaAsset.id
+                    )
+                  )
+                )
+            ),
+            exists(
+              tx
+                .select({ emblemId: profileEmblemDefinition.id })
+                .from(profileEmblemDefinition)
+                .where(
+                  eq(profileEmblemDefinition.iconAssetId, profileMediaAsset.id)
+                )
+            ),
+            exists(
+              tx
+                .select({
+                  revisionId: profileCatalogDecorationRevision.revisionId,
+                })
+                .from(profileCatalogDecorationRevision)
+                .where(
+                  eq(
+                    profileCatalogDecorationRevision.mediaAssetId,
+                    profileMediaAsset.id
+                  )
+                )
+            )
+          )
+        )
+      );
+    await tx.execute(sql`
+      WITH owned_assets AS (
+        SELECT id, object_key
+        FROM profile_media_asset
+        WHERE owner_user_id = ${userId}
+      ), retired_assets AS (
+        INSERT INTO profile_media_deletion (object_key, updated_at)
+        SELECT owned_assets.object_key, now()
+        FROM owned_assets
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM profile_role_definition
+          WHERE profile_role_definition.icon_asset_id = owned_assets.id
+             OR profile_role_definition.overlay_asset_id = owned_assets.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_emblem_definition
+          WHERE profile_emblem_definition.icon_asset_id = owned_assets.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_catalog_decoration_revision
+          WHERE profile_catalog_decoration_revision.media_asset_id = owned_assets.id
+        )
+        ON CONFLICT (object_key) DO NOTHING
+      )
+      DELETE FROM profile_media_asset
+      WHERE owner_user_id = ${userId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_role_definition
+          WHERE profile_role_definition.icon_asset_id = profile_media_asset.id
+             OR profile_role_definition.overlay_asset_id = profile_media_asset.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_emblem_definition
+          WHERE profile_emblem_definition.icon_asset_id = profile_media_asset.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_catalog_decoration_revision
+          WHERE profile_catalog_decoration_revision.media_asset_id = profile_media_asset.id
+        )
+    `);
     await tx.delete(user).where(eq(user.id, userId));
     return result;
   });

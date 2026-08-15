@@ -1,9 +1,14 @@
+import { auth } from "@repo/auth";
 import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
+import { ProfileDecorationSurface } from "@/components/profile/profile-decoration-surface";
+import { ProfileSkinSurface } from "@/components/profile/profile-skin-surface";
 import { orpcClient } from "@/lib/orpc";
 
+import { ProfileShowcaseLayout } from "./profile-showcase-layout";
 import { PublicProfileHero } from "./public-profile-hero";
 import { UserClient } from "./user-client";
 
@@ -17,7 +22,11 @@ async function getProfile(id: string) {
   cacheTag("profiles", `profile:${id}`);
 
   const profile = await orpcClient.profile.getPublic(
-    { includeCurrentStreak: false, userId: id },
+    {
+      includeCurrentStreak: false,
+      includeFavoriteGames: false,
+      userId: id,
+    },
     { context: { cache: true } }
   );
   if (!profile) {
@@ -39,21 +48,84 @@ export async function generateMetadata({
 
 export default async function Page({ params }: PageProps) {
   const { id } = await params;
-  const [profile, currentStreak] = await Promise.all([
-    getProfile(id),
-    orpcClient.profile.getPublicCurrentStreak({ userId: id }),
-  ]);
-  const publicProfile =
-    currentStreak === null ? profile : { ...profile, currentStreak };
+  const sessionPromise = (async () =>
+    auth.api.getSession({ headers: await headers() }))();
+  const [profile, favoriteGames, scalarShowcases, currentStreak, session] =
+    await Promise.all([
+      getProfile(id),
+      orpcClient.profile
+        .getPublicFavoriteGamesShowcase({ userId: id })
+        .catch(() => []),
+      orpcClient.profile
+        .getPublicScalarShowcases({ userId: id })
+        .catch(() => []),
+      orpcClient.profile
+        .getPublicCurrentStreak({ userId: id })
+        .catch(() => null),
+      sessionPromise,
+    ]);
+  const manifest = profile.manifest
+    ? {
+        ...profile.manifest,
+        showcases: [...profile.manifest.showcases, ...favoriteGames].toSorted(
+          (left, right) => left.order - right.order
+        ),
+      }
+    : undefined;
+  const publicProfile = {
+    ...profile,
+    ...(currentStreak === null ? {} : { currentStreak }),
+    ...(manifest ? { manifest } : {}),
+  };
+  const showcases = manifest
+    ? [...manifest.showcases, ...scalarShowcases].toSorted(
+        (left, right) => left.order - right.order
+      )
+    : undefined;
 
-  return (
-    <main className="mx-auto flex w-full max-w-6xl flex-col gap-9 px-3 py-5 pb-12 sm:px-4 md:py-8">
-      <PublicProfileHero profile={publicProfile} />
-      <UserClient
-        userId={profile.id}
-        userName={profile.name}
-        visibility={profile.visibility}
+  const contents = (
+    <>
+      <PublicProfileHero
+        customizationHref={
+          session?.user.id === id && manifest ? "/profile/customize" : undefined
+        }
+        profile={publicProfile}
+        showLegacyStats={!manifest}
       />
+      {manifest ? (
+        <ProfileShowcaseLayout rendererKey={manifest.layout.rendererKey}>
+          <UserClient
+            showcases={showcases}
+            userId={profile.id}
+            userName={profile.name}
+            visibility={profile.visibility}
+          />
+        </ProfileShowcaseLayout>
+      ) : (
+        <UserClient
+          userId={profile.id}
+          userName={profile.name}
+          visibility={profile.visibility}
+        />
+      )}
+    </>
+  );
+  return manifest ? (
+    <ProfileSkinSurface
+      as="main"
+      className="mx-auto flex w-full max-w-6xl flex-col gap-9 px-3 py-5 pb-12 sm:px-4 md:py-8"
+      skin={manifest.skin}
+    >
+      <ProfileDecorationSurface
+        className="flex flex-col gap-9"
+        decorations={manifest.decorations}
+      >
+        {contents}
+      </ProfileDecorationSurface>
+    </ProfileSkinSurface>
+  ) : (
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-9 px-3 py-5 pb-12 sm:px-4 md:py-8">
+      {contents}
     </main>
   );
 }

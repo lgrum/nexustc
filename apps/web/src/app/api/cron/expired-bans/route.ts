@@ -3,6 +3,19 @@ import { db } from "@repo/db";
 import { env } from "@repo/env";
 import { revalidateTag } from "next/cache";
 
+function revalidateAffectedProfiles(userIds: unknown[]) {
+  let hasAffectedProfile = false;
+  for (const userId of userIds) {
+    if (typeof userId === "string") {
+      hasAffectedProfile = true;
+      revalidateTag(`profile:${userId}`, "max");
+    }
+  }
+  if (hasAffectedProfile) {
+    revalidateTag("profiles", "max");
+  }
+}
+
 export async function GET(request: Request) {
   if (
     !env.CRON_SECRET ||
@@ -20,16 +33,10 @@ export async function GET(request: Request) {
       "profileUserIds" in error &&
       Array.isArray(error.profileUserIds)
     ) {
-      for (const userId of error.profileUserIds) {
-        if (typeof userId === "string") {
-          revalidateTag(`profile:${userId}`, "max");
-        }
-      }
+      revalidateAffectedProfiles(error.profileUserIds);
     }
     throw error;
   }
-  for (const userId of result.profileUserIds) {
-    revalidateTag(`profile:${userId}`, "max");
-  }
+  revalidateAffectedProfiles(result.profileUserIds);
   return Response.json(result);
 }

@@ -498,6 +498,41 @@
       "when": 1786510640704,
       "tag": "0070_hard_lucky_pierre",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1786615080506,
+      "tag": "0071_lonely_payback",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1786617652161,
+      "tag": "0072_add_profile_layout_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1786624800000,
+      "tag": "0073_profile_skin_media",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1786622573978,
+      "tag": "0074_opposite_shriek",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1786795037242,
+      "tag": "0075_youthful_karnak",
+      "breakpoints": true
     }
   ]
 }

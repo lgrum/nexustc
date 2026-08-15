@@ -41,7 +41,10 @@ export function ProfileBookmarkGrid({
   renderOwnerAction?: (item: PostProps) => React.ReactNode;
 }) {
   return (
-    <Tabs className={cn("gap-5", className)} defaultValue="games">
+    <Tabs
+      className={cn("@container/profile-bookmarks gap-5", className)}
+      defaultValue="games"
+    >
       <TabsList
         aria-label="Filtrar favoritos"
         className="w-full justify-start rounded-xl bg-muted/45"
@@ -69,7 +72,7 @@ export function ProfileBookmarkGrid({
                 title="Nada por aquí todavía"
               />
             ) : (
-              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <ul className="grid grid-cols-2 gap-3 @2xl/profile-bookmarks:grid-cols-3 @4xl/profile-bookmarks:grid-cols-4">
                 {filteredItems.map((item) => (
                   <li className="relative min-w-0" key={item.id}>
                     <PostCard post={item} />

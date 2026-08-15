@@ -36,6 +36,7 @@ import {
   reconcileWallet,
   reverseEterisTransaction,
   setPublicWalletBalance,
+  setPublicWalletBalanceInTransaction,
 } from "./eteris";
 
 const flags = vi.hoisted(() => ({
@@ -976,6 +977,19 @@ test("public balance is opt-in and exposes no wallet internals", async () => {
   )!;
   store.corruptBalance(userWallet.id, -1n);
   await expect(getPublicWalletBalance(store.db, "user-1")).resolves.toBeNull();
+});
+
+test("profile customization can synchronize wallet visibility inside its transaction", async () => {
+  const store = createDatabase();
+
+  await expect(
+    setPublicWalletBalanceInTransaction(store.db, "user-1", true)
+  ).resolves.toEqual({ publicBalance: true });
+
+  const wallet = [...store.wallets.values()].find(
+    ({ userId }) => userId === "user-1"
+  );
+  expect(wallet?.publicBalance).toBe(true);
 });
 
 test("VIP stipends use the safe Spanish wallet history label", async () => {

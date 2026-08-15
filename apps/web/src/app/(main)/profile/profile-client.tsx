@@ -161,6 +161,14 @@ function AuthenticatedProfile({
             </p>
           </ProfileIdentity>
           <div className="flex flex-wrap gap-2">
+            {data.customizationEnabled ? (
+              <Button
+                nativeButton={false}
+                render={<Link href="/profile/customize" />}
+              >
+                Personalizar perfil
+              </Button>
+            ) : null}
             <Button
               nativeButton={false}
               render={<Link href={`/user/${user.id}`} />}
@@ -227,7 +235,10 @@ function AuthenticatedProfile({
             <ThemeSection state={themeState} userId={user.id} />
           ) : null}
           {visibleSection === "library" ? (
-            <ProfileLibrarySection visibility={data.settings.visibility} />
+            <ProfileLibrarySection
+              customizationEnabled={data.customizationEnabled}
+              visibility={data.settings.visibility}
+            />
           ) : null}
           {visibleSection === "following" ? <FollowingSection /> : null}
           {visibleSection === "notifications" ? (
@@ -240,9 +251,14 @@ function AuthenticatedProfile({
           ) : null}
           {visibleSection === "progression" ? <ProgressionSection /> : null}
           {visibleSection === "streak" ? (
-            <StreakSection streakPublic={data.settings.visibility.streak} />
+            <StreakSection
+              customizationEnabled={data.customizationEnabled}
+              streakPublic={data.settings.visibility.streak}
+            />
           ) : null}
-          {visibleSection === "wallet" ? <EterisSection /> : null}
+          {visibleSection === "wallet" ? (
+            <EterisSection customizationEnabled={data.customizationEnabled} />
+          ) : null}
           {visibleSection === "security" ? (
             <SecuritySection
               email={user.email}

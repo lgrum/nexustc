@@ -11,6 +11,7 @@ import {
   mediaFolder,
   post,
   postMedia,
+  profileCatalogSkinRevision,
   sticker,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
@@ -125,10 +126,23 @@ function buildMediaUsageAggs(db: Database) {
     .groupBy(featuredPost.thumbnailMediaId)
     .as("featured_media_usage");
 
+  const profileSkinUsageAgg = db
+    .select({
+      mediaId: profileCatalogSkinRevision.backgroundAssetId,
+      profileSkinUsageCount: sql<number>`COUNT(*)::integer`.as(
+        "profile_skin_usage_count"
+      ),
+    })
+    .from(profileCatalogSkinRevision)
+    .where(sql`${profileCatalogSkinRevision.backgroundAssetId} IS NOT NULL`)
+    .groupBy(profileCatalogSkinRevision.backgroundAssetId)
+    .as("profile_skin_media_usage");
+
   return {
     coverUsageAgg,
     emojiUsageAgg,
     featuredUsageAgg,
+    profileSkinUsageAgg,
     postUsageAgg,
     stickerUsageAgg,
   };
@@ -326,6 +340,7 @@ export default {
           coverUsageAgg,
           emojiUsageAgg,
           featuredUsageAgg,
+          profileSkinUsageAgg,
           postUsageAgg,
           stickerUsageAgg,
         } = buildMediaUsageAggs(db);
@@ -360,6 +375,7 @@ export default {
               + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
               + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
               + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
+              + COALESCE(${profileSkinUsageAgg.profileSkinUsageCount}, 0)
               + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
             `,
           })
@@ -368,6 +384,10 @@ export default {
           .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
           .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
           .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
+          .leftJoin(
+            profileSkinUsageAgg,
+            eq(profileSkinUsageAgg.mediaId, media.id)
+          )
           .leftJoin(stickerUsageAgg, eq(stickerUsageAgg.mediaId, media.id))
           .where(
             targetFolder
@@ -427,6 +447,7 @@ export default {
         coverUsageAgg,
         emojiUsageAgg,
         featuredUsageAgg,
+        profileSkinUsageAgg,
         postUsageAgg,
         stickerUsageAgg,
       } = buildMediaUsageAggs(db);
@@ -442,6 +463,7 @@ export default {
             + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
             + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
             + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
+            + COALESCE(${profileSkinUsageAgg.profileSkinUsageCount}, 0)
             + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
           `,
         })
@@ -450,6 +472,10 @@ export default {
         .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
         .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
         .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
+        .leftJoin(
+          profileSkinUsageAgg,
+          eq(profileSkinUsageAgg.mediaId, media.id)
+        )
         .leftJoin(stickerUsageAgg, eq(stickerUsageAgg.mediaId, media.id))
         .orderBy(sql`${media.createdAt} DESC`);
     }),
@@ -517,8 +543,11 @@ export default {
         const uploadedKeys: string[] = [];
 
         try {
+          const optimizedUploads: { isAnimated: boolean; objectKey: string }[] =
+            [];
           for (const file of input.files) {
-            const { buffer, extension, mimeType } = await optimizeFile(file);
+            const { buffer, extension, isAnimated, mimeType } =
+              await optimizeFile(file);
             const objectKey = `media/${generateId()}.${extension}`;
 
             await getS3Client().send(
@@ -532,6 +561,7 @@ export default {
             );
 
             uploadedKeys.push(objectKey);
+            optimizedUploads.push({ isAnimated, objectKey });
           }
 
           const createdRows = await db
@@ -539,6 +569,10 @@ export default {
             .values(
               uploadedKeys.map((objectKey) => ({
                 folderId: targetFolder?.id ?? null,
+                isAnimated:
+                  optimizedUploads.find(
+                    (upload) => upload.objectKey === objectKey
+                  )?.isAnimated ?? null,
                 objectKey,
               }))
             )
@@ -546,6 +580,7 @@ export default {
               createdAt: media.createdAt,
               folderId: media.folderId,
               id: media.id,
+              isAnimated: media.isAnimated,
               objectKey: media.objectKey,
             });
           const createdRowsByKey = new Map(

@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import type { PublicProfile } from "@repo/api/services/profile";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
+import Link from "next/link";
 
 import { ProfileBanner } from "@/components/profile/profile-banner";
 import { ProfileIdentity } from "@/components/profile/profile-identity";
@@ -16,6 +16,7 @@ import {
   ProfileStat,
   ProfileStatList,
 } from "@/components/profile/profile-section";
+import { Button } from "@/components/ui/button";
 
 const COMPACT_FORMATTER = new Intl.NumberFormat("es", {
   maximumFractionDigits: 1,
@@ -26,8 +27,15 @@ function formatActivityCount(value: number | null) {
   return value === null ? "Privado" : COMPACT_FORMATTER.format(value);
 }
 
-export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
-  const memberSince = format(profile.createdAt, "MMMM yyyy", { locale: es });
+export function PublicProfileHero({
+  profile,
+  showLegacyStats = true,
+  customizationHref,
+}: {
+  profile: PublicProfile;
+  showLegacyStats?: boolean;
+  customizationHref?: string;
+}) {
   const identity = {
     avatar: profile.avatar,
     avatarFallbackColor: profile.avatarFallbackColor,
@@ -43,7 +51,10 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
   };
 
   return (
-    <section className="relative isolate overflow-hidden rounded-[2rem] border border-white/10 bg-card/80 shadow-2xl shadow-black/20">
+    <section
+      className="@container/profile-hero relative isolate overflow-hidden rounded-[2rem] border border-white/10 bg-card/80 shadow-2xl shadow-black/20"
+      data-profile-shell
+    >
       <ProfileBanner
         banner={profile.banner}
         className="absolute inset-0 h-full rounded-none border-0 opacity-75"
@@ -61,7 +72,7 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
         className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-background via-background/60 to-transparent"
       />
 
-      <div className="relative grid min-h-112 gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end lg:p-9">
+      <div className="relative grid min-h-96 gap-6 p-5 @xl/profile-hero:p-7 @3xl/profile-hero:min-h-112 @3xl/profile-hero:grid-cols-[minmax(0,1fr)_22rem] @3xl/profile-hero:items-end @3xl/profile-hero:gap-8 @3xl/profile-hero:p-9">
         <div className="flex min-w-0 flex-col justify-end">
           <p className="mb-5 font-semibold text-[11px] text-primary uppercase tracking-[0.3em]">
             Perfil de la comunidad
@@ -71,20 +82,25 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
             density="public"
             nameAs="h1"
             user={identity}
-          >
-            <p className="max-w-2xl text-pretty text-sm leading-6 sm:text-base">
-              Miembro de NeXusTC desde {memberSince}. Explora el contenido que
-              ha guardado y las reseñas que ha compartido con la comunidad.
-            </p>
-          </ProfileIdentity>
+          />
           <div className="glow-line mt-6 max-w-sm" />
+          {customizationHref ? (
+            <Button
+              className="mt-5 w-fit"
+              nativeButton={false}
+              render={<Link href={customizationHref} />}
+              variant="outline"
+            >
+              Personalizar perfil
+            </Button>
+          ) : null}
         </div>
 
-        <ProfileStatList className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-2">
+        <ProfileStatList className="grid-cols-2 @2xl/profile-hero:grid-cols-3 @3xl/profile-hero:grid-cols-2">
           {profile.accountLevel === null ? null : (
             <ProfileStat
               icon={Award01Icon}
-              label="Account Level"
+              label="Nivel de cuenta"
               value={profile.accountLevel}
             />
           )}
@@ -93,30 +109,34 @@ export function PublicProfileHero({ profile }: { profile: PublicProfile }) {
             label="Miembro desde"
             value={format(profile.createdAt, "yyyy")}
           />
-          {profile.eterisBalance === null ? null : (
+          {!showLegacyStats || profile.eterisBalance === null ? null : (
             <ProfileStat
               icon={Coins01Icon}
               label="Eteris"
               value={profile.eterisBalance}
             />
           )}
-          {profile.currentStreak === undefined ? null : (
+          {!showLegacyStats || profile.currentStreak === undefined ? null : (
             <ProfileStat
               icon={Fire03Icon}
               label="Racha actual"
               value={`${profile.currentStreak} días`}
             />
           )}
-          <ProfileStat
-            icon={FavouriteIcon}
-            label="Favoritos"
-            value={formatActivityCount(profile.activityCounts.favorites)}
-          />
-          <ProfileStat
-            icon={StarIcon}
-            label="Reseñas"
-            value={formatActivityCount(profile.activityCounts.reviews)}
-          />
+          {showLegacyStats ? (
+            <>
+              <ProfileStat
+                icon={FavouriteIcon}
+                label="Favoritos"
+                value={formatActivityCount(profile.activityCounts.favorites)}
+              />
+              <ProfileStat
+                icon={StarIcon}
+                label="Reseñas"
+                value={formatActivityCount(profile.activityCounts.reviews)}
+              />
+            </>
+          ) : null}
         </ProfileStatList>
       </div>
     </section>

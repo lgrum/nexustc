@@ -19,6 +19,18 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["notification/followContent", ["profiles"]],
   ["patreon/admin/reconcileMemberships", ["profiles"]],
   ["patreon/syncMembership", ["profiles"]],
+  ["profileCatalogAdmin/decorations/publish", ["profiles"]],
+  ["profileCatalogAdmin/purchases/correct", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/grants/grant", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/grants/revoke", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/lifecycle/archive", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/lifecycle/deleteDraft", ["catalog:profile"]],
+  ["profileCatalogAdmin/lifecycle/disable", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/lifecycle/restore", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/lifecycle/rollback", ["catalog:profile", "profiles"]],
+  ["profileCatalogAdmin/entitlements/publishLayoutRequirement", ["profiles"]],
+  ["profileCatalogAdmin/entitlements/publishShowcaseRequirement", ["profiles"]],
+  ["profileCatalogAdmin/skins/publish", ["profiles"]],
   ["post/admin/create", ["catalog:games", "content", "home", "vip-feed"]],
   [
     "post/admin/delete",
@@ -36,6 +48,8 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["profile/finalizeUpload", ["profiles"]],
   ["profile/removeAvatar", ["profiles"]],
   ["profile/removeBanner", ["profiles"]],
+  ["profile/purchaseCatalogItem", ["catalog:profile", "profiles"]],
+  ["profile/saveCustomization", ["profiles"]],
   ["profile/updateAppearance", ["profiles"]],
   ["profile/updateVisibility", ["profiles"]],
   ["progression/owner/adjustXp", ["profiles"]],
@@ -64,6 +78,7 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["term/edit", ["catalog:comics", "catalog:games", "content", "home"]],
   ["user/admin/banUser", ["profiles"]],
   ["user/admin/unbanUser", ["profiles"]],
+  ["user/admin/setRole", ["profiles"]],
   ["user/toggleBookmark", ["profiles"]],
 ]);
 
@@ -106,8 +121,26 @@ export function getCacheTagsForProcedure(
 }
 
 export function getCacheRevalidationProfile(procedurePath: string) {
-  return procedurePath === "profile/updateVisibility" ||
-    procedurePath === "eteris/setPublicBalance"
+  return procedurePath === "patreon/admin/reconcileMemberships" ||
+    procedurePath === "patreon/syncMembership" ||
+    procedurePath === "profileCatalogAdmin/decorations/publish" ||
+    procedurePath === "profileCatalogAdmin/purchases/correct" ||
+    procedurePath === "profileCatalogAdmin/grants/grant" ||
+    procedurePath === "profileCatalogAdmin/grants/revoke" ||
+    procedurePath === "profileCatalogAdmin/lifecycle/archive" ||
+    procedurePath === "profileCatalogAdmin/lifecycle/disable" ||
+    procedurePath === "profileCatalogAdmin/lifecycle/restore" ||
+    procedurePath === "profileCatalogAdmin/lifecycle/rollback" ||
+    procedurePath ===
+      "profileCatalogAdmin/entitlements/publishLayoutRequirement" ||
+    procedurePath ===
+      "profileCatalogAdmin/entitlements/publishShowcaseRequirement" ||
+    procedurePath === "profileCatalogAdmin/skins/publish" ||
+    procedurePath === "profile/updateVisibility" ||
+    procedurePath === "profile/purchaseCatalogItem" ||
+    procedurePath === "profile/saveCustomization" ||
+    procedurePath === "eteris/setPublicBalance" ||
+    procedurePath === "user/admin/setRole"
     ? ({ expire: 0 } as const)
     : "max";
 }

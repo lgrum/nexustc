@@ -428,7 +428,7 @@ describe("edited contribution eligibility", () => {
       {
         ...review,
         review:
-          "Esta reseÃ±a ahora analiza otra obra con suficiente detalle, ejemplos concretos y una conclusiÃ³n claramente diferente.",
+          "Esta reseña ahora analiza otra obra con suficiente detalle, ejemplos concretos y una conclusión claramente diferente.",
       }
     );
 

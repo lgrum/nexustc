@@ -580,6 +580,9 @@ describe("Profile Media reference changes", () => {
           profileEmblemDefinition: {
             findMany: vi.fn().mockResolvedValue([]),
           },
+          profileCatalogDecorationRevision: {
+            findMany: vi.fn().mockResolvedValue([]),
+          },
           profileMediaAsset: {
             findMany: vi
               .fn()
@@ -631,6 +634,9 @@ describe("Profile Media reference changes", () => {
       query: {
         media: { findMany: vi.fn().mockResolvedValue([]) },
         profileEmblemDefinition: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        profileCatalogDecorationRevision: {
           findMany: vi.fn().mockResolvedValue([]),
         },
         profileMediaAsset: {
@@ -689,6 +695,9 @@ describe("Profile Media reference changes", () => {
           findMany: vi.fn().mockResolvedValue([{ objectKey }]),
         },
         profileEmblemDefinition: {
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        profileCatalogDecorationRevision: {
           findMany: vi.fn().mockResolvedValue([]),
         },
         profileMediaAsset: {

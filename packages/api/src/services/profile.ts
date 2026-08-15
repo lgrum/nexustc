@@ -14,6 +14,7 @@ import {
   profileSystemConfig,
   user,
 } from "@repo/db/schema/app";
+import { env } from "@repo/env";
 import {
   PATRON_TIER_PROFILE_BADGES,
   ROLE_PROFILE_STYLES,
@@ -31,10 +32,25 @@ import type {
   ProfileActivityVisibility,
   ProfileVisibilityConfig,
 } from "@repo/shared/profile";
+import type {
+  EffectiveProfileShowcase,
+  ProfileCustomizationDraft,
+  ProfileCustomizationEditorState,
+} from "@repo/shared/profile-customization";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { userIsNotActivelyBanned } from "../utils/user-ban";
-import { getPublicWalletBalance } from "./eteris";
+import {
+  getProfileCustomizationWalletBalance,
+  getPublicWalletBalance,
+} from "./eteris";
+import { loadProfileCustomizationEditorState } from "./profile-customization";
+import {
+  resolveCurrentProfileDefaults,
+  resolvePublicProfileManifest,
+} from "./profile-customization-manifest";
+import type { resolveVirtualDefaultManifest } from "./profile-customization-manifest";
+import { loadPublicFavoriteGamesShowcase } from "./profile-favorite-games";
 import { getPublicAccountLevel } from "./progression";
 import { getStreakState } from "./streak";
 
@@ -114,7 +130,164 @@ export type PublicProfile = ProfileSummary & {
   };
   maxVisibleEmblems: number;
   visibility: ProfileActivityVisibility;
+  manifest?: PublicProfileManifest;
 };
+
+export type PublicProfileShell = ProfileSummary & {
+  accountLevel: number | null;
+  banner: PublicProfile["banner"];
+};
+
+export type PublicProfileManifest = ReturnType<
+  typeof resolveVirtualDefaultManifest
+> & {
+  shell: PublicProfileShell;
+};
+
+export function resolvePublicAccountLevel(
+  progression: Awaited<ReturnType<typeof getPublicAccountLevel>>,
+  customizationEnabled: boolean,
+  customization: Pick<
+    ProfileCustomizationEditorState,
+    "effectiveConfiguration"
+  > | null
+) {
+  if (!progression || !customizationEnabled || !customization) {
+    return customizationEnabled ? null : (progression?.level ?? null);
+  }
+
+  return customization.effectiveConfiguration.showcases.some(
+    (showcase) => showcase.type === "xp" && showcase.enabled
+  )
+    ? progression.level
+    : null;
+}
+
+const STREAK_MILESTONES = [7, 30, 100, 365] as const;
+
+export function resolveScalarProfileShowcases(
+  configuration: ProfileCustomizationDraft,
+  sources: {
+    currentStreak: number | null;
+    progression: Awaited<ReturnType<typeof getPublicAccountLevel>>;
+    publicWallet: Awaited<ReturnType<typeof getPublicWalletBalance>>;
+  }
+) {
+  const showcases: EffectiveProfileShowcase[] = [];
+  for (const showcase of configuration.showcases) {
+    if (!showcase.enabled) {
+      continue;
+    }
+    const variant = showcase.variant === "compact" ? "compact" : "standard";
+    if (showcase.type === "xp" && sources.progression) {
+      showcases.push({
+        accountLevel: sources.progression.level,
+        currentLevelXp: sources.progression.currentLevelXp,
+        nextLevelRequirement: sources.progression.nextLevelRequirement,
+        order: showcase.order,
+        progress: sources.progression.progress,
+        rendererKey: "xp",
+        type: "xp",
+        variant,
+        xpRemaining: sources.progression.xpRemaining,
+      });
+    } else if (showcase.type === "streak" && sources.currentStreak) {
+      showcases.push({
+        currentStreak: sources.currentStreak,
+        nextMilestone:
+          STREAK_MILESTONES.find(
+            (milestone) => milestone > sources.currentStreak!
+          ) ?? null,
+        order: showcase.order,
+        rendererKey: "streak",
+        type: "streak",
+        variant,
+      });
+    } else if (showcase.type === "eteris" && sources.publicWallet) {
+      showcases.push({
+        balance: sources.publicWallet.balance,
+        order: showcase.order,
+        rendererKey: "eteris",
+        type: "eteris",
+        variant,
+      });
+    }
+  }
+  return showcases;
+}
+
+export async function resolveIsolatedScalarProfileShowcases(
+  configuration: Promise<ProfileCustomizationDraft>,
+  sources: {
+    currentStreak: Promise<number | null>;
+    progression: Promise<Awaited<ReturnType<typeof getPublicAccountLevel>>>;
+    publicWallet: Promise<Awaited<ReturnType<typeof getPublicWalletBalance>>>;
+  }
+) {
+  const [configurationResult, progression, currentStreak, publicWallet] =
+    await Promise.allSettled([
+      configuration,
+      sources.progression,
+      sources.currentStreak,
+      sources.publicWallet,
+    ]);
+  if (configurationResult.status === "rejected") {
+    return [];
+  }
+  return resolveScalarProfileShowcases(configurationResult.value, {
+    currentStreak:
+      currentStreak.status === "fulfilled" ? currentStreak.value : null,
+    progression: progression.status === "fulfilled" ? progression.value : null,
+    publicWallet:
+      publicWallet.status === "fulfilled" ? publicWallet.value : null,
+  });
+}
+
+export async function getPublicScalarProfileShowcases(
+  db: Database,
+  userId: string
+) {
+  const settings = await getProfileSettingsForRead(db, userId);
+  const visibility = resolveProfileVisibility(settings.visibilityConfig);
+  const effectiveConfiguration = (async () => {
+    const state = await loadProfileCustomizationEditorState(
+      db,
+      userId,
+      settings.visibilityConfig
+    );
+    return state.effectiveConfiguration;
+  })();
+  return resolveIsolatedScalarProfileShowcases(effectiveConfiguration, {
+    currentStreak: getPublicCurrentStreak(db, userId, visibility),
+    progression: getPublicAccountLevel(db, userId),
+    publicWallet: getPublicWalletBalance(db, userId),
+  });
+}
+
+export function getProfileCustomizationScalarPreview(
+  db: Database,
+  userId: string
+) {
+  const previewConfiguration = resolveCurrentProfileDefaults();
+  return resolveIsolatedScalarProfileShowcases(
+    Promise.resolve({
+      ...previewConfiguration,
+      showcases: previewConfiguration.showcases.map((showcase) => ({
+        ...showcase,
+        enabled: true,
+      })),
+    }),
+    {
+      currentStreak: getPublicCurrentStreak(
+        db,
+        userId,
+        normalizeProfileVisibilityConfig({ streak: true })
+      ),
+      progression: getPublicAccountLevel(db, userId),
+      publicWallet: getProfileCustomizationWalletBalance(db, userId),
+    }
+  );
+}
 
 const PROFILE_ENTITLEMENT_RULES = {
   animatedAvatarRequiredTier: "level3",
@@ -346,6 +519,24 @@ export async function getOrCreateProfileSettings(db: Database, userId: string) {
   return created!;
 }
 
+export async function getProfileSettingsForRead(db: Database, userId: string) {
+  const existing = await db.query.profileSettings.findFirst({
+    where: eq(profileSettings.userId, userId),
+  });
+
+  return (
+    existing ?? {
+      bannerAssetId: null,
+      bannerColor: PROFILE_DEFAULTS.bannerColor,
+      bannerMode: "color" as const,
+      visibilityConfig: {
+        ...PROFILE_VISIBILITY_DEFAULTS,
+        reserved: {},
+      },
+    }
+  );
+}
+
 export async function getOrCreateProfileSystemConfig(db: Database) {
   const existing = await db.query.profileSystemConfig.findFirst({
     where: eq(profileSystemConfig.id, "default"),
@@ -364,6 +555,14 @@ export async function getOrCreateProfileSystemConfig(db: Database) {
     .returning();
 
   return created!;
+}
+
+async function getProfileSystemConfigForRead(db: Database) {
+  return (
+    (await db.query.profileSystemConfig.findFirst({
+      where: eq(profileSystemConfig.id, "default"),
+    })) ?? { maxVisibleEmblems: PROFILE_DEFAULTS.maxVisibleEmblems }
+  );
 }
 
 function getMediaAssetsByIds(db: Database, ids: string[]) {
@@ -401,7 +600,7 @@ export async function buildProfileSummaries(
           userIsNotActivelyBanned(asOf)
         ),
       }),
-      getOrCreateProfileSystemConfig(db),
+      getProfileSystemConfigForRead(db),
       db.query.profileSettings.findMany({
         columns: {
           bannerAssetId: true,
@@ -677,7 +876,15 @@ export async function buildProfileSummaries(
 export async function getPublicProfile(
   db: Database,
   userId: string,
-  { includeCurrentStreak = true }: { includeCurrentStreak?: boolean } = {}
+  {
+    customizationEnabled = env.PROFILE_CUSTOMIZATION_ENABLED,
+    includeCurrentStreak = true,
+    includeFavoriteGames = true,
+  }: {
+    customizationEnabled?: boolean;
+    includeCurrentStreak?: boolean;
+    includeFavoriteGames?: boolean;
+  } = {}
 ) {
   const now = new Date();
   const [summary] = await buildProfileSummaries(db, [userId], now);
@@ -687,12 +894,12 @@ export async function getPublicProfile(
   }
 
   const [settings, currentUser, systemConfig] = await Promise.all([
-    getOrCreateProfileSettings(db, userId),
+    getProfileSettingsForRead(db, userId),
     db.query.user.findFirst({
       columns: { createdAt: true },
       where: and(eq(user.id, userId), userIsNotActivelyBanned(now)),
     }),
-    getOrCreateProfileSystemConfig(db),
+    getProfileSystemConfigForRead(db),
   ]);
 
   if (!currentUser) {
@@ -702,29 +909,54 @@ export async function getPublicProfile(
   const profileVisibility = resolveProfileVisibility(settings.visibilityConfig);
   const visibility = getProfileActivityVisibility(profileVisibility);
   const [
-    bannerAsset,
-    activityCounts,
-    currentStreak,
-    progression,
-    publicWallet,
+    [bannerAsset, activityCounts, currentStreak, progression, publicWallet],
+    customizationResults,
   ] = await Promise.all([
-    settings.bannerAssetId
-      ? db.query.profileMediaAsset.findFirst({
-          where: eq(profileMediaAsset.id, settings.bannerAssetId),
-        })
-      : null,
-    getPublicProfileActivityCounts(db, userId, visibility, now),
-    includeCurrentStreak
-      ? getPublicCurrentStreak(db, userId, profileVisibility, now)
-      : null,
-    getPublicAccountLevel(db, userId, now),
-    getPublicWalletBalance(db, userId, now),
+    Promise.all([
+      settings.bannerAssetId
+        ? db.query.profileMediaAsset.findFirst({
+            where: eq(profileMediaAsset.id, settings.bannerAssetId),
+          })
+        : null,
+      getPublicProfileActivityCounts(db, userId, visibility, now),
+      includeCurrentStreak
+        ? getPublicCurrentStreak(db, userId, profileVisibility, now)
+        : null,
+      getPublicAccountLevel(db, userId, now),
+      customizationEnabled
+        ? Promise.resolve(null)
+        : getPublicWalletBalance(db, userId, now),
+    ]),
+    customizationEnabled
+      ? Promise.allSettled([
+          loadProfileCustomizationEditorState(
+            db,
+            userId,
+            settings.visibilityConfig
+          ),
+          includeFavoriteGames
+            ? loadPublicFavoriteGamesShowcase(db, userId)
+            : Promise.resolve([]),
+        ])
+      : Promise.resolve(null),
   ]);
+  const selectedCustomization =
+    customizationResults?.[0]?.status === "fulfilled"
+      ? customizationResults[0].value
+      : null;
+  const favoriteGames =
+    customizationResults?.[1]?.status === "fulfilled"
+      ? customizationResults[1].value
+      : [];
+  const accountLevel = resolvePublicAccountLevel(
+    progression,
+    customizationEnabled,
+    selectedCustomization
+  );
 
-  return {
+  const shell = {
     ...summary,
-    accountLevel: progression?.level ?? null,
-    activityCounts,
+    accountLevel,
     banner: {
       asset: bannerAsset
         ? {
@@ -736,10 +968,32 @@ export async function getPublicProfile(
       color: settings.bannerColor,
       mode: settings.bannerMode,
     },
+  } satisfies PublicProfileShell;
+
+  return {
+    ...summary,
+    accountLevel,
+    activityCounts,
+    banner: shell.banner,
     createdAt: currentUser.createdAt,
     ...(currentStreak === null ? {} : { currentStreak }),
     eterisBalance: publicWallet?.balance ?? null,
     maxVisibleEmblems: systemConfig.maxVisibleEmblems,
+    ...(() => {
+      const manifest = resolvePublicProfileManifest({
+        activityCounts,
+        customizationEnabled,
+        favoriteGames,
+        decorations: selectedCustomization?.decorations,
+        selectedConfiguration:
+          selectedCustomization && !selectedCustomization.isVirtual
+            ? selectedCustomization.effectiveConfiguration
+            : undefined,
+        skins: selectedCustomization?.skins,
+        visibility: settings.visibilityConfig,
+      });
+      return manifest ? { manifest: { ...manifest, shell } } : {};
+    })(),
     visibility,
   } satisfies PublicProfile;
 }

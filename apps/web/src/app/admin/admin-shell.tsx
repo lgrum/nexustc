@@ -196,6 +196,14 @@ const nav = {
         href: "/admin/profile/emblems",
         name: "Emblemas",
       },
+      {
+        href: "/admin/profile/skins",
+        name: "Skins",
+      },
+      {
+        href: "/admin/profile/decorations",
+        name: "Decorations",
+      },
     ],
     name: "Perfiles",
   },
