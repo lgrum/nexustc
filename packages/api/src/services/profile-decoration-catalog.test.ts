@@ -1,6 +1,7 @@
 import {
   ProfileDecorationCatalogError,
   profileDecorationDraftSchema,
+  validatePublishedDecorationSlot,
   validateProfileDecorationVisual,
 } from "./profile-decoration-catalog";
 
@@ -110,5 +111,14 @@ describe("Profile Decoration publication validation", () => {
         stableKey: "paid-decoration",
       }).success
     ).toBe(false);
+  });
+
+  it("keeps a published decoration in its original slot", () => {
+    expect(() =>
+      validatePublishedDecorationSlot("avatar-frame", "profile-frame")
+    ).toThrow("slot");
+    expect(() =>
+      validatePublishedDecorationSlot("avatar-frame", "avatar-frame")
+    ).not.toThrow();
   });
 });

@@ -13,6 +13,7 @@ import type { EffectiveProfileShowcase } from "@repo/shared/profile-customizatio
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
 import { userIsNotActivelyBanned } from "../utils/user-ban";
+import { canRenderPublicProfileShowcase } from "./profile-showcase-entitlements";
 import { migrateFavoriteGamesPayload } from "./profile-showcase-registry";
 
 type Database = typeof database;
@@ -160,6 +161,9 @@ export async function loadPublicFavoriteGamesShowcase(
 }
 
 async function loadPublicFavoriteGamesData(db: Database, userId: string) {
+  if (!(await canRenderPublicProfileShowcase(db, userId, "favorite-games"))) {
+    return null;
+  }
   const [row, entitlement] = await Promise.all([
     db.query.profileShowcaseConfig.findFirst({
       where: and(

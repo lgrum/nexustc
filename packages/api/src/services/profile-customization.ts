@@ -11,7 +11,6 @@ import {
   profileEquippedDecoration,
   profileSettings,
   profileShowcaseConfig,
-  profileShowcaseType,
   patron,
   user,
 } from "@repo/db/schema/app";
@@ -53,6 +52,8 @@ import {
 } from "./profile-showcase-registry";
 import { listPublishedProfileSkins } from "./profile-skin-catalog";
 
+export { canRenderPublicProfileShowcase } from "./profile-showcase-entitlements";
+
 export class ProfileCustomizationError extends Error {
   readonly code: "CONFLICT" | "IMPERSONATION" | "INVALID_DRAFT";
   readonly fieldErrors?: Record<string, string>;
@@ -70,7 +71,6 @@ export class ProfileCustomizationError extends Error {
 }
 
 type Database = typeof database;
-type ReadDatabase = Pick<Database, "query" | "select">;
 
 export { PROFILE_LAYOUT_REGISTRY };
 
@@ -81,48 +81,6 @@ const LAYOUT_BY_ITEM_ID = new Map<
 const LAYOUT_BY_KEY = new Map(
   PROFILE_LAYOUT_REGISTRY.map((layout) => [layout.key, layout])
 );
-
-export async function canRenderPublicProfileShowcase(
-  db: ReadDatabase,
-  userId: string,
-  type: ProfileShowcaseTypeKey
-) {
-  const [root, row, requirement, account, membership] = await Promise.all([
-    db.query.profileCustomization.findFirst({
-      columns: { userId: true },
-      where: eq(profileCustomization.userId, userId),
-    }),
-    db.query.profileShowcaseConfig.findFirst({
-      columns: { enabled: true },
-      where: and(
-        eq(profileShowcaseConfig.userId, userId),
-        eq(profileShowcaseConfig.typeKey, type)
-      ),
-    }),
-    db.query.profileShowcaseType.findFirst({
-      columns: { isActive: true, requiredTier: true },
-      where: eq(profileShowcaseType.key, type),
-    }),
-    db.query.user.findFirst({
-      columns: { role: true },
-      where: eq(user.id, userId),
-    }),
-    db.query.patron.findFirst({
-      columns: { isActivePatron: true, tier: true },
-      where: eq(patron.userId, userId),
-    }),
-  ]);
-
-  if (!account || (root && !row?.enabled) || requirement?.isActive === false) {
-    return false;
-  }
-
-  return satisfiesProfileVipRequirement(requirement?.requiredTier ?? "none", {
-    isActivePatron: membership?.isActivePatron ?? false,
-    role: account.role,
-    tier: membership?.tier ?? "none",
-  });
-}
 
 export function prepareProfileCustomizationSave(input: unknown) {
   const parsed = profileCustomizationDraftSchema.safeParse(input);

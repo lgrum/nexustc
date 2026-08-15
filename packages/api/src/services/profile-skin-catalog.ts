@@ -488,7 +488,8 @@ export function saveProfileSkinDraft(
 export function publishProfileSkinDraft(
   db: Database,
   actorUserId: string,
-  itemId: string
+  itemId: string,
+  revisionId: string
 ) {
   return db.transaction(async (tx) => {
     const [item] = await tx
@@ -512,6 +513,12 @@ export function publishProfileSkinDraft(
       throw new ProfileSkinCatalogError(
         "NOT_FOUND",
         "No hay un borrador para publicar."
+      );
+    }
+    if (draft.id !== revisionId) {
+      throw new ProfileSkinCatalogError(
+        "CONFLICT",
+        "El borrador seleccionado ya no es el que se va a publicar. Recarga antes de continuar."
       );
     }
     const detail = await tx.query.profileCatalogSkinRevision.findFirst({

@@ -6,7 +6,7 @@ import {
   profileCatalogOwnership,
 } from "@repo/db/schema/app";
 
-import { reverseEterisTransaction } from "./eteris";
+import { reverseEterisTransactionInTransaction } from "./eteris";
 
 type Database = typeof database;
 
@@ -152,7 +152,7 @@ export async function correctProfileCatalogPurchase(
       };
     }
 
-    const reversal = await reverseEterisTransaction(tx, {
+    const reversal = await reverseEterisTransactionInTransaction(tx, {
       actorUserId: input.actorUserId,
       idempotencyKey: `profile-catalog-correction:${original.id}`,
       reason,

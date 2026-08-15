@@ -3,7 +3,7 @@ import { correctProfileCatalogPurchase } from "./profile-catalog-purchase-correc
 const ledger = vi.hoisted(() => ({ reverse: vi.fn() }));
 
 vi.mock("./eteris", () => ({
-  reverseEterisTransaction: ledger.reverse,
+  reverseEterisTransactionInTransaction: ledger.reverse,
 }));
 
 const original = {

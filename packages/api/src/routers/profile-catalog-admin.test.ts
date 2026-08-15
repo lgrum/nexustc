@@ -181,7 +181,7 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.decorations.publish,
-        { itemId: "item-1" },
+        { itemId: "item-1", revisionId: "revision-1" },
         { context }
       ),
     () =>
@@ -193,7 +193,7 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.skins.publish,
-        { itemId: "item-1" },
+        { itemId: "item-1", revisionId: "revision-1" },
         { context }
       ),
     () =>

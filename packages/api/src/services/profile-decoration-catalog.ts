@@ -144,6 +144,19 @@ function parseDraft(input: unknown) {
   return parsed.data;
 }
 
+export function validatePublishedDecorationSlot(
+  publishedSlot: ProfileDecorationVisual["slot"] | null,
+  draftSlot: ProfileDecorationVisual["slot"]
+) {
+  if (publishedSlot && publishedSlot !== draftSlot) {
+    throw new ProfileDecorationCatalogError(
+      "INVALID_DRAFT",
+      "El slot de una Decoration publicada no puede cambiar.",
+      { slot: "Conserva el slot de la revisión publicada." }
+    );
+  }
+}
+
 async function validateManagedMedia(
   db: Pick<Database, "query">,
   actorUserId: string,
@@ -326,6 +339,20 @@ export async function saveProfileDecorationDraft(
         "La Decoration no existe."
       );
     }
+    if (item?.currentPublishedRevisionId) {
+      const publishedVisual =
+        await tx.query.profileCatalogDecorationRevision.findFirst({
+          columns: { slot: true },
+          where: eq(
+            profileCatalogDecorationRevision.revisionId,
+            item.currentPublishedRevisionId
+          ),
+        });
+      validatePublishedDecorationSlot(
+        publishedVisual?.slot ?? null,
+        draft.slot
+      );
+    }
     const itemId = item?.id ?? generateId();
     if (!item) {
       await tx.insert(profileCatalogItem).values({
@@ -403,7 +430,8 @@ export async function saveProfileDecorationDraft(
 export function publishProfileDecorationDraft(
   db: Database,
   actorUserId: string,
-  itemId: string
+  itemId: string,
+  revisionId: string
 ) {
   return db.transaction(async (tx) => {
     const [item] = await tx
@@ -427,6 +455,12 @@ export function publishProfileDecorationDraft(
       throw new ProfileDecorationCatalogError(
         "NOT_FOUND",
         "No hay un borrador para publicar."
+      );
+    }
+    if (draft.id !== revisionId) {
+      throw new ProfileDecorationCatalogError(
+        "CONFLICT",
+        "El borrador seleccionado ya no es el que se va a publicar. Recarga antes de continuar."
       );
     }
     const detail = await tx.query.profileCatalogDecorationRevision.findFirst({

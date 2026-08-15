@@ -272,6 +272,7 @@ export default {
   ),
 
   getPublic: publicProcedure
+    .use(slidingWindowRatelimitMiddleware(30, 60))
     .input(
       z.object({
         includeCurrentStreak: z.boolean().optional(),

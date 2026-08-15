@@ -353,14 +353,20 @@ export default {
       listOwnerProfileDecorations(db)
     ),
     publish: ownerProcedure
-      .input(z.object({ itemId: z.string().min(1) }))
+      .input(
+        z.object({
+          itemId: z.string().min(1),
+          revisionId: z.string().min(1),
+        })
+      )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
           return await publishProfileDecorationDraft(
             db,
             session.user.id,
-            input.itemId
+            input.itemId,
+            input.revisionId
           );
         } catch (error) {
           translateDecorationError(error, errors);
@@ -386,14 +392,20 @@ export default {
       listOwnerProfileSkins(db)
     ),
     publish: ownerProcedure
-      .input(z.object({ itemId: z.string().min(1) }))
+      .input(
+        z.object({
+          itemId: z.string().min(1),
+          revisionId: z.string().min(1),
+        })
+      )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
           return await publishProfileSkinDraft(
             db,
             session.user.id,
-            input.itemId
+            input.itemId,
+            input.revisionId
           );
         } catch (error) {
           translateCatalogError(error, errors);

@@ -94,6 +94,10 @@ export function ProfileDecorationsAdminPage() {
   );
   const [previewAssetKey, setPreviewAssetKey] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [loadedRevision, setLoadedRevision] = useState<{
+    id: string;
+    state: "draft" | "published";
+  } | null>(null);
   const form = useAppForm({
     defaultValues: emptyValues,
     onSubmit: async ({ value }) => {
@@ -125,6 +129,7 @@ export function ProfileDecorationsAdminPage() {
           throw new Error("El servicio no devolvió el borrador guardado.");
         }
         form.setFieldValue("itemId", result.itemId);
+        setLoadedRevision({ id: result.revisionId, state: "draft" });
         await refetch();
         toast.success("Borrador de Decoration guardado");
       } catch (error) {
@@ -166,16 +171,24 @@ export function ProfileDecorationsAdminPage() {
       stableKey: item.stableKey.replace(/^decoration\./, ""),
     });
     setPreviewAssetKey(item.mediaAssetKey);
+    setLoadedRevision({
+      id: item.revisionId,
+      state: item.state === "draft" ? "draft" : "published",
+    });
   };
 
   const publish = async () => {
     const itemId = form.getFieldValue("itemId");
-    if (!itemId) {
+    if (!itemId || loadedRevision?.state !== "draft") {
+      toast.error("Guarda esta revisión como borrador antes de publicar.");
       return;
     }
     setPublishing(true);
     try {
-      await orpcClient.profileCatalogAdmin.decorations.publish({ itemId });
+      await orpcClient.profileCatalogAdmin.decorations.publish({
+        itemId,
+        revisionId: loadedRevision.id,
+      });
       await refetch();
       toast.success("Decoration publicada");
     } catch (error) {
@@ -352,7 +365,11 @@ export function ProfileDecorationsAdminPage() {
                 <form.Subscribe selector={(state) => state.values.itemId}>
                   {(itemId) => (
                     <Button
-                      disabled={publishing || !itemId}
+                      disabled={
+                        publishing ||
+                        !itemId ||
+                        loadedRevision?.state !== "draft"
+                      }
                       loading={publishing}
                       onClick={publish}
                       type="button"
@@ -371,6 +388,7 @@ export function ProfileDecorationsAdminPage() {
                   onClick={() => {
                     form.reset(emptyValues);
                     setPreviewAssetKey(null);
+                    setLoadedRevision(null);
                   }}
                   type="button"
                   variant="ghost"

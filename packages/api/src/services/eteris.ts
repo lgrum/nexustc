@@ -626,22 +626,24 @@ export async function adjustEteris(
   } as const;
 }
 
-export async function reverseEterisTransaction(
-  db: Database | EterisExecutor,
-  input: {
-    actorUserId: string;
-    idempotencyKey: string;
-    reason: string;
-    transactionId: string;
-  }
+type ReverseEterisTransactionInput = {
+  actorUserId: string;
+  idempotencyKey: string;
+  reason: string;
+  transactionId: string;
+};
+
+export async function reverseEterisTransactionInTransaction(
+  tx: EterisExecutor,
+  input: ReverseEterisTransactionInput
 ) {
-  const original = await db.query.eterisTransaction.findFirst({
+  const original = await tx.query.eterisTransaction.findFirst({
     where: eq(eterisTransaction.id, input.transactionId),
   });
   if (!original) {
     throw new EterisError("WALLET_NOT_FOUND");
   }
-  const originalPostings = await loadExistingPostings(db, original.id);
+  const originalPostings = await loadExistingPostings(tx, original.id);
   const reversal = {
     actorUserId: input.actorUserId,
     debtPolicy: "trusted-recovery",
@@ -657,9 +659,20 @@ export async function reverseEterisTransaction(
     sourceModule: "account",
     sourceRef: `reversal:${original.id}`,
   } satisfies EterisTransactionInput;
-  return "transaction" in db
-    ? postEterisTransaction(db, reversal)
-    : postEterisTransactionInTransaction(db, reversal);
+  return postEterisTransactionInTransaction(tx, reversal);
+}
+
+export async function reverseEterisTransaction(
+  db: Database,
+  input: ReverseEterisTransactionInput
+) {
+  const result = await db.transaction((tx) =>
+    reverseEterisTransactionInTransaction(tx, input)
+  );
+  if ("mismatched" in result) {
+    throw new EterisError("PROJECTION_MISMATCH");
+  }
+  return result;
 }
 
 const HISTORY_LABELS: Record<EterisTransactionKind, string> = {
