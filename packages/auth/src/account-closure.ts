@@ -7,7 +7,6 @@ import {
   eterisWallet,
   eterisWalletBalance,
   patron,
-  profileCatalogAudit,
   streakDiscoveryReceipt,
   user,
   userComicProgress,
@@ -168,18 +167,6 @@ export function closeAccountAndDeleteUser(
       now,
     });
     await reconcileAuthoredCommentRewards(tx, { now, userId });
-    await tx
-      .update(profileCatalogAudit)
-      .set({
-        after: sql`CASE WHEN ${profileCatalogAudit.after} ->> 'userId' = ${userId} THEN ${profileCatalogAudit.after} - 'userId' ELSE ${profileCatalogAudit.after} END`,
-        before: sql`CASE WHEN ${profileCatalogAudit.before} ->> 'userId' = ${userId} THEN ${profileCatalogAudit.before} - 'userId' ELSE ${profileCatalogAudit.before} END`,
-      })
-      .where(
-        or(
-          sql`${profileCatalogAudit.after} ->> 'userId' = ${userId}`,
-          sql`${profileCatalogAudit.before} ->> 'userId' = ${userId}`
-        )
-      );
     await tx.delete(user).where(eq(user.id, userId));
     return result;
   });

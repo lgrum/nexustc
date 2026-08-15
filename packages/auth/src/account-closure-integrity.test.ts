@@ -44,22 +44,3 @@ test("account closure removes every personal integrity evidence table", async ()
   expect(reportLock).toBeGreaterThan(-1);
   expect(reportLock).toBeLessThan(snapshotRead);
 });
-
-test("account closure anonymizes catalog audits before cascading personal customization", async () => {
-  const source = await readFile(
-    new URL("account-closure.ts", import.meta.url),
-    "utf-8"
-  );
-  const compactSource = source.replaceAll(/\s+/g, "");
-
-  const auditCleanup = compactSource.indexOf(
-    "tx.update(profileCatalogAudit).set("
-  );
-  const userDeletion = compactSource.indexOf(
-    "tx.delete(user).where(eq(user.id,userId))"
-  );
-  expect(auditCleanup).toBeGreaterThan(-1);
-  expect(compactSource).toContain("profileCatalogAudit.before}-'userId'");
-  expect(compactSource).toContain("profileCatalogAudit.after}-'userId'");
-  expect(auditCleanup).toBeLessThan(userDeletion);
-});

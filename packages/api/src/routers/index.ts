@@ -18,7 +18,6 @@ import patreon from "./patreon";
 import post from "./post";
 import profile from "./profile";
 import profileAdmin from "./profile-admin";
-import profileCatalogAdmin from "./profile-catalog-admin";
 import progression from "./progression";
 import rating from "./rating";
 import siteConfig from "./site-config";
@@ -48,7 +47,6 @@ export const appRouter = {
   post,
   profile,
   profileAdmin,
-  profileCatalogAdmin,
   progression,
   rating,
   siteConfig,

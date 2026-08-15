@@ -53,7 +53,7 @@ vi.mock("@/components/ratings/rating-dialog", () => ({
   RatingDialog: () => null,
 }));
 
-function renderLibrary(customizationEnabled = false) {
+function renderLibrary() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -62,7 +62,6 @@ function renderLibrary(customizationEnabled = false) {
     <QueryClientProvider client={queryClient}>
       <ConfirmDialogProvider>
         <ProfileLibrarySection
-          customizationEnabled={customizationEnabled}
           visibility={{ favorites: true, reviews: true }}
         />
       </ConfirmDialogProvider>
@@ -99,18 +98,6 @@ describe(ProfileLibrarySection, () => {
     await waitFor(() => {
       expect(mocks.updateVisibility).toHaveBeenCalledWith({ favorites: false });
     });
-  });
-
-  it("replaces duplicate visibility switches with customization status", () => {
-    renderLibrary(true);
-
-    expect(screen.queryByRole("switch")).toBeNull();
-    expect(
-      screen
-        .getByRole("link", { name: "Personalizar perfil" })
-        .getAttribute("href")
-    ).toBe("/profile/customize");
-    expect(screen.getByText("Visibles: Biblioteca y Reseñas")).toBeTruthy();
   });
 
   it("removes a favorite through the owner action", async () => {

@@ -189,16 +189,6 @@ test("rate-limits public balance visibility writes", async () => {
   expect(mocks.setPublic).not.toHaveBeenCalled();
 });
 
-test("rejects public balance visibility changes while impersonating", async () => {
-  const context = createContext();
-  context.session!.session = { impersonatedBy: "owner-1" } as never;
-
-  await expect(
-    call(eterisRouter.setPublicBalance, { publicBalance: true }, { context })
-  ).rejects.toMatchObject({ code: "FORBIDDEN" });
-  expect(mocks.setPublic).not.toHaveBeenCalled();
-});
-
 test("owner adjustment accepts a signed decimal string and requires owner", async () => {
   const input = {
     amount: "-9223372036854775807",

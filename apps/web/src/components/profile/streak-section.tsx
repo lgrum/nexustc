@@ -9,7 +9,6 @@ import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { ProfileCustomizationVisibilityStatus } from "@/components/profile/profile-customization-visibility-status";
 import {
   ProfilePanel,
   ProfileSectionHeader,
@@ -33,10 +32,8 @@ const CHALLENGE_SOUND_KEY = "streak-challenge-sound";
 const STREAK_DEADLINE_RETRY_MS = 60_000;
 
 export function StreakSection({
-  customizationEnabled = false,
   streakPublic = false,
 }: {
-  customizationEnabled?: boolean;
   streakPublic?: boolean;
 }) {
   const { data } = useSuspenseQuery(orpc.streak.getMine.queryOptions());
@@ -292,38 +289,25 @@ export function StreakSection({
         />
       </div>
 
-      {customizationEnabled ? (
-        <div className="mt-5">
-          <ProfileCustomizationVisibilityStatus
-            description="El historial, las fechas, la mejor racha y el desafío siguen siendo privados."
-            status={
-              streakPublic
-                ? "Racha actual visible en tu perfil"
-                : "Racha actual oculta en tu perfil"
-            }
-          />
+      <div className="mt-5 flex items-center justify-between gap-4 rounded-[1.25rem] border border-border/70 bg-background/45 p-4">
+        <div>
+          <p className="font-medium" id="streak-public-visibility-label">
+            Mostrar mi Racha actual p&uacute;blicamente
+          </p>
+          <p className="mt-1 text-muted-foreground text-sm">
+            Solo se mostrar&aacute; tu Racha actual. El resto de tu progreso
+            sigue siendo privado.
+          </p>
         </div>
-      ) : (
-        <div className="mt-5 flex items-center justify-between gap-4 rounded-[1.25rem] border border-border/70 bg-background/45 p-4">
-          <div>
-            <p className="font-medium" id="streak-public-visibility-label">
-              Mostrar mi Racha actual p&uacute;blicamente
-            </p>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Solo se mostrar&aacute; tu Racha actual. El resto de tu progreso
-              sigue siendo privado.
-            </p>
-          </div>
-          <Switch
-            aria-labelledby="streak-public-visibility-label"
-            checked={streakPublic}
-            disabled={visibilityMutation.isPending}
-            onCheckedChange={(checked) =>
-              visibilityMutation.mutate({ streak: checked })
-            }
-          />
-        </div>
-      )}
+        <Switch
+          aria-labelledby="streak-public-visibility-label"
+          checked={streakPublic}
+          disabled={visibilityMutation.isPending}
+          onCheckedChange={(checked) =>
+            visibilityMutation.mutate({ streak: checked })
+          }
+        />
+      </div>
 
       {data.stepUpRequired ? (
         <section

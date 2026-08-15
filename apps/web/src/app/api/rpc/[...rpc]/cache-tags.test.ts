@@ -57,48 +57,6 @@ test("does not invalidate cache tags for unknown procedures", () => {
   expect(getCacheTagsForProcedure("post/getRecent")).toEqual([]);
 });
 
-test("expires public profiles immediately after customization publication", () => {
-  expect(getCacheRevalidationProfile("profile/saveCustomization")).toEqual({
-    expire: 0,
-  });
-});
-
-test("refreshes catalog entitlement immediately after a purchase", () => {
-  expect(getCacheTagsForProcedure("profile/purchaseCatalogItem")).toEqual([
-    "catalog:profile",
-    "profiles",
-  ]);
-  expect(getCacheRevalidationProfile("profile/purchaseCatalogItem")).toEqual({
-    expire: 0,
-  });
-});
-
-test.each([
-  "profileCatalogAdmin/purchases/correct",
-  "profileCatalogAdmin/grants/grant",
-  "profileCatalogAdmin/grants/revoke",
-])("refreshes editor and public entitlement immediately after %s", (path) => {
-  expect(getCacheTagsForProcedure(path)).toEqual([
-    "catalog:profile",
-    "profiles",
-  ]);
-  expect(getCacheRevalidationProfile(path)).toEqual({ expire: 0 });
-});
-
-test.each([
-  "profileCatalogAdmin/decorations/publish",
-  "profileCatalogAdmin/entitlements/publishLayoutRequirement",
-  "profileCatalogAdmin/entitlements/publishShowcaseRequirement",
-  "profileCatalogAdmin/lifecycle/archive",
-  "profileCatalogAdmin/lifecycle/disable",
-  "profileCatalogAdmin/lifecycle/restore",
-  "profileCatalogAdmin/lifecycle/rollback",
-  "profileCatalogAdmin/skins/publish",
-])("invalidates catalog and public profiles immediately after %s", (path) => {
-  expect(getCacheTagsForProcedure(path)).toContain("profiles");
-  expect(getCacheRevalidationProfile(path)).toEqual({ expire: 0 });
-});
-
 test("invalidates only the affected profile after a comic checkpoint changes its level", () => {
   expect(
     getCacheTagsForProcedure("comicProgress/update", {

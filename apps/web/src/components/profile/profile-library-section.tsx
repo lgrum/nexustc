@@ -19,7 +19,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { ProfileBookmarkGrid } from "@/components/profile/profile-bookmark-grid";
-import { ProfileCustomizationVisibilityStatus } from "@/components/profile/profile-customization-visibility-status";
 import type { ProfileReviewItem } from "@/components/profile/profile-review-list";
 import { ProfileReviewList } from "@/components/profile/profile-review-list";
 import {
@@ -53,18 +52,13 @@ type PrivateReviewsPage = Awaited<
 type PrivateReviewsCursor = NonNullable<PrivateReviewsPage["nextCursor"]>;
 
 export function ProfileLibrarySection({
-  customizationEnabled = false,
   visibility,
 }: {
-  customizationEnabled?: boolean;
   visibility: ProfileActivityVisibility;
 }) {
   return (
     <div className="space-y-5">
-      <VisibilityPanel
-        customizationEnabled={customizationEnabled}
-        visibility={visibility}
-      />
+      <VisibilityPanel visibility={visibility} />
       <ProfilePanel className="p-5 sm:p-6">
         <ProfileSectionHeader
           description="Consulta lo que guardaste y administra las reseñas que publicaste."
@@ -100,10 +94,8 @@ export function ProfileLibrarySection({
 }
 
 function VisibilityPanel({
-  customizationEnabled,
   visibility,
 }: {
-  customizationEnabled: boolean;
   visibility: ProfileActivityVisibility;
 }) {
   const queryClient = useQueryClient();
@@ -128,33 +120,6 @@ function VisibilityPanel({
       toast.success("Privacidad actualizada");
     },
   });
-
-  if (customizationEnabled) {
-    const visible = [
-      visibility.favorites ? "Biblioteca" : null,
-      visibility.reviews ? "Reseñas" : null,
-    ].filter(Boolean);
-    return (
-      <ProfilePanel className="p-5 sm:p-6">
-        <ProfileSectionHeader
-          description="La visibilidad pública se administra junto con el orden y la presentación de tus Showcases."
-          eyebrow="Perfil público"
-          icon={ViewIcon}
-          title="Visibilidad de tu actividad"
-        />
-        <div className="mt-6">
-          <ProfileCustomizationVisibilityStatus
-            description="El contenido privado sigue disponible en esta biblioteca."
-            status={
-              visible.length
-                ? `Visibles: ${visible.join(" y ")}`
-                : "Biblioteca y reseñas ocultas"
-            }
-          />
-        </div>
-      </ProfilePanel>
-    );
-  }
 
   return (
     <ProfilePanel className="p-5 sm:p-6">

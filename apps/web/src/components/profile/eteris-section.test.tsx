@@ -110,16 +110,3 @@ test("shows frozen state and private-history failures", () => {
   expect(screen.getByText(/Billetera est\u00E1 congelada/i)).toBeTruthy();
   expect(screen.getByRole("alert").textContent).toMatch(/no pudimos cargar/i);
 });
-
-test("replaces the duplicate wallet toggle while customization is enabled", () => {
-  state.mine = { ...state.mine, enabled: true, publicBalance: true };
-  render(<EterisSection customizationEnabled />);
-
-  expect(screen.queryByRole("switch")).toBeNull();
-  expect(screen.getByText("Saldo visible en tu perfil")).toBeTruthy();
-  expect(
-    screen
-      .getByRole("link", { name: "Personalizar perfil" })
-      .getAttribute("href")
-  ).toBe("/profile/customize");
-});

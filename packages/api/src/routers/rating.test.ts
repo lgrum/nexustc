@@ -248,19 +248,6 @@ describe("owned rating deletion", () => {
 });
 
 describe("profile review privacy", () => {
-  it("rejects a collection preview for a different account", async () => {
-    const context = createContext();
-
-    await expect(
-      call(
-        ratingRouter.getByUserId,
-        { limit: 10, preview: true, userId: "user-1" },
-        { context }
-      )
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    expect(mocks.canReadPublicProfileActivity).not.toHaveBeenCalled();
-  });
-
   it("returns the established empty shape when public reviews are hidden", async () => {
     mocks.canReadPublicProfileActivity.mockResolvedValue(false);
     const select = vi.fn();

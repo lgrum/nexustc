@@ -33,29 +33,25 @@ export function ProfileIdentity({
       className={cn(
         "flex min-w-0",
         isPublic
-          ? "flex-col items-start gap-5 @xl/profile-hero:flex-row @xl/profile-hero:items-end"
+          ? "flex-col items-start gap-5 sm:flex-row sm:items-end"
           : "items-center gap-3",
         className
       )}
     >
-      <div className="relative shrink-0" data-profile-avatar-decoration>
-        <ProfileAvatar
-          className={cn(
-            "shrink-0 border-background shadow-xl",
-            isPublic
-              ? "size-28 border-4 @xl/profile-hero:size-32"
-              : "size-14 border-2",
-            avatarClassName
-          )}
-          user={user}
-        />
-      </div>
+      <ProfileAvatar
+        className={cn(
+          "shrink-0 border-background shadow-xl",
+          isPublic ? "size-28 border-4 sm:size-32" : "size-14 border-2",
+          avatarClassName
+        )}
+        user={user}
+      />
       <div className={cn("min-w-0 flex-1", isPublic && "pb-1")}>
         <ProfileNameplate
           nameAs={nameAs}
           nameClassName={cn(
             isPublic
-              ? "profile-display-name display-heading text-4xl @xl/profile-hero:text-5xl @3xl/profile-hero:text-6xl"
+              ? "display-heading text-4xl leading-none sm:text-5xl md:text-6xl"
               : "font-lexend text-xl font-bold"
           )}
           showEmblems

@@ -1,1 +1,0 @@
-ALTER TABLE "profile_showcase_type" ADD COLUMN "required_tier" text DEFAULT 'none' NOT NULL;

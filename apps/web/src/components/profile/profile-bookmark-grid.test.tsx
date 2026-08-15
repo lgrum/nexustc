@@ -38,18 +38,6 @@ const items: PostProps[] = [
 ];
 
 describe(ProfileBookmarkGrid, () => {
-  it("derives post columns from the showcase width", () => {
-    const { container } = render(<ProfileBookmarkGrid items={items} />);
-
-    const grid = screen.getByText("Juego uno").closest("ul");
-    expect(container.firstElementChild?.className).toContain(
-      "@container/profile-bookmarks"
-    );
-    expect(grid?.className).toContain("@2xl/profile-bookmarks:grid-cols-3");
-    expect(grid?.className).toContain("@4xl/profile-bookmarks:grid-cols-4");
-    expect(grid?.className).not.toContain("lg:grid-cols-4");
-  });
-
   it("filters the shared collection by content type", () => {
     render(<ProfileBookmarkGrid items={items} />);
 

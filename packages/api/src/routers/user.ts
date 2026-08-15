@@ -11,7 +11,6 @@ import {
   termPostRelation,
   user,
 } from "@repo/db/schema/app";
-import { env } from "@repo/env";
 import {
   canBookmark,
   getPatronTierRank,
@@ -37,7 +36,6 @@ import {
 } from "../index";
 import { attachComicCatalogProgress } from "../services/comic-progress";
 import { canReadPublicProfileActivity } from "../services/profile";
-import { canRenderPublicProfileShowcase } from "../services/profile-customization";
 import { applyStreakEvidenceInTransaction } from "../services/streak";
 import {
   banUserAndReconcileRewards,
@@ -611,28 +609,15 @@ export default {
           })
           .optional(),
         limit: z.number().min(1).max(30).default(12),
-        preview: z.boolean().optional(),
         userId: z.string(),
       })
     )
-    .handler(async ({ context: { db, session, ...ctx }, errors, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, input }) => {
       const logger = getLogger(ctx);
       logger?.info(`Fetching public bookmarks for user: ${input.userId}`);
 
-      const isSelfPreview =
-        input.preview === true && session?.user.id === input.userId;
-      if (input.preview && !isSelfPreview) {
-        throw errors.FORBIDDEN();
-      }
       if (
-        !isSelfPreview &&
-        (!(await canReadPublicProfileActivity(db, input.userId, "favorites")) ||
-          (env.PROFILE_CUSTOMIZATION_ENABLED &&
-            !(await canRenderPublicProfileShowcase(
-              db,
-              input.userId,
-              "library"
-            ))))
+        !(await canReadPublicProfileActivity(db, input.userId, "favorites"))
       ) {
         return { items: [], nextCursor: null };
       }

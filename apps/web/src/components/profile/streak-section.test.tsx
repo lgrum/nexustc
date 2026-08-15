@@ -266,20 +266,6 @@ it("lets the account opt into public current streak with accessible Spanish feed
   );
 });
 
-it("replaces the duplicate streak toggle while customization is enabled", () => {
-  render(<StreakSection customizationEnabled streakPublic />);
-
-  expect(
-    screen.queryByRole("switch", { name: /Racha actual públicamente/ })
-  ).toBeNull();
-  expect(screen.getByText("Racha actual visible en tu perfil")).toBeTruthy();
-  expect(
-    screen
-      .getByRole("link", { name: "Personalizar perfil" })
-      .getAttribute("href")
-  ).toBe("/profile/customize");
-});
-
 it("explains persistent daily Pending XP in Spanish", () => {
   state.data.pendingXp = true;
   render(<StreakSection />);

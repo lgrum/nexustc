@@ -1,40 +1,18 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { eq, getRedis, sql } from "@repo/db";
 import { profileMediaAsset, profileSettings, user } from "@repo/db/schema/app";
-import { env } from "@repo/env";
 import { PATRON_TIERS } from "@repo/shared/constants";
-import { profileCustomizationDraftSchema } from "@repo/shared/profile-customization";
 import z from "zod";
 
-import {
-  protectedProcedure,
-  publicProcedure,
-  slidingWindowRatelimitMiddleware,
-} from "../index";
-import { EterisError } from "../services/eteris";
+import { protectedProcedure, publicProcedure } from "../index";
 import {
   buildProfileSummaries,
   getOrCreateProfileSettings,
-  getProfileCustomizationScalarPreview,
   getProfileEntitlements,
-  getPublicScalarProfileShowcases,
   getPublicCurrentStreakForUser,
   getPublicProfile,
   resolveProfileVisibility,
 } from "../services/profile";
-import {
-  ProfileCatalogPurchaseError,
-  purchaseProfileCatalogItem,
-} from "../services/profile-catalog-purchase";
-import {
-  loadProfileCustomizationEditorState,
-  ProfileCustomizationError,
-  saveProfileCustomization,
-} from "../services/profile-customization";
-import {
-  loadFavoriteGamesEditorState,
-  searchPublicFavoriteGames,
-} from "../services/profile-favorite-games";
 import {
   finalizeProfileMediaUpload,
   issueProfileMediaUpload,
@@ -99,83 +77,6 @@ function throwProfileMediaError(
 }
 
 export default {
-  getFavoriteGamesEditorState: protectedProcedure.handler(
-    ({ context: { db, session }, errors }) => {
-      if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
-        throw errors.NOT_FOUND();
-      }
-      return loadFavoriteGamesEditorState(db, session.user.id);
-    }
-  ),
-
-  searchFavoriteGames: protectedProcedure
-    .input(z.object({ search: z.string().max(80).default("") }))
-    .handler(({ context: { db }, errors, input }) => {
-      if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
-        throw errors.NOT_FOUND();
-      }
-      return searchPublicFavoriteGames(db, input.search);
-    }),
-
-  getCustomizationEditorState: protectedProcedure.handler(
-    ({ context: { db, session }, errors }) => {
-      if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
-        throw errors.NOT_FOUND();
-      }
-      return loadProfileCustomizationEditorState(db, session.user.id);
-    }
-  ),
-
-  getCustomizationScalarPreview: protectedProcedure.handler(
-    ({ context: { db, session }, errors }) => {
-      if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
-        throw errors.NOT_FOUND();
-      }
-      return getProfileCustomizationScalarPreview(db, session.user.id);
-    }
-  ),
-
-  purchaseCatalogItem: protectedProcedure
-    .use(slidingWindowRatelimitMiddleware(5, 60))
-    .input(
-      z.object({
-        expectedPrice: z
-          .string()
-          .regex(/^[1-9]\d*$/)
-          .transform((value) => BigInt(value)),
-        expectedRevision: z.number().int().positive(),
-        idempotencyKey: z.string().min(8).max(128),
-        itemId: z.string().min(1).max(128),
-      })
-    )
-    .handler(async ({ context: { db, session }, errors, input }) => {
-      if (session.session?.impersonatedBy) {
-        throw errors.FORBIDDEN({
-          message: "No puedes comprar mientras estás suplantando una cuenta.",
-        });
-      }
-      try {
-        return await purchaseProfileCatalogItem(db, {
-          ...input,
-          userId: session.user.id,
-        });
-      } catch (error) {
-        if (error instanceof ProfileCatalogPurchaseError) {
-          throw errors.BAD_REQUEST({ message: error.message });
-        }
-        if (error instanceof EterisError) {
-          const message =
-            error.code === "INSUFFICIENT_FUNDS"
-              ? "No tienes Eteris suficientes para esta compra."
-              : error.code === "IDEMPOTENCY_CONFLICT"
-                ? "La clave de compra ya fue usada para otra operación."
-                : "Tu billetera no permite completar esta compra.";
-          throw errors.BAD_REQUEST({ message });
-        }
-        throw error;
-      }
-    }),
-
   finalizeUpload: protectedProcedure
     .input(
       z.object({
@@ -235,7 +136,6 @@ export default {
         : null;
 
       return {
-        customizationEnabled: env.PROFILE_CUSTOMIZATION_ENABLED,
         entitlements,
         labels: {
           animatedAvatarRequiredTier:
@@ -291,14 +191,6 @@ export default {
       getPublicCurrentStreakForUser(db, input.userId)
     ),
 
-  getPublicScalarShowcases: publicProcedure
-    .input(z.object({ userId: z.string().min(1) }))
-    .handler(({ context: { db }, input }) =>
-      env.PROFILE_CUSTOMIZATION_ENABLED
-        ? getPublicScalarProfileShowcases(db, input.userId)
-        : []
-    ),
-
   getSummary: publicProcedure
     .input(z.object({ userId: z.string() }))
     .handler(async ({ context: { db, ...ctx }, input }) => {
@@ -339,45 +231,6 @@ export default {
         });
       } catch (error) {
         throwProfileMediaError(error, errors);
-      }
-    }),
-
-  saveCustomization: protectedProcedure
-    .use(slidingWindowRatelimitMiddleware(10, 60))
-    .input(
-      z.object({
-        draft: profileCustomizationDraftSchema,
-        expectedRevision: z.number().int().nonnegative(),
-      })
-    )
-    .handler(async ({ context: { db, session }, errors, input }) => {
-      if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
-        throw errors.NOT_FOUND();
-      }
-      try {
-        return await saveProfileCustomization(db, {
-          draft: input.draft,
-          expectedRevision: input.expectedRevision,
-          impersonated: Boolean(session.session?.impersonatedBy),
-          role: session.user.role,
-          userId: session.user.id,
-        });
-      } catch (error) {
-        if (!(error instanceof ProfileCustomizationError)) {
-          throw error;
-        }
-        if (error.code === "CONFLICT") {
-          throw errors.PROFILE_CUSTOMIZATION_CONFLICT({
-            message: error.message,
-          });
-        }
-        if (error.code === "IMPERSONATION") {
-          throw errors.FORBIDDEN({ message: error.message });
-        }
-        throw errors.PROFILE_CUSTOMIZATION_INVALID({
-          data: { fieldErrors: error.fieldErrors ?? {} },
-          message: error.message,
-        });
       }
     }),
 
@@ -436,12 +289,6 @@ export default {
   updateVisibility: protectedProcedure
     .input(visibilityUpdateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
-      if (session.session?.impersonatedBy) {
-        throw errors.FORBIDDEN({
-          message:
-            "No puedes cambiar la visibilidad mientras est\u00E1s suplantando una cuenta.",
-        });
-      }
       const logger = getLogger(ctx);
       logger?.info(`Updating visibility settings for user ${session.user.id}`);
       await getOrCreateProfileSettings(db, session.user.id);

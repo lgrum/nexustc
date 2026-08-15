@@ -26,7 +26,6 @@ export function ProfileAvatar({
       aria-label={decorative ? undefined : `Avatar de ${user.name}`}
       className={cn("overflow-hidden rounded-full", className)}
       role={decorative ? undefined : "img"}
-      data-profile-avatar
     >
       <AvatarImage
         alt=""

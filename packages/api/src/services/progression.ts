@@ -29,7 +29,6 @@ import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import {
   ACCOUNT_LEVEL_REWARD_CONFIG_VERSION,
-  ACCOUNT_LEVEL_THRESHOLDS,
   ACCOUNT_LEVEL_XP_CAP,
   MAX_ACCOUNT_LEVEL,
   getAccountLevelProgress,
@@ -159,22 +158,10 @@ export async function getPublicAccountLevel(
   }
 
   const progression = await db.query.userProgression.findFirst({
-    columns: { totalXp: true },
+    columns: { level: true },
     where: eq(userProgression.userId, userId),
   });
-  const totalXp = progression?.totalXp ?? 0;
-  const progress = getAccountLevelProgress(totalXp);
-  const currentLevelStart = ACCOUNT_LEVEL_THRESHOLDS[progress.level - 1] ?? 0;
-  const nextLevelRequirement = progress.nextLevelTotalXp
-    ? progress.nextLevelTotalXp - currentLevelStart
-    : null;
-  return {
-    currentLevelXp: totalXp - currentLevelStart,
-    level: progress.level,
-    nextLevelRequirement,
-    progress: progress.progress,
-    xpRemaining: progress.xpForNextLevel,
-  };
+  return { level: progression?.level ?? 1 };
 }
 
 const HISTORY_LABELS = {

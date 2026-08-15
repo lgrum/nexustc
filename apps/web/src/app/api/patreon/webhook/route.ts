@@ -5,7 +5,7 @@ import { handleWebhook } from "@/lib/patreon-webhook";
 export async function POST(request: Request) {
   const response = await handleWebhook(request);
   if (response.ok) {
-    revalidateTag("profiles", { expire: 0 });
+    revalidateTag("profiles", "max");
   }
   return response;
 }

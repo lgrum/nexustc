@@ -195,26 +195,18 @@ export function setPublicWalletBalance(
   if (!env.XP_ECONOMY_ENABLED) {
     throw new EterisError("VISIBILITY_DISABLED");
   }
-  return db.transaction((tx) =>
-    setPublicWalletBalanceInTransaction(tx, userId, publicBalance)
-  );
-}
-
-export async function setPublicWalletBalanceInTransaction(
-  executor: EterisExecutor,
-  userId: string,
-  publicBalance: boolean
-) {
-  const wallet = await getOrCreateUserWalletInTransaction(executor, userId);
-  const [locked] = await lockEterisWalletsInTransaction(executor, [wallet.id]);
-  if (publicBalance && locked?.status !== "active") {
-    throw new EterisError("CLOSED_OR_FROZEN");
-  }
-  await executor
-    .update(eterisWallet)
-    .set({ publicBalance })
-    .where(eq(eterisWallet.id, wallet.id));
-  return { publicBalance };
+  return db.transaction(async (tx) => {
+    const wallet = await getOrCreateUserWalletInTransaction(tx, userId);
+    const [locked] = await lockEterisWalletsInTransaction(tx, [wallet.id]);
+    if (publicBalance && locked?.status !== "active") {
+      throw new EterisError("CLOSED_OR_FROZEN");
+    }
+    await tx
+      .update(eterisWallet)
+      .set({ publicBalance })
+      .where(eq(eterisWallet.id, wallet.id));
+    return { publicBalance };
+  });
 }
 
 export async function getPublicWalletBalance(
@@ -237,37 +229,6 @@ export async function getPublicWalletBalance(
     where: eq(eterisWallet.userId, userId),
   });
   if (!(wallet?.publicBalance && wallet.status === "active")) {
-    return null;
-  }
-  const balance = await db.query.eterisWalletBalance.findFirst({
-    columns: { balance: true },
-    where: eq(eterisWalletBalance.walletId, wallet.id),
-  });
-  return balance && balance.balance >= ZERO
-    ? { balance: balance.balance.toString() }
-    : null;
-}
-
-export async function getProfileCustomizationWalletBalance(
-  db: Database,
-  userId: string,
-  now = new Date()
-) {
-  if (!env.XP_ECONOMY_ENABLED) {
-    return null;
-  }
-  const account = await db.query.user.findFirst({
-    columns: { banExpires: true, banned: true },
-    where: eq(user.id, userId),
-  });
-  if (!account || isUserBanActive(account, now)) {
-    return null;
-  }
-  const wallet = await db.query.eterisWallet.findFirst({
-    columns: { id: true, status: true },
-    where: eq(eterisWallet.userId, userId),
-  });
-  if (wallet?.status !== "active") {
     return null;
   }
   const balance = await db.query.eterisWalletBalance.findFirst({
@@ -627,7 +588,7 @@ export async function adjustEteris(
 }
 
 export async function reverseEterisTransaction(
-  db: Database | EterisExecutor,
+  db: Database,
   input: {
     actorUserId: string;
     idempotencyKey: string;
@@ -642,7 +603,7 @@ export async function reverseEterisTransaction(
     throw new EterisError("WALLET_NOT_FOUND");
   }
   const originalPostings = await loadExistingPostings(db, original.id);
-  const reversal = {
+  return postEterisTransaction(db, {
     actorUserId: input.actorUserId,
     debtPolicy: "trusted-recovery",
     idempotencyKey: input.idempotencyKey,
@@ -656,10 +617,7 @@ export async function reverseEterisTransaction(
     reversesTransactionId: original.id,
     sourceModule: "account",
     sourceRef: `reversal:${original.id}`,
-  } satisfies EterisTransactionInput;
-  return "transaction" in db
-    ? postEterisTransaction(db, reversal)
-    : postEterisTransactionInTransaction(db, reversal);
+  });
 }
 
 const HISTORY_LABELS: Record<EterisTransactionKind, string> = {

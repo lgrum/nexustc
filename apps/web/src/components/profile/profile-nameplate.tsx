@@ -189,7 +189,6 @@ export function ProfileNameplate({
             nameGradient && "bg-clip-text text-transparent"
           )}
           style={nameGradient ? { backgroundImage: nameGradient } : undefined}
-          data-profile-name
         >
           {user.name}
         </NameTag>

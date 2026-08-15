@@ -1,21 +1,8 @@
 "use client";
 
-import {
-  Award01Icon,
-  Coins01Icon,
-  FavouriteIcon,
-  Fire03Icon,
-  GameIcon,
-  StarIcon,
-} from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import type { IconSvgElement } from "@hugeicons/react";
+import { FavouriteIcon, StarIcon } from "@hugeicons/core-free-icons";
 import type { ProfileActivityVisibility } from "@repo/shared/profile";
-import { PROFILE_SHOWCASE_PAGE_SIZES } from "@repo/shared/profile-customization";
-import type { EffectiveProfileShowcase } from "@repo/shared/profile-customization";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import Image from "next/image";
-import Link from "next/link";
 import { useMemo } from "react";
 
 import { ProfileBookmarkGrid } from "@/components/profile/profile-bookmark-grid";
@@ -26,13 +13,10 @@ import {
   ProfileLoadMore,
   ProfileSectionHeader,
 } from "@/components/profile/profile-section";
-import {
-  Progress,
-  ProgressLabel,
-  ProgressValue,
-} from "@/components/ui/progress";
 import { orpcClient } from "@/lib/orpc";
-import { cn, getBucketUrl } from "@/lib/utils";
+
+const BOOKMARK_PAGE_SIZE = 12;
+const REVIEW_PAGE_SIZE = 10;
 
 type PublicBookmarksPage = Awaited<
   ReturnType<(typeof orpcClient.user)["getUserBookmarks"]>
@@ -44,70 +28,14 @@ type PublicReviewsPage = Awaited<
 type PublicReviewsCursor = NonNullable<PublicReviewsPage["nextCursor"]>;
 
 export function UserClient({
-  preview = false,
-  showEmptyShowcases = false,
-  showcases,
   userId,
   userName,
   visibility,
 }: {
-  preview?: boolean;
   userId: string;
   userName: string;
   visibility: ProfileActivityVisibility;
-  showcases?: EffectiveProfileShowcase[];
-  showEmptyShowcases?: boolean;
 }) {
-  if (showcases) {
-    return (
-      <div className="flex flex-col gap-12">
-        {showcases.map((showcase) => {
-          if (showcase.type === "favorite-games") {
-            return (
-              <FavoriteGamesSection
-                games={showcase.games}
-                key={showcase.type}
-                showEmpty={showEmptyShowcases}
-                userName={userName}
-                variant={showcase.variant}
-              />
-            );
-          }
-          if (showcase.type === "xp") {
-            return <XpShowcase key={showcase.type} showcase={showcase} />;
-          }
-          if (showcase.type === "streak") {
-            return <StreakShowcase key={showcase.type} showcase={showcase} />;
-          }
-          if (showcase.type === "eteris") {
-            return <EterisShowcase key={showcase.type} showcase={showcase} />;
-          }
-          return showcase.rendererKey === "library" ? (
-            <PublicBookmarksSection
-              isPublic
-              key={showcase.type}
-              omitUnavailable
-              preview={preview}
-              userId={userId}
-              userName={userName}
-              variant={showcase.variant}
-            />
-          ) : (
-            <PublicReviewsSection
-              isPublic
-              key={showcase.type}
-              omitUnavailable
-              preview={preview}
-              userId={userId}
-              userName={userName}
-              variant={showcase.variant}
-            />
-          );
-        })}
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-col gap-12">
       <PublicBookmarksSection
@@ -124,304 +52,15 @@ export function UserClient({
   );
 }
 
-function ScalarCard({
-  className,
-  eyebrow,
-  icon,
-  title,
-  value,
-}: {
-  className?: string;
-  eyebrow: string;
-  icon: IconSvgElement;
-  title: string;
-  value: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "rounded-[1.5rem] border border-primary/20 bg-gradient-to-br from-primary/12 via-card to-card p-5",
-        className
-      )}
-      data-profile-scalar-card
-    >
-      <div className="flex items-center gap-3 text-primary">
-        <HugeiconsIcon aria-hidden className="size-5" icon={icon} />
-        <p className="font-bold text-xs uppercase tracking-[0.18em]">
-          {eyebrow}
-        </p>
-      </div>
-      <p className="mt-3 font-lexend font-semibold text-4xl tabular-nums tracking-tight">
-        {value}
-      </p>
-      <p className="mt-2 text-muted-foreground text-sm">{title}</p>
-    </div>
-  );
-}
-
-function XpShowcase({
-  showcase,
-}: {
-  showcase: Extract<EffectiveProfileShowcase, { type: "xp" }>;
-}) {
-  const nextLevel =
-    showcase.nextLevelRequirement === null ? null : showcase.accountLevel + 1;
-  return (
-    <section
-      className="@container/experience"
-      aria-labelledby="xp-showcase-title"
-      data-showcase-variant={showcase.variant}
-    >
-      <ProfileSectionHeader
-        eyebrow="Progresión"
-        icon={Award01Icon}
-        title="Experiencia"
-        titleId="xp-showcase-title"
-      />
-      <div
-        className={cn(
-          "mt-5 grid items-stretch gap-4",
-          showcase.variant !== "compact" &&
-            "@md/experience:grid-cols-[minmax(14rem,0.7fr)_minmax(0,1.3fr)]"
-        )}
-        data-profile-experience-panels
-      >
-        <ScalarCard
-          className="h-full"
-          eyebrow="Nivel de cuenta"
-          icon={Award01Icon}
-          title="Nivel actual"
-          value={`Nivel ${showcase.accountLevel}`}
-        />
-        <div className="flex h-full flex-col justify-center rounded-[1.5rem] border bg-card/70 p-5">
-          {nextLevel ? (
-            <Progress
-              aria-label={`Progreso hacia el nivel ${nextLevel}`}
-              value={Math.round(showcase.progress * 100)}
-            >
-              <ProgressLabel>
-                {showcase.currentLevelXp} / {showcase.nextLevelRequirement} XP
-              </ProgressLabel>
-              <ProgressValue />
-            </Progress>
-          ) : (
-            <p className="font-semibold">Nivel máximo alcanzado</p>
-          )}
-          {showcase.xpRemaining === null ? null : (
-            <p className="mt-3 text-muted-foreground text-sm">
-              Faltan {showcase.xpRemaining} XP para el siguiente nivel.
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function StreakShowcase({
-  showcase,
-}: {
-  showcase: Extract<EffectiveProfileShowcase, { type: "streak" }>;
-}) {
-  return (
-    <section
-      aria-labelledby="streak-showcase-title"
-      data-showcase-variant={showcase.variant}
-    >
-      <ProfileSectionHeader
-        eyebrow="Constancia actual"
-        icon={Fire03Icon}
-        title="Racha"
-        titleId="streak-showcase-title"
-      />
-      <ScalarCard
-        className="mt-5"
-        eyebrow="Racha vigente"
-        icon={Fire03Icon}
-        title={
-          showcase.nextMilestone
-            ? `Próximo hito: ${showcase.nextMilestone} días`
-            : "Hito máximo alcanzado"
-        }
-        value={`${showcase.currentStreak} días`}
-      />
-    </section>
-  );
-}
-
-function EterisShowcase({
-  showcase,
-}: {
-  showcase: Extract<EffectiveProfileShowcase, { type: "eteris" }>;
-}) {
-  return (
-    <section
-      aria-labelledby="eteris-showcase-title"
-      data-showcase-variant={showcase.variant}
-    >
-      <ProfileSectionHeader
-        eyebrow="Saldo público"
-        icon={Coins01Icon}
-        title="Eteris"
-        titleId="eteris-showcase-title"
-      />
-      <ScalarCard
-        className="mt-5"
-        eyebrow="Saldo actual"
-        icon={Coins01Icon}
-        title="Eteris disponibles"
-        value={showcase.balance}
-      />
-    </section>
-  );
-}
-
-function FavoriteGameCover({
-  game,
-  priority = false,
-}: {
-  game: Extract<
-    EffectiveProfileShowcase,
-    { type: "favorite-games" }
-  >["games"][number];
-  priority?: boolean;
-}) {
-  return game.coverImageObjectKey ? (
-    <Image
-      alt={`Portada de ${game.title}`}
-      className="object-cover transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none"
-      fill
-      priority={priority}
-      sizes="(max-width: 640px) 90vw, 420px"
-      src={getBucketUrl(game.coverImageObjectKey)}
-    />
-  ) : (
-    <div className="grid h-full place-items-center bg-gradient-to-br from-primary/25 via-card to-muted">
-      <HugeiconsIcon
-        aria-hidden
-        className="size-10 text-primary/70"
-        icon={GameIcon}
-      />
-    </div>
-  );
-}
-
-function FavoriteGamesSection({
-  games,
-  showEmpty,
-  userName,
-  variant,
-}: {
-  games: Extract<EffectiveProfileShowcase, { type: "favorite-games" }>["games"];
-  showEmpty: boolean;
-  userName: string;
-  variant: EffectiveProfileShowcase["variant"];
-}) {
-  if (games.length === 0) {
-    return showEmpty ? (
-      <section
-        className="@container/favorite-games"
-        aria-labelledby="favorite-games-title"
-        data-showcase-variant={variant}
-      >
-        <ProfileSectionHeader
-          description={`La selección personal de ${userName}, ordenada de imprescindible a favorita.`}
-          eyebrow="Ranking personal"
-          icon={GameIcon}
-          title="Juegos favoritos"
-          titleId="favorite-games-title"
-        />
-        <div className="mt-5">
-          <ProfileCollectionState
-            description="Busca un juego público en el editor para crear tu selección."
-            kind="empty"
-            title="Elige tu primer juego favorito"
-          />
-        </div>
-      </section>
-    ) : null;
-  }
-  const [featured] = games;
-  return (
-    <section
-      className="@container/favorite-games"
-      aria-labelledby="favorite-games-title"
-      data-showcase-variant={variant}
-    >
-      <ProfileSectionHeader
-        description={`La selección personal de ${userName}, ordenada de imprescindible a favorita.`}
-        eyebrow="Ranking personal"
-        icon={GameIcon}
-        title="Juegos favoritos"
-        titleId="favorite-games-title"
-      />
-      {games.length === 1 && featured ? (
-        <Link
-          className="group mt-5 grid min-h-64 overflow-hidden rounded-[1.75rem] border border-primary/25 bg-card shadow-lg shadow-black/10 @2xl/favorite-games:grid-cols-[minmax(13rem,0.7fr)_1fr]"
-          href={`/post/${featured.slug}`}
-        >
-          <div className="relative min-h-56 overflow-hidden">
-            <FavoriteGameCover game={featured} priority />
-          </div>
-          <div className="flex flex-col justify-end p-6 @2xl/favorite-games:p-8">
-            <span className="font-bold text-primary text-xs uppercase tracking-[0.2em]">
-              Elección principal
-            </span>
-            <h3 className="mt-2 text-balance font-black text-3xl tracking-tight">
-              {featured.title}
-            </h3>
-            <span className="mt-5 font-semibold text-sm">Ver juego →</span>
-          </div>
-        </Link>
-      ) : (
-        <ol
-          className={cn(
-            "mt-5 grid gap-3",
-            variant === "featured"
-              ? "@2xl/favorite-games:grid-cols-2"
-              : "grid-cols-1"
-          )}
-        >
-          {games.map((game, index) => (
-            <li key={game.id}>
-              <Link
-                className="group flex min-h-24 items-stretch overflow-hidden rounded-2xl border bg-card/70 transition-colors hover:border-primary/40"
-                href={`/post/${game.slug}`}
-              >
-                <span className="grid w-12 shrink-0 place-items-center bg-primary/10 font-black text-primary text-lg">
-                  {index + 1}
-                </span>
-                <span className="relative w-24 shrink-0 overflow-hidden">
-                  <FavoriteGameCover game={game} />
-                </span>
-                <span className="flex min-w-0 items-center p-4 font-bold">
-                  <span className="line-clamp-2">{game.title}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
-
 function PublicBookmarksSection({
   isPublic,
-  omitUnavailable = false,
-  preview = false,
   userId,
   userName,
-  variant = "standard",
 }: {
   isPublic: boolean;
-  omitUnavailable?: boolean;
-  preview?: boolean;
   userId: string;
   userName: string;
-  variant?: EffectiveProfileShowcase["variant"];
 }) {
-  const pageSize = PROFILE_SHOWCASE_PAGE_SIZES.library[variant];
   const query = useInfiniteQuery({
     enabled: isPublic,
     getNextPageParam: (lastPage: PublicBookmarksPage) =>
@@ -434,29 +73,20 @@ function PublicBookmarksSection({
     }) =>
       orpcClient.user.getUserBookmarks({
         ...(pageParam ? { cursor: pageParam } : {}),
-        limit: pageSize,
-        ...(preview ? { preview: true } : {}),
+        limit: BOOKMARK_PAGE_SIZE,
         userId,
       }),
-    queryKey: ["profile", "public-bookmarks", userId, variant, preview],
+    queryKey: ["profile", "public-bookmarks", userId],
   });
   const bookmarks = useMemo(
     () => query.data?.pages.flatMap((page) => page.items) ?? [],
     [query.data?.pages]
   );
 
-  if (
-    omitUnavailable &&
-    (query.isError || (!query.isPending && bookmarks.length === 0))
-  ) {
-    return null;
-  }
-
   return (
     <section
       aria-busy={query.isPending}
       aria-labelledby="public-favorites-title"
-      data-showcase-variant={variant}
     >
       <ProfileSectionHeader
         description={`Una selección de juegos y comics que ${userName} decidió guardar para volver más tarde.`}
@@ -489,7 +119,7 @@ function PublicBookmarksSection({
           ) : (
             <div className="space-y-5">
               <ProfileBookmarkGrid items={bookmarks} />
-              {variant !== "compact" && query.hasNextPage ? (
+              {query.hasNextPage ? (
                 <ProfileLoadMore
                   isLoading={query.isFetchingNextPage}
                   onClick={() => query.fetchNextPage()}
@@ -511,20 +141,13 @@ function PublicBookmarksSection({
 
 function PublicReviewsSection({
   isPublic,
-  omitUnavailable = false,
-  preview = false,
   userId,
   userName,
-  variant = "standard",
 }: {
   isPublic: boolean;
-  omitUnavailable?: boolean;
-  preview?: boolean;
   userId: string;
   userName: string;
-  variant?: EffectiveProfileShowcase["variant"];
 }) {
-  const pageSize = PROFILE_SHOWCASE_PAGE_SIZES.reviews[variant];
   const query = useInfiniteQuery({
     enabled: isPublic,
     getNextPageParam: (lastPage: PublicReviewsPage) =>
@@ -533,11 +156,10 @@ function PublicReviewsSection({
     queryFn: ({ pageParam }: { pageParam: PublicReviewsCursor | undefined }) =>
       orpcClient.rating.getByUserId({
         ...(pageParam ? { cursor: pageParam } : {}),
-        limit: pageSize,
-        ...(preview ? { preview: true } : {}),
+        limit: REVIEW_PAGE_SIZE,
         userId,
       }),
-    queryKey: ["profile", "public-reviews", userId, variant, preview],
+    queryKey: ["profile", "public-reviews", userId],
   });
   const reviews = useMemo(() => {
     const seen = new Set<string>();
@@ -573,19 +195,8 @@ function PublicReviewsSection({
     return items;
   }, [query.data?.pages]);
 
-  if (
-    omitUnavailable &&
-    (query.isError || (!query.isPending && reviews.length === 0))
-  ) {
-    return null;
-  }
-
   return (
-    <section
-      aria-busy={query.isPending}
-      aria-labelledby="public-reviews-title"
-      data-showcase-variant={variant}
-    >
+    <section aria-busy={query.isPending} aria-labelledby="public-reviews-title">
       <ProfileSectionHeader
         description={`Opiniones y puntuaciones que ${userName} ha compartido sobre el contenido publicado en NeXusTC.`}
         eyebrow="Voz de la comunidad"
@@ -617,7 +228,7 @@ function PublicReviewsSection({
           ) : (
             <div className="space-y-5">
               <ProfileReviewList items={reviews} />
-              {variant !== "compact" && query.hasNextPage ? (
+              {query.hasNextPage ? (
                 <ProfileLoadMore
                   isLoading={query.isFetchingNextPage}
                   onClick={() => query.fetchNextPage()}

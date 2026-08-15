@@ -949,7 +949,7 @@ describe("progression service", () => {
     expect(store.getProgression()).toBeNull();
   });
 
-  it("returns only current-level progress and keeps lifetime/history metadata private", async () => {
+  it("returns only public Account Level and keeps history metadata private", async () => {
     flags.economy = true;
     const store = createDatabase();
     store.addHistory({
@@ -962,11 +962,7 @@ describe("progression service", () => {
     });
 
     await expect(getPublicAccountLevel(store.db, "user-1")).resolves.toEqual({
-      currentLevelXp: 0,
       level: 1,
-      nextLevelRequirement: 67,
-      progress: 0,
-      xpRemaining: 67,
     });
     const history = await listUserXpHistory(store.db, {
       limit: 20,

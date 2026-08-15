@@ -22,7 +22,6 @@ vi.mock("@tanstack/react-query", () => ({
         : options.queryKey[0] === "streak"
           ? { available: mocks.streakAvailable }
           : {
-              customizationEnabled: true,
               settings: {
                 notifications: { commentReplies: true },
                 visibility: { favorites: true, reviews: true, streak: false },

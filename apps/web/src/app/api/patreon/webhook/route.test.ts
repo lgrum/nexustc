@@ -27,5 +27,5 @@ it("invalidates public profiles after a successful webhook", async () => {
 
   await POST(new Request("https://example.com/webhook"));
 
-  expect(revalidateTag).toHaveBeenCalledWith("profiles", { expire: 0 });
+  expect(revalidateTag).toHaveBeenCalledWith("profiles", "max");
 });

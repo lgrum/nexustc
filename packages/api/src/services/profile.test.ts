@@ -2,164 +2,16 @@ import {
   getProfileActivityVisibility,
   isProfileActivityPublic,
   normalizeProfileVisibilityConfig,
-  PROFILE_DEFAULTS,
   PROFILE_VISIBILITY_DEFAULTS,
 } from "@repo/shared/profile";
 
 import {
   getProfileEntitlements,
   getProfileEntitlementsForTier,
-  getProfileSettingsForRead,
   getPublicCurrentStreak,
   getPublicProfileActivityCounts,
-  resolveIsolatedScalarProfileShowcases,
-  resolveScalarProfileShowcases,
   resolveProfileVisibility,
 } from "./profile";
-import { resolveCurrentProfileDefaults } from "./profile-customization-manifest";
-
-function resolveEnabledScalarProfileConfiguration() {
-  const defaults = resolveCurrentProfileDefaults();
-  return {
-    ...defaults,
-    showcases: defaults.showcases.map((showcase) => ({
-      ...showcase,
-      enabled: ["xp", "streak", "eteris"].includes(showcase.type),
-    })),
-  };
-}
-
-describe(resolveScalarProfileShowcases, () => {
-  it("exposes only the public scalar field sets and derives streak milestones", () => {
-    const result = resolveScalarProfileShowcases(
-      resolveEnabledScalarProfileConfiguration(),
-      {
-        currentStreak: 12,
-        progression: {
-          currentLevelXp: 14,
-          level: 8,
-          nextLevelRequirement: 80,
-          progress: 0.175,
-          xpRemaining: 66,
-        },
-        publicWallet: { balance: "420" },
-      }
-    );
-
-    expect(
-      result.filter(({ type }) => ["xp", "streak", "eteris"].includes(type))
-    ).toEqual([
-      {
-        accountLevel: 8,
-        currentLevelXp: 14,
-        nextLevelRequirement: 80,
-        order: 3,
-        progress: 0.175,
-        rendererKey: "xp",
-        type: "xp",
-        variant: "standard",
-        xpRemaining: 66,
-      },
-      {
-        currentStreak: 12,
-        nextMilestone: 30,
-        order: 4,
-        rendererKey: "streak",
-        type: "streak",
-        variant: "standard",
-      },
-      {
-        balance: "420",
-        order: 5,
-        rendererKey: "eteris",
-        type: "eteris",
-        variant: "standard",
-      },
-    ]);
-  });
-
-  it("omits disabled or unavailable scalar sources instead of returning error cards", () => {
-    const defaults = resolveEnabledScalarProfileConfiguration();
-    const configuration = {
-      ...defaults,
-      showcases: defaults.showcases.map((showcase) =>
-        showcase.type === "xp" ? { ...showcase, enabled: false } : showcase
-      ),
-    };
-    expect(
-      resolveScalarProfileShowcases(configuration, {
-        currentStreak: null,
-        progression: {
-          currentLevelXp: 0,
-          level: 1,
-          nextLevelRequirement: 67,
-          progress: 0,
-          xpRemaining: 67,
-        },
-        publicWallet: null,
-      })
-    ).toEqual([]);
-  });
-});
-
-describe(resolveIsolatedScalarProfileShowcases, () => {
-  it("omits a failed source without blocking unrelated scalar showcases", async () => {
-    await expect(
-      resolveIsolatedScalarProfileShowcases(
-        Promise.resolve(resolveEnabledScalarProfileConfiguration()),
-        {
-          currentStreak: Promise.resolve(12),
-          progression: Promise.reject(new Error("progression unavailable")),
-          publicWallet: Promise.resolve({ balance: "420" }),
-        }
-      )
-    ).resolves.toEqual([
-      expect.objectContaining({ currentStreak: 12, type: "streak" }),
-      expect.objectContaining({ balance: "420", type: "eteris" }),
-    ]);
-  });
-
-  it("returns no scalar data when effective configuration cannot be resolved", async () => {
-    await expect(
-      resolveIsolatedScalarProfileShowcases(
-        Promise.reject(new Error("configuration unavailable")),
-        {
-          currentStreak: Promise.resolve(12),
-          progression: Promise.resolve({
-            currentLevelXp: 14,
-            level: 8,
-            nextLevelRequirement: 80,
-            progress: 0.175,
-            xpRemaining: 66,
-          }),
-          publicWallet: Promise.resolve({ balance: "420" }),
-        }
-      )
-    ).resolves.toEqual([]);
-  });
-});
-
-describe(getProfileSettingsForRead, () => {
-  it("returns virtual defaults without creating a profile settings row", async () => {
-    const insert = vi.fn();
-    const db = {
-      insert,
-      query: {
-        profileSettings: { findFirst: vi.fn().mockResolvedValue(null) },
-      },
-    };
-
-    await expect(
-      getProfileSettingsForRead(db as never, "user-1")
-    ).resolves.toMatchObject({
-      bannerAssetId: null,
-      bannerColor: PROFILE_DEFAULTS.bannerColor,
-      bannerMode: "color",
-      visibilityConfig: PROFILE_VISIBILITY_DEFAULTS,
-    });
-    expect(insert).not.toHaveBeenCalled();
-  });
-});
 
 const streak = vi.hoisted(() => ({ getStreakState: vi.fn() }));
 vi.mock("./streak", () => ({ getStreakState: streak.getStreakState }));
