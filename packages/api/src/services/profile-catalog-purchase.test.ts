@@ -32,6 +32,7 @@ function createDatabase(options?: {
   item?: Record<string, unknown>;
   ownership?: Record<string, unknown> | null;
   replay?: Record<string, unknown> | null;
+  replays?: (Record<string, unknown> | null)[];
 }) {
   const ownerships: Record<string, unknown>[] = [];
   const item = {
@@ -45,6 +46,7 @@ function createDatabase(options?: {
     stableKey: "layout.grid",
     ...options?.item,
   };
+  let replayIndex = 0;
   const tx = {
     insert: vi.fn(() => ({
       values: vi.fn((value: Record<string, unknown>) => {
@@ -54,7 +56,15 @@ function createDatabase(options?: {
     })),
     query: {
       eterisTransaction: {
-        findFirst: vi.fn().mockResolvedValue(options?.replay ?? null),
+        findFirst: vi.fn().mockImplementation(() => {
+          const replays = options?.replays;
+          if (replays) {
+            const replay = replays[Math.min(replayIndex, replays.length - 1)];
+            replayIndex += 1;
+            return Promise.resolve(replay ?? null);
+          }
+          return Promise.resolve(options?.replay ?? null);
+        }),
       },
       profileCatalogOwnership: {
         findFirst: vi.fn().mockResolvedValue(options?.ownership ?? null),
@@ -161,6 +171,39 @@ it("returns a matching replay without charging or creating ownership again", asy
       },
       sourceModule: "commerce",
     },
+  });
+
+  await expect(
+    purchaseProfileCatalogItem(store.db as never, command)
+  ).resolves.toMatchObject({
+    ownershipId: "ownership-1",
+    replayed: true,
+    transactionId: "transaction-1",
+  });
+  expect(ledger.post).not.toHaveBeenCalled();
+  expect(store.ownerships).toHaveLength(0);
+});
+
+it("rechecks a purchase replay after waiting for the catalog lock", async () => {
+  const store = createDatabase({
+    ownership: {
+      id: "ownership-1",
+      sourceReference: "transaction-1",
+    },
+    replays: [
+      null,
+      {
+        actorUserId: "user-1",
+        id: "transaction-1",
+        kind: "purchase",
+        metadata: {
+          catalogItemId: "item-grid",
+          price: "75",
+          publishedRevision: 3,
+        },
+        sourceModule: "commerce",
+      },
+    ],
   });
 
   await expect(

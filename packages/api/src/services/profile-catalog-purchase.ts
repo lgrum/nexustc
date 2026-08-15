@@ -83,10 +83,11 @@ export async function purchaseProfileCatalogItem(
   input: ProfileCatalogPurchaseInput
 ) {
   const result = await db.transaction(async (tx) => {
-    const replay = await tx.query.eterisTransaction.findFirst({
-      where: eq(eterisTransaction.idempotencyKey, input.idempotencyKey),
-    });
-    if (replay) {
+    const resolveReplay = async (
+      replay: NonNullable<
+        Awaited<ReturnType<typeof tx.query.eterisTransaction.findFirst>>
+      >
+    ) => {
       if (!isMatchingReplay(replay, input)) {
         throw new ProfileCatalogPurchaseError(
           "IDEMPOTENCY_CONFLICT",
@@ -116,6 +117,13 @@ export async function purchaseProfileCatalogItem(
         revision: input.expectedRevision,
         transactionId: replay.id,
       };
+    };
+
+    const replay = await tx.query.eterisTransaction.findFirst({
+      where: eq(eterisTransaction.idempotencyKey, input.idempotencyKey),
+    });
+    if (replay) {
+      return resolveReplay(replay);
     }
 
     if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
@@ -159,6 +167,16 @@ export async function purchaseProfileCatalogItem(
         "ITEM_UNAVAILABLE",
         "Este elemento ya no está disponible."
       );
+    }
+
+    // A concurrent request can commit the ledger transaction while this
+    // request waits for the catalog row lock. Recheck the idempotency key
+    // after that lock before treating the new ownership as a conflict.
+    const committedReplay = await tx.query.eterisTransaction.findFirst({
+      where: eq(eterisTransaction.idempotencyKey, input.idempotencyKey),
+    });
+    if (committedReplay) {
+      return resolveReplay(committedReplay);
     }
 
     if (item.lifecycle !== "active") {

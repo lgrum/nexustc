@@ -72,5 +72,8 @@ test("account closure anonymizes catalog audits before cascading personal custom
   expect(compactSource).toContain(
     "profileCatalogDecorationRevision.mediaAssetId"
   );
+  expect(compactSource).toContain("profileRoleDefinition.iconAssetId");
+  expect(compactSource).toContain("profileRoleDefinition.overlayAssetId");
+  expect(compactSource).toContain("profileEmblemDefinition.iconAssetId");
   expect(auditCleanup).toBeLessThan(userDeletion);
 });

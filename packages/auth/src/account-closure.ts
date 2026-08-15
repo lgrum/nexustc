@@ -20,7 +20,9 @@ import {
   patron,
   profileCatalogAudit,
   profileCatalogDecorationRevision,
+  profileEmblemDefinition,
   profileMediaAsset,
+  profileRoleDefinition,
   streakDiscoveryReceipt,
   user,
   userComicProgress,
@@ -233,26 +235,51 @@ export function closeAccountAndDeleteUser(
           sql`${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}`
         )
       );
-    // Catalog decorations outlive their author, so keep referenced media in
-    // durable catalog ownership instead of letting the user cascade delete it.
+    // Global role, emblem, and catalog definitions outlive their author, so
+    // keep referenced media in durable ownership instead of letting the user
+    // deletion remove it through the owner foreign key.
     await tx
       .update(profileMediaAsset)
       .set({ ownerUserId: null })
       .where(
         and(
           eq(profileMediaAsset.ownerUserId, userId),
-          exists(
-            tx
-              .select({
-                revisionId: profileCatalogDecorationRevision.revisionId,
-              })
-              .from(profileCatalogDecorationRevision)
-              .where(
-                eq(
-                  profileCatalogDecorationRevision.mediaAssetId,
-                  profileMediaAsset.id
+          or(
+            exists(
+              tx
+                .select({ roleId: profileRoleDefinition.id })
+                .from(profileRoleDefinition)
+                .where(
+                  or(
+                    eq(profileRoleDefinition.iconAssetId, profileMediaAsset.id),
+                    eq(
+                      profileRoleDefinition.overlayAssetId,
+                      profileMediaAsset.id
+                    )
+                  )
                 )
-              )
+            ),
+            exists(
+              tx
+                .select({ emblemId: profileEmblemDefinition.id })
+                .from(profileEmblemDefinition)
+                .where(
+                  eq(profileEmblemDefinition.iconAssetId, profileMediaAsset.id)
+                )
+            ),
+            exists(
+              tx
+                .select({
+                  revisionId: profileCatalogDecorationRevision.revisionId,
+                })
+                .from(profileCatalogDecorationRevision)
+                .where(
+                  eq(
+                    profileCatalogDecorationRevision.mediaAssetId,
+                    profileMediaAsset.id
+                  )
+                )
+            )
           )
         )
       );
@@ -267,6 +294,17 @@ export function closeAccountAndDeleteUser(
         FROM owned_assets
         WHERE NOT EXISTS (
           SELECT 1
+          FROM profile_role_definition
+          WHERE profile_role_definition.icon_asset_id = owned_assets.id
+             OR profile_role_definition.overlay_asset_id = owned_assets.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_emblem_definition
+          WHERE profile_emblem_definition.icon_asset_id = owned_assets.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
           FROM profile_catalog_decoration_revision
           WHERE profile_catalog_decoration_revision.media_asset_id = owned_assets.id
         )
@@ -274,6 +312,17 @@ export function closeAccountAndDeleteUser(
       )
       DELETE FROM profile_media_asset
       WHERE owner_user_id = ${userId}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_role_definition
+          WHERE profile_role_definition.icon_asset_id = profile_media_asset.id
+             OR profile_role_definition.overlay_asset_id = profile_media_asset.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM profile_emblem_definition
+          WHERE profile_emblem_definition.icon_asset_id = profile_media_asset.id
+        )
         AND NOT EXISTS (
           SELECT 1
           FROM profile_catalog_decoration_revision

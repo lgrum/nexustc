@@ -1,7 +1,8 @@
 import { auth } from "@repo/auth";
+import { env } from "@repo/env";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { orpcClient } from "@/lib/orpc";
 
@@ -13,6 +14,9 @@ export default async function Page() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) {
     redirect("/auth");
+  }
+  if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
+    notFound();
   }
   const [state, favoriteGames, profile, scalarShowcases] = await Promise.all([
     orpcClient.profile.getCustomizationEditorState(),
