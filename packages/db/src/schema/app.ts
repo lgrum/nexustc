@@ -1554,7 +1554,7 @@ export const profileMediaAsset = pgTable(
     isAnimated: boolean("is_animated").notNull().default(false),
     mimeType: text("mime_type").notNull(),
     objectKey: text("object_key").notNull().unique(),
-    ownerUserId: text("owner_user_id").notNull(),
+    ownerUserId: text("owner_user_id"),
     slot: profileMediaSlotEnum("slot").notNull(),
     validationStatus: profileMediaValidationStatusEnum("validation_status")
       .notNull()
@@ -1570,7 +1570,7 @@ export const profileMediaAsset = pgTable(
       columns: [table.ownerUserId],
       foreignColumns: [user.id],
       name: "pma_owner_fk",
-    }).onDelete("cascade"),
+    }).onDelete("set null"),
   ]
 );
 

@@ -256,6 +256,13 @@ export const profileDecorationVisualSchema = z
         path: ["fontKey"],
       });
     }
+    if (!visual.effectKey && !visual.fontKey && !visual.mediaAssetKey) {
+      context.addIssue({
+        code: "custom",
+        message: "La Decoration debe definir al menos un recurso visual.",
+        path: ["slot"],
+      });
+    }
     if (
       visual.effectKey &&
       visual.effectKey !== "shimmer" &&

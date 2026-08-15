@@ -3,6 +3,7 @@ import { call } from "@orpc/server";
 import type { Context } from "../context";
 import profileRouter from "./profile";
 
+const env = vi.hoisted(() => ({ PROFILE_CUSTOMIZATION_ENABLED: true }));
 const mocks = vi.hoisted(() => ({
   ProfileMediaError: class ProfileMediaError extends Error {
     readonly code: string;
@@ -37,7 +38,7 @@ vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
 vi.mock("@repo/auth", () => ({
   auth: { api: { userHasPermission: vi.fn(() => ({ success: false })) } },
 }));
-vi.mock("@repo/env", () => ({ env: { PROFILE_CUSTOMIZATION_ENABLED: true } }));
+vi.mock("@repo/env", () => ({ env }));
 vi.mock("@repo/db", () => ({
   eq: vi.fn(),
   getRedis: vi.fn(() => Promise.resolve(mocks.cache)),
@@ -279,6 +280,14 @@ describe("profile customization contracts", () => {
 });
 
 describe("profile visibility settings", () => {
+  beforeEach(() => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = false;
+  });
+
+  afterEach(() => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = true;
+  });
+
   it("returns public defaults for legacy settings rows", async () => {
     const { context } = createSettingsContext();
 
@@ -375,6 +384,16 @@ describe("profile visibility settings", () => {
     await expect(
       call(profileRouter.updateVisibility, { favorites: false }, { context })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it("rejects legacy visibility writes while customization owns visibility", async () => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = true;
+    const { context, set } = createSettingsContext();
+
+    await expect(
+      call(profileRouter.updateVisibility, { favorites: false }, { context })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(set).not.toHaveBeenCalled();
   });
 });

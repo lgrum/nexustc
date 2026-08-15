@@ -526,6 +526,13 @@
       "when": 1786622573978,
       "tag": "0074_opposite_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1786795037242,
+      "tag": "0075_youthful_karnak",
+      "breakpoints": true
     }
   ]
 }

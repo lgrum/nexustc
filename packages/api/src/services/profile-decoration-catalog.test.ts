@@ -94,6 +94,18 @@ describe("Profile Decoration publication validation", () => {
     ).toThrow(ProfileDecorationCatalogError);
   });
 
+  it("rejects decorations without a renderable visual", () => {
+    expect(() =>
+      validateProfileDecorationVisual({
+        effectKey: null,
+        fontKey: null,
+        mediaAssetKey: null,
+        reducedMotion: null,
+        slot: "ambient-effect",
+      })
+    ).toThrow(ProfileDecorationCatalogError);
+  });
+
   it("rejects zero-valued Eteris prices", () => {
     expect(
       profileDecorationDraftSchema.safeParse({

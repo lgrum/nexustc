@@ -290,6 +290,7 @@ export default {
     }),
 
   getPublicCurrentStreak: publicProcedure
+    .use(slidingWindowRatelimitMiddleware(30, 60))
     .input(z.object({ userId: z.string() }))
     .handler(({ context: { db }, input }) =>
       getPublicCurrentStreakForUser(db, input.userId)
@@ -455,6 +456,9 @@ export default {
           message:
             "No puedes cambiar la visibilidad mientras est\u00E1s suplantando una cuenta.",
         });
+      }
+      if (env.PROFILE_CUSTOMIZATION_ENABLED) {
+        throw errors.NOT_FOUND();
       }
       const logger = getLogger(ctx);
       logger?.info(`Updating visibility settings for user ${session.user.id}`);

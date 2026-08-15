@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, inArray, isNull, not, or, sql } from "@repo/db";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  inArray,
+  isNull,
+  not,
+  or,
+  sql,
+} from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   eterisPosting,
@@ -222,16 +233,27 @@ export function closeAccountAndDeleteUser(
           sql`${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}`
         )
       );
+    // Catalog decorations outlive their author, so keep referenced media in
+    // durable catalog ownership instead of letting the user cascade delete it.
     await tx
-      .update(profileCatalogDecorationRevision)
-      .set({ mediaAssetId: null })
+      .update(profileMediaAsset)
+      .set({ ownerUserId: null })
       .where(
-        inArray(
-          profileCatalogDecorationRevision.mediaAssetId,
-          tx
-            .select({ id: profileMediaAsset.id })
-            .from(profileMediaAsset)
-            .where(eq(profileMediaAsset.ownerUserId, userId))
+        and(
+          eq(profileMediaAsset.ownerUserId, userId),
+          exists(
+            tx
+              .select({
+                revisionId: profileCatalogDecorationRevision.revisionId,
+              })
+              .from(profileCatalogDecorationRevision)
+              .where(
+                eq(
+                  profileCatalogDecorationRevision.mediaAssetId,
+                  profileMediaAsset.id
+                )
+              )
+          )
         )
       );
     await tx.delete(user).where(eq(user.id, userId));
