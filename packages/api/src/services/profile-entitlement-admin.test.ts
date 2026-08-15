@@ -14,12 +14,16 @@ function createSelectChain(result: unknown[]) {
   const chain = {
     from: vi.fn(),
     innerJoin: vi.fn(),
-    limit: vi.fn().mockResolvedValue(result),
+    limit: vi.fn(),
+    for: vi.fn(),
     where: vi.fn(),
   };
   chain.from.mockReturnValue(chain);
   chain.innerJoin.mockReturnValue(chain);
+  chain.for.mockReturnValue(chain);
+  chain.limit.mockReturnValue(chain);
   chain.where.mockReturnValue(chain);
+  chain.for.mockImplementation(() => Promise.resolve(result));
   return chain;
 }
 

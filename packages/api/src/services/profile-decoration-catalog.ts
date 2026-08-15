@@ -178,9 +178,9 @@ export function validatePublishedDecorationSlot(
 
 async function validateManagedMedia(
   db: Pick<Database, "query">,
-  actorUserId: string,
   mediaAssetId: string | null,
-  reducedMotion: z.infer<typeof profileDecorationReducedMotionSchema> | null
+  reducedMotion: z.infer<typeof profileDecorationReducedMotionSchema> | null,
+  ownerUserId?: string
 ) {
   if (!mediaAssetId) {
     return;
@@ -197,7 +197,7 @@ async function validateManagedMedia(
   });
   if (
     !asset ||
-    asset.ownerUserId !== actorUserId ||
+    (ownerUserId !== undefined && asset.ownerUserId !== ownerUserId) ||
     asset.validationStatus !== "ready" ||
     !asset.mimeType.startsWith("image/") ||
     !MANAGED_PROFILE_MEDIA_SLOTS.includes(
@@ -341,9 +341,9 @@ export async function saveProfileDecorationDraft(
   const draft = parseDraft(input);
   await validateManagedMedia(
     db,
-    actorUserId,
     draft.mediaAssetId,
-    draft.reducedMotion
+    draft.reducedMotion,
+    actorUserId
   );
   return db.transaction(async (tx) => {
     const [item] = draft.itemId
@@ -528,7 +528,6 @@ export function publishProfileDecorationDraft(
     }
     await validateManagedMedia(
       tx,
-      actorUserId,
       detail.mediaAssetId,
       detail.reducedMotion
         ? profileDecorationReducedMotionSchema.parse(detail.reducedMotion)

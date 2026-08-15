@@ -13,6 +13,7 @@ import {
   getPublicCurrentStreak,
   getPublicProfileActivityCounts,
   resolveIsolatedScalarProfileShowcases,
+  resolvePublicAccountLevel,
   resolveScalarProfileShowcases,
   resolveProfileVisibility,
 } from "./profile";
@@ -136,6 +137,31 @@ describe(resolveIsolatedScalarProfileShowcases, () => {
         }
       )
     ).resolves.toEqual([]);
+  });
+});
+
+describe(resolvePublicAccountLevel, () => {
+  const progression = {
+    currentLevelXp: 14,
+    level: 8,
+    nextLevelRequirement: 80,
+    progress: 0.175,
+    xpRemaining: 66,
+  };
+
+  it("hides the level when the effective customized XP Showcase is disabled", () => {
+    expect(
+      resolvePublicAccountLevel(progression, true, {
+        effectiveConfiguration: {
+          showcases: [{ enabled: false, type: "xp" }],
+        },
+        isVirtual: false,
+      } as never)
+    ).toBeNull();
+  });
+
+  it("keeps legacy levels available while customization is disabled", () => {
+    expect(resolvePublicAccountLevel(progression, false, null)).toBe(8);
   });
 });
 

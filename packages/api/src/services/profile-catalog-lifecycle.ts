@@ -304,22 +304,6 @@ export function deleteProfileCatalogDraft(
         where: eq(profileCatalogAudit.targetId, itemId),
       }),
     ]);
-    let hasMedia = false;
-    for (const revision of revisions) {
-      if (item.kind === "skin") {
-        const skinRevision =
-          await tx.query.profileCatalogSkinRevision.findFirst({
-            where: eq(profileCatalogSkinRevision.revisionId, revision.id),
-          });
-        hasMedia ||= Boolean(skinRevision?.backgroundAssetId);
-      } else if (item.kind === "decoration") {
-        const decorationRevision =
-          await tx.query.profileCatalogDecorationRevision.findFirst({
-            where: eq(profileCatalogDecorationRevision.revisionId, revision.id),
-          });
-        hasMedia ||= Boolean(decorationRevision?.mediaAssetId);
-      }
-    }
     if (
       item.lifecycle !== "draft" ||
       item.currentPublishedRevisionId ||
@@ -327,8 +311,7 @@ export function deleteProfileCatalogDraft(
       customization ||
       equipped ||
       ownership ||
-      audit ||
-      hasMedia
+      audit
     ) {
       throw new ProfileCatalogLifecycleError(
         "INVALID_TRANSITION",

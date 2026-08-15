@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "@repo/db";
+import { and, asc, eq, inArray, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   profileCustomization,
@@ -608,7 +608,9 @@ export async function saveProfileCustomization(
           )
         )
       )
-      .limit(1);
+      .orderBy(asc(profileCatalogItem.stableKey))
+      .limit(1)
+      .for("update");
     const layoutAccess = layout
       ? resolveProfileEntitlements({
           ...entitlementBase,
@@ -650,7 +652,9 @@ export async function saveProfileCustomization(
           )
         )
       )
-      .limit(1);
+      .orderBy(asc(profileCatalogItem.stableKey))
+      .limit(1)
+      .for("update");
     if (!skin) {
       throw new ProfileCustomizationError(
         "INVALID_DRAFT",
@@ -708,7 +712,9 @@ export async function saveProfileCustomization(
                   selectedDecorationKeys.map((key) => `decoration.${key}`)
                 )
               )
-            );
+            )
+            .orderBy(asc(profileCatalogItem.stableKey))
+            .for("update");
     const decorationsByKey = new Map(
       decorationRows.map((row) => [row.key.replace(/^decoration\./, ""), row])
     );

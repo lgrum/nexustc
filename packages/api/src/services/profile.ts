@@ -35,6 +35,7 @@ import type {
 import type {
   EffectiveProfileShowcase,
   ProfileCustomizationDraft,
+  ProfileCustomizationEditorState,
 } from "@repo/shared/profile-customization";
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
@@ -142,6 +143,25 @@ export type PublicProfileManifest = ReturnType<
 > & {
   shell: PublicProfileShell;
 };
+
+export function resolvePublicAccountLevel(
+  progression: Awaited<ReturnType<typeof getPublicAccountLevel>>,
+  customizationEnabled: boolean,
+  customization: Pick<
+    ProfileCustomizationEditorState,
+    "effectiveConfiguration"
+  > | null
+) {
+  if (!progression || !customizationEnabled || !customization) {
+    return customizationEnabled ? null : (progression?.level ?? null);
+  }
+
+  return customization.effectiveConfiguration.showcases.some(
+    (showcase) => showcase.type === "xp" && showcase.enabled
+  )
+    ? progression.level
+    : null;
+}
 
 const STREAK_MILESTONES = [7, 30, 100, 365] as const;
 
@@ -928,10 +948,15 @@ export async function getPublicProfile(
     customizationResults?.[1]?.status === "fulfilled"
       ? customizationResults[1].value
       : [];
+  const accountLevel = resolvePublicAccountLevel(
+    progression,
+    customizationEnabled,
+    selectedCustomization
+  );
 
   const shell = {
     ...summary,
-    accountLevel: progression?.level ?? null,
+    accountLevel,
     banner: {
       asset: bannerAsset
         ? {
@@ -947,7 +972,7 @@ export async function getPublicProfile(
 
   return {
     ...summary,
-    accountLevel: shell.accountLevel,
+    accountLevel,
     activityCounts,
     banner: shell.banner,
     createdAt: currentUser.createdAt,

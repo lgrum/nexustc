@@ -68,8 +68,22 @@ function grantSnapshot(input: {
   };
 }
 
+function isSourceReferenceConflict(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+  const candidate = error as { code?: unknown; constraint?: unknown };
+  return (
+    candidate.code === "23505" &&
+    candidate.constraint === "profile_catalog_ownership_source_uq"
+  );
+}
+
 export function grantProfileCatalogItem(db: Database, input: GrantInput) {
   return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`profile-catalog-grant:${input.sourceReference}`}, 0))`
+    );
     const [item] = await tx
       .select({
         currentPublishedRevisionId:
@@ -154,16 +168,26 @@ export function grantProfileCatalogItem(db: Database, input: GrantInput) {
       sourceReference: input.sourceReference,
       userId: input.userId,
     });
-    await tx.insert(profileCatalogOwnership).values({
-      catalogItemId: input.itemId,
-      grantedAt,
-      grantedByUserId: input.actorUserId,
-      grantReason: input.reason,
-      id: grantId,
-      sourceReference: input.sourceReference,
-      sourceType: "grant",
-      userId: input.userId,
-    });
+    try {
+      await tx.insert(profileCatalogOwnership).values({
+        catalogItemId: input.itemId,
+        grantedAt,
+        grantedByUserId: input.actorUserId,
+        grantReason: input.reason,
+        id: grantId,
+        sourceReference: input.sourceReference,
+        sourceType: "grant",
+        userId: input.userId,
+      });
+    } catch (error) {
+      if (isSourceReferenceConflict(error)) {
+        throw new ProfileCatalogGrantError(
+          "SOURCE_REFERENCE_CONFLICT",
+          "La referencia de origen ya pertenece a otra concesión."
+        );
+      }
+      throw error;
+    }
     await tx.insert(profileCatalogAudit).values({
       action: "grant-permanent-access",
       actorUserId: input.actorUserId,

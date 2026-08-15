@@ -136,7 +136,8 @@ export function publishProfileLayoutRequirement(
           eq(profileCatalogLayoutRevision.rendererKey, input.key)
         )
       )
-      .limit(1);
+      .limit(1)
+      .for("update");
     if (!current) {
       throw new ProfileEntitlementAdminError("Layout no registrado.");
     }

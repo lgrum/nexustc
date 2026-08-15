@@ -19,6 +19,7 @@ function createDatabase(options?: {
     ownershipFindFirst.mockResolvedValueOnce(value);
   }
   const tx = {
+    execute: vi.fn().mockResolvedValue(null),
     insert: vi.fn(() => ({
       values: vi.fn((value: Record<string, unknown>) => {
         inserts.push(value);
