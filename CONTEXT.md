@@ -155,6 +155,130 @@ _Avoid_: Real money, cash balance
 An account's auditable Eteris holdings. It begins at zero and its balance is private unless the account owner chooses to display it publicly.
 _Avoid_: Bank account, public transaction history
 
+**Card Template**:
+An official collectible treatment of one Card Character within one Card Series, with a code-defined rarity, optional edition label, optional Lifetime Supply Ceiling, and code-defined visual effects. After its first mint, its identity and economic attributes are frozen while permitted presentation corrections retroactively change all of its instances.
+_Avoid_: Owned card, card inventory row
+
+**Card Character**:
+The unique administrator-curated identity for one normalized character name and free-text game name, reusable across any number of Card Templates.
+_Avoid_: Card Template, canonical game record
+
+**Card Series**:
+A themed collectible release that groups Card Templates.
+_Avoid_: Card rarity, edition label
+
+**Card Instance**:
+A durable owned copy minted from one Card Template, with a permanent Mint Number and no independent collectible identity or presentation. It may change owner but is never merged, upgraded, crafted, consumed, or reminted after removal.
+_Avoid_: Card Template, inventory row
+
+**Mint Number**:
+The permanent, publicly displayed sequence number assigned to a Card Instance within its Card Template. Unlimited cards display the sequence alone, such as `#42`, while limited cards include the template ceiling, such as `#42/100`.
+_Avoid_: Ownership sequence, inventory position
+
+**Account-Bound Collectible**:
+A Card Instance or Unopened Pack visibly designated as non-transferable when acquired. An Account-Bound Pack contains Account-Bound cards, a transferable Pack contains transferable cards, and binding never changes retroactively.
+_Avoid_: Reserved collectible, frozen collectible
+
+**Pack Template**:
+The stable identity and presentation of a pack across its Pack Revisions. It is not an owned pack or a probability configuration.
+_Avoid_: Pack Instance, unopened pack
+
+**Pack Revision**:
+An immutable published version of a Pack Template's card pool, outcome rules, guarantees, and card count. Previously issued Pack Instances remain bound to their original revision, while every future acquisition of that Pack Template uses its latest published revision.
+_Avoid_: Pack Template, mutable odds table
+
+**Pack Draw Group**:
+One repeated outcome rule within a Pack Revision, defining its draw count, rarity weights, eligible Card Templates, optional per-template weights, duplicate policy, and Pack Guarantee. A Pack Revision may combine multiple Pack Draw Groups.
+_Avoid_: Gachapon modifier, post-draw upgrade
+
+**Pack Instance**:
+A uniquely owned pack bound to one Pack Revision whose hidden Card Instances are minted into its custody when it is issued. It may be transferred while unopened; opening it is irreversible and retains it only as an auditable record.
+_Avoid_: Pack Template, card bundle
+
+**Opened Pack**:
+The private historical record of an irreversibly opened Pack Instance, including its revision, committed results, source, and opening time. It is not an active inventory item or Showcase collectible.
+_Avoid_: Unopened Pack, empty collectible
+
+**Unopened Pack**:
+A Pack Instance that has not yet revealed its committed card outcome. Its owner determines whether it may appear through the profile Showcase system.
+_Avoid_: Pack Template, card bundle
+
+**Lifetime Supply Ceiling**:
+The maximum number of Card Instances that may ever be minted from one Card Template, including instances hidden inside Unopened Packs. Removal of an instance never restores minting capacity; the ceiling appears in limited-card Mint Numbers but no separate aggregate minted-supply counter is public.
+_Avoid_: Active supply, replenishing stock
+
+**Pack Guarantee**:
+An advertised minimum outcome enforced for one pack opening, such as at least one card of a stated rarity. It is not a pity counter and does not improve future outcomes after an unfavorable opening.
+_Avoid_: Bad-luck protection, pity system
+
+**Collectible Custody**:
+The exclusive reservation of an owned Card Instance or Unopened Pack by one published Black Market Listing or sent Trade Offer. Custody prevents every competing transfer or opening without changing ownership.
+_Avoid_: Ownership transfer, inventory copy
+
+**Trade Offer**:
+An immutable proposal to exchange exact Card Instances or Unopened Packs between two accounts. Its proposer confirms it when sent, and accepting that exact offer settles it immediately.
+_Avoid_: Black Market Listing, template-level request
+
+**Gift Offer**:
+An immutable proposal to transfer exact Card Instances or Unopened Packs without compensation. Ownership changes only after the recipient accepts the explicitly irreversible gift.
+_Avoid_: Zero-price Black Market Listing, one-sided Trade Offer
+
+**Black Market**:
+The official, platform-operated player marketplace for fixed-price Eteris sales of Card Instances and Unopened Packs. Its playful name does not imply an external, unregulated, or cash market.
+_Avoid_: Cash market, auction house
+
+**Black Market Listing**:
+A fixed-price offer to transfer one or more exact Card Instances or Unopened Packs for Eteris. Listed collectibles remain owned by the seller under Collectible Custody until sale, cancellation, or expiration.
+_Avoid_: Trade Offer, auction, buy order
+
+**Listing Fee**:
+A non-refundable Eteris charge paid when a Black Market Listing is published, equal to 5% of its asking price rounded upward to at least one Eteris. It discourages low-intent and spam listings and is the listing's only marketplace charge, except when the platform cancels a compliant listing through no fault of the seller.
+_Avoid_: Sale commission, refundable deposit
+
+**Globally Disabled Card Template**:
+A Card Template blocked from rendering, minting, listing, and trade because of a legal, security, moderation, or severe quality issue. Existing instances and committed pack outcomes remain preserved behind a safe placeholder pending an owner-directed remedy.
+_Avoid_: Retired card, deleted card
+
+**Retired Card Template**:
+A published Card Template deliberately removed from future minting before or after its supply is exhausted. Existing instances and previously committed pack outcomes remain unchanged and transferable.
+_Avoid_: Globally Disabled Card Template, deleted card
+
+**Retired Pack Template**:
+A Pack Template unavailable for every future acquisition channel. Existing Pack Instances remain openable and transferable unless their Pack Revision is disabled.
+_Avoid_: Disabled Pack Revision, deleted pack
+
+**Disabled Pack Revision**:
+A Pack Revision blocked from new issuance and from opening or transferring its existing Unopened Packs because of a confirmed or suspected defect. Ownership and committed outcomes remain preserved pending an audited owner remedy.
+_Avoid_: Retired Pack Revision, rerolled pack
+
+**Official Shop Offer**:
+The current Eteris price, remaining-sales quota, availability, and per-account limits through which the platform sells a Pack Template. It always issues from that template's latest published Pack Revision.
+_Avoid_: Pack Revision, Black Market Listing
+
+**Gachapon Machine**:
+An Eteris-priced acquisition source that selects exactly one Pack Template from a weighted pool and issues its latest published Pack Revision. It may have availability windows, global and per-account activation limits, and operational enabled or exhausted states.
+_Avoid_: Pack Template, direct-card dispenser
+
+**Public Collection**:
+The searchable and filterable view of an account's currently owned cards and Unopened Packs, exposed only when that account enables collection visibility. It is independent of the account's individually configured Showcases.
+_Avoid_: Private inventory, Card Showcase
+
+**Rendered Card**:
+The platform-controlled composition of a Card Template's source artwork, frame, labels, rarity treatment, visual effects, and domain watermark. Permitted template corrections update every instance's rendered presentation.
+_Avoid_: Source artwork, user-authored card image
+
+**Collectible Grant Campaign**:
+An approved, bounded rule for granting a specified Card Template or Pack Template, including its quantity ceiling, Account-Bound policy, availability, and reason. It is the ordinary administrative path for promotional and reward grants.
+_Avoid_: Unbounded manual mint, corrective grant
+
+**Collectible Acquisition Source**:
+The private provenance of a Card Instance or Pack Instance, identifying the shop, gachapon, pack opening, promotion, trade, gift, Black Market transaction, or correction through which its owner received it.
+_Avoid_: Public ownership history, current owner
+
+**Collectibles Gate**:
+The single global operational switch that permits collectible mutations. Disabling it preserves inventory and profile reads while stopping issuance, opening, acquisition, listing, settlement, trade, gift, and administrative publication.
+_Avoid_: Content deletion, per-subsystem gate
+
 **Account XP**:
 Non-spendable lifetime progression earned through validated participation. It never decays and is reduced only when an invalid grant is reversed.
 _Avoid_: Spendable points, seasonal XP
