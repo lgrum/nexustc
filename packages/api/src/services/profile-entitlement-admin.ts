@@ -20,44 +20,86 @@ export class ProfileEntitlementAdminError extends Error {
   override readonly name = "ProfileEntitlementAdminError";
 }
 
+type PublishShowcaseRequirementInput = {
+  actorUserId: string;
+  expectedRevision: number;
+  key: ProfileShowcaseTypeKey;
+  reason: string;
+  requiredTier: PatronTier;
+};
+
 export function publishProfileShowcaseRequirement(
   db: Database,
-  actorUserId: string,
-  key: ProfileShowcaseTypeKey,
-  requiredTier: PatronTier
+  input: PublishShowcaseRequirementInput
 ) {
   return db.transaction(async (tx) => {
     const current = await tx.query.profileShowcaseType.findFirst({
-      where: eq(profileShowcaseType.key, key),
+      where: eq(profileShowcaseType.key, input.key),
     });
     if (!current) {
       throw new ProfileEntitlementAdminError("Showcase no registrado.");
     }
+    if (current.publishedConfigRevision !== input.expectedRevision) {
+      throw new ProfileEntitlementAdminError(
+        "El requisito cambió en otra sesión. Recarga antes de publicar."
+      );
+    }
     const publishedConfigRevision = current.publishedConfigRevision + 1;
-    await tx
+    const updated = await tx
       .update(profileShowcaseType)
-      .set({ requiredTier, publishedConfigRevision })
-      .where(eq(profileShowcaseType.key, key));
+      .set({
+        publishedConfigRevision,
+        requiredTier: input.requiredTier,
+      })
+      .where(
+        and(
+          eq(profileShowcaseType.key, input.key),
+          eq(
+            profileShowcaseType.publishedConfigRevision,
+            input.expectedRevision
+          )
+        )
+      )
+      .returning({ key: profileShowcaseType.key });
+    if (updated.length !== 1) {
+      throw new ProfileEntitlementAdminError(
+        "El requisito cambió en otra sesión. Recarga antes de publicar."
+      );
+    }
     await tx.insert(profileCatalogAudit).values({
       action: "publish-entitlement-requirement",
-      actorUserId,
-      after: { publishedConfigRevision, requiredTier },
+      actorUserId: input.actorUserId,
+      after: {
+        publishedConfigRevision,
+        requiredTier: input.requiredTier,
+      },
       before: {
         publishedConfigRevision: current.publishedConfigRevision,
         requiredTier: current.requiredTier,
       },
-      targetId: key,
+      note: input.reason,
+      targetId: input.key,
       targetKind: "showcase-type",
     });
-    return { key, publishedConfigRevision, requiredTier };
+    return {
+      key: input.key,
+      publishedConfigRevision,
+      requiredTier: input.requiredTier,
+    };
   });
 }
 
+type PublishLayoutRequirementInput = {
+  actorUserId: string;
+  expectedRevision: number;
+  key: ProfileLayoutKey;
+  reason: string;
+  requiredTier: PatronTier;
+};
+
 export function publishProfileLayoutRequirement(
   db: Database,
-  actorUserId: string,
-  key: ProfileLayoutKey,
-  requiredTier: PatronTier
+  input: PublishLayoutRequirementInput
 ) {
   return db.transaction(async (tx) => {
     const [current] = await tx
@@ -67,6 +109,7 @@ export function publishProfileLayoutRequirement(
         description: profileCatalogItemRevision.description,
         eterisPrice: profileCatalogItemRevision.eterisPrice,
         isFree: profileCatalogItemRevision.isFree,
+        isProtectedDefault: profileCatalogItem.isProtectedDefault,
         itemId: profileCatalogItem.id,
         name: profileCatalogItemRevision.name,
         revision: profileCatalogItemRevision.revision,
@@ -90,47 +133,74 @@ export function publishProfileLayoutRequirement(
       .where(
         and(
           eq(profileCatalogItem.kind, "layout"),
-          eq(profileCatalogLayoutRevision.rendererKey, key)
+          eq(profileCatalogLayoutRevision.rendererKey, input.key)
         )
       )
       .limit(1);
     if (!current) {
       throw new ProfileEntitlementAdminError("Layout no registrado.");
     }
+    if (current.revision !== input.expectedRevision) {
+      throw new ProfileEntitlementAdminError(
+        "El Layout cambió en otra sesión. Recarga antes de publicar."
+      );
+    }
+    if (current.isProtectedDefault && input.requiredTier !== "none") {
+      throw new ProfileEntitlementAdminError(
+        "El Layout predeterminado siempre debe permanecer activo y gratuito."
+      );
+    }
     const revisionId = generateId();
     const revision = current.revision + 1;
     const publishedAt = new Date();
     await tx.insert(profileCatalogItemRevision).values({
       catalogOrder: current.catalogOrder,
-      createdByUserId: actorUserId,
+      createdByUserId: input.actorUserId,
       description: current.description,
       eterisPrice: current.eterisPrice,
       id: revisionId,
-      isFree: requiredTier === "none",
+      isFree: input.requiredTier === "none",
       itemId: current.itemId,
       name: current.name,
       publishedAt,
-      publishedByUserId: actorUserId,
-      requiredTier,
+      publishedByUserId: input.actorUserId,
+      requiredTier: input.requiredTier,
       revision,
       state: "published",
     });
     await tx.insert(profileCatalogLayoutRevision).values({
-      rendererKey: key,
+      rendererKey: input.key,
       revisionId,
     });
-    await tx
+    const updated = await tx
       .update(profileCatalogItem)
       .set({ currentPublishedRevisionId: revisionId })
-      .where(eq(profileCatalogItem.id, current.itemId));
+      .where(
+        and(
+          eq(profileCatalogItem.id, current.itemId),
+          eq(profileCatalogItem.currentPublishedRevisionId, current.revisionId)
+        )
+      )
+      .returning({ id: profileCatalogItem.id });
+    if (updated.length !== 1) {
+      throw new ProfileEntitlementAdminError(
+        "El Layout cambió en otra sesión. Recarga antes de publicar."
+      );
+    }
     await tx.insert(profileCatalogAudit).values({
       action: "publish-entitlement-requirement",
-      actorUserId,
-      after: { requiredTier, revision, revisionId },
+      actorUserId: input.actorUserId,
+      after: { requiredTier: input.requiredTier, revision, revisionId },
       before: { revision: current.revision, revisionId: current.revisionId },
+      note: input.reason,
       targetId: current.itemId,
       targetKind: "layout",
     });
-    return { itemId: current.itemId, publishedAt, requiredTier, revision };
+    return {
+      itemId: current.itemId,
+      publishedAt,
+      requiredTier: input.requiredTier,
+      revision,
+    };
   });
 }

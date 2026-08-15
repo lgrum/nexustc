@@ -1,4 +1,4 @@
-import { and, eq, ilike, inArray, sql } from "@repo/db";
+import { and, eq, inArray, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   profileCustomization,
@@ -11,49 +11,47 @@ import {
   profileEquippedDecoration,
   profileSettings,
   profileShowcaseConfig,
+  profileShowcaseType,
   patron,
-  post,
   user,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
-import type { PatronTier } from "@repo/shared/constants";
 import { getPatronTierRank } from "@repo/shared/constants";
-import { normalizeProfileVisibilityConfig } from "@repo/shared/profile";
 import {
-  automaticShowcasePayloadSchema,
-  FAVORITE_GAMES_CAPACITY_LADDER,
-  FAVORITE_GAMES_MAX_SAVED,
-  FAVORITE_GAMES_SEARCH_LIMIT,
   favoriteGamesShowcasePayloadSchema,
   PROFILE_DEFAULT_LAYOUT_KEY,
   PROFILE_DEFAULT_SKIN_KEY,
-  PROFILE_DEFAULT_SKIN_TOKENS,
   EMPTY_PROFILE_DECORATIONS,
   PROFILE_DECORATION_SLOTS,
   PROFILE_LAYOUT_REGISTRY,
-  PROFILE_SHOWCASE_PAGE_SIZES,
-  PROFILE_SHOWCASE_VARIANTS_BY_TYPE,
   profileCustomizationDraftSchema,
 } from "@repo/shared/profile-customization";
 import type {
-  EffectiveProfileManifest,
   ProfileCustomizationDraft,
-  ProfileDecorationCatalogEntry,
   ProfileLayoutCatalogEntry,
-  ProfileSkinCatalogEntry,
+  ProfileShowcaseTypeKey,
   ProfileShowcaseVariant,
 } from "@repo/shared/profile-customization";
 
-import { publicCatalogVisibilityCondition } from "../utils/early-access";
-import { createPostCoverImageObjectKeySelect } from "../utils/post-media";
-import { userIsNotActivelyBanned } from "../utils/user-ban";
 import { setPublicWalletBalanceInTransaction } from "./eteris";
+import {
+  resolveCurrentProfileDefaults as resolveManifestDefaults,
+  resolveVirtualDefaultProfileConfiguration as resolveVirtualManifestDefaults,
+} from "./profile-customization-manifest";
 import { listPublishedProfileDecorations } from "./profile-decoration-catalog";
 import {
   resolveEffectiveProfileConfiguration,
   resolveProfileEntitlements,
   satisfiesProfileVipRequirement,
 } from "./profile-entitlements";
+import {
+  loadFavoriteGamesEntitlement,
+  loadPublicGameProjections,
+} from "./profile-favorite-games";
+import {
+  migrateFavoriteGamesPayload,
+  PROFILE_SHOWCASE_REGISTRY,
+} from "./profile-showcase-registry";
 import { listPublishedProfileSkins } from "./profile-skin-catalog";
 
 export class ProfileCustomizationError extends Error {
@@ -72,8 +70,6 @@ export class ProfileCustomizationError extends Error {
   }
 }
 
-type AutomaticShowcaseKey = "library" | "reviews" | "xp" | "streak" | "eteris";
-type RegisteredShowcaseKey = AutomaticShowcaseKey | "favorite-games";
 type Database = typeof database;
 type ReadDatabase = Pick<Database, "query" | "select">;
 
@@ -87,141 +83,27 @@ const LAYOUT_BY_KEY = new Map(
   PROFILE_LAYOUT_REGISTRY.map((layout) => [layout.key, layout])
 );
 
-type ShowcaseDefinition = {
-  defaultPayload: Record<string, unknown>;
-  key: RegisteredShowcaseKey;
-  label: string;
-  description: string;
-  isEmpty: (count: number) => boolean;
-  migratePayload: (
-    version: number,
-    payload: unknown
-  ) => Record<string, unknown>;
-  payloadSchemaVersion: 1;
-  rendererKey: RegisteredShowcaseKey;
-  source?: {
-    compactPageSize: number;
-    loaderProcedure: "user.getUserBookmarks" | "rating.getByUserId";
-    standardPageSize: number;
-    visibilityKey: "favorites" | "reviews" | "streak";
-  };
-  supportedVariants: readonly ProfileShowcaseVariant[];
-};
-
-function migrateAutomaticPayload(version: number, payload: unknown) {
-  if (version !== 1) {
-    throw new Error(
-      `Unsupported automatic Showcase payload version: ${version}`
-    );
-  }
-  return automaticShowcasePayloadSchema.parse(payload);
-}
-
-function migrateFavoriteGamesPayload(version: number, payload: unknown) {
-  if (version !== 1) {
-    throw new Error(`Unsupported Favorite Games payload version: ${version}`);
-  }
-  return favoriteGamesShowcasePayloadSchema.parse(payload);
-}
-
-export const PROFILE_SHOWCASE_REGISTRY = [
-  {
-    defaultPayload: {},
-    description: "Juegos y cómics guardados públicamente.",
-    isEmpty: (count) => count === 0,
-    key: "library",
-    label: "Biblioteca",
-    migratePayload: migrateAutomaticPayload,
-    payloadSchemaVersion: 1,
-    rendererKey: "library",
-    source: {
-      compactPageSize: PROFILE_SHOWCASE_PAGE_SIZES.library.compact,
-      loaderProcedure: "user.getUserBookmarks",
-      standardPageSize: PROFILE_SHOWCASE_PAGE_SIZES.library.standard,
-      visibilityKey: "favorites",
-    },
-    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.library,
-  },
-  {
-    defaultPayload: {},
-    description: "Opiniones públicas en orden cronológico inverso.",
-    isEmpty: (count) => count === 0,
-    key: "reviews",
-    label: "Reseñas",
-    migratePayload: migrateAutomaticPayload,
-    payloadSchemaVersion: 1,
-    rendererKey: "reviews",
-    source: {
-      compactPageSize: PROFILE_SHOWCASE_PAGE_SIZES.reviews.compact,
-      loaderProcedure: "rating.getByUserId",
-      standardPageSize: PROFILE_SHOWCASE_PAGE_SIZES.reviews.standard,
-      visibilityKey: "reviews",
-    },
-    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.reviews,
-  },
-  {
-    defaultPayload: { gameIds: [] },
-    description: "Una lista personal y ordenada de juegos favoritos.",
-    isEmpty: (count) => count === 0,
-    key: "favorite-games",
-    label: "Juegos favoritos",
-    migratePayload: migrateFavoriteGamesPayload,
-    payloadSchemaVersion: 1,
-    rendererKey: "favorite-games",
-    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE["favorite-games"],
-  },
-  {
-    defaultPayload: {},
-    description: "Nivel y avance dentro del nivel actual.",
-    isEmpty: (count) => count === 0,
-    key: "xp",
-    label: "Account XP",
-    migratePayload: migrateAutomaticPayload,
-    payloadSchemaVersion: 1,
-    rendererKey: "xp",
-    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.xp,
-  },
-  {
-    defaultPayload: {},
-    description: "Racha actual e hitos derivados de ese valor.",
-    isEmpty: (count) => count === 0,
-    key: "streak",
-    label: "Racha",
-    migratePayload: migrateAutomaticPayload,
-    payloadSchemaVersion: 1,
-    rendererKey: "streak",
-    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.streak,
-  },
-  {
-    defaultPayload: {},
-    description: "Saldo público actual de Eteris.",
-    isEmpty: (count) => count === 0,
-    key: "eteris",
-    label: "Eteris",
-    migratePayload: migrateAutomaticPayload,
-    payloadSchemaVersion: 1,
-    rendererKey: "eteris",
-    supportedVariants: PROFILE_SHOWCASE_VARIANTS_BY_TYPE.eteris,
-  },
-] as const satisfies readonly ShowcaseDefinition[];
-
-export function resolveFavoriteGamesCapacity(
-  tier: PatronTier,
-  role: string,
-  ladder = FAVORITE_GAMES_CAPACITY_LADDER
+export async function canRenderPublicProfileShowcase(
+  db: ReadDatabase,
+  userId: string,
+  type: ProfileShowcaseTypeKey
 ) {
-  if (["owner", "admin", "moderator"].includes(role)) {
-    return FAVORITE_GAMES_MAX_SAVED;
-  }
-  const rank = getPatronTierRank(tier);
-  return (
-    ladder.find(({ minimumTier }) => getPatronTierRank(minimumTier) <= rank)
-      ?.capacity ?? 1
-  );
-}
-
-async function loadFavoriteGamesEntitlement(db: ReadDatabase, userId: string) {
-  const [account, membership] = await Promise.all([
+  const [root, row, requirement, account, membership] = await Promise.all([
+    db.query.profileCustomization.findFirst({
+      columns: { userId: true },
+      where: eq(profileCustomization.userId, userId),
+    }),
+    db.query.profileShowcaseConfig.findFirst({
+      columns: { enabled: true },
+      where: and(
+        eq(profileShowcaseConfig.userId, userId),
+        eq(profileShowcaseConfig.typeKey, type)
+      ),
+    }),
+    db.query.profileShowcaseType.findFirst({
+      columns: { isActive: true, requiredTier: true },
+      where: eq(profileShowcaseType.key, type),
+    }),
     db.query.user.findFirst({
       columns: { role: true },
       where: eq(user.id, userId),
@@ -231,108 +113,16 @@ async function loadFavoriteGamesEntitlement(db: ReadDatabase, userId: string) {
       where: eq(patron.userId, userId),
     }),
   ]);
-  return {
-    capacity: resolveFavoriteGamesCapacity(
-      membership?.isActivePatron ? membership.tier : "none",
-      account?.role ?? "user"
-    ),
-    exists: Boolean(account),
-  };
-}
 
-export async function loadPublicGameProjections(
-  db: ReadDatabase,
-  gameIds: string[]
-) {
-  const boundedIds = [...new Set(gameIds)].slice(0, FAVORITE_GAMES_MAX_SAVED);
-  if (boundedIds.length === 0) {
-    return [];
+  if (!account || (root && !row?.enabled) || requirement?.isActive === false) {
+    return false;
   }
-  const rows = await db
-    .select({
-      coverImageObjectKey: createPostCoverImageObjectKeySelect(),
-      id: post.id,
-      slug: post.slug,
-      title: post.title,
-    })
-    .from(post)
-    .innerJoin(user, eq(user.id, post.authorId))
-    .where(
-      and(
-        inArray(post.id, boundedIds),
-        eq(post.status, "publish"),
-        eq(post.type, "post"),
-        publicCatalogVisibilityCondition(),
-        userIsNotActivelyBanned()
-      )
-    )
-    .limit(FAVORITE_GAMES_MAX_SAVED);
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  return boundedIds.flatMap((id) => {
-    const game = byId.get(id);
-    return game ? [game] : [];
+
+  return satisfiesProfileVipRequirement(requirement?.requiredTier ?? "none", {
+    isActivePatron: membership?.isActivePatron ?? false,
+    role: account.role,
+    tier: membership?.tier ?? "none",
   });
-}
-
-export function searchPublicFavoriteGames(db: Database, search = "") {
-  return db
-    .select({
-      coverImageObjectKey: createPostCoverImageObjectKeySelect(),
-      id: post.id,
-      slug: post.slug,
-      title: post.title,
-    })
-    .from(post)
-    .innerJoin(user, eq(user.id, post.authorId))
-    .where(
-      and(
-        eq(post.status, "publish"),
-        eq(post.type, "post"),
-        publicCatalogVisibilityCondition(),
-        userIsNotActivelyBanned(),
-        search.trim() ? ilike(post.title, `%${search.trim()}%`) : undefined
-      )
-    )
-    .orderBy(post.title, post.id)
-    .limit(FAVORITE_GAMES_SEARCH_LIMIT);
-}
-
-export async function loadFavoriteGamesEditorState(
-  db: Database,
-  userId: string
-) {
-  const [row, entitlement, suggestions] = await Promise.all([
-    db.query.profileShowcaseConfig.findFirst({
-      where: and(
-        eq(profileShowcaseConfig.userId, userId),
-        eq(profileShowcaseConfig.typeKey, "favorite-games")
-      ),
-    }),
-    loadFavoriteGamesEntitlement(db, userId),
-    searchPublicFavoriteGames(db),
-  ]);
-  let gameIds: string[] = [];
-  if (row) {
-    try {
-      ({ gameIds } = migrateFavoriteGamesPayload(
-        row.payloadSchemaVersion,
-        row.payload
-      ));
-    } catch {
-      gameIds = [];
-    }
-  }
-  const games = await loadPublicGameProjections(db, gameIds);
-  const byId = new Map(games.map((game) => [game.id, game]));
-  return {
-    capacity: entitlement.capacity,
-    selected: gameIds.map((id, index) => ({
-      active: index < entitlement.capacity,
-      game: byId.get(id) ?? null,
-      id,
-    })),
-    suggestions,
-  };
 }
 
 export function prepareProfileCustomizationSave(input: unknown) {
@@ -364,7 +154,7 @@ export function prepareProfileCustomizationSave(input: unknown) {
   const seenInstances = new Set<string>();
   const seenOrders = new Set<number>();
   const showcases = parsed.data.showcases.map((showcase) => {
-    const definition = registered.get(showcase.type as RegisteredShowcaseKey);
+    const definition = registered.get(showcase.type as ProfileShowcaseTypeKey);
     if (!definition) {
       throw new ProfileCustomizationError(
         "INVALID_DRAFT",
@@ -600,12 +390,11 @@ export async function loadProfileCustomizationEditorState(
       })
     : null;
   const selectedSkinKey = selectedSkinItem?.stableKey.replace(/^skin\./, "");
-  const selectedVirtualConfiguration =
-    resolveVirtualDefaultProfileConfiguration(
-      rawVisibility ?? settings?.visibilityConfig,
-      wallet?.publicBalance ?? false
-    );
-  const defaultConfiguration = resolveCurrentProfileDefaults();
+  const selectedVirtualConfiguration = resolveVirtualManifestDefaults(
+    rawVisibility ?? settings?.visibilityConfig,
+    wallet?.publicBalance ?? false
+  );
+  const defaultConfiguration = resolveManifestDefaults();
   const completeDefaultConfiguration = {
     decorations: EMPTY_PROFILE_DECORATIONS,
     layoutKey: defaultConfiguration.layoutKey,
@@ -1176,204 +965,4 @@ export async function saveProfileCustomization(
   });
 
   return loadProfileCustomizationEditorState(db, input.userId);
-}
-
-export function resolveVirtualDefaultProfileConfiguration(
-  rawVisibility: unknown,
-  eterisPublic = false
-) {
-  const visibility = normalizeProfileVisibilityConfig(rawVisibility);
-
-  return {
-    decorations: EMPTY_PROFILE_DECORATIONS,
-    isVirtual: true as const,
-    layoutKey: PROFILE_DEFAULT_LAYOUT_KEY,
-    showcases: PROFILE_SHOWCASE_REGISTRY.map((definition, order) => ({
-      enabled:
-        definition.key === "library"
-          ? visibility.favorites
-          : definition.key === "reviews"
-            ? visibility.reviews
-            : definition.key === "streak"
-              ? visibility.streak
-              : definition.key === "eteris"
-                ? eterisPublic
-                : true,
-      instanceId: `virtual:${definition.key}`,
-      order,
-      payload: definition.defaultPayload,
-      payloadSchemaVersion: definition.payloadSchemaVersion,
-      type: definition.key,
-      variant: "standard" as const,
-    })),
-    skinKey: PROFILE_DEFAULT_SKIN_KEY,
-  };
-}
-
-export function resolveCurrentProfileDefaults() {
-  return {
-    decorations: EMPTY_PROFILE_DECORATIONS,
-    isVirtual: true as const,
-    layoutKey: PROFILE_DEFAULT_LAYOUT_KEY,
-    showcases: PROFILE_SHOWCASE_REGISTRY.map((definition, order) => ({
-      enabled: true,
-      instanceId: `virtual:${definition.key}`,
-      order,
-      payload: definition.defaultPayload,
-      payloadSchemaVersion: definition.payloadSchemaVersion,
-      type: definition.key,
-      variant: "standard" as const,
-    })),
-    skinKey: PROFILE_DEFAULT_SKIN_KEY,
-  };
-}
-
-export function resolveVirtualDefaultManifest(
-  rawVisibility: unknown,
-  activityCounts: { favorites: number | null; reviews: number | null }
-): EffectiveProfileManifest {
-  const configuration =
-    resolveVirtualDefaultProfileConfiguration(rawVisibility);
-  return resolveProfileConfigurationManifest(configuration, activityCounts);
-}
-
-export function resolveProfileConfigurationManifest(
-  configuration: ProfileCustomizationDraft,
-  activityCounts: { favorites: number | null; reviews: number | null },
-  favoriteGames: Awaited<ReturnType<typeof loadPublicGameProjections>> = [],
-  skins: ProfileSkinCatalogEntry[] = [],
-  decorations: ProfileDecorationCatalogEntry[] = []
-): EffectiveProfileManifest {
-  const showcases: EffectiveProfileManifest["showcases"] = [];
-  for (const showcase of configuration.showcases) {
-    const definition = PROFILE_SHOWCASE_REGISTRY.find(
-      ({ key }) => key === showcase.type
-    );
-    if (!definition) {
-      continue;
-    }
-    if (definition.key === "favorite-games") {
-      if (showcase.enabled && favoriteGames.length > 0) {
-        showcases.push({
-          games: favoriteGames,
-          order: showcase.order,
-          rendererKey: "favorite-games",
-          type: "favorite-games",
-          variant: showcase.variant,
-        });
-      }
-      continue;
-    }
-    if (
-      definition.key === "xp" ||
-      definition.key === "streak" ||
-      definition.key === "eteris"
-    ) {
-      continue;
-    }
-    const count =
-      definition.key === "library"
-        ? activityCounts.favorites
-        : activityCounts.reviews;
-    if (!(showcase.enabled && count && count > 0)) {
-      continue;
-    }
-    showcases.push({
-      order: showcase.order,
-      rendererKey: definition.rendererKey,
-      type: definition.key,
-      variant: showcase.variant,
-    });
-  }
-
-  const skin = skins.find(({ key }) => key === configuration.skinKey);
-  return {
-    decorations: PROFILE_DECORATION_SLOTS.flatMap((slot) => {
-      const key = configuration.decorations[slot];
-      const decoration = key
-        ? decorations.find((entry) => entry.key === key && entry.slot === slot)
-        : undefined;
-      return decoration
-        ? [
-            {
-              effectKey: decoration.effectKey,
-              fontKey: decoration.fontKey,
-              mediaAssetKey: decoration.mediaAssetKey,
-              reducedMotion: decoration.reducedMotion,
-              slot: decoration.slot,
-            },
-          ]
-        : [];
-    }),
-    layout: { rendererKey: configuration.layoutKey },
-    showcases,
-    skin: {
-      backgroundAssetKey: skin?.backgroundAssetKey ?? null,
-      key: skin?.key ?? PROFILE_DEFAULT_SKIN_KEY,
-      tokens: skin?.tokens ?? PROFILE_DEFAULT_SKIN_TOKENS,
-    },
-  };
-}
-
-export function resolvePublicProfileManifest({
-  activityCounts,
-  customizationEnabled,
-  favoriteGames = [],
-  decorations = [],
-  selectedConfiguration,
-  skins = [],
-  visibility,
-}: {
-  activityCounts: { favorites: number | null; reviews: number | null };
-  customizationEnabled: boolean;
-  favoriteGames?: Awaited<ReturnType<typeof loadPublicGameProjections>>;
-  decorations?: ProfileDecorationCatalogEntry[];
-  selectedConfiguration?: ProfileCustomizationDraft;
-  skins?: ProfileSkinCatalogEntry[];
-  visibility: unknown;
-}) {
-  if (!customizationEnabled) {
-    return;
-  }
-
-  return selectedConfiguration
-    ? resolveProfileConfigurationManifest(
-        selectedConfiguration,
-        activityCounts,
-        favoriteGames,
-        skins,
-        decorations
-      )
-    : resolveVirtualDefaultManifest(visibility, activityCounts);
-}
-
-export async function loadPublicFavoriteGamesShowcase(
-  db: Database,
-  userId: string
-) {
-  const [row, entitlement] = await Promise.all([
-    db.query.profileShowcaseConfig.findFirst({
-      where: and(
-        eq(profileShowcaseConfig.userId, userId),
-        eq(profileShowcaseConfig.typeKey, "favorite-games"),
-        eq(profileShowcaseConfig.enabled, true)
-      ),
-    }),
-    loadFavoriteGamesEntitlement(db, userId),
-  ]);
-  if (!(row && entitlement.exists)) {
-    return [];
-  }
-  try {
-    const { gameIds } = migrateFavoriteGamesPayload(
-      row.payloadSchemaVersion,
-      row.payload
-    );
-    return loadPublicGameProjections(
-      db,
-      gameIds.slice(0, entitlement.capacity)
-    );
-  } catch {
-    return [];
-  }
 }

@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import type * as RepoDbModule from "@repo/db";
+import { PROFILE_DEFAULT_SKIN_TOKENS } from "@repo/shared/profile-customization";
 
 import type { Context } from "../context";
 import profileCatalogAdminRouter from "./profile-catalog-admin";
@@ -22,6 +23,32 @@ const mocks = vi.hoisted(() => {
     revoke: vi.fn(),
   };
 });
+
+const decorationDraft = {
+  catalogOrder: 0,
+  description: "",
+  effectKey: null,
+  eterisPrice: null,
+  fontKey: null,
+  isFree: true,
+  itemId: "item-1",
+  mediaAssetId: null,
+  name: "Decoration",
+  reducedMotion: null,
+  requiredTier: null,
+  slot: "avatar-frame" as const,
+};
+const skinDraft = {
+  backgroundAssetId: null,
+  catalogOrder: 0,
+  description: "",
+  eterisPrice: null,
+  isFree: true,
+  itemId: "item-1",
+  name: "Skin",
+  requiredTier: null,
+  tokens: PROFILE_DEFAULT_SKIN_TOKENS,
+};
 
 vi.mock("../services/profile-catalog-purchase-correction", () => ({
   correctProfileCatalogPurchase: mocks.correctPurchase,
@@ -132,13 +159,23 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.entitlements.publishLayoutRequirement,
-        { key: "grid", requiredTier: "none" },
+        {
+          expectedRevision: 1,
+          key: "grid",
+          reason: "Cambio confirmado",
+          requiredTier: "none",
+        },
         { context }
       ),
     () =>
       call(
         profileCatalogAdminRouter.entitlements.publishShowcaseRequirement,
-        { key: "xp", requiredTier: "none" },
+        {
+          expectedRevision: 1,
+          key: "xp",
+          reason: "Cambio confirmado",
+          requiredTier: "none",
+        },
         { context }
       ),
     () =>
@@ -150,7 +187,7 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.decorations.saveDraft,
-        { draft: {} },
+        { draft: decorationDraft },
         { context }
       ),
     () =>
@@ -162,7 +199,7 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.skins.saveDraft,
-        { draft: {} },
+        { draft: skinDraft },
         { context }
       ),
   ];

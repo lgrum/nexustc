@@ -2,7 +2,6 @@ import { and, desc, eq, inArray } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   media,
-  profileCatalogAudit,
   profileCatalogItem,
   profileCatalogItemRevision,
   profileCatalogSkinRevision,
@@ -20,6 +19,8 @@ import type {
 } from "@repo/shared/profile-customization";
 import z from "zod";
 
+import { publishProfileCatalogRevision } from "./profile-catalog-publication";
+
 type Database = typeof database;
 
 const DEFAULT_SKIN_ITEM_ID = "profile-skin-default";
@@ -27,7 +28,7 @@ const MIN_TEXT_CONTRAST = 4.5;
 const MIN_MUTED_CONTRAST = 3;
 const MIN_FOCUS_CONTRAST = 3;
 
-const skinDraftSchema = z
+export const profileSkinDraftSchema = z
   .object({
     backgroundAssetId: z.string().min(1).nullable(),
     catalogOrder: z.number().int().min(0).max(10_000),
@@ -64,7 +65,7 @@ const skinDraftSchema = z
     }
   });
 
-export type ProfileSkinDraftInput = z.input<typeof skinDraftSchema>;
+export type ProfileSkinDraftInput = z.input<typeof profileSkinDraftSchema>;
 
 export class ProfileSkinCatalogError extends Error {
   readonly code: "INVALID_DRAFT" | "NOT_FOUND" | "PROTECTED_DEFAULT";
@@ -175,7 +176,7 @@ export function validateProfileSkinTokens(input: unknown): ProfileSkinTokens {
 }
 
 function parseDraft(input: unknown) {
-  const parsed = skinDraftSchema.safeParse(input);
+  const parsed = profileSkinDraftSchema.safeParse(input);
   if (!parsed.success) {
     throw new ProfileSkinCatalogError(
       "INVALID_DRAFT",
@@ -475,39 +476,14 @@ export function publishProfileSkinDraft(
       );
     }
 
-    const before = {
-      currentPublishedRevisionId: item.currentPublishedRevisionId,
-      lifecycle: item.lifecycle,
-    };
-    const publishedAt = new Date();
-    await tx
-      .update(profileCatalogItemRevision)
-      .set({
-        publishedAt,
-        publishedByUserId: actorUserId,
-        state: "published",
-      })
-      .where(eq(profileCatalogItemRevision.id, draft.id));
-    await tx
-      .update(profileCatalogItem)
-      .set({
-        currentPublishedRevisionId: draft.id,
-        lifecycle: "active",
-      })
-      .where(eq(profileCatalogItem.id, itemId));
-    const after = {
-      currentPublishedRevisionId: draft.id,
-      lifecycle: "active",
-      revision: draft.revision,
-    };
-    await tx.insert(profileCatalogAudit).values({
-      action: "publish",
+    return publishProfileCatalogRevision(tx, {
       actorUserId,
-      after,
-      before,
-      targetId: itemId,
+      currentPublishedRevisionId: item.currentPublishedRevisionId,
+      draftRevisionId: draft.id,
+      itemId,
+      previousLifecycle: item.lifecycle,
+      revision: draft.revision,
       targetKind: "skin",
     });
-    return { itemId, publishedAt, revision: draft.revision };
   });
 }

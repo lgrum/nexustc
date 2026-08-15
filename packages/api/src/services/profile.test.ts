@@ -16,12 +16,23 @@ import {
   resolveScalarProfileShowcases,
   resolveProfileVisibility,
 } from "./profile";
-import { resolveCurrentProfileDefaults } from "./profile-customization";
+import { resolveCurrentProfileDefaults } from "./profile-customization-manifest";
+
+function resolveEnabledScalarProfileConfiguration() {
+  const defaults = resolveCurrentProfileDefaults();
+  return {
+    ...defaults,
+    showcases: defaults.showcases.map((showcase) => ({
+      ...showcase,
+      enabled: ["xp", "streak", "eteris"].includes(showcase.type),
+    })),
+  };
+}
 
 describe(resolveScalarProfileShowcases, () => {
   it("exposes only the public scalar field sets and derives streak milestones", () => {
     const result = resolveScalarProfileShowcases(
-      resolveCurrentProfileDefaults(),
+      resolveEnabledScalarProfileConfiguration(),
       {
         currentStreak: 12,
         progression: {
@@ -68,7 +79,7 @@ describe(resolveScalarProfileShowcases, () => {
   });
 
   it("omits disabled or unavailable scalar sources instead of returning error cards", () => {
-    const defaults = resolveCurrentProfileDefaults();
+    const defaults = resolveEnabledScalarProfileConfiguration();
     const configuration = {
       ...defaults,
       showcases: defaults.showcases.map((showcase) =>
@@ -95,7 +106,7 @@ describe(resolveIsolatedScalarProfileShowcases, () => {
   it("omits a failed source without blocking unrelated scalar showcases", async () => {
     await expect(
       resolveIsolatedScalarProfileShowcases(
-        Promise.resolve(resolveCurrentProfileDefaults()),
+        Promise.resolve(resolveEnabledScalarProfileConfiguration()),
         {
           currentStreak: Promise.resolve(12),
           progression: Promise.reject(new Error("progression unavailable")),

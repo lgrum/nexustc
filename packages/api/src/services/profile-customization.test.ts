@@ -1,16 +1,97 @@
 import { PROFILE_VISIBILITY_DEFAULTS } from "@repo/shared/profile";
 
 import {
+  canRenderPublicProfileShowcase,
   ProfileCustomizationError,
   prepareProfileCustomizationSave,
-  PROFILE_SHOWCASE_REGISTRY,
-  resolveCurrentProfileDefaults,
   PROFILE_LAYOUT_REGISTRY,
+} from "./profile-customization";
+import {
+  resolveCurrentProfileDefaults,
   resolvePublicProfileManifest,
-  resolveFavoriteGamesCapacity,
   resolveVirtualDefaultManifest,
   resolveVirtualDefaultProfileConfiguration,
-} from "./profile-customization";
+} from "./profile-customization-manifest";
+import { resolveFavoriteGamesCapacity } from "./profile-favorite-games";
+import { PROFILE_SHOWCASE_REGISTRY } from "./profile-showcase-registry";
+
+function createShowcaseEntitlementDb({
+  enabled = true,
+  isActive = true,
+  materialized = true,
+  requiredTier = "none",
+  role = "user",
+  tier = "none",
+}: {
+  enabled?: boolean;
+  isActive?: boolean;
+  materialized?: boolean;
+  requiredTier?: "none" | "level1" | "level5";
+  role?: string;
+  tier?: "none" | "level1" | "level5";
+} = {}) {
+  return {
+    query: {
+      patron: {
+        findFirst: vi.fn().mockResolvedValue({
+          isActivePatron: tier !== "none",
+          tier,
+        }),
+      },
+      profileCustomization: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValue(materialized ? { userId: "user-1" } : null),
+      },
+      profileShowcaseConfig: {
+        findFirst: vi.fn().mockResolvedValue({ enabled }),
+      },
+      profileShowcaseType: {
+        findFirst: vi.fn().mockResolvedValue({ isActive, requiredTier }),
+      },
+      user: { findFirst: vi.fn().mockResolvedValue({ role }) },
+    },
+  } as never;
+}
+
+describe(canRenderPublicProfileShowcase, () => {
+  it("requires both the saved enabled state and the effective VIP entitlement", async () => {
+    await expect(
+      canRenderPublicProfileShowcase(
+        createShowcaseEntitlementDb({ enabled: false }),
+        "user-1",
+        "library"
+      )
+    ).resolves.toBe(false);
+    await expect(
+      canRenderPublicProfileShowcase(
+        createShowcaseEntitlementDb({ requiredTier: "level5" }),
+        "user-1",
+        "library"
+      )
+    ).resolves.toBe(false);
+    await expect(
+      canRenderPublicProfileShowcase(
+        createShowcaseEntitlementDb({
+          requiredTier: "level5",
+          tier: "level5",
+        }),
+        "user-1",
+        "library"
+      )
+    ).resolves.toBe(true);
+  });
+
+  it("uses the code-owned enabled default before customization materializes", async () => {
+    await expect(
+      canRenderPublicProfileShowcase(
+        createShowcaseEntitlementDb({ enabled: false, materialized: false }),
+        "user-1",
+        "reviews"
+      )
+    ).resolves.toBe(true);
+  });
+});
 
 describe("complete profile customization saves", () => {
   const defaults = resolveCurrentProfileDefaults();
@@ -31,10 +112,10 @@ describe("complete profile customization saves", () => {
     expect(prepareProfileCustomizationSave(draft)).toEqual({
       configuration: draft,
       visibility: {
-        eteris: true,
+        eteris: false,
         favorites: true,
         reviews: false,
-        streak: true,
+        streak: false,
       },
     });
   });
@@ -60,7 +141,7 @@ describe("complete profile customization saves", () => {
   it("resets to current code-owned defaults instead of legacy visibility", () => {
     expect(
       resolveCurrentProfileDefaults().showcases.map(({ enabled }) => enabled)
-    ).toEqual([true, true, true, true, true, true]);
+    ).toEqual([true, true, false, false, false, false]);
   });
 
   it("rejects duplicate Showcase types without partially preparing a save", () => {
@@ -171,12 +252,12 @@ describe(resolveVirtualDefaultProfileConfiguration, () => {
         expect.objectContaining({ enabled: false, order: 0, type: "library" }),
         expect.objectContaining({ enabled: true, order: 1, type: "reviews" }),
         expect.objectContaining({
-          enabled: true,
+          enabled: false,
           order: 2,
           payload: { gameIds: [] },
           type: "favorite-games",
         }),
-        expect.objectContaining({ enabled: true, order: 3, type: "xp" }),
+        expect.objectContaining({ enabled: false, order: 3, type: "xp" }),
         expect.objectContaining({ enabled: false, order: 4, type: "streak" }),
         expect.objectContaining({ enabled: false, order: 5, type: "eteris" }),
       ],
@@ -193,8 +274,8 @@ describe(resolveVirtualDefaultProfileConfiguration, () => {
     expect(configuration.showcases.map(({ enabled }) => enabled)).toEqual([
       PROFILE_VISIBILITY_DEFAULTS.favorites,
       PROFILE_VISIBILITY_DEFAULTS.reviews,
-      true,
-      true,
+      false,
+      false,
       PROFILE_VISIBILITY_DEFAULTS.streak,
       false,
     ]);

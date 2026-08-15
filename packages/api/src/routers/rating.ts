@@ -30,6 +30,7 @@ import {
   buildProfileSummaries,
   canReadPublicProfileActivity,
 } from "../services/profile";
+import { canRenderPublicProfileShowcase } from "../services/profile-customization";
 import { notifyXpSettlementInTransaction } from "../services/progression";
 import { saveRatingInTransaction } from "../services/rating";
 import {
@@ -52,6 +53,7 @@ const ratingsByUserPaginationSchema = z.object({
     })
     .optional(),
   limit: z.number().min(1).max(30).default(10),
+  preview: z.boolean().optional(),
 });
 const reviewHasText = sql<boolean>`length(trim(${postRating.review})) > 0`;
 
@@ -745,13 +747,27 @@ export default {
 
   getByUserId: publicProcedure
     .input(ratingsByUserPaginationSchema.extend({ userId: z.string() }))
-    .handler(async ({ context: { db, ...ctx }, input }) => {
+    .handler(async ({ context: { db, session, ...ctx }, errors, input }) => {
       const logger = getLogger(ctx);
       logger?.info(
         `Fetching ratings for user ${input.userId} with limit: ${input.limit}`
       );
 
-      if (!(await canReadPublicProfileActivity(db, input.userId, "reviews"))) {
+      const isSelfPreview =
+        input.preview === true && session?.user.id === input.userId;
+      if (input.preview && !isSelfPreview) {
+        throw errors.FORBIDDEN();
+      }
+      if (
+        !isSelfPreview &&
+        (!(await canReadPublicProfileActivity(db, input.userId, "reviews")) ||
+          (env.PROFILE_CUSTOMIZATION_ENABLED &&
+            !(await canRenderPublicProfileShowcase(
+              db,
+              input.userId,
+              "reviews"
+            ))))
+      ) {
         return { nextCursor: null, posts: [], ratings: [] };
       }
 

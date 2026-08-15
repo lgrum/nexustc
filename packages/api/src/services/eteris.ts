@@ -248,6 +248,37 @@ export async function getPublicWalletBalance(
     : null;
 }
 
+export async function getProfileCustomizationWalletBalance(
+  db: Database,
+  userId: string,
+  now = new Date()
+) {
+  if (!env.XP_ECONOMY_ENABLED) {
+    return null;
+  }
+  const account = await db.query.user.findFirst({
+    columns: { banExpires: true, banned: true },
+    where: eq(user.id, userId),
+  });
+  if (!account || isUserBanActive(account, now)) {
+    return null;
+  }
+  const wallet = await db.query.eterisWallet.findFirst({
+    columns: { id: true, status: true },
+    where: eq(eterisWallet.userId, userId),
+  });
+  if (wallet?.status !== "active") {
+    return null;
+  }
+  const balance = await db.query.eterisWalletBalance.findFirst({
+    columns: { balance: true },
+    where: eq(eterisWalletBalance.walletId, wallet.id),
+  });
+  return balance && balance.balance >= ZERO
+    ? { balance: balance.balance.toString() }
+    : null;
+}
+
 function loadExistingPostings(executor: EterisExecutor, transactionId: string) {
   return executor
     .select({ amount: eterisPosting.amount, walletId: eterisPosting.walletId })

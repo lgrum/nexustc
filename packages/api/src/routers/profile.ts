@@ -3,6 +3,7 @@ import { eq, getRedis, sql } from "@repo/db";
 import { profileMediaAsset, profileSettings, user } from "@repo/db/schema/app";
 import { env } from "@repo/env";
 import { PATRON_TIERS } from "@repo/shared/constants";
+import { profileCustomizationDraftSchema } from "@repo/shared/profile-customization";
 import z from "zod";
 
 import {
@@ -14,6 +15,7 @@ import { EterisError } from "../services/eteris";
 import {
   buildProfileSummaries,
   getOrCreateProfileSettings,
+  getProfileCustomizationScalarPreview,
   getProfileEntitlements,
   getPublicScalarProfileShowcases,
   getPublicCurrentStreakForUser,
@@ -26,11 +28,13 @@ import {
 } from "../services/profile-catalog-purchase";
 import {
   loadProfileCustomizationEditorState,
-  loadFavoriteGamesEditorState,
   ProfileCustomizationError,
   saveProfileCustomization,
-  searchPublicFavoriteGames,
 } from "../services/profile-customization";
+import {
+  loadFavoriteGamesEditorState,
+  searchPublicFavoriteGames,
+} from "../services/profile-favorite-games";
 import {
   finalizeProfileMediaUpload,
   issueProfileMediaUpload,
@@ -119,6 +123,15 @@ export default {
         throw errors.NOT_FOUND();
       }
       return loadProfileCustomizationEditorState(db, session.user.id);
+    }
+  ),
+
+  getCustomizationScalarPreview: protectedProcedure.handler(
+    ({ context: { db, session }, errors }) => {
+      if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
+        throw errors.NOT_FOUND();
+      }
+      return getProfileCustomizationScalarPreview(db, session.user.id);
     }
   ),
 
@@ -333,7 +346,7 @@ export default {
     .use(slidingWindowRatelimitMiddleware(10, 60))
     .input(
       z.object({
-        draft: z.unknown(),
+        draft: profileCustomizationDraftSchema,
         expectedRevision: z.number().int().nonnegative(),
       })
     )

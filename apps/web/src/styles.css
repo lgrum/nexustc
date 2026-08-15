@@ -747,6 +747,10 @@
   line-height: 1.02;
 }
 
+.profile-display-name {
+  line-height: 1.25;
+}
+
 /* Subtle card hover — lift + tonal border shimmer, no layout shift */
 .card-hover {
   transition:
