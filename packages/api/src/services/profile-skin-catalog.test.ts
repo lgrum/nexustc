@@ -54,6 +54,23 @@ describe("Profile Skin publication validation", () => {
     ).toThrow("foco");
   });
 
+  it("rejects a gradient whose interior loses text contrast", () => {
+    expect(() =>
+      validateProfileSkinTokens({
+        ...PROFILE_DEFAULT_SKIN_TOKENS,
+        background: {
+          angle: 90,
+          kind: "gradient",
+          stops: [
+            { color: "#000000", position: 0 },
+            { color: "#ffffff", position: 100 },
+          ],
+        },
+        foreground: "#767676",
+      })
+    ).toThrow("contraste");
+  });
+
   it("rejects zero-valued Eteris prices", () => {
     expect(
       profileSkinDraftSchema.safeParse({

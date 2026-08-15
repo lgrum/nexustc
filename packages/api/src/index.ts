@@ -73,7 +73,10 @@ export const fixedWindowRatelimitMiddleware = ({
   windowSeconds: number;
 }) =>
   o.middleware(async ({ context, errors, next, path }) => {
-    if (process.env.NODE_ENV === "development") {
+    if (
+      process.env.NODE_ENV === "development" ||
+      context.isSharedCacheContext
+    ) {
       return next();
     }
 
@@ -124,7 +127,10 @@ export const slidingWindowRatelimitMiddleware = (
   windowSeconds: number
 ) =>
   o.middleware(async ({ context, errors, next, path }) => {
-    if (process.env.NODE_ENV === "development") {
+    if (
+      process.env.NODE_ENV === "development" ||
+      context.isSharedCacheContext
+    ) {
       return next();
     }
 

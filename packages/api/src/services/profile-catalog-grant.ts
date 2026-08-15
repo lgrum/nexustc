@@ -81,28 +81,6 @@ export function grantProfileCatalogItem(db: Database, input: GrantInput) {
       .from(profileCatalogItem)
       .where(eq(profileCatalogItem.id, input.itemId))
       .for("update");
-    if (
-      !item ||
-      item.lifecycle !== "active" ||
-      !item.currentPublishedRevisionId
-    ) {
-      throw new ProfileCatalogGrantError(
-        "ITEM_UNAVAILABLE",
-        "El elemento no está disponible para nuevas concesiones."
-      );
-    }
-
-    const target = await tx.query.user.findFirst({
-      columns: { id: true },
-      where: eq(user.id, input.userId),
-    });
-    if (!target) {
-      throw new ProfileCatalogGrantError(
-        "USER_NOT_FOUND",
-        "La cuenta de destino no existe."
-      );
-    }
-
     const sourceGrant = await tx.query.profileCatalogOwnership.findFirst({
       where: eq(profileCatalogOwnership.sourceReference, input.sourceReference),
     });
@@ -124,6 +102,28 @@ export function grantProfileCatalogItem(db: Database, input: GrantInput) {
       throw new ProfileCatalogGrantError(
         "SOURCE_REFERENCE_CONFLICT",
         "La referencia de origen ya pertenece a otra concesión."
+      );
+    }
+
+    if (
+      !item ||
+      item.lifecycle !== "active" ||
+      !item.currentPublishedRevisionId
+    ) {
+      throw new ProfileCatalogGrantError(
+        "ITEM_UNAVAILABLE",
+        "El elemento no está disponible para nuevas concesiones."
+      );
+    }
+
+    const target = await tx.query.user.findFirst({
+      columns: { id: true },
+      where: eq(user.id, input.userId),
+    });
+    if (!target) {
+      throw new ProfileCatalogGrantError(
+        "USER_NOT_FOUND",
+        "La cuenta de destino no existe."
       );
     }
 

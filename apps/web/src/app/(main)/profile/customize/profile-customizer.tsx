@@ -163,10 +163,12 @@ function PermanentPurchaseControl({
   isPurchasing,
   item,
   onPurchase,
+  spendingEnabled = true,
 }: {
   isPurchasing: boolean;
   item?: PurchasableCatalogItem;
   onPurchase: (item: PurchasableCatalogItem) => void;
+  spendingEnabled?: boolean;
 }) {
   if (
     !item ||
@@ -177,6 +179,13 @@ function PermanentPurchaseControl({
     item.revision === undefined
   ) {
     return null;
+  }
+  if (!spendingEnabled) {
+    return (
+      <p className="mt-4 rounded-2xl border border-border/70 bg-muted/40 p-3 text-muted-foreground text-xs leading-5">
+        Las compras con Eteris no están disponibles en este momento.
+      </p>
+    );
   }
   return (
     <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-primary/25 bg-primary/6 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -935,6 +944,7 @@ export function ProfileCustomizer({
               }
               item={availableLayouts.find(({ key }) => key === draft.layoutKey)}
               onPurchase={handlePurchase}
+              spendingEnabled={savedState.spendingEnabled}
             />
             {fieldErrors.layoutKey ? (
               <p
@@ -1017,6 +1027,7 @@ export function ProfileCustomizer({
               }
               item={savedState.skins?.find(({ key }) => key === draft.skinKey)}
               onPurchase={handlePurchase}
+              spendingEnabled={savedState.spendingEnabled}
             />
             {fieldErrors.skinKey ? (
               <p
@@ -1111,6 +1122,7 @@ export function ProfileCustomizer({
                         decoration.key === draft.decorations[slot]
                     )}
                     onPurchase={handlePurchase}
+                    spendingEnabled={savedState.spendingEnabled}
                   />
                   {fieldErrors[`decorations.${slot}`] ? (
                     <p

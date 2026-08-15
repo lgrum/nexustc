@@ -293,6 +293,46 @@ it("confirms the exact price and purchases without publishing the draft", async 
   ).toBe(true);
 });
 
+it("does not offer purchases while Eteris spending is disabled", () => {
+  const purchasableState = {
+    ...initialState,
+    layouts: [
+      {
+        description: "Dos columnas",
+        entitled: true,
+        eterisPrice: 75n,
+        isFree: false,
+        itemId: "item-grid",
+        key: "grid" as const,
+        lifecycle: "active" as const,
+        name: "Cuadrícula",
+        permanentlyOwned: false,
+        requiredTier: "level1" as const,
+        revision: 3,
+        selectable: true,
+      },
+    ],
+    spendingEnabled: false,
+  };
+  render(
+    <ProfileCustomizer
+      initialState={purchasableState}
+      profile={{ id: "user-1", name: "Ana" } as never}
+    />
+  );
+
+  fireEvent.click(screen.getByRole("radio", { name: /Cuadrícula/i }));
+
+  expect(
+    screen.queryByRole("button", { name: /Conservar permanentemente/ })
+  ).toBeNull();
+  expect(
+    screen.getByText(
+      "Las compras con Eteris no están disponibles en este momento."
+    )
+  ).toBeTruthy();
+});
+
 it("curates games independently and preserves inactive downgrade overflow", async () => {
   const favoriteConfiguration = {
     ...configuration,

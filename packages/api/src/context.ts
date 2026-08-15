@@ -6,6 +6,7 @@ import { pino } from "pino";
 
 export type Context = {
   headers: Headers;
+  isSharedCacheContext: boolean;
   session: Awaited<ReturnType<typeof auth.api.getSession>>;
   db: typeof db;
 } & LoggerContext;
@@ -26,9 +27,11 @@ const logger = pino({
 
 const createBaseContext = (
   headers: Headers,
-  session: Context["session"]
+  session: Context["session"],
+  isSharedCacheContext: boolean
 ): Context => ({
   headers,
+  isSharedCacheContext,
   session,
   db,
   [CONTEXT_LOGGER_SYMBOL]: logger,
@@ -40,8 +43,8 @@ export async function createContext(headers: Headers): Promise<Context> {
     query: { disableCookieCache: true },
   });
 
-  return createBaseContext(headers, session);
+  return createBaseContext(headers, session, false);
 }
 
 export const createPublicContext = (): Context =>
-  createBaseContext(new Headers(), null);
+  createBaseContext(new Headers(), null, true);

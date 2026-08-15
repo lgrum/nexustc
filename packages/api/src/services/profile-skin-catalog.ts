@@ -134,6 +134,18 @@ function luminance(color: string) {
   return 0.2126 * channels[0]! + 0.7152 * channels[1]! + 0.0722 * channels[2]!;
 }
 
+function interpolateHex(left: string, right: string, progress: number) {
+  const leftChannels = parseHex(left);
+  const rightChannels = parseHex(right);
+  return `#${leftChannels
+    .map((channel, index) =>
+      Math.round(channel + (rightChannels[index]! - channel) * progress)
+        .toString(16)
+        .padStart(2, "0")
+    )
+    .join("")}`;
+}
+
 export function getProfileSkinContrast(left: string, right: string) {
   const [bright, dark] = [luminance(left), luminance(right)].toSorted(
     (a, b) => b - a
@@ -142,9 +154,17 @@ export function getProfileSkinContrast(left: string, right: string) {
 }
 
 function representativeBackgrounds(tokens: ProfileSkinTokens) {
-  return tokens.background.kind === "solid"
-    ? [tokens.background.color]
-    : tokens.background.stops.map(({ color }) => color);
+  if (tokens.background.kind === "solid") {
+    return [tokens.background.color];
+  }
+
+  const { stops } = tokens.background;
+  return stops.slice(0, -1).flatMap((stop, index) => {
+    const nextStop = stops[index + 1]!;
+    return Array.from({ length: 101 }, (_, sample) =>
+      interpolateHex(stop.color, nextStop.color, sample / 100)
+    );
+  });
 }
 
 export function validateProfileSkinTokens(input: unknown): ProfileSkinTokens {

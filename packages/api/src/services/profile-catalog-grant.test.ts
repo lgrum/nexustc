@@ -232,3 +232,28 @@ it.each(["archived", "disabled"])(
     expect(store.inserts).toHaveLength(0);
   }
 );
+
+it("replays an exact grant even after the catalog item is archived", async () => {
+  const store = createDatabase({
+    item: { lifecycle: "archived" },
+    sourceGrant: {
+      catalogItemId: "item-grid",
+      id: "grant-1",
+      revokedAt: null,
+      sourceReference: "support-123",
+      sourceType: "grant",
+      userId: "user-1",
+    },
+  });
+
+  await expect(
+    grantProfileCatalogItem(store.db as never, {
+      actorUserId: "owner-1",
+      itemId: "item-grid",
+      reason: "Caso de soporte",
+      sourceReference: "support-123",
+      userId: "user-1",
+    })
+  ).resolves.toMatchObject({ grantId: "grant-1", replayed: true });
+  expect(store.inserts).toHaveLength(0);
+});

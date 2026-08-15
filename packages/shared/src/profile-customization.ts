@@ -376,6 +376,7 @@ export type ProfileCustomizationEditorState = {
   isVirtual: boolean;
   revision: number;
   showcaseErrors: Record<string, string>;
+  spendingEnabled: boolean;
   decorations?: ProfileDecorationCatalogEntry[];
   layouts?: ProfileLayoutCatalogEntry[];
   showcaseEntitlements?: Partial<

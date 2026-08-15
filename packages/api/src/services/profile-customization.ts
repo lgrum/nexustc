@@ -15,6 +15,7 @@ import {
   user,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
+import { env } from "@repo/env";
 import {
   favoriteGamesShowcasePayloadSchema,
   PROFILE_DEFAULT_LAYOUT_KEY,
@@ -372,6 +373,7 @@ export async function loadProfileCustomizationEditorState(
       isVirtual: true,
       revision: 0,
       showcaseErrors: {},
+      spendingEnabled: env.XP_ECONOMY_ENABLED && env.ETERIS_SPENDING_ENABLED,
       decorations,
       effectiveConfiguration: resolveEffectiveProfileConfiguration(
         virtualConfiguration,
@@ -504,6 +506,7 @@ export async function loadProfileCustomizationEditorState(
     isVirtual: false,
     revision: root.revision,
     showcaseErrors,
+    spendingEnabled: env.XP_ECONOMY_ENABLED && env.ETERIS_SPENDING_ENABLED,
     decorations,
     effectiveConfiguration,
     layouts,

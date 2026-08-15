@@ -42,6 +42,7 @@ describe("API context", () => {
     expect(context).toMatchObject({
       db: mocks.db,
       headers,
+      isSharedCacheContext: false,
       session: freshSession,
     });
   });
@@ -50,6 +51,7 @@ describe("API context", () => {
     const context = createPublicContext();
 
     expect(context.session).toBeNull();
+    expect(context.isSharedCacheContext).toBe(true);
     expect(mocks.getSession).not.toHaveBeenCalled();
   });
 });
