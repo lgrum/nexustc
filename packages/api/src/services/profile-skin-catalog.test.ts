@@ -70,6 +70,22 @@ describe("Profile Skin publication validation", () => {
     ).toBe(false);
   });
 
+  it("rejects a purchase price on a free Skin", () => {
+    expect(
+      profileSkinDraftSchema.safeParse({
+        backgroundAssetId: null,
+        catalogOrder: 1,
+        description: "",
+        eterisPrice: 75n,
+        isFree: true,
+        name: "Free skin",
+        requiredTier: null,
+        stableKey: "free-skin",
+        tokens: PROFILE_DEFAULT_SKIN_TOKENS,
+      }).success
+    ).toBe(false);
+  });
+
   it("requires opaque surfaces when a background image is used", () => {
     expect(
       profileSkinDraftSchema.safeParse({

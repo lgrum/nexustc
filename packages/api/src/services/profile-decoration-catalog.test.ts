@@ -113,6 +113,25 @@ describe("Profile Decoration publication validation", () => {
     ).toBe(false);
   });
 
+  it("rejects a purchase price on a free Decoration", () => {
+    expect(
+      profileDecorationDraftSchema.safeParse({
+        catalogOrder: 1,
+        description: "",
+        effectKey: null,
+        eterisPrice: 75n,
+        fontKey: null,
+        isFree: true,
+        mediaAssetId: null,
+        name: "Free decoration",
+        reducedMotion: null,
+        requiredTier: null,
+        slot: "profile-frame",
+        stableKey: "free-decoration",
+      }).success
+    ).toBe(false);
+  });
+
   it("keeps a published decoration in its original slot", () => {
     expect(() =>
       validatePublishedDecorationSlot("avatar-frame", "profile-frame")

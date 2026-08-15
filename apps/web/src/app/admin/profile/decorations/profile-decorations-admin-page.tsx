@@ -98,6 +98,7 @@ export function ProfileDecorationsAdminPage() {
     id: string;
     state: "draft" | "published";
   } | null>(null);
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<Date | null>(null);
   const form = useAppForm({
     defaultValues: emptyValues,
     onSubmit: async ({ value }) => {
@@ -124,12 +125,14 @@ export function ProfileDecorationsAdminPage() {
               slot: value.slot,
               stableKey: value.itemId ? undefined : value.stableKey.trim(),
             },
+            expectedUpdatedAt: draftUpdatedAt ?? undefined,
           });
         if (!result) {
           throw new Error("El servicio no devolvió el borrador guardado.");
         }
         form.setFieldValue("itemId", result.itemId);
         setLoadedRevision({ id: result.revisionId, state: "draft" });
+        setDraftUpdatedAt(result.updatedAt ?? null);
         await refetch();
         toast.success("Borrador de Decoration guardado");
       } catch (error) {
@@ -175,6 +178,12 @@ export function ProfileDecorationsAdminPage() {
       id: item.revisionId,
       state: item.state === "draft" ? "draft" : "published",
     });
+    setDraftUpdatedAt(
+      data.find(
+        (candidate) =>
+          candidate.itemId === item.itemId && candidate.state === "draft"
+      )?.updatedAt ?? null
+    );
   };
 
   const publish = async () => {
@@ -389,6 +398,7 @@ export function ProfileDecorationsAdminPage() {
                     form.reset(emptyValues);
                     setPreviewAssetKey(null);
                     setLoadedRevision(null);
+                    setDraftUpdatedAt(null);
                   }}
                   type="button"
                   variant="ghost"

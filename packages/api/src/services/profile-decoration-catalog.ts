@@ -72,6 +72,13 @@ export const profileDecorationDraftSchema = z
         path: ["eterisPrice"],
       });
     }
+    if (draft.isFree && draft.eterisPrice !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Una Decoration gratuita no puede tener un precio de compra.",
+        path: ["eterisPrice"],
+      });
+    }
   });
 
 export class ProfileDecorationCatalogError extends Error {
@@ -288,6 +295,7 @@ export function listOwnerProfileDecorations(db: Database) {
       slot: profileCatalogDecorationRevision.slot,
       stableKey: profileCatalogItem.stableKey,
       state: profileCatalogItemRevision.state,
+      updatedAt: profileCatalogItemRevision.updatedAt,
     })
     .from(profileCatalogItem)
     .innerJoin(
@@ -315,7 +323,8 @@ export function listOwnerProfileDecorations(db: Database) {
 export async function saveProfileDecorationDraft(
   db: Database,
   actorUserId: string,
-  input: unknown
+  input: unknown,
+  expectedUpdatedAt?: Date
 ) {
   const draft = parseDraft(input);
   await validateManagedMedia(
@@ -390,16 +399,30 @@ export async function saveProfileDecorationDraft(
       slot: draft.slot,
     };
     if (currentDraft) {
+      if (
+        !expectedUpdatedAt ||
+        currentDraft.updatedAt.getTime() !== expectedUpdatedAt.getTime()
+      ) {
+        throw new ProfileDecorationCatalogError(
+          "CONFLICT",
+          "La Decoration cambió mientras intentabas guardar el borrador. Recarga antes de volver a guardar."
+        );
+      }
+      const updatedAt = new Date();
       const updated = await tx
         .update(profileCatalogItemRevision)
-        .set(metadata)
+        .set({ ...metadata, updatedAt })
         .where(
           and(
             eq(profileCatalogItemRevision.id, revisionId),
-            eq(profileCatalogItemRevision.state, "draft")
+            eq(profileCatalogItemRevision.state, "draft"),
+            eq(profileCatalogItemRevision.updatedAt, currentDraft.updatedAt)
           )
         )
-        .returning({ id: profileCatalogItemRevision.id });
+        .returning({
+          id: profileCatalogItemRevision.id,
+          updatedAt: profileCatalogItemRevision.updatedAt,
+        });
       if (updated.length !== 1) {
         throw new ProfileDecorationCatalogError(
           "CONFLICT",
@@ -410,20 +433,24 @@ export async function saveProfileDecorationDraft(
         .update(profileCatalogDecorationRevision)
         .set(visual)
         .where(eq(profileCatalogDecorationRevision.revisionId, revisionId));
-    } else {
-      await tx.insert(profileCatalogItemRevision).values({
-        ...metadata,
-        createdByUserId: actorUserId,
-        id: revisionId,
-        itemId,
-        revision: (latest?.revision ?? 0) + 1,
-        state: "draft",
-      });
-      await tx
-        .insert(profileCatalogDecorationRevision)
-        .values({ revisionId, ...visual });
+      return { itemId, revisionId, updatedAt: updated[0]?.updatedAt };
     }
-    return { itemId, revisionId };
+    await tx.insert(profileCatalogItemRevision).values({
+      ...metadata,
+      createdByUserId: actorUserId,
+      id: revisionId,
+      itemId,
+      revision: (latest?.revision ?? 0) + 1,
+      state: "draft",
+    });
+    await tx
+      .insert(profileCatalogDecorationRevision)
+      .values({ revisionId, ...visual });
+    const [createdRevision] = await tx
+      .select({ updatedAt: profileCatalogItemRevision.updatedAt })
+      .from(profileCatalogItemRevision)
+      .where(eq(profileCatalogItemRevision.id, revisionId));
+    return { itemId, revisionId, updatedAt: createdRevision?.updatedAt };
   });
 }
 

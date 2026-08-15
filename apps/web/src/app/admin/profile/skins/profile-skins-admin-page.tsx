@@ -76,6 +76,7 @@ export function ProfileSkinsAdminPage() {
     id: string;
     state: "draft" | "published";
   } | null>(null);
+  const [draftUpdatedAt, setDraftUpdatedAt] = useState<Date | null>(null);
   const form = useAppForm({
     defaultValues: emptyValues,
     onSubmit: async ({ value }) => {
@@ -94,12 +95,14 @@ export function ProfileSkinsAdminPage() {
             stableKey: value.itemId ? undefined : value.stableKey.trim(),
             tokens: profileSkinTokensSchema.parse(JSON.parse(value.tokenText)),
           },
+          expectedUpdatedAt: draftUpdatedAt ?? undefined,
         });
         if (!result) {
           throw new Error("El servicio no devolvió el borrador guardado.");
         }
         form.setFieldValue("itemId", result.itemId);
         setLoadedRevision({ id: result.revisionId, state: "draft" });
+        setDraftUpdatedAt(result.updatedAt ?? null);
         await refetch();
         toast.success("Borrador de Skin guardado");
       } catch (error) {
@@ -131,6 +134,12 @@ export function ProfileSkinsAdminPage() {
       id: skin.revisionId,
       state: skin.state === "draft" ? "draft" : "published",
     });
+    setDraftUpdatedAt(
+      data.find(
+        (candidate) =>
+          candidate.itemId === skin.itemId && candidate.state === "draft"
+      )?.updatedAt ?? null
+    );
   };
 
   const publish = async () => {
@@ -290,6 +299,7 @@ export function ProfileSkinsAdminPage() {
                     form.reset(emptyValues);
                     setPreviewAssetKey(null);
                     setLoadedRevision(null);
+                    setDraftUpdatedAt(null);
                   }}
                   type="button"
                   variant="ghost"

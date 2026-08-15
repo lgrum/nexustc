@@ -9,6 +9,7 @@ import {
 } from "@repo/db/schema/app";
 import type { ProfileShowcaseTypeKey } from "@repo/shared/profile-customization";
 
+import { userIsNotActivelyBanned } from "../utils/user-ban";
 import { satisfiesProfileVipRequirement } from "./profile-entitlements";
 
 type Database = typeof database;
@@ -37,7 +38,7 @@ export async function canRenderPublicProfileShowcase(
     }),
     db.query.user.findFirst({
       columns: { role: true },
-      where: eq(user.id, userId),
+      where: and(eq(user.id, userId), userIsNotActivelyBanned()),
     }),
     db.query.patron.findFirst({
       columns: { isActivePatron: true, tier: true },

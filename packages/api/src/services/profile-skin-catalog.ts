@@ -70,6 +70,13 @@ export const profileSkinDraftSchema = z
         path: ["eterisPrice"],
       });
     }
+    if (draft.isFree && draft.eterisPrice !== null) {
+      context.addIssue({
+        code: "custom",
+        message: "Un Skin gratuito no puede tener un precio de compra.",
+        path: ["eterisPrice"],
+      });
+    }
     if (
       draft.backgroundAssetId &&
       (draft.tokens.shellOpacity < 1 || draft.tokens.showcaseOpacity < 1)
@@ -341,6 +348,7 @@ export function listOwnerProfileSkins(db: Database) {
       revisionId: profileCatalogItemRevision.id,
       stableKey: profileCatalogItem.stableKey,
       state: profileCatalogItemRevision.state,
+      updatedAt: profileCatalogItemRevision.updatedAt,
       tokens: profileCatalogSkinRevision.tokens,
     })
     .from(profileCatalogItem)
@@ -363,7 +371,8 @@ export function listOwnerProfileSkins(db: Database) {
 export function saveProfileSkinDraft(
   db: Database,
   actorUserId: string,
-  input: unknown
+  input: unknown,
+  expectedUpdatedAt?: Date
 ) {
   const draft = parseDraft(input);
   return db.transaction(async (tx) => {
@@ -443,16 +452,30 @@ export function saveProfileSkinDraft(
       requiredTier: isProtectedDefault ? null : draft.requiredTier,
     };
     if (currentDraft) {
+      if (
+        !expectedUpdatedAt ||
+        currentDraft.updatedAt.getTime() !== expectedUpdatedAt.getTime()
+      ) {
+        throw new ProfileSkinCatalogError(
+          "CONFLICT",
+          "El Skin cambió mientras intentabas guardar el borrador. Recarga antes de volver a guardar."
+        );
+      }
+      const updatedAt = new Date();
       const updated = await tx
         .update(profileCatalogItemRevision)
-        .set(metadata)
+        .set({ ...metadata, updatedAt })
         .where(
           and(
             eq(profileCatalogItemRevision.id, revisionId),
-            eq(profileCatalogItemRevision.state, "draft")
+            eq(profileCatalogItemRevision.state, "draft"),
+            eq(profileCatalogItemRevision.updatedAt, currentDraft.updatedAt)
           )
         )
-        .returning({ id: profileCatalogItemRevision.id });
+        .returning({
+          id: profileCatalogItemRevision.id,
+          updatedAt: profileCatalogItemRevision.updatedAt,
+        });
       if (updated.length !== 1) {
         throw new ProfileSkinCatalogError(
           "CONFLICT",
@@ -466,22 +489,26 @@ export function saveProfileSkinDraft(
           tokens: draft.tokens,
         })
         .where(eq(profileCatalogSkinRevision.revisionId, revisionId));
-    } else {
-      await tx.insert(profileCatalogItemRevision).values({
-        ...metadata,
-        createdByUserId: actorUserId,
-        id: revisionId,
-        itemId,
-        revision: (latest?.revision ?? 0) + 1,
-        state: "draft",
-      });
-      await tx.insert(profileCatalogSkinRevision).values({
-        backgroundAssetId: draft.backgroundAssetId,
-        revisionId,
-        tokens: draft.tokens,
-      });
+      return { itemId, revisionId, updatedAt: updated[0]?.updatedAt };
     }
-    return { itemId, revisionId };
+    await tx.insert(profileCatalogItemRevision).values({
+      ...metadata,
+      createdByUserId: actorUserId,
+      id: revisionId,
+      itemId,
+      revision: (latest?.revision ?? 0) + 1,
+      state: "draft",
+    });
+    await tx.insert(profileCatalogSkinRevision).values({
+      backgroundAssetId: draft.backgroundAssetId,
+      revisionId,
+      tokens: draft.tokens,
+    });
+    const [createdRevision] = await tx
+      .select({ updatedAt: profileCatalogItemRevision.updatedAt })
+      .from(profileCatalogItemRevision)
+      .where(eq(profileCatalogItemRevision.id, revisionId));
+    return { itemId, revisionId, updatedAt: createdRevision?.updatedAt };
   });
 }
 

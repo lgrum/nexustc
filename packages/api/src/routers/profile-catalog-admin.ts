@@ -373,14 +373,20 @@ export default {
         }
       }),
     saveDraft: ownerProcedure
-      .input(z.object({ draft: profileDecorationDraftSchema }))
+      .input(
+        z.object({
+          draft: profileDecorationDraftSchema,
+          expectedUpdatedAt: z.coerce.date().optional(),
+        })
+      )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
           return await saveProfileDecorationDraft(
             db,
             session.user.id,
-            input.draft
+            input.draft,
+            input.expectedUpdatedAt
           );
         } catch (error) {
           translateDecorationError(error, errors);
@@ -412,11 +418,21 @@ export default {
         }
       }),
     saveDraft: ownerProcedure
-      .input(z.object({ draft: profileSkinDraftSchema }))
+      .input(
+        z.object({
+          draft: profileSkinDraftSchema,
+          expectedUpdatedAt: z.coerce.date().optional(),
+        })
+      )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
-          return await saveProfileSkinDraft(db, session.user.id, input.draft);
+          return await saveProfileSkinDraft(
+            db,
+            session.user.id,
+            input.draft,
+            input.expectedUpdatedAt
+          );
         } catch (error) {
           translateCatalogError(error, errors);
         }

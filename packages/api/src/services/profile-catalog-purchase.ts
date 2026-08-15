@@ -102,6 +102,7 @@ export async function purchaseProfileCatalogItem(
           profileCatalogItem.currentPublishedRevisionId,
         eterisPrice: profileCatalogItemRevision.eterisPrice,
         id: profileCatalogItem.id,
+        isFree: profileCatalogItemRevision.isFree,
         kind: profileCatalogItem.kind,
         lifecycle: profileCatalogItem.lifecycle,
         revision: profileCatalogItemRevision.revision,
@@ -177,6 +178,12 @@ export async function purchaseProfileCatalogItem(
       throw new ProfileCatalogPurchaseError(
         "REVISION_CHANGED",
         "El elemento cambió. Revisa la versión actual antes de comprar."
+      );
+    }
+    if (item.isFree) {
+      throw new ProfileCatalogPurchaseError(
+        "NOT_PURCHASABLE",
+        "Este elemento gratuito no se puede conservar con Eteris."
       );
     }
     if (item.eterisPrice === null || item.eterisPrice <= 0n) {

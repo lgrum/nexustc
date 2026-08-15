@@ -38,6 +38,7 @@ function createDatabase(options?: {
     currentPublishedRevisionId: "revision-id-3",
     eterisPrice: 75n,
     id: "item-grid",
+    isFree: false,
     kind: "layout",
     lifecycle: "active",
     revision: 3,
@@ -178,6 +179,7 @@ it.each([
   [{ currentPublishedRevisionId: null }, "ITEM_UNAVAILABLE"],
   [{ eterisPrice: null }, "NOT_PURCHASABLE"],
   [{ eterisPrice: 80n }, "PRICE_CHANGED"],
+  [{ isFree: true }, "NOT_PURCHASABLE"],
   [{ revision: 4 }, "REVISION_CHANGED"],
 ])("rejects catalog drift without charging", async (item, code) => {
   const store = createDatabase({ item });
