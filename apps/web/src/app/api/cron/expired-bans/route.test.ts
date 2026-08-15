@@ -48,6 +48,7 @@ test("restores expired bans and revalidates affected profiles", async () => {
   });
   expect(restore).toHaveBeenCalledOnce();
   expect(revalidateTag).toHaveBeenCalledWith("profile:author-1", "max");
+  expect(revalidateTag).toHaveBeenCalledWith("profiles", "max");
 });
 
 test("revalidates committed restorations before reporting a batch failure", async () => {
@@ -65,4 +66,5 @@ test("revalidates committed restorations before reporting a batch failure", asyn
     )
   ).rejects.toThrow("restoration failure");
   expect(revalidateTag).toHaveBeenCalledWith("profile:restored-user", "max");
+  expect(revalidateTag).toHaveBeenCalledWith("profiles", "max");
 });

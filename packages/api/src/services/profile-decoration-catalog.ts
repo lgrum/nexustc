@@ -406,12 +406,16 @@ export function publishProfileDecorationDraft(
   itemId: string
 ) {
   return db.transaction(async (tx) => {
-    const item = await tx.query.profileCatalogItem.findFirst({
-      where: and(
-        eq(profileCatalogItem.id, itemId),
-        eq(profileCatalogItem.kind, "decoration")
-      ),
-    });
+    const [item] = await tx
+      .select()
+      .from(profileCatalogItem)
+      .where(
+        and(
+          eq(profileCatalogItem.id, itemId),
+          eq(profileCatalogItem.kind, "decoration")
+        )
+      )
+      .for("update");
     const draft = await tx.query.profileCatalogItemRevision.findFirst({
       orderBy: desc(profileCatalogItemRevision.revision),
       where: and(

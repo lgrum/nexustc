@@ -446,12 +446,16 @@ export function publishProfileSkinDraft(
   itemId: string
 ) {
   return db.transaction(async (tx) => {
-    const item = await tx.query.profileCatalogItem.findFirst({
-      where: and(
-        eq(profileCatalogItem.id, itemId),
-        eq(profileCatalogItem.kind, "skin")
-      ),
-    });
+    const [item] = await tx
+      .select()
+      .from(profileCatalogItem)
+      .where(
+        and(
+          eq(profileCatalogItem.id, itemId),
+          eq(profileCatalogItem.kind, "skin")
+        )
+      )
+      .for("update");
     const draft = await tx.query.profileCatalogItemRevision.findFirst({
       orderBy: desc(profileCatalogItemRevision.revision),
       where: and(

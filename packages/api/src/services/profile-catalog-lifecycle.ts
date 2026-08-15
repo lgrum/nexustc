@@ -97,9 +97,11 @@ export function changeProfileCatalogLifecycle(
 ) {
   const note = requireReason(reason);
   return db.transaction(async (tx) => {
-    const item = await tx.query.profileCatalogItem.findFirst({
-      where: eq(profileCatalogItem.id, itemId),
-    });
+    const [item] = await tx
+      .select()
+      .from(profileCatalogItem)
+      .where(eq(profileCatalogItem.id, itemId))
+      .for("update");
     if (!item) {
       throw new ProfileCatalogLifecycleError(
         "NOT_FOUND",
@@ -136,9 +138,11 @@ export function rollbackProfileCatalogRevision(
 ) {
   const note = requireReason(reason);
   return db.transaction(async (tx) => {
-    const item = await tx.query.profileCatalogItem.findFirst({
-      where: eq(profileCatalogItem.id, itemId),
-    });
+    const [item] = await tx
+      .select()
+      .from(profileCatalogItem)
+      .where(eq(profileCatalogItem.id, itemId))
+      .for("update");
     const source = await tx.query.profileCatalogItemRevision.findFirst({
       where: and(
         eq(profileCatalogItemRevision.id, sourceRevisionId),
@@ -249,9 +253,11 @@ export function deleteProfileCatalogDraft(
 ) {
   const note = requireReason(reason);
   return db.transaction(async (tx) => {
-    const item = await tx.query.profileCatalogItem.findFirst({
-      where: eq(profileCatalogItem.id, itemId),
-    });
+    const [item] = await tx
+      .select()
+      .from(profileCatalogItem)
+      .where(eq(profileCatalogItem.id, itemId))
+      .for("update");
     if (!item) {
       throw new ProfileCatalogLifecycleError(
         "NOT_FOUND",

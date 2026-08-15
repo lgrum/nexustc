@@ -47,6 +47,11 @@ export function getProfileSkinStyle(skin: Skin): SkinProperties {
     "--foreground": skin.tokens.foreground,
     "--muted-foreground": skin.tokens.mutedForeground,
     "--primary": skin.tokens.accent,
+    "--profile-shell": alphaHex(
+      skin.tokens.shellSurface,
+      skin.tokens.shellOpacity
+    ),
+    "--profile-shell-foreground": skin.tokens.foreground,
     "--profile-border-width": {
       medium: "2px",
       none: "0px",
@@ -77,7 +82,7 @@ export function ProfileSkinSurface({
   return (
     <Component
       className={cn(
-        "isolate [&_[data-profile-shell]]:rounded-[var(--profile-radius)] [&_[data-profile-shell]]:border-[length:var(--profile-border-width)] [&_[data-profile-shell]]:shadow-[var(--profile-shadow)] [&_[data-showcase-variant]]:rounded-[var(--profile-radius)] [&_[data-showcase-variant]]:border-[length:var(--profile-border-width)]",
+        "isolate [&_[data-profile-shell]]:rounded-[var(--profile-radius)] [&_[data-profile-shell]]:border-[length:var(--profile-border-width)] [&_[data-profile-shell]]:bg-[var(--profile-shell)] [&_[data-profile-shell]]:text-[var(--profile-shell-foreground)] [&_[data-profile-shell]]:shadow-[var(--profile-shadow)] [&_[data-showcase-variant]]:rounded-[var(--profile-radius)] [&_[data-showcase-variant]]:border-[length:var(--profile-border-width)]",
         skin.tokens.cardAccent === "top" &&
           "[&_[data-showcase-variant]]:border-t-primary",
         skin.tokens.cardAccent === "side" &&
