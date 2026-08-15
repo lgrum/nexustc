@@ -68,7 +68,7 @@ export const profileDecorationDraftSchema = z
   });
 
 export class ProfileDecorationCatalogError extends Error {
-  readonly code: "INVALID_DRAFT" | "NOT_FOUND";
+  readonly code: "CONFLICT" | "INVALID_DRAFT" | "NOT_FOUND";
   readonly fieldErrors: Record<string, string>;
 
   constructor(
@@ -356,10 +356,22 @@ export async function saveProfileDecorationDraft(
       slot: draft.slot,
     };
     if (currentDraft) {
-      await tx
+      const updated = await tx
         .update(profileCatalogItemRevision)
         .set(metadata)
-        .where(eq(profileCatalogItemRevision.id, revisionId));
+        .where(
+          and(
+            eq(profileCatalogItemRevision.id, revisionId),
+            eq(profileCatalogItemRevision.state, "draft")
+          )
+        )
+        .returning({ id: profileCatalogItemRevision.id });
+      if (updated.length !== 1) {
+        throw new ProfileDecorationCatalogError(
+          "CONFLICT",
+          "La Decoration cambió mientras intentabas guardar el borrador. Recarga antes de volver a guardar."
+        );
+      }
       await tx
         .update(profileCatalogDecorationRevision)
         .set(visual)

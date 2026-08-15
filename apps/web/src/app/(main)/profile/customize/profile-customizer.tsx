@@ -250,6 +250,9 @@ function FavoriteGamesControl({
       const games = await orpcClient.profile.searchFavoriteGames({ search });
       onCatalogChange(games);
       setSearchResults(games);
+    } catch {
+      setSearchResults(null);
+      toast.error("No se pudieron buscar los juegos. Inténtalo de nuevo.");
     } finally {
       setIsSearching(false);
     }
@@ -559,6 +562,8 @@ export function ProfileCustomizer({
     if (!dirty) {
       return;
     }
+    const editorUrl = window.location.href;
+    const editorHistoryState = window.history.state;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     const warnHistory = async () => {
       const isConfirmed = await confirm({
@@ -567,7 +572,7 @@ export function ProfileCustomizer({
         confirmText: "Salir sin guardar",
       });
       if (!isConfirmed) {
-        window.history.pushState(null, "", window.location.href);
+        window.history.pushState(editorHistoryState, "", editorUrl);
       }
     };
     const warnLinks = async (event: MouseEvent) => {

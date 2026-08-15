@@ -292,6 +292,7 @@ export default {
     ),
 
   getPublicScalarShowcases: publicProcedure
+    .use(slidingWindowRatelimitMiddleware(30, 60))
     .input(z.object({ userId: z.string().min(1) }))
     .handler(({ context: { db }, input }) =>
       env.PROFILE_CUSTOMIZATION_ENABLED

@@ -887,38 +887,43 @@ export async function getPublicProfile(
   const profileVisibility = resolveProfileVisibility(settings.visibilityConfig);
   const visibility = getProfileActivityVisibility(profileVisibility);
   const [
-    bannerAsset,
-    activityCounts,
-    currentStreak,
-    progression,
-    publicWallet,
-    selectedCustomization,
-    favoriteGames,
+    [bannerAsset, activityCounts, currentStreak, progression, publicWallet],
+    customizationResults,
   ] = await Promise.all([
-    settings.bannerAssetId
-      ? db.query.profileMediaAsset.findFirst({
-          where: eq(profileMediaAsset.id, settings.bannerAssetId),
-        })
-      : null,
-    getPublicProfileActivityCounts(db, userId, visibility, now),
-    includeCurrentStreak
-      ? getPublicCurrentStreak(db, userId, profileVisibility, now)
-      : null,
-    getPublicAccountLevel(db, userId, now),
+    Promise.all([
+      settings.bannerAssetId
+        ? db.query.profileMediaAsset.findFirst({
+            where: eq(profileMediaAsset.id, settings.bannerAssetId),
+          })
+        : null,
+      getPublicProfileActivityCounts(db, userId, visibility, now),
+      includeCurrentStreak
+        ? getPublicCurrentStreak(db, userId, profileVisibility, now)
+        : null,
+      getPublicAccountLevel(db, userId, now),
+      customizationEnabled
+        ? Promise.resolve(null)
+        : getPublicWalletBalance(db, userId, now),
+    ]),
     customizationEnabled
-      ? Promise.resolve(null)
-      : getPublicWalletBalance(db, userId, now),
-    customizationEnabled
-      ? loadProfileCustomizationEditorState(
-          db,
-          userId,
-          settings.visibilityConfig
-        )
-      : null,
-    customizationEnabled
-      ? loadPublicFavoriteGamesShowcase(db, userId)
-      : Promise.resolve([]),
+      ? Promise.allSettled([
+          loadProfileCustomizationEditorState(
+            db,
+            userId,
+            settings.visibilityConfig
+          ),
+          loadPublicFavoriteGamesShowcase(db, userId),
+        ])
+      : Promise.resolve(null),
   ]);
+  const selectedCustomization =
+    customizationResults?.[0]?.status === "fulfilled"
+      ? customizationResults[0].value
+      : null;
+  const favoriteGames =
+    customizationResults?.[1]?.status === "fulfilled"
+      ? customizationResults[1].value
+      : [];
 
   const shell = {
     ...summary,

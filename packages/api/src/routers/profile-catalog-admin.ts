@@ -48,6 +48,9 @@ function translateCatalogError(
   if (!(error instanceof ProfileSkinCatalogError)) {
     throw error;
   }
+  if (error.code === "CONFLICT") {
+    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+  }
   if (error.code === "NOT_FOUND") {
     throw errors.NOT_FOUND({ message: error.message });
   }
@@ -63,6 +66,9 @@ function translateDecorationError(
 ) {
   if (!(error instanceof ProfileDecorationCatalogError)) {
     throw error;
+  }
+  if (error.code === "CONFLICT") {
+    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
   }
   if (error.code === "NOT_FOUND") {
     throw errors.NOT_FOUND({ message: error.message });

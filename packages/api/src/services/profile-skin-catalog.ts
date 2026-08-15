@@ -68,7 +68,11 @@ export const profileSkinDraftSchema = z
 export type ProfileSkinDraftInput = z.input<typeof profileSkinDraftSchema>;
 
 export class ProfileSkinCatalogError extends Error {
-  readonly code: "INVALID_DRAFT" | "NOT_FOUND" | "PROTECTED_DEFAULT";
+  readonly code:
+    | "CONFLICT"
+    | "INVALID_DRAFT"
+    | "NOT_FOUND"
+    | "PROTECTED_DEFAULT";
   readonly fieldErrors: Record<string, string>;
 
   constructor(
@@ -387,10 +391,22 @@ export function saveProfileSkinDraft(
       requiredTier: isProtectedDefault ? null : draft.requiredTier,
     };
     if (currentDraft) {
-      await tx
+      const updated = await tx
         .update(profileCatalogItemRevision)
         .set(metadata)
-        .where(eq(profileCatalogItemRevision.id, revisionId));
+        .where(
+          and(
+            eq(profileCatalogItemRevision.id, revisionId),
+            eq(profileCatalogItemRevision.state, "draft")
+          )
+        )
+        .returning({ id: profileCatalogItemRevision.id });
+      if (updated.length !== 1) {
+        throw new ProfileSkinCatalogError(
+          "CONFLICT",
+          "El Skin cambió mientras intentabas guardar el borrador. Recarga antes de volver a guardar."
+        );
+      }
       await tx
         .update(profileCatalogSkinRevision)
         .set({

@@ -171,13 +171,53 @@ export function closeAccountAndDeleteUser(
     await tx
       .update(profileCatalogAudit)
       .set({
-        after: sql`CASE WHEN ${profileCatalogAudit.after} ->> 'userId' = ${userId} THEN ${profileCatalogAudit.after} - 'userId' ELSE ${profileCatalogAudit.after} END`,
-        before: sql`CASE WHEN ${profileCatalogAudit.before} ->> 'userId' = ${userId} THEN ${profileCatalogAudit.before} - 'userId' ELSE ${profileCatalogAudit.before} END`,
+        after: sql`
+          (
+            CASE
+              WHEN ${profileCatalogAudit.after} ->> 'userId' = ${userId}
+                THEN ${profileCatalogAudit.after} - 'userId'
+              ELSE ${profileCatalogAudit.after}
+            END
+          )
+          - CASE
+              WHEN ${profileCatalogAudit.after} ->> 'grantedByUserId' = ${userId}
+                THEN 'grantedByUserId'
+              ELSE ''
+            END
+          - CASE
+              WHEN ${profileCatalogAudit.after} ->> 'revokedByUserId' = ${userId}
+                THEN 'revokedByUserId'
+              ELSE ''
+            END
+        `,
+        before: sql`
+          (
+            CASE
+              WHEN ${profileCatalogAudit.before} ->> 'userId' = ${userId}
+                THEN ${profileCatalogAudit.before} - 'userId'
+              ELSE ${profileCatalogAudit.before}
+            END
+          )
+          - CASE
+              WHEN ${profileCatalogAudit.before} ->> 'grantedByUserId' = ${userId}
+                THEN 'grantedByUserId'
+              ELSE ''
+            END
+          - CASE
+              WHEN ${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}
+                THEN 'revokedByUserId'
+              ELSE ''
+            END
+        `,
       })
       .where(
         or(
           sql`${profileCatalogAudit.after} ->> 'userId' = ${userId}`,
-          sql`${profileCatalogAudit.before} ->> 'userId' = ${userId}`
+          sql`${profileCatalogAudit.after} ->> 'grantedByUserId' = ${userId}`,
+          sql`${profileCatalogAudit.after} ->> 'revokedByUserId' = ${userId}`,
+          sql`${profileCatalogAudit.before} ->> 'userId' = ${userId}`,
+          sql`${profileCatalogAudit.before} ->> 'grantedByUserId' = ${userId}`,
+          sql`${profileCatalogAudit.before} ->> 'revokedByUserId' = ${userId}`
         )
       );
     await tx.delete(user).where(eq(user.id, userId));

@@ -65,7 +65,7 @@ export default async function Page({ params }: PageProps) {
     <>
       <PublicProfileHero
         customizationHref={
-          session?.user.id === id ? "/profile/customize" : undefined
+          session?.user.id === id && manifest ? "/profile/customize" : undefined
         }
         profile={publicProfile}
         showLegacyStats={!manifest}

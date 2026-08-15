@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   purchase: vi.fn(),
   save: vi.fn(),
   search: vi.fn(),
+  toast: { error: vi.fn() },
 }));
 
 vi.mock("@/components/ui/confirm-dialog", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/lib/orpc", () => ({
     },
   },
 }));
+vi.mock("sonner", () => ({ toast: mocks.toast }));
 vi.mock("../../user/[id]/public-profile-hero", () => ({
   PublicProfileHero: () => <div>Identidad y medios reales</div>,
 }));
@@ -386,6 +388,86 @@ it("curates games independently and preserves inactive downgrade overflow", asyn
     }),
     expectedRevision: 0,
   });
+});
+
+it("reports favorite-game search failures and clears stale results", async () => {
+  mocks.search.mockRejectedValueOnce(new Error("search unavailable"));
+  const favoriteConfiguration = {
+    ...configuration,
+    showcases: [
+      ...configuration.showcases,
+      {
+        enabled: true,
+        instanceId: "favorite-games-1",
+        order: 2,
+        payload: { gameIds: [] },
+        payloadSchemaVersion: 1,
+        type: "favorite-games" as const,
+        variant: "standard" as const,
+      },
+    ],
+  };
+  render(
+    <ProfileCustomizer
+      favoriteGames={{ capacity: 1, selected: [], suggestions: [] }}
+      initialState={{
+        ...initialState,
+        configuration: favoriteConfiguration,
+        defaultConfiguration: favoriteConfiguration,
+      }}
+      profile={
+        {
+          id: "user-1",
+          name: "Ana",
+          visibility: { favorites: true, reviews: true },
+        } as never
+      }
+    />
+  );
+
+  fireEvent.change(
+    screen.getByRole("textbox", { name: "Buscar juegos públicos" }),
+    { target: { value: "Tres" } }
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Buscar juegos" }));
+
+  await waitFor(() =>
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      "No se pudieron buscar los juegos. Inténtalo de nuevo."
+    )
+  );
+  expect(screen.queryByRole("button", { name: "Agregar Tres" })).toBeNull();
+});
+
+it("restores the editor URL when canceling dirty browser-back navigation", async () => {
+  window.history.replaceState({ editor: true }, "", "/profile/customize");
+  mocks.confirm.mockResolvedValueOnce(false);
+  render(
+    <ProfileCustomizer
+      initialState={initialState}
+      profile={
+        {
+          id: "user-1",
+          name: "Ana",
+          visibility: { favorites: true, reviews: true },
+        } as never
+      }
+    />
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Mover Biblioteca abajo" })
+  );
+  window.history.pushState({ destination: true }, "", "/profile");
+  window.dispatchEvent(
+    new PopStateEvent("popstate", { state: { destination: true } })
+  );
+
+  await waitFor(() => {
+    expect(window.location.pathname).toBe("/profile/customize");
+  });
+  expect(window.history.state).toEqual({ editor: true });
+  window.history.replaceState(null, "", "/");
 });
 
 it("requires confirmation and changes only the local draft when resetting", async () => {
