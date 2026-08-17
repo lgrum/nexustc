@@ -65,6 +65,66 @@ const nav = {
     ],
     name: "Comics",
   },
+  collectibles: {
+    links: [
+      {
+        href: "/admin/collectibles/cards",
+        name: "Cartas",
+        permissions: { cards: ["view"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/packs",
+        name: "Packs y revisiones",
+        permissions: { packs: ["view"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/shop",
+        name: "Tienda oficial",
+        permissions: { cardShop: ["view"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/gachapon",
+        name: "Gachapon",
+        permissions: { gacha: ["view"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/market",
+        name: "Mercado Negro",
+        permissions: { marketplace: ["moderate"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/operations",
+        name: "Operaciones",
+        permissions: { economy: ["view"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/freezes",
+        name: "Congelamientos",
+        permissions: { cards: ["freeze"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/trades",
+        name: "Intercambios",
+        permissions: { trades: ["moderate"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/gifts",
+        name: "Regalos",
+        permissions: { marketplace: ["moderate"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/corrections",
+        name: "Correcciones",
+        permissions: { collectibles: ["correct"] } as AtLeastOne<Permissions>,
+      },
+      {
+        href: "/admin/collectibles/audits",
+        name: "Auditoría",
+        permissions: { collectibles: ["audit"] } as AtLeastOne<Permissions>,
+      },
+    ],
+    name: "Coleccionables",
+  },
   creators: {
     links: [
       {
@@ -321,6 +381,15 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               <HasPermissions permissions={{ comics: ["create"] }}>
                 <SidebarLinks item={nav.comics} />
               </HasPermissions>
+              <HasAnyPermissions
+                permissions={[
+                  { cards: ["view"] },
+                  { packs: ["view"] },
+                  { cardShop: ["view"] },
+                ]}
+              >
+                <SidebarLinks item={nav.collectibles} />
+              </HasAnyPermissions>
               <HasPermissions permissions={{ creators: ["list"] }}>
                 <SidebarLinks item={nav.creators} />
               </HasPermissions>

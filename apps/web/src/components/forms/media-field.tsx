@@ -5,6 +5,10 @@ import {
   Search01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  MEDIA_IMAGE_MIME_TYPES,
+  STATIC_MEDIA_IMAGE_MIME_TYPES,
+} from "@repo/shared/media";
 import type { MediaOwnerKind } from "@repo/shared/media";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import {
@@ -58,6 +62,7 @@ const MediaCropDialog = lazy(
 );
 
 type MediaFieldProps = {
+  allowAnimated?: boolean;
   className?: string;
   crop?: {
     aspect?: number;
@@ -88,6 +93,7 @@ type PendingCrop = {
 };
 
 type MediaBrowserSectionProps = {
+  acceptedMimeTypes: readonly string[];
   currentFolderId: string | null;
   deferredSearch: string;
   isConvertingFiles: boolean;
@@ -134,6 +140,7 @@ function getSelectionLabel(count: number, isSingle: boolean) {
 }
 
 export function MediaField({
+  allowAnimated = true,
   className,
   crop,
   description,
@@ -599,6 +606,11 @@ export function MediaField({
           <div className="flex max-h-[72dvh] min-h-0 flex-col">
             <Suspense fallback={<MediaBrowserSectionFallback />}>
               <MediaBrowserSection
+                acceptedMimeTypes={
+                  allowAnimated
+                    ? MEDIA_IMAGE_MIME_TYPES
+                    : STATIC_MEDIA_IMAGE_MIME_TYPES
+                }
                 currentFolderId={currentFolderId}
                 deferredSearch={deferredSearch}
                 isConvertingFiles={isConvertingFiles}
@@ -773,6 +785,7 @@ export function MediaField({
 }
 
 function MediaBrowserSection({
+  acceptedMimeTypes,
   currentFolderId,
   deferredSearch,
   isConvertingFiles,
@@ -858,7 +871,7 @@ function MediaBrowserSection({
               <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row">
                 <div className="relative w-full md:w-auto">
                   <Input
-                    accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                    accept={acceptedMimeTypes.join(",")}
                     className="absolute inset-0 cursor-pointer opacity-0"
                     disabled={isConvertingFiles}
                     multiple={!isSingle}

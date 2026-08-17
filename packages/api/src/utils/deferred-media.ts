@@ -20,6 +20,7 @@ import {
 import z from "zod";
 
 import type { Context } from "../context";
+import type { OptimizedImageFile } from "./images";
 import { adminImageFileSchema, optimizeFile } from "./images";
 import { getOrderedMediaRecords } from "./post-media";
 import { getS3Client } from "./s3";
@@ -162,6 +163,10 @@ type FolderLookupDb = Pick<Context["db"], "insert" | "query">;
 type DeferredMediaTx = Parameters<
   Parameters<Context["db"]["transaction"]>[0]
 >[0];
+type PendingMediaUpload = {
+  isAnimated: boolean;
+  objectKey: string;
+};
 
 function normalizeFolderName(name: string) {
   const normalized = name
@@ -281,6 +286,9 @@ export async function persistDeferredMediaSelection(params: {
   ownerKind: MediaOwnerKind;
   resourceName: string;
   selection: DeferredMediaSelectionInput;
+  validatePendingFile?: (
+    optimizedFile: OptimizedImageFile
+  ) => Promise<void> | void;
 }) {
   return await withDeferredMediaSelection({
     ...params,
@@ -290,12 +298,12 @@ export async function persistDeferredMediaSelection(params: {
 
 async function materializeDeferredMediaSelection(params: {
   ownerKind: MediaOwnerKind;
-  pendingObjectKeys: string[];
+  pendingUploads: PendingMediaUpload[];
   resourceName: string;
   selection: DeferredMediaSelectionInput;
   tx: DeferredMediaTx;
 }) {
-  const { ownerKind, pendingObjectKeys, resourceName, selection, tx } = params;
+  const { ownerKind, pendingUploads, resourceName, selection, tx } = params;
 
   if (selection.length === 0) {
     return [] satisfies PersistedMediaRecord[];
@@ -317,7 +325,7 @@ async function materializeDeferredMediaSelection(params: {
     )
     .map((item) => item.objectKey);
   const folderId =
-    pendingObjectKeys.length > 0 || uploadedObjectKeys.length > 0
+    pendingUploads.length > 0 || uploadedObjectKeys.length > 0
       ? await ensureFolderPath(tx, folderNames)
       : null;
 
@@ -339,12 +347,13 @@ async function materializeDeferredMediaSelection(params: {
     uploadedMedia.map((item) => [item.objectKey, item])
   );
 
-  for (const objectKey of pendingObjectKeys) {
+  for (const pendingUpload of pendingUploads) {
     const [createdMedia] = await tx
       .insert(media)
       .values({
         folderId,
-        objectKey,
+        isAnimated: pendingUpload.isAnimated,
+        objectKey: pendingUpload.objectKey,
       })
       .returning({
         createdAt: media.createdAt,
@@ -354,7 +363,9 @@ async function materializeDeferredMediaSelection(params: {
       });
 
     if (!createdMedia) {
-      throw new Error(`Failed to create media row for ${objectKey}`);
+      throw new Error(
+        `Failed to create media row for ${pendingUpload.objectKey}`
+      );
     }
 
     pendingMediaQueue.push(createdMedia);
@@ -385,6 +396,9 @@ export async function withDeferredMediaSelection<T>(params: {
   ownerKind: MediaOwnerKind;
   resourceName: string;
   selection: DeferredMediaSelectionInput;
+  validatePendingFile?: (
+    optimizedFile: OptimizedImageFile
+  ) => Promise<void> | void;
 }) {
   return await withDeferredMediaSelections({
     db: params.db,
@@ -396,6 +410,7 @@ export async function withDeferredMediaSelection<T>(params: {
     ownerKind: params.ownerKind,
     resourceName: params.resourceName,
     selections: [params.selection],
+    validatePendingFile: params.validatePendingFile,
   });
 }
 
@@ -408,6 +423,9 @@ export async function withDeferredMediaSelections<T>(params: {
   ownerKind: MediaOwnerKind;
   resourceName: string;
   selections: DeferredMediaSelectionInput[];
+  validatePendingFile?: (
+    optimizedFile: OptimizedImageFile
+  ) => Promise<void> | void;
 }) {
   const { db, ownerKind, resourceName, selections } = params;
 
@@ -419,7 +437,7 @@ export async function withDeferredMediaSelections<T>(params: {
     )
   );
   const uploadedObjectKeys: string[] = [];
-  const pendingUploadQueues = selections.map(() => [] as string[]);
+  const pendingUploadQueues = selections.map(() => [] as PendingMediaUpload[]);
 
   if (selections.every((selection) => selection.length === 0)) {
     return await db.transaction(
@@ -437,9 +455,9 @@ export async function withDeferredMediaSelections<T>(params: {
       pendingItems,
     ] of pendingItemsBySelection.entries()) {
       for (const pendingItem of pendingItems) {
-        const { buffer, extension, mimeType } = await optimizeFile(
-          pendingItem.file
-        );
+        const optimizedFile = await optimizeFile(pendingItem.file);
+        await params.validatePendingFile?.(optimizedFile);
+        const { buffer, extension, isAnimated, mimeType } = optimizedFile;
         const objectKey = buildObjectKey(folderNames, extension);
 
         await getS3Client().send(
@@ -453,7 +471,7 @@ export async function withDeferredMediaSelections<T>(params: {
         );
 
         uploadedObjectKeys.push(objectKey);
-        pendingUploadQueues[selectionIndex]?.push(objectKey);
+        pendingUploadQueues[selectionIndex]?.push({ isAnimated, objectKey });
       }
     }
 
@@ -463,7 +481,7 @@ export async function withDeferredMediaSelections<T>(params: {
       for (const [selectionIndex, selection] of selections.entries()) {
         const orderedMedia = await materializeDeferredMediaSelection({
           ownerKind,
-          pendingObjectKeys: pendingUploadQueues[selectionIndex] ?? [],
+          pendingUploads: pendingUploadQueues[selectionIndex] ?? [],
           resourceName,
           selection,
           tx,

@@ -1,4 +1,5 @@
 import { PROFILE_VISIBILITY_DEFAULTS } from "@repo/shared/profile";
+import { EMPTY_PROFILE_COLLECTIBLE_SHOWCASE_FILTERS } from "@repo/shared/profile-customization";
 
 import {
   canRenderPublicProfileShowcase,
@@ -13,7 +14,12 @@ import {
   resolveVirtualDefaultProfileConfiguration,
 } from "./profile-customization-manifest";
 import { resolveFavoriteGamesCapacity } from "./profile-favorite-games";
-import { PROFILE_SHOWCASE_REGISTRY } from "./profile-showcase-registry";
+import {
+  migrateCardShowcasePayload,
+  migrateRareCardShowcasePayload,
+  migrateUnopenedPackShowcasePayload,
+  PROFILE_SHOWCASE_REGISTRY,
+} from "./profile-showcase-registry";
 
 function createShowcaseEntitlementDb({
   enabled = true,
@@ -141,7 +147,7 @@ describe("complete profile customization saves", () => {
   it("resets to current code-owned defaults instead of legacy visibility", () => {
     expect(
       resolveCurrentProfileDefaults().showcases.map(({ enabled }) => enabled)
-    ).toEqual([true, true, false, false, false, false]);
+    ).toEqual([true, true, false, false, false, false, false, false, false]);
   });
 
   it("rejects duplicate Showcase types without partially preparing a save", () => {
@@ -196,6 +202,9 @@ describe("Profile Showcase registry", () => {
       "xp",
       "streak",
       "eteris",
+      "card",
+      "rare-card",
+      "unopened-pack",
     ]);
     expect(
       PROFILE_SHOWCASE_REGISTRY.every(
@@ -205,6 +214,40 @@ describe("Profile Showcase registry", () => {
           (!("source" in definition) || definition.source.standardPageSize > 0)
       )
     ).toBe(true);
+  });
+
+  it("migrates legacy collectible payload aliases into canonical version one data", () => {
+    expect(
+      migrateCardShowcasePayload(1, {
+        edition: " Primera ",
+        gameName: "Metroid",
+        selectedCardInstanceIds: [" card-1 "],
+        series: "series-1",
+      })
+    ).toEqual({
+      cardInstanceIds: ["card-1"],
+      filters: {
+        edition: "Primera",
+        game: "Metroid",
+        seriesId: "series-1",
+      },
+    });
+    expect(
+      migrateRareCardShowcasePayload(1, {
+        filters: { game: "Metroid" },
+      })
+    ).toEqual({
+      filters: {
+        ...EMPTY_PROFILE_COLLECTIBLE_SHOWCASE_FILTERS,
+        game: "Metroid",
+      },
+    });
+    expect(
+      migrateUnopenedPackShowcasePayload(1, {
+        packTemplateIds: ["pack-template-1", "pack-template-2"],
+      })
+    ).toEqual({ packTemplateId: "pack-template-1" });
+    expect(() => migrateCardShowcasePayload(2, {})).toThrow();
   });
 });
 
@@ -260,6 +303,17 @@ describe(resolveVirtualDefaultProfileConfiguration, () => {
         expect.objectContaining({ enabled: false, order: 3, type: "xp" }),
         expect.objectContaining({ enabled: false, order: 4, type: "streak" }),
         expect.objectContaining({ enabled: false, order: 5, type: "eteris" }),
+        expect.objectContaining({ enabled: false, order: 6, type: "card" }),
+        expect.objectContaining({
+          enabled: false,
+          order: 7,
+          type: "rare-card",
+        }),
+        expect.objectContaining({
+          enabled: false,
+          order: 8,
+          type: "unopened-pack",
+        }),
       ],
       skinKey: "default",
     });
@@ -277,6 +331,9 @@ describe(resolveVirtualDefaultProfileConfiguration, () => {
       false,
       false,
       PROFILE_VISIBILITY_DEFAULTS.streak,
+      false,
+      false,
+      false,
       false,
     ]);
   });
@@ -393,5 +450,22 @@ describe(resolvePublicProfileManifest, () => {
 
     expect(manifest?.layout.rendererKey).toBe("spotlight");
     expect(manifest?.showcases.map(({ type }) => type)).toEqual(["library"]);
+  });
+
+  it("keeps ownership-dependent collectible entries out of the anonymous manifest", () => {
+    const defaults = resolveCurrentProfileDefaults();
+    const manifest = resolvePublicProfileManifest({
+      activityCounts: { favorites: 0, reviews: 0 },
+      customizationEnabled: true,
+      selectedConfiguration: {
+        ...defaults,
+        showcases: defaults.showcases.map((showcase) =>
+          showcase.type === "card" ? { ...showcase, enabled: true } : showcase
+        ),
+      },
+      visibility: {},
+    });
+
+    expect(manifest?.showcases.some(({ type }) => type === "card")).toBe(false);
   });
 });

@@ -35,6 +35,9 @@ export const ETERIS_TRANSACTION_KINDS = [
   "auction",
   "gacha",
   "refund",
+  "market_listing_fee",
+  "market_sale",
+  "market_fee_reversal",
 ] as const;
 export const ETERIS_SOURCE_MODULES = [
   "progression",

@@ -77,3 +77,31 @@ test("account closure anonymizes catalog audits before cascading personal custom
   expect(compactSource).toContain("profileEmblemDefinition.iconAssetId");
   expect(auditCleanup).toBeLessThan(userDeletion);
 });
+
+test("account closure reconciles collectibles before reading the final wallet balance or deleting identity", async () => {
+  const source = await readFile(
+    new URL("account-closure.ts", import.meta.url),
+    "utf-8"
+  );
+  const compactSource = source.replaceAll(/\s+/g, "");
+
+  const collectibleReconciliation = compactSource.indexOf(
+    "awaitreconcileCollectibles?.(tx,{"
+  );
+  const balanceSnapshot = compactSource.indexOf(
+    "constbalanceSnapshot=awaittx.query.eterisWalletBalance.findFirst"
+  );
+  const coordinatedClosure = compactSource.indexOf(
+    "constresult=awaitcloseAccountInTransaction(tx,userId,now,reconcileCollectibles)"
+  );
+  const userDeletion = compactSource.indexOf(
+    "tx.delete(user).where(eq(user.id,userId))"
+  );
+  expect(collectibleReconciliation).toBeGreaterThan(-1);
+  expect(collectibleReconciliation).toBeLessThan(balanceSnapshot);
+  expect(coordinatedClosure).toBeGreaterThan(-1);
+  expect(coordinatedClosure).toBeLessThan(userDeletion);
+  expect(compactSource).toContain(
+    "configureAccountClosureCollectibleReconciler"
+  );
+});

@@ -237,6 +237,7 @@ function AuthenticatedProfile({
           {visibleSection === "library" ? (
             <ProfileLibrarySection
               customizationEnabled={data.customizationEnabled}
+              publicCollection={data.settings.visibility.publicCollection}
               visibility={data.settings.visibility}
             />
           ) : null}
@@ -244,6 +245,8 @@ function AuthenticatedProfile({
           {visibleSection === "notifications" ? (
             <NotificationSettingsSection
               commentReplies={data.settings.notifications.commentReplies}
+              inboundGiftsEnabled={data.settings.inboundGiftsEnabled}
+              inboundTradesEnabled={data.settings.inboundTradesEnabled}
             />
           ) : null}
           {visibleSection === "account" ? (

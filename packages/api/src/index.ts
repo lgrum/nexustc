@@ -1,11 +1,17 @@
+import { getLogger } from "@orpc/experimental-pino";
 import { os } from "@orpc/server";
 import { auth } from "@repo/auth";
 import { getRedis } from "@repo/db";
+import { recordCollectibleMetric } from "@repo/shared/collectibles";
 import type { Permissions, Role } from "@repo/shared/permissions";
 import type { AtLeastOne } from "@repo/shared/types";
 import { z } from "zod";
 
 import type { Context } from "./context";
+import {
+  assertCollectiblesMutationAllowed,
+  CollectibleKernelError,
+} from "./services/collectibles";
 import {
   calculateRetryAfter,
   getCurrentWindow,
@@ -52,6 +58,25 @@ export const { router } = o;
 
 export const publicProcedure = o;
 
+function recordRateLimitDecision(
+  context: Context,
+  path: readonly string[],
+  decision: "bypass" | "allowed" | "exceeded"
+) {
+  recordCollectibleMetric(
+    (event) => {
+      getLogger(context)?.info(
+        { ...event, decision, path: path.join(".") },
+        "Collectible rate-limit decision"
+      );
+    },
+    {
+      name: "rate_limit_decision",
+      operation: `rate-limit.${decision}`,
+    }
+  );
+}
+
 const requireAuth = o.middleware(({ context, next, errors }) => {
   if (!context.session?.user) {
     throw errors.UNAUTHORIZED();
@@ -77,6 +102,7 @@ export const fixedWindowRatelimitMiddleware = ({
       process.env.NODE_ENV === "development" ||
       context.isSharedCacheContext
     ) {
+      recordRateLimitDecision(context, path, "bypass");
       return next();
     }
 
@@ -90,6 +116,7 @@ export const fixedWindowRatelimitMiddleware = ({
       });
 
       if (allowed.success) {
+        recordRateLimitDecision(context, path, "bypass");
         return next();
       }
     }
@@ -112,6 +139,7 @@ export const fixedWindowRatelimitMiddleware = ({
     );
 
     if (exceeded) {
+      recordRateLimitDecision(context, path, "exceeded");
       throw errors.RATE_LIMITED({
         data: { retryAfter: calculateRetryAfter(windowSeconds) },
         message:
@@ -119,6 +147,7 @@ export const fixedWindowRatelimitMiddleware = ({
       });
     }
 
+    recordRateLimitDecision(context, path, "allowed");
     return next();
   });
 
@@ -131,6 +160,7 @@ export const slidingWindowRatelimitMiddleware = (
       process.env.NODE_ENV === "development" ||
       context.isSharedCacheContext
     ) {
+      recordRateLimitDecision(context, path, "bypass");
       return next();
     }
 
@@ -143,6 +173,7 @@ export const slidingWindowRatelimitMiddleware = (
       });
 
       if (allowed.success) {
+        recordRateLimitDecision(context, path, "bypass");
         return next();
       }
     }
@@ -161,6 +192,7 @@ export const slidingWindowRatelimitMiddleware = (
     );
 
     if (exceeded) {
+      recordRateLimitDecision(context, path, "exceeded");
       throw errors.RATE_LIMITED({
         data: { retryAfter: calculateRetryAfter(windowSeconds) },
         message:
@@ -168,6 +200,7 @@ export const slidingWindowRatelimitMiddleware = (
       });
     }
 
+    recordRateLimitDecision(context, path, "allowed");
     return next();
   });
 
@@ -207,3 +240,25 @@ export const permissionProcedure = (permissions: AtLeastOne<Permissions>) =>
       return next();
     })
   );
+
+/**
+ * Shared boundary for every future collectible mutation. Routers still own
+ * input validation and capability selection, while this middleware guarantees
+ * the global gate and the no-impersonation rule are applied consistently.
+ */
+export const collectiblesMutationMiddleware = o.middleware(
+  ({ context, next, errors }) => {
+    try {
+      assertCollectiblesMutationAllowed({
+        impersonated: Boolean(context.session?.session?.impersonatedBy),
+      });
+    } catch (error) {
+      if (error instanceof CollectibleKernelError) {
+        throw errors.FORBIDDEN({ message: error.message });
+      }
+      throw error;
+    }
+
+    return next();
+  }
+);

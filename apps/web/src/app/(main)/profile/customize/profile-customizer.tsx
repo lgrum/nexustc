@@ -106,6 +106,20 @@ const SHOWCASE_COPY = {
       "Solo tu saldo actual no negativo; el historial sigue privado.",
     label: "Eteris",
   },
+  card: {
+    description:
+      "Card Instances que eliges conservar en tu presentación pública.",
+    label: "Cartas destacadas",
+  },
+  "rare-card": {
+    description:
+      "Cartas actuales ordenadas automáticamente por rareza y Mint Number.",
+    label: "Cartas raras",
+  },
+  "unopened-pack": {
+    description: "Packs sin abrir actuales ordenados por fecha de emisión.",
+    label: "Packs sin abrir",
+  },
 } as const;
 
 const SHOWCASE_VARIANT_COPY = {
@@ -434,6 +448,148 @@ function FavoriteGamesControl({
   );
 }
 
+function CollectibleShowcaseControl({
+  kind,
+  onChange,
+  payload,
+}: {
+  kind: "card" | "rare-card" | "unopened-pack";
+  onChange: (payload: Record<string, unknown>) => void;
+  payload: Record<string, unknown>;
+}) {
+  const rawFilters =
+    payload.filters &&
+    typeof payload.filters === "object" &&
+    !Array.isArray(payload.filters)
+      ? (payload.filters as Record<string, unknown>)
+      : {};
+  const filters = {
+    edition: typeof rawFilters.edition === "string" ? rawFilters.edition : "",
+    game: typeof rawFilters.game === "string" ? rawFilters.game : "",
+    seriesId:
+      typeof rawFilters.seriesId === "string" ? rawFilters.seriesId : "",
+  };
+  const updateFilters = (key: keyof typeof filters, value: string) => {
+    onChange({
+      ...payload,
+      filters: {
+        ...filters,
+        [key]: value.trim() || null,
+      },
+    });
+  };
+
+  if (kind === "unopened-pack") {
+    const packTemplateId =
+      typeof payload.packTemplateId === "string" ? payload.packTemplateId : "";
+    return (
+      <fieldset className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
+        <legend className="px-1 font-semibold text-sm">
+          Filtro de Pack Template
+        </legend>
+        <label
+          className="mt-2 grid gap-1.5 text-sm"
+          htmlFor="profile-unopened-pack-template"
+        >
+          <span className="font-medium">ID de Pack Template (opcional)</span>
+          <Input
+            id="profile-unopened-pack-template"
+            onChange={(event) =>
+              onChange({
+                ...payload,
+                packTemplateId: event.target.value.trim() || null,
+              })
+            }
+            placeholder="Todos los packs sin abrir"
+            value={packTemplateId}
+          />
+        </label>
+        <p className="mt-2 text-muted-foreground text-xs leading-5">
+          Se comprueba la propiedad actual al renderizar; abrir o transferir un
+          pack lo retira sin borrar este filtro.
+        </p>
+      </fieldset>
+    );
+  }
+
+  return (
+    <fieldset className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
+      <legend className="px-1 font-semibold text-sm">
+        Filtros de colección
+      </legend>
+      {kind === "card" ? (
+        <label className="mt-2 grid gap-1.5 text-sm" htmlFor="profile-card-ids">
+          <span className="font-medium">IDs exactos de Card Instance</span>
+          <Input
+            id="profile-card-ids"
+            onChange={(event) =>
+              onChange({
+                ...payload,
+                cardInstanceIds: event.target.value
+                  .split(/[\s,]+/)
+                  .map((value) => value.trim())
+                  .filter(Boolean),
+              })
+            }
+            placeholder="card-instance-1, card-instance-2"
+            value={
+              Array.isArray(payload.cardInstanceIds)
+                ? payload.cardInstanceIds.join(", ")
+                : ""
+            }
+          />
+          <span className="text-muted-foreground text-xs">
+            Hasta 12 IDs, en el orden en que quieres mostrarlos.
+          </span>
+        </label>
+      ) : null}
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <label
+          className="grid gap-1.5 text-sm"
+          htmlFor={`profile-${kind}-game`}
+        >
+          <span className="font-medium">Juego</span>
+          <Input
+            id={`profile-${kind}-game`}
+            onChange={(event) => updateFilters("game", event.target.value)}
+            placeholder="Nombre del juego"
+            value={filters.game}
+          />
+        </label>
+        <label
+          className="grid gap-1.5 text-sm"
+          htmlFor={`profile-${kind}-series`}
+        >
+          <span className="font-medium">Series ID</span>
+          <Input
+            id={`profile-${kind}-series`}
+            onChange={(event) => updateFilters("seriesId", event.target.value)}
+            placeholder="series-1"
+            value={filters.seriesId}
+          />
+        </label>
+        <label
+          className="grid gap-1.5 text-sm"
+          htmlFor={`profile-${kind}-edition`}
+        >
+          <span className="font-medium">Edición</span>
+          <Input
+            id={`profile-${kind}-edition`}
+            onChange={(event) => updateFilters("edition", event.target.value)}
+            placeholder="Primera"
+            value={filters.edition}
+          />
+        </label>
+      </div>
+      {kind === "rare-card" ? (
+        <p className="mt-2 text-muted-foreground text-xs leading-5">
+          El orden se recalcula en cada visita con la propiedad actual.
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function serializeDraft(draft: ProfileCustomizationDraft) {
   return JSON.stringify(draft);
 }
@@ -737,8 +893,44 @@ export function ProfileCustomizer({
           : [];
       }
       if (type !== "favorite-games") {
+        if (type === "card" || type === "rare-card") {
+          return [
+            {
+              cards: [],
+              order:
+                draft.showcases.find(
+                  ({ type: currentType }) => currentType === type
+                )?.order ?? 0,
+              rendererKey: type,
+              type,
+              variant,
+            } as EffectiveProfileShowcase,
+          ];
+        }
+        if (type === "unopened-pack") {
+          return [
+            {
+              order:
+                draft.showcases.find(
+                  ({ type: currentType }) => currentType === type
+                )?.order ?? 0,
+              packs: [],
+              rendererKey: type,
+              type,
+              variant,
+            } as EffectiveProfileShowcase,
+          ];
+        }
         return [
-          { rendererKey: type, type, variant } as EffectiveProfileShowcase,
+          {
+            order:
+              draft.showcases.find(
+                ({ type: currentType }) => currentType === type
+              )?.order ?? 0,
+            rendererKey: type,
+            type,
+            variant,
+          } as EffectiveProfileShowcase,
         ];
       }
       const ids = Array.isArray(payload.gameIds)
@@ -1287,6 +1479,20 @@ export function ProfileCustomizer({
                               }
                             />
                           </>
+                        ) : null}
+                        {showcase.type === "card" ||
+                        showcase.type === "rare-card" ||
+                        showcase.type === "unopened-pack" ? (
+                          <CollectibleShowcaseControl
+                            kind={showcase.type}
+                            onChange={(payload) =>
+                              updateShowcase(index, (current) => ({
+                                ...current,
+                                payload,
+                              }))
+                            }
+                            payload={showcase.payload}
+                          />
                         ) : null}
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <Select

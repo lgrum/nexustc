@@ -37,3 +37,33 @@ describe("economy permissions", () => {
     expect(roles.owner.authorize({ economy: ["adjust"] }).success).toBe(true);
   });
 });
+
+describe("collectible permissions", () => {
+  const collectiblePermissions = [
+    ["cards", ["view", "manage", "publish", "freeze", "grant"]],
+    ["packs", ["view", "manage", "publish"]],
+    ["gacha", ["view", "manage", "activate"]],
+    ["cardShop", ["view", "manage"]],
+    ["marketplace", ["view", "moderate"]],
+    ["trades", ["view", "moderate"]],
+    ["collectibles", ["audit", "correct"]],
+  ] as const;
+
+  it("gives the owner every collectible capability", () => {
+    for (const [domain, actions] of collectiblePermissions) {
+      expect(
+        roles.owner.authorize({ [domain]: actions } as never).success
+      ).toBe(true);
+    }
+  });
+
+  it("does not implicitly grant collectible capabilities to admin or moderator", () => {
+    for (const role of [roles.admin, roles.moderator]) {
+      for (const [domain, actions] of collectiblePermissions) {
+        expect(role.authorize({ [domain]: actions } as never).success).toBe(
+          false
+        );
+      }
+    }
+  });
+});

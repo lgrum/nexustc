@@ -54,15 +54,18 @@ type PrivateReviewsCursor = NonNullable<PrivateReviewsPage["nextCursor"]>;
 
 export function ProfileLibrarySection({
   customizationEnabled = false,
+  publicCollection = false,
   visibility,
 }: {
   customizationEnabled?: boolean;
+  publicCollection?: boolean;
   visibility: ProfileActivityVisibility;
 }) {
   return (
     <div className="space-y-5">
       <VisibilityPanel
         customizationEnabled={customizationEnabled}
+        publicCollection={publicCollection}
         visibility={visibility}
       />
       <ProfilePanel className="p-5 sm:p-6">
@@ -101,15 +104,20 @@ export function ProfileLibrarySection({
 
 function VisibilityPanel({
   customizationEnabled,
+  publicCollection,
   visibility,
 }: {
   customizationEnabled: boolean;
+  publicCollection: boolean;
   visibility: ProfileActivityVisibility;
 }) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: (next: Partial<ProfileActivityVisibility>) =>
-      orpcClient.profile.updateVisibility(next),
+    mutationFn: (
+      next: Partial<ProfileActivityVisibility> & {
+        publicCollection?: boolean;
+      }
+    ) => orpcClient.profile.updateVisibility(next),
     onError: (error) => {
       toast.error(
         error instanceof Error
@@ -123,6 +131,7 @@ function VisibilityPanel({
       );
       trackEvent("profile_visibility_updated", {
         favorites: nextVisibility.favorites,
+        publicCollection: nextVisibility.publicCollection,
         reviews: nextVisibility.reviews,
       });
       toast.success("Privacidad actualizada");
@@ -142,7 +151,17 @@ function VisibilityPanel({
           icon={ViewIcon}
           title="Visibilidad de tu actividad"
         />
-        <div className="mt-6">
+        <div className="mt-6 space-y-4">
+          <VisibilityItem
+            checked={publicCollection}
+            description="Permite que otras personas exploren tus cartas y Packs sin mostrar historial privado ni resultados ocultos."
+            disabled={mutation.isPending}
+            id="profile-collection-visibility"
+            label="Mostrar mi colección públicamente"
+            onCheckedChange={(checked) =>
+              mutation.mutate({ publicCollection: checked })
+            }
+          />
           <ProfileCustomizationVisibilityStatus
             description="El contenido privado sigue disponible en esta biblioteca."
             status={
@@ -165,6 +184,16 @@ function VisibilityPanel({
         title="Visibilidad de tu actividad"
       />
       <ItemGroup className="mt-6">
+        <VisibilityItem
+          checked={publicCollection}
+          description="Permite que otras personas exploren tus cartas y Packs sin mostrar historial privado ni resultados ocultos."
+          disabled={mutation.isPending}
+          id="profile-collection-visibility"
+          label="Mostrar mi colección públicamente"
+          onCheckedChange={(checked) =>
+            mutation.mutate({ publicCollection: checked })
+          }
+        />
         <VisibilityItem
           checked={visibility.favorites}
           description="Permite que otras personas exploren los juegos y comics que guardaste."

@@ -1,0 +1,182 @@
+import {
+  tradeOfferActionInputSchema,
+  tradeOfferCounterInputSchema,
+  tradeOfferListInputSchema,
+  tradeOfferSendInputSchema,
+} from "@repo/shared/collectibles";
+import z from "zod";
+
+import {
+  collectiblesMutationMiddleware,
+  protectedProcedure,
+  slidingWindowRatelimitMiddleware,
+} from "../index";
+import {
+  acceptTradeOffer,
+  cancelTradeOffer,
+  counterOfferTradeOffer,
+  getTradeOffer,
+  listEligibleTradeAssets,
+  listTradeOffers,
+  rejectTradeOffer,
+  sendTradeOffer,
+  TradeOfferError,
+  blockTradeUser,
+  listTradeUserBlocks,
+  unblockTradeUser,
+} from "../services/trade-offer";
+
+const read = protectedProcedure.use(slidingWindowRatelimitMiddleware(60, 60));
+const mutation = protectedProcedure
+  .use(collectiblesMutationMiddleware)
+  .use(slidingWindowRatelimitMiddleware(5, 60));
+const acceptMutation = protectedProcedure
+  .use(collectiblesMutationMiddleware)
+  .use(slidingWindowRatelimitMiddleware(10, 60));
+
+type ProcedureErrors = Parameters<
+  Parameters<typeof mutation.handler>[0]
+>[0]["errors"];
+
+function translateTradeError(error: unknown, errors: ProcedureErrors): never {
+  if (!(error instanceof TradeOfferError)) {
+    throw error;
+  }
+  if (error.code === "OFFER_NOT_FOUND" || error.code === "ASSET_NOT_FOUND") {
+    throw errors.NOT_FOUND({ message: error.message });
+  }
+  if (error.code === "PERMISSION_DENIED") {
+    throw errors.FORBIDDEN({ message: error.message });
+  }
+  throw errors.BAD_REQUEST({
+    message: `${error.code}: ${error.message}`,
+  });
+}
+
+const list = read
+  .input(tradeOfferListInputSchema)
+  .handler(({ context: { db, session }, input }) =>
+    listTradeOffers(db, session.user.id, input)
+  );
+
+const inbox = read
+  .input(tradeOfferListInputSchema)
+  .handler(({ context: { db, session }, input }) =>
+    listTradeOffers(
+      db,
+      session.user.id,
+      { ...input, state: input.state ?? "sent" },
+      "inbox"
+    )
+  );
+
+const sent = read
+  .input(tradeOfferListInputSchema)
+  .handler(({ context: { db, session }, input }) =>
+    listTradeOffers(
+      db,
+      session.user.id,
+      { ...input, state: input.state ?? "sent" },
+      "sent"
+    )
+  );
+
+const detail = read
+  .input(tradeOfferActionInputSchema.pick({ offerId: true }))
+  .handler(({ context: { db, session }, input }) =>
+    getTradeOffer(db, session.user.id, input.offerId)
+  );
+
+const eligible = read.handler(({ context: { db, session } }) =>
+  listEligibleTradeAssets(db, session.user.id)
+);
+
+const send = mutation
+  .input(tradeOfferSendInputSchema)
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await sendTradeOffer(db, session.user.id, input);
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const accept = acceptMutation
+  .input(tradeOfferActionInputSchema)
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await acceptTradeOffer(db, session.user.id, input);
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const reject = mutation
+  .input(tradeOfferActionInputSchema)
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await rejectTradeOffer(db, session.user.id, input);
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const cancel = mutation
+  .input(tradeOfferActionInputSchema)
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await cancelTradeOffer(db, session.user.id, input);
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const counteroffer = mutation
+  .input(tradeOfferCounterInputSchema)
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await counterOfferTradeOffer(db, session.user.id, input);
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const block = protectedProcedure
+  .use(slidingWindowRatelimitMiddleware(10, 60))
+  .input(z.object({ userId: z.string().trim().min(1).max(200) }).strict())
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await blockTradeUser(db, session.user.id, input.userId);
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const unblock = protectedProcedure
+  .use(slidingWindowRatelimitMiddleware(10, 60))
+  .input(z.object({ userId: z.string().trim().min(1).max(200) }).strict())
+  .handler(({ context: { db, session }, input }) =>
+    unblockTradeUser(db, session.user.id, input.userId)
+  );
+
+const blocks = protectedProcedure
+  .use(slidingWindowRatelimitMiddleware(30, 60))
+  .handler(({ context: { db, session } }) =>
+    listTradeUserBlocks(db, session.user.id)
+  );
+
+export default {
+  accept,
+  block,
+  blocks,
+  cancel,
+  counteroffer,
+  detail,
+  eligible,
+  inbox,
+  list,
+  reject,
+  send,
+  sent,
+  unblock,
+};

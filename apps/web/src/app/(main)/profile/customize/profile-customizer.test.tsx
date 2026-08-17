@@ -187,6 +187,55 @@ it("offers only variants supported by each showcase type", async () => {
   expect(screen.queryByRole("option", { name: "Destacada" })).toBeNull();
 });
 
+it("configures exact Card selections and Pack Template filters in Spanish", () => {
+  const collectibleConfiguration = {
+    ...configuration,
+    showcases: [
+      ...configuration.showcases,
+      {
+        enabled: true,
+        instanceId: "card-1",
+        order: 2,
+        payload: {
+          cardInstanceIds: ["card-instance-1"],
+          filters: {
+            edition: null,
+            game: null,
+            seriesId: null,
+          },
+        },
+        payloadSchemaVersion: 1,
+        type: "card" as const,
+        variant: "standard" as const,
+      },
+      {
+        enabled: true,
+        instanceId: "pack-1",
+        order: 3,
+        payload: { packTemplateId: null },
+        payloadSchemaVersion: 1,
+        type: "unopened-pack" as const,
+        variant: "compact" as const,
+      },
+    ],
+  };
+
+  render(
+    <ProfileCustomizer
+      initialState={{
+        ...initialState,
+        configuration: collectibleConfiguration,
+        defaultConfiguration: collectibleConfiguration,
+      }}
+      profile={{ id: "user-1", name: "Ana" } as never}
+    />
+  );
+
+  expect(screen.getByDisplayValue("card-instance-1")).toBeTruthy();
+  expect(screen.getByPlaceholderText("Todos los packs sin abrir")).toBeTruthy();
+  expect(screen.getByText(/propiedad actual al renderizar/i)).toBeTruthy();
+});
+
 it("previews scalar source data before the newly enabled Showcase is saved", () => {
   const scalarConfiguration = {
     ...configuration,

@@ -57,6 +57,73 @@ test("does not invalidate cache tags for unknown procedures", () => {
   expect(getCacheTagsForProcedure("post/getRecent")).toEqual([]);
 });
 
+test("invalidates the public card catalog and affected detail after card governance", () => {
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/templates/publish")
+  ).toEqual(["cards"]);
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/templates/correct", {
+      responseBody: { json: { templateId: "template-1", version: 3 } },
+    })
+  ).toEqual(["cards", "card:template-1"]);
+  expect(
+    getCacheRevalidationProfile("collectiblesAdmin/templates/disable")
+  ).toEqual({
+    expire: 0,
+  });
+});
+
+test("invalidates public Packs and their detail after revision publication", () => {
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/packs/revisions/publish", {
+      responseBody: {
+        json: { templateId: "pack-1", revisionId: "revision-1" },
+      },
+    })
+  ).toEqual(["packs", "pack:pack-1", "card-shop", "gachapon"]);
+  expect(
+    getCacheRevalidationProfile("collectiblesAdmin/packs/revisions/publish")
+  ).toEqual({
+    expire: 0,
+  });
+});
+
+test("invalidates Gachapon machines when their configuration or Pack Revision changes", () => {
+  expect(getCacheTagsForProcedure("gacha/activate")).toEqual([
+    "gachapon",
+    "packs",
+  ]);
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/gacha/update", {
+      responseBody: { json: { id: "machine-1", version: 3 } },
+    })
+  ).toEqual(["gachapon", "gachapon:machine-1", "packs"]);
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/packs/revisions/publish", {
+      responseBody: {
+        json: { templateId: "pack-1", revisionId: "revision-1" },
+      },
+    })
+  ).toEqual(["packs", "pack:pack-1", "card-shop", "gachapon"]);
+});
+
+test("invalidates a Pack detail when its template draft changes", () => {
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/packs/templates/saveDraft", {
+      responseBody: { json: { id: "pack-1", version: 4 } },
+    })
+  ).toEqual(["packs", "pack:pack-1"]);
+});
+
+test("invalidates the public shop and Pack catalog after an offer mutation", () => {
+  expect(
+    getCacheTagsForProcedure("collectiblesAdmin/shop/update", {
+      responseBody: { json: { id: "offer-1", version: 3 } },
+    })
+  ).toEqual(["card-shop", "packs"]);
+  expect(getCacheTagsForProcedure("cardShop/purchase")).toEqual(["card-shop"]);
+});
+
 test("expires public profiles immediately after customization publication", () => {
   expect(getCacheRevalidationProfile("profile/saveCustomization")).toEqual({
     expire: 0,

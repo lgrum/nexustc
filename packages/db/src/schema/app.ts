@@ -1,4 +1,11 @@
 import { DEFAULT_APP_THEME_ID } from "@repo/shared/app-theme";
+import type {
+  CardEffectConfig,
+  CardPresentationMetadata,
+  CardRenderedVariant,
+  PackOpeningCard,
+  PackGuarantee,
+} from "@repo/shared/collectibles";
 import {
   DOCUMENT_STATUSES,
   PATRON_TIER_KEYS,
@@ -52,6 +59,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { generateId } from "../utils";
 
@@ -91,6 +99,30 @@ export const user = pgTable(
   (table) => [
     index("user_email_idx").on(table.email),
     index("user_created_at_idx").on(table.createdAt),
+  ]
+);
+
+/** Canonical user-to-user safety relationship used by economic features. */
+export const userBlock = pgTable(
+  "user_block",
+  {
+    blockedUserId: text("blocked_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    blockerUserId: text("blocker_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.blockerUserId, table.blockedUserId] }),
+    check(
+      "user_block_distinct_users_check",
+      sql`${table.blockerUserId} <> ${table.blockedUserId}`
+    ),
+    index("user_block_blocked_user_idx").on(table.blockedUserId),
   ]
 );
 
@@ -225,6 +257,96 @@ export const patreonWebhookRequest = pgTable(
 
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
+  collectibleCardsOwned: many(cardInstance, {
+    relationName: "card_instance_owner",
+  }),
+  collectibleCustodyCreated: many(collectibleCustody, {
+    relationName: "collectible_custody_actor",
+  }),
+  collectibleTradeOffersProposed: many(tradeOffer, {
+    relationName: "trade_offer_proposer",
+  }),
+  collectibleTradeOffersReceived: many(tradeOffer, {
+    relationName: "trade_offer_recipient",
+  }),
+  collectibleTradeOffersActed: many(tradeOffer, {
+    relationName: "trade_offer_actor",
+  }),
+  collectibleTradeHistoryActed: many(tradeOfferHistory, {
+    relationName: "trade_offer_history_actor",
+  }),
+  collectibleGiftOffersSent: many(giftOffer, {
+    relationName: "gift_offer_sender",
+  }),
+  collectibleGiftOffersReceived: many(giftOffer, {
+    relationName: "gift_offer_recipient",
+  }),
+  collectibleGiftOffersActed: many(giftOffer, {
+    relationName: "gift_offer_actor",
+  }),
+  collectibleGiftHistoryActed: many(giftOfferHistory, {
+    relationName: "gift_offer_history_actor",
+  }),
+  blackMarketListingsSold: many(blackMarketListing, {
+    relationName: "black_market_listing_seller",
+  }),
+  blackMarketListingAuditsActed: many(blackMarketListingAudit),
+  blackMarketSalesBought: many(blackMarketSale, {
+    relationName: "black_market_sale_buyer",
+  }),
+  blackMarketSalesSold: many(blackMarketSale, {
+    relationName: "black_market_sale_seller",
+  }),
+  blackMarketRiskSignals: many(blackMarketRiskSignal),
+  blocksCreated: many(userBlock, { relationName: "user_block_blocker" }),
+  blockedBy: many(userBlock, { relationName: "user_block_blocked" }),
+  collectibleGrantCampaignsCreated: many(collectibleGrantCampaign, {
+    relationName: "collectible_grant_campaign_creator",
+  }),
+  collectibleGrantExecutionsActed: many(collectibleGrantExecution, {
+    relationName: "collectible_grant_execution_actor",
+  }),
+  collectibleGrantExecutionsReceived: many(collectibleGrantExecution, {
+    relationName: "collectible_grant_execution_recipient",
+  }),
+  collectibleOwnershipEventsActed: many(collectibleOwnershipEvent, {
+    relationName: "collectible_ownership_event_actor",
+  }),
+  collectibleOwnershipEventsFrom: many(collectibleOwnershipEvent, {
+    relationName: "collectible_ownership_event_from",
+  }),
+  collectibleOwnershipEventsTo: many(collectibleOwnershipEvent, {
+    relationName: "collectible_ownership_event_to",
+  }),
+  collectibleAdminActionsActed: many(collectibleAdminAction),
+  collectiblePacksOwned: many(packInstance, {
+    relationName: "pack_instance_owner",
+  }),
+  collectiblePackOpenings: many(packOpening, {
+    relationName: "pack_opening_owner",
+  }),
+  gachaponActivations: many(gachaponActivation, {
+    relationName: "gachapon_activation_user",
+  }),
+  gachaponMachineAudits: many(gachaponMachineAuditEvent),
+  gachaponMachinesCreated: many(gachaponMachine, {
+    relationName: "gachapon_machine_created_by",
+  }),
+  gachaponMachinesUpdated: many(gachaponMachine, {
+    relationName: "gachapon_machine_updated_by",
+  }),
+  gachaponMachineUsage: many(gachaponMachineUsage),
+  officialCardShopOffersCreated: many(officialCardShopOffer, {
+    relationName: "official_card_shop_offer_created_by",
+  }),
+  officialCardShopOffersUpdated: many(officialCardShopOffer, {
+    relationName: "official_card_shop_offer_updated_by",
+  }),
+  officialCardShopOfferAuditEvents: many(officialCardShopOfferAuditEvent),
+  officialCardShopOfferUsage: many(officialCardShopOfferUsage),
+  officialCardShopPurchases: many(officialCardShopPurchase, {
+    relationName: "official_card_shop_purchase_buyer",
+  }),
   commentLikes: many(commentLikes),
   comicProgress: many(userComicProgress),
   forbiddenContentRulesCreated: many(forbiddenContentRule, {
@@ -357,6 +479,213 @@ export const eterisWalletStatusEnum = pgEnum(
 export const eterisTransactionKindEnum = pgEnum(
   "eteris_transaction_kind",
   ETERIS_TRANSACTION_KINDS
+);
+export const cardRarityEnum = pgEnum("card_rarity", [
+  "common",
+  "uncommon",
+  "rare",
+  "epic",
+  "legendary",
+]);
+export const cardLifecycleEnum = pgEnum("card_lifecycle", [
+  "draft",
+  "active",
+  "retired",
+]);
+export const cardTemplateAvailabilityEnum = pgEnum(
+  "card_template_availability",
+  ["active", "disabled"]
+);
+export const cardInstanceAvailabilityEnum = pgEnum(
+  "card_instance_availability",
+  ["active", "frozen"]
+);
+export const collectibleBindingEnum = pgEnum("collectible_binding", [
+  "transferable",
+  "account-bound",
+]);
+export const cardRenderVariantEnum = pgEnum("card_render_variant", [
+  "standard",
+  "thumbnail",
+  "static",
+  "reduced-motion",
+]);
+export const cardTemplateAuditActionEnum = pgEnum(
+  "card_template_audit_action",
+  ["create", "publish", "correction", "retire", "disable", "restore"]
+);
+export const packLifecycleEnum = pgEnum("pack_lifecycle", [
+  "draft",
+  "active",
+  "retired",
+]);
+export const packRevisionLifecycleEnum = pgEnum("pack_revision_lifecycle", [
+  "draft",
+  "published",
+]);
+export const packRevisionStateEnum = packRevisionLifecycleEnum;
+export const packRevisionAvailabilityEnum = pgEnum(
+  "pack_revision_availability",
+  ["active", "disabled", "exhausted"]
+);
+export const packDuplicatePolicyEnum = pgEnum("pack_duplicate_policy", [
+  "allow",
+  "no-duplicates",
+]);
+export const packBindingPolicyEnum = pgEnum("pack_binding_policy", [
+  "transferable",
+  "account-bound",
+  "either",
+]);
+export const packInstanceStateEnum = pgEnum("pack_instance_state", [
+  "unopened",
+  "opened",
+]);
+export const collectibleOwnershipEventKindEnum = pgEnum(
+  "collectible_ownership_event_kind",
+  [
+    "pseudonymization",
+    "issuance",
+    "grant",
+    "opening",
+    "transfer",
+    "correction",
+    "trade",
+    "gift",
+    "sale",
+  ]
+);
+export const collectibleCustodySideEnum = pgEnum("collectible_custody_side", [
+  "proposer",
+  "recipient",
+]);
+export const tradeOfferStateEnum = pgEnum("trade_offer_state", [
+  "sent",
+  "accepted",
+  "rejected",
+  "cancelled",
+  "expired",
+  "administratively-cancelled",
+]);
+export const tradeOfferHistoryActionEnum = pgEnum(
+  "trade_offer_history_action",
+  [
+    "sent",
+    "accepted",
+    "rejected",
+    "cancelled",
+    "expired",
+    "administratively-cancelled",
+    "counteroffer",
+  ]
+);
+export const giftOfferStateEnum = pgEnum("gift_offer_state", [
+  "sent",
+  "accepted",
+  "rejected",
+  "cancelled",
+  "expired",
+  "administratively-cancelled",
+]);
+export const giftOfferHistoryActionEnum = pgEnum("gift_offer_history_action", [
+  "sent",
+  "accepted",
+  "rejected",
+  "cancelled",
+  "expired",
+  "administratively-cancelled",
+]);
+export const blackMarketListingStateEnum = pgEnum(
+  "black_market_listing_state",
+  ["active", "sold", "cancelled", "expired", "administratively-cancelled"]
+);
+export const blackMarketListingAuditActionEnum = pgEnum(
+  "black_market_listing_audit_action",
+  [
+    "published",
+    "cancelled",
+    "expired",
+    "administratively-cancelled",
+    "sold",
+    "fee-reversed",
+    "correction",
+  ]
+);
+export const blackMarketRiskSignalKindEnum = pgEnum(
+  "black_market_risk_signal_kind",
+  [
+    "reciprocal-activity",
+    "related-accounts",
+    "extreme-price",
+    "repeated-transfers",
+    "rapid-relisting",
+    "repeated-cancellation",
+  ]
+);
+export const collectibleGrantTargetKindEnum = pgEnum(
+  "collectible_grant_target_kind",
+  ["card", "pack"]
+);
+export const collectibleGrantCampaignStateEnum = pgEnum(
+  "collectible_grant_campaign_state",
+  ["draft", "active", "paused", "retired"]
+);
+export const officialCardShopOfferAuditActionEnum = pgEnum(
+  "official_card_shop_offer_audit_action",
+  [
+    "create",
+    "update",
+    "schedule",
+    "enable",
+    "disable",
+    "restock",
+    "reduce_quota",
+  ]
+);
+export const gachaponMachineStateEnum = pgEnum("gachapon_machine_state", [
+  "draft",
+  "active",
+  "paused",
+  "exhausted",
+  "retired",
+]);
+export const gachaponMachineAuditActionEnum = pgEnum(
+  "gachapon_machine_audit_action",
+  ["create", "update", "activate", "pause", "resume", "exhaust", "retire"]
+);
+export const collectibleAdminActionKindEnum = pgEnum(
+  "collectible_admin_action_kind",
+  [
+    "freeze",
+    "restore",
+    "disable",
+    "retire",
+    "cancel",
+    "release-custody",
+    "retain-custody",
+    "correct",
+    "exceptional-grant",
+    "exceptional-transfer",
+    "reverse-eteris",
+    "publish-impact",
+  ]
+);
+export const collectibleAdminTargetKindEnum = pgEnum(
+  "collectible_admin_target_kind",
+  [
+    "card-instance",
+    "pack-instance",
+    "card-template",
+    "pack-template",
+    "pack-revision",
+    "shop-offer",
+    "gachapon-machine",
+    "grant-campaign",
+    "market-listing",
+    "trade-offer",
+    "gift-offer",
+    "eteris-transaction",
+  ]
 );
 
 export const term = pgTable("term", {
@@ -574,6 +903,1964 @@ export const media = pgTable(
   (table) => [
     index("media_created_at_idx").on(table.createdAt),
     index("media_folder_id_idx").on(table.folderId),
+  ]
+);
+
+export const cardCharacter = pgTable(
+  "card_character",
+  {
+    characterName: text("character_name").notNull(),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    gameName: text("game_name").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    lifecycle: cardLifecycleEnum("lifecycle").notNull().default("draft"),
+    normalizedCharacterName: text("normalized_character_name").notNull(),
+    normalizedGameName: text("normalized_game_name").notNull(),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("card_character_normalized_identity_unique").on(
+      table.normalizedGameName,
+      table.normalizedCharacterName
+    ),
+    index("card_character_lifecycle_idx").on(table.lifecycle),
+    index("card_character_normalized_game_idx").on(table.normalizedGameName),
+  ]
+);
+
+export const cardSeries = pgTable(
+  "card_series",
+  {
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull().default(""),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    lifecycle: cardLifecycleEnum("lifecycle").notNull().default("draft"),
+    name: text("name").notNull(),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    ...timestamps,
+  },
+  (table) => [
+    index("card_series_lifecycle_idx").on(table.lifecycle),
+    index("card_series_name_idx").on(table.name),
+  ]
+);
+
+export const cardTemplate = pgTable(
+  "card_template",
+  {
+    availability: cardTemplateAvailabilityEnum("availability")
+      .notNull()
+      .default("active"),
+    characterId: text("character_id")
+      .notNull()
+      .references(() => cardCharacter.id, { onDelete: "restrict" }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull().default(""),
+    disabledAt: timestamp("disabled_at", { withTimezone: true }),
+    disabledByUserId: text("disabled_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    edition: text("edition"),
+    effectConfig: jsonb("effect_config")
+      .$type<CardEffectConfig>()
+      .notNull()
+      .default({ effect: "none", intensity: "low" }),
+    firstMintedAt: timestamp("first_minted_at", { withTimezone: true }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    lifecycle: cardLifecycleEnum("lifecycle").notNull().default("draft"),
+    lifetimeSupplyCeiling: integer("lifetime_supply_ceiling"),
+    mintedSupply: integer("minted_supply").notNull().default(0),
+    portraitMediaId: text("portrait_media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "restrict" }),
+    presentationMetadata: jsonb("presentation_metadata")
+      .$type<CardPresentationMetadata>()
+      .notNull()
+      .default({
+        accentColor: "#7c3aed",
+        frameKey: "default",
+        watermarkText: "NeXusTC",
+      }),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedByUserId: text("published_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    renderIdentity: text("render_identity"),
+    renderedVariants: jsonb("rendered_variants")
+      .$type<CardRenderedVariant[]>()
+      .notNull()
+      .default([]),
+    rarity: cardRarityEnum("rarity").notNull(),
+    seriesId: text("series_id")
+      .notNull()
+      .references(() => cardSeries.id, { onDelete: "restrict" }),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "card_template_minted_supply_check",
+      sql`${table.mintedSupply} >= 0 AND (${table.lifetimeSupplyCeiling} IS NULL OR ${table.mintedSupply} <= ${table.lifetimeSupplyCeiling})`
+    ),
+    check(
+      "card_template_lifetime_supply_ceiling_check",
+      sql`${table.lifetimeSupplyCeiling} IS NULL OR ${table.lifetimeSupplyCeiling} > 0`
+    ),
+    check(
+      "card_template_first_minted_at_consistency_check",
+      sql`(${table.mintedSupply} = 0 AND ${table.firstMintedAt} IS NULL) OR (${table.mintedSupply} > 0 AND ${table.firstMintedAt} IS NOT NULL)`
+    ),
+    check("card_template_version_check", sql`${table.version} > 0`),
+    index("card_template_character_idx").on(table.characterId),
+    index("card_template_series_idx").on(table.seriesId),
+    index("card_template_lifecycle_availability_idx").on(
+      table.lifecycle,
+      table.availability
+    ),
+    index("card_template_rarity_idx").on(table.rarity),
+    index("card_template_supply_lock_idx").on(
+      table.id,
+      table.mintedSupply,
+      table.lifetimeSupplyCeiling
+    ),
+  ]
+);
+
+export const cardTemplateRenderedVariant = pgTable(
+  "card_template_rendered_variant",
+  {
+    contentHash: text("content_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    height: integer("height").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    objectKey: text("object_key").notNull().unique(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => cardTemplate.id, { onDelete: "restrict" }),
+    variant: cardRenderVariantEnum("variant").notNull(),
+    width: integer("width").notNull(),
+  },
+  (table) => [
+    uniqueIndex("card_template_rendered_variant_template_variant_unique").on(
+      table.templateId,
+      table.variant
+    ),
+    index("card_template_rendered_variant_template_idx").on(table.templateId),
+  ]
+);
+
+export const cardTemplateAuditEvent = pgTable(
+  "card_template_audit_event",
+  {
+    action: cardTemplateAuditActionEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    reason: text("reason").notNull(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => cardTemplate.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    index("card_template_audit_event_template_created_idx").on(
+      table.templateId,
+      table.createdAt
+    ),
+    index("card_template_audit_event_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+  ]
+);
+
+/** Stable product identity. Published revisions are historical children. */
+export const packTemplate = pgTable(
+  "pack_template",
+  {
+    assetMediaId: text("asset_media_id")
+      .notNull()
+      .references(() => media.id, { onDelete: "restrict" }),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull().default(""),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    // The reverse FK is added in the generated migration after both tables
+    // exist; keeping this column nullable also permits draft templates.
+    latestPublishedRevisionId: text("latest_published_revision_id"),
+    lifecycle: packLifecycleEnum("lifecycle").notNull().default("draft"),
+    name: text("name").notNull(),
+    retiredAt: timestamp("retired_at", { withTimezone: true }),
+    retiredByUserId: text("retired_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    check("pack_template_version_check", sql`${table.version} > 0`),
+    index("pack_template_lifecycle_idx").on(table.lifecycle),
+    index("pack_template_latest_revision_idx").on(
+      table.latestPublishedRevisionId
+    ),
+  ]
+);
+
+/** A draft is mutable; published configuration is immutable after publication. */
+export const packRevision = pgTable(
+  "pack_revision",
+  {
+    availability: packRevisionAvailabilityEnum("availability")
+      .notNull()
+      .default("active"),
+    bindingPolicy: packBindingPolicyEnum("binding_policy")
+      .notNull()
+      .default("either"),
+    cardCount: integer("card_count").notNull(),
+    configurationHash: text("configuration_hash"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    duplicatePolicy: packDuplicatePolicyEnum("duplicate_policy")
+      .notNull()
+      .default("allow"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    lifecycle: packRevisionLifecycleEnum("lifecycle")
+      .notNull()
+      .default("draft"),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    publishedByUserId: text("published_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    revision: integer("revision"),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    check(
+      "pack_revision_card_count_check",
+      sql`${table.cardCount} > 0 AND ${table.cardCount} <= 20`
+    ),
+    check(
+      "pack_revision_published_metadata_check",
+      sql`(${table.lifecycle} = 'draft' AND ${table.revision} IS NULL AND ${table.configurationHash} IS NULL) OR (${table.lifecycle} = 'published' AND ${table.revision} > 0 AND ${table.configurationHash} IS NOT NULL)`
+    ),
+    check("pack_revision_version_check", sql`${table.version} > 0`),
+    uniqueIndex("pack_revision_template_revision_unique").on(
+      table.templateId,
+      table.revision
+    ),
+    index("pack_revision_template_lifecycle_idx").on(
+      table.templateId,
+      table.lifecycle
+    ),
+    index("pack_revision_availability_idx").on(table.availability),
+    index("pack_revision_template_availability_idx").on(
+      table.templateId,
+      table.availability
+    ),
+  ]
+);
+
+export const packDrawGroup = pgTable(
+  "pack_draw_group",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    drawCount: integer("draw_count").notNull(),
+    guarantees: jsonb("guarantees")
+      .$type<PackGuarantee[]>()
+      .notNull()
+      .default([]),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    order: integer("order").notNull(),
+    revisionId: text("revision_id")
+      .notNull()
+      .references(() => packRevision.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    check(
+      "pack_draw_group_draw_count_check",
+      sql`${table.drawCount} > 0 AND ${table.drawCount} <= 20`
+    ),
+    check("pack_draw_group_order_check", sql`${table.order} > 0`),
+    uniqueIndex("pack_draw_group_revision_order_unique").on(
+      table.revisionId,
+      table.order
+    ),
+    index("pack_draw_group_revision_idx").on(table.revisionId),
+  ]
+);
+
+export const packDrawGroupRarityWeight = pgTable(
+  "pack_draw_group_rarity_weight",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    drawGroupId: text("draw_group_id")
+      .notNull()
+      .references(() => packDrawGroup.id, { onDelete: "restrict" }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    rarity: cardRarityEnum("rarity").notNull(),
+    weight: integer("weight").notNull(),
+  },
+  (table) => [
+    check(
+      "pack_draw_group_rarity_weight_bounds_check",
+      sql`${table.weight} > 0 AND ${table.weight} <= 1000000`
+    ),
+    uniqueIndex("pack_draw_group_rarity_weight_unique").on(
+      table.drawGroupId,
+      table.rarity
+    ),
+    index("pack_draw_group_rarity_weight_group_idx").on(table.drawGroupId),
+  ]
+);
+
+export const packDrawGroupCardWeight = pgTable(
+  "pack_draw_group_card_weight",
+  {
+    cardTemplateId: text("card_template_id")
+      .notNull()
+      .references(() => cardTemplate.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    drawGroupId: text("draw_group_id")
+      .notNull()
+      .references(() => packDrawGroup.id, { onDelete: "restrict" }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    rarity: cardRarityEnum("rarity").notNull(),
+    weight: integer("weight").notNull(),
+  },
+  (table) => [
+    check(
+      "pack_draw_group_card_weight_bounds_check",
+      sql`${table.weight} > 0 AND ${table.weight} <= 1000000`
+    ),
+    uniqueIndex("pack_draw_group_card_weight_unique").on(
+      table.drawGroupId,
+      table.cardTemplateId
+    ),
+    index("pack_draw_group_card_weight_group_idx").on(table.drawGroupId),
+    index("pack_draw_group_card_weight_template_idx").on(table.cardTemplateId),
+  ]
+);
+
+/**
+ * A Pack Instance is the ownership authority for an unopened pack.  Its
+ * revision and outcome digest are immutable historical facts; state and
+ * availability are deliberately separate so a frozen pack is still retained
+ * without pretending it was opened.
+ */
+export const packInstance = pgTable(
+  "pack_instance",
+  {
+    availability: cardInstanceAvailabilityEnum("availability")
+      .notNull()
+      .default("active"),
+    binding: collectibleBindingEnum("binding").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    issueReference: text("issue_reference").notNull(),
+    issueSource: text("issue_source").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    outcomeDigest: text("outcome_digest").notNull(),
+    // Closed accounts keep durable ownership under the opaque Eteris wallet
+    // identity. The public owner FK is cleared before user deletion.
+    closedOwnerWalletId: text("closed_owner_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    revisionId: text("revision_id")
+      .notNull()
+      .references(() => packRevision.id, { onDelete: "restrict" }),
+    state: packInstanceStateEnum("state").notNull().default("unopened"),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+    version: integer("version").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "pack_instance_owner_identity_check",
+      sql`num_nonnulls(${table.ownerUserId}, ${table.closedOwnerWalletId}) = 1`
+    ),
+    check(
+      "pack_instance_opened_metadata_check",
+      sql`(${table.state} = 'unopened' AND ${table.openedAt} IS NULL) OR (${table.state} = 'opened' AND ${table.openedAt} IS NOT NULL)`
+    ),
+    check("pack_instance_version_check", sql`${table.version} > 0`),
+    index("pack_instance_owner_state_issued_idx").on(
+      table.ownerUserId,
+      table.state,
+      table.issuedAt,
+      table.id
+    ),
+    index("pack_instance_owner_template_issued_idx").on(
+      table.ownerUserId,
+      table.templateId,
+      table.issuedAt,
+      table.id
+    ),
+    index("pack_instance_owner_binding_idx").on(
+      table.ownerUserId,
+      table.binding,
+      table.id
+    ),
+    index("pack_instance_revision_idx").on(table.revisionId),
+    index("pack_instance_template_idx").on(table.templateId),
+  ]
+);
+
+/**
+ * The committed opening snapshot is the recovery/idempotency authority. It is
+ * created in the same transaction as the ownership transfer, so a client can
+ * safely refetch it after a disconnect without ever querying an Unopened Pack
+ * outcome.
+ */
+export const packOpening = pgTable(
+  "pack_opening",
+  {
+    cards: jsonb("cards").$type<PackOpeningCard[]>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull(),
+    openedAt: timestamp("opened_at", { withTimezone: true }).notNull(),
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    ownerWalletId: text("owner_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    packInstanceId: text("pack_instance_id")
+      .notNull()
+      .references(() => packInstance.id, { onDelete: "restrict" })
+      .unique(),
+    revisionId: text("revision_id")
+      .notNull()
+      .references(() => packRevision.id, { onDelete: "restrict" }),
+    source: text("source").notNull(),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    check(
+      "pack_opening_owner_identity_check",
+      sql`num_nonnulls(${table.ownerUserId}, ${table.ownerWalletId}) = 1`
+    ),
+    uniqueIndex("pack_opening_idempotency_key_unique").on(table.idempotencyKey),
+    index("pack_opening_owner_opened_idx").on(
+      table.ownerUserId,
+      table.openedAt,
+      table.id
+    ),
+    index("pack_opening_revision_idx").on(table.revisionId),
+  ]
+);
+
+/**
+ * Card Instances are the only card ownership authority.  A hidden result has
+ * a pack location and reveal order from issuance; an opened/directly issued
+ * card has a user location.  The check makes the two locations mutually
+ * exclusive at the database boundary.
+ */
+export const cardInstance = pgTable(
+  "card_instance",
+  {
+    availability: cardInstanceAvailabilityEnum("availability")
+      .notNull()
+      .default("active"),
+    binding: collectibleBindingEnum("binding").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    issueReference: text("issue_reference").notNull(),
+    issuanceSource: text("issuance_source").notNull(),
+    issuedAt: timestamp("issued_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    mintNumber: integer("mint_number").notNull(),
+    closedOwnerWalletId: text("closed_owner_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    ownerUserId: text("owner_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    packInstanceId: text("pack_instance_id").references(() => packInstance.id, {
+      onDelete: "restrict",
+    }),
+    revealOrder: integer("reveal_order"),
+    templateId: text("template_id")
+      .notNull()
+      .references(() => cardTemplate.id, { onDelete: "restrict" }),
+    version: integer("version").notNull().default(1),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "card_instance_exclusive_location_check",
+      sql`num_nonnulls(${table.ownerUserId}, ${table.closedOwnerWalletId}, ${table.packInstanceId}) = 1`
+    ),
+    check("card_instance_mint_number_check", sql`${table.mintNumber} > 0`),
+    check("card_instance_version_check", sql`${table.version} > 0`),
+    check(
+      "card_instance_reveal_order_location_check",
+      sql`(${table.packInstanceId} IS NULL AND ${table.revealOrder} IS NULL) OR (${table.packInstanceId} IS NOT NULL AND ${table.revealOrder} > 0)`
+    ),
+    uniqueIndex("card_instance_template_mint_number_unique").on(
+      table.templateId,
+      table.mintNumber
+    ),
+    index("card_instance_owner_template_mint_idx").on(
+      table.ownerUserId,
+      table.templateId,
+      table.mintNumber
+    ),
+    index("card_instance_owner_issued_idx").on(
+      table.ownerUserId,
+      table.issuedAt,
+      table.id
+    ),
+    index("card_instance_owner_binding_idx").on(
+      table.ownerUserId,
+      table.binding,
+      table.id
+    ),
+    index("card_instance_template_idx").on(table.templateId),
+    index("card_instance_pack_instance_idx").on(table.packInstanceId),
+  ]
+);
+
+/** Immutable private provenance for the authoritative Card/Pack rows. */
+export const collectibleOwnershipEvent = pgTable(
+  "collectible_ownership_event",
+  {
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    cardInstanceId: text("card_instance_id").references(() => cardInstance.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    fromUserId: text("from_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    fromWalletId: text("from_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    kind: collectibleOwnershipEventKindEnum("kind").notNull(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    packInstanceId: text("pack_instance_id").references(() => packInstance.id, {
+      onDelete: "restrict",
+    }),
+    sourceReference: text("source_reference").notNull(),
+    sourceType: text("source_type").notNull(),
+    toUserId: text("to_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    toWalletId: text("to_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+  },
+  (table) => [
+    check(
+      "collectible_ownership_event_one_asset_check",
+      sql`(${table.cardInstanceId} IS NOT NULL) <> (${table.packInstanceId} IS NOT NULL)`
+    ),
+    index("collectible_ownership_event_card_occurred_idx").on(
+      table.cardInstanceId,
+      table.occurredAt,
+      table.id
+    ),
+    index("collectible_ownership_event_pack_occurred_idx").on(
+      table.packInstanceId,
+      table.occurredAt,
+      table.id
+    ),
+    index("collectible_ownership_event_to_user_occurred_idx").on(
+      table.toUserId,
+      table.occurredAt,
+      table.id
+    ),
+  ]
+);
+
+/**
+ * Retained exclusive reservation for a durable Card or Unopened Pack. A
+ * released row is deliberately kept so an audit can reconstruct which offer
+ * held an asset without exposing that private fact through collection reads.
+ */
+export const collectibleCustody = pgTable(
+  "collectible_custody",
+  {
+    acquiredAt: timestamp("acquired_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    cardInstanceId: text("card_instance_id").references(() => cardInstance.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    packInstanceId: text("pack_instance_id").references(() => packInstance.id, {
+      onDelete: "restrict",
+    }),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    releaseReason: text("release_reason"),
+    side: collectibleCustodySideEnum("side").notNull(),
+    tradeOfferId: text("trade_offer_id").references(() => tradeOffer.id, {
+      onDelete: "restrict",
+    }),
+    giftOfferId: text("gift_offer_id").references(() => giftOffer.id, {
+      onDelete: "restrict",
+    }),
+    blackMarketListingId: text("black_market_listing_id").references(
+      () => blackMarketListing.id,
+      { onDelete: "restrict" }
+    ),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "collectible_custody_one_asset_check",
+      sql`(${table.cardInstanceId} IS NOT NULL) <> (${table.packInstanceId} IS NOT NULL)`
+    ),
+    check(
+      "collectible_custody_one_parent_check",
+      sql`num_nonnulls(${table.tradeOfferId}, ${table.giftOfferId}, ${table.blackMarketListingId}) = 1`
+    ),
+    check(
+      "collectible_custody_release_reason_check",
+      sql`${table.releasedAt} IS NULL OR length(trim(coalesce(${table.releaseReason}, ''))) > 0`
+    ),
+    uniqueIndex("collectible_custody_active_card_unique")
+      .on(table.cardInstanceId)
+      .where(
+        sql`${table.releasedAt} IS NULL AND ${table.cardInstanceId} IS NOT NULL`
+      ),
+    uniqueIndex("collectible_custody_active_pack_unique")
+      .on(table.packInstanceId)
+      .where(
+        sql`${table.releasedAt} IS NULL AND ${table.packInstanceId} IS NOT NULL`
+      ),
+    index("collectible_custody_trade_side_idx").on(
+      table.tradeOfferId,
+      table.side,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_custody_card_lookup_idx")
+      .on(table.cardInstanceId, table.releasedAt, table.createdAt, table.id)
+      .where(sql`${table.cardInstanceId} IS NOT NULL`),
+    index("collectible_custody_pack_lookup_idx")
+      .on(table.packInstanceId, table.releasedAt, table.createdAt, table.id)
+      .where(sql`${table.packInstanceId} IS NOT NULL`),
+    index("collectible_custody_trade_offer_idx").on(
+      table.tradeOfferId,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_custody_gift_offer_idx").on(
+      table.giftOfferId,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_custody_black_market_listing_idx").on(
+      table.blackMarketListingId,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_custody_released_at_idx").on(
+      table.releasedAt,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** Immutable proposer-confirmed terms for the one-asset trade slice. */
+export const tradeOffer = pgTable(
+  "trade_offer",
+  {
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    proposerConfirmedAt: timestamp("proposer_confirmed_at", {
+      withTimezone: true,
+    }).notNull(),
+    proposerUserId: text("proposer_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    proposerWalletId: text("proposer_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    recipientUserId: text("recipient_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    recipientWalletId: text("recipient_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+    source: text("source").notNull(),
+    state: tradeOfferStateEnum("state").notNull().default("sent"),
+    termsHash: text("terms_hash").notNull(),
+    terminalAt: timestamp("terminal_at", { withTimezone: true }),
+    terminalReason: text("terminal_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check(
+      "trade_offer_actor_identity_check",
+      sql`num_nonnulls(${table.actorUserId}, ${table.actorWalletId}) = 1`
+    ),
+    check(
+      "trade_offer_proposer_identity_check",
+      sql`num_nonnulls(${table.proposerUserId}, ${table.proposerWalletId}) = 1`
+    ),
+    check(
+      "trade_offer_recipient_identity_check",
+      sql`num_nonnulls(${table.recipientUserId}, ${table.recipientWalletId}) = 1`
+    ),
+    check(
+      "trade_offer_distinct_participants_check",
+      sql`${table.state} <> 'sent' OR (${table.proposerUserId} IS NOT NULL AND ${table.recipientUserId} IS NOT NULL AND ${table.proposerUserId} <> ${table.recipientUserId})`
+    ),
+    check(
+      "trade_offer_expiry_check",
+      sql`${table.expiresAt} = ${table.sentAt} + interval '7 days'`
+    ),
+    check(
+      "trade_offer_terminal_metadata_check",
+      sql`${table.state} = 'sent' OR (${table.terminalAt} IS NOT NULL AND length(trim(coalesce(${table.terminalReason}, ''))) > 0)`
+    ),
+    check("trade_offer_version_check", sql`${table.version} > 0`),
+    index("trade_offer_proposer_state_sent_idx").on(
+      table.proposerUserId,
+      table.state,
+      table.sentAt,
+      table.id
+    ),
+    index("trade_offer_recipient_state_sent_idx").on(
+      table.recipientUserId,
+      table.state,
+      table.sentAt,
+      table.id
+    ),
+    index("trade_offer_expiry_idx").on(table.state, table.expiresAt, table.id),
+  ]
+);
+
+/** Append-only state transition/idempotency history for each Trade Offer. */
+export const tradeOfferHistory = pgTable(
+  "trade_offer_history",
+  {
+    action: tradeOfferHistoryActionEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    fromState: tradeOfferStateEnum("from_state"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    offerId: text("offer_id")
+      .notNull()
+      .references(() => tradeOffer.id, { onDelete: "restrict" }),
+    source: text("source").notNull(),
+    termsHash: text("terms_hash").notNull(),
+    toState: tradeOfferStateEnum("to_state").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    check("trade_offer_history_version_check", sql`${table.version} > 0`),
+    index("trade_offer_history_offer_created_idx").on(
+      table.offerId,
+      table.createdAt,
+      table.id
+    ),
+    index("trade_offer_history_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** Immutable sender-confirmed terms for a compensation-free Gift Offer. */
+export const giftOffer = pgTable(
+  "gift_offer",
+  {
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    recipientUserId: text("recipient_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    recipientWalletId: text("recipient_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    senderConfirmedAt: timestamp("sender_confirmed_at", {
+      withTimezone: true,
+    }).notNull(),
+    senderUserId: text("sender_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    senderWalletId: text("sender_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+    source: text("source").notNull(),
+    state: giftOfferStateEnum("state").notNull().default("sent"),
+    termsHash: text("terms_hash").notNull(),
+    terminalAt: timestamp("terminal_at", { withTimezone: true }),
+    terminalReason: text("terminal_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check(
+      "gift_offer_actor_identity_check",
+      sql`num_nonnulls(${table.actorUserId}, ${table.actorWalletId}) = 1`
+    ),
+    check(
+      "gift_offer_sender_identity_check",
+      sql`num_nonnulls(${table.senderUserId}, ${table.senderWalletId}) = 1`
+    ),
+    check(
+      "gift_offer_recipient_identity_check",
+      sql`num_nonnulls(${table.recipientUserId}, ${table.recipientWalletId}) = 1`
+    ),
+    check(
+      "gift_offer_distinct_participants_check",
+      sql`${table.state} <> 'sent' OR (${table.senderUserId} IS NOT NULL AND ${table.recipientUserId} IS NOT NULL AND ${table.senderUserId} <> ${table.recipientUserId})`
+    ),
+    check(
+      "gift_offer_expiry_check",
+      sql`${table.expiresAt} = ${table.sentAt} + interval '7 days'`
+    ),
+    check(
+      "gift_offer_terminal_metadata_check",
+      sql`${table.state} = 'sent' OR (${table.terminalAt} IS NOT NULL AND length(trim(coalesce(${table.terminalReason}, ''))) > 0)`
+    ),
+    check("gift_offer_version_check", sql`${table.version} > 0`),
+    index("gift_offer_sender_state_sent_idx").on(
+      table.senderUserId,
+      table.state,
+      table.sentAt,
+      table.id
+    ),
+    index("gift_offer_recipient_state_sent_idx").on(
+      table.recipientUserId,
+      table.state,
+      table.sentAt,
+      table.id
+    ),
+    index("gift_offer_expiry_idx").on(table.state, table.expiresAt, table.id),
+  ]
+);
+
+/** Append-only Gift Offer state transition and replay history. */
+export const giftOfferHistory = pgTable(
+  "gift_offer_history",
+  {
+    action: giftOfferHistoryActionEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    fromState: giftOfferStateEnum("from_state"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    giftOfferId: text("gift_offer_id")
+      .notNull()
+      .references(() => giftOffer.id, { onDelete: "restrict" }),
+    source: text("source").notNull(),
+    termsHash: text("terms_hash").notNull(),
+    toState: giftOfferStateEnum("to_state").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    check("gift_offer_history_version_check", sql`${table.version} > 0`),
+    index("gift_offer_history_offer_created_idx").on(
+      table.giftOfferId,
+      table.createdAt,
+      table.id
+    ),
+    index("gift_offer_history_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** Immutable fixed-price listing. Asset identity lives in retained custody. */
+export const blackMarketListing = pgTable(
+  "black_market_listing",
+  {
+    askingPrice: bigint("asking_price", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    feeReversalTransactionId: text("fee_reversal_transaction_id")
+      .references(() => eterisTransaction.id, { onDelete: "restrict" })
+      .unique(),
+    feeTransactionId: text("fee_transaction_id")
+      .notNull()
+      .references(() => eterisTransaction.id, { onDelete: "restrict" })
+      .unique(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    listingFee: bigint("listing_fee", { mode: "bigint" }).notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    sellerUserId: text("seller_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    sellerWalletId: text("seller_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    state: blackMarketListingStateEnum("state").notNull().default("active"),
+    termsHash: text("terms_hash").notNull(),
+    terminalAt: timestamp("terminal_at", { withTimezone: true }),
+    terminalReason: text("terminal_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check(
+      "black_market_listing_seller_identity_check",
+      sql`num_nonnulls(${table.sellerUserId}, ${table.sellerWalletId}) = 1`
+    ),
+    check("black_market_listing_price_check", sql`${table.askingPrice} > 0`),
+    check(
+      "black_market_listing_fee_check",
+      sql`${table.listingFee} > 0 AND ${table.listingFee} <= ${table.askingPrice}`
+    ),
+    check(
+      "black_market_listing_expiry_check",
+      sql`${table.expiresAt} = ${table.publishedAt} + interval '30 days'`
+    ),
+    check(
+      "black_market_listing_terminal_metadata_check",
+      sql`${table.state} = 'active' OR (${table.terminalAt} IS NOT NULL AND length(trim(coalesce(${table.terminalReason}, ''))) > 0)`
+    ),
+    check("black_market_listing_version_check", sql`${table.version} > 0`),
+    index("black_market_listing_active_expiry_idx").on(
+      table.state,
+      table.expiresAt,
+      table.id
+    ),
+    index("black_market_listing_active_price_idx").on(
+      table.state,
+      table.askingPrice,
+      table.id
+    ),
+    index("black_market_listing_active_published_idx").on(
+      table.state,
+      table.publishedAt,
+      table.id
+    ),
+    index("black_market_listing_seller_state_idx").on(
+      table.sellerUserId,
+      table.state,
+      table.publishedAt,
+      table.id
+    ),
+  ]
+);
+
+/** Append-only listing transitions and command replay records. */
+export const blackMarketListingAudit = pgTable(
+  "black_market_listing_audit",
+  {
+    action: blackMarketListingAuditActionEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    listingId: text("listing_id")
+      .notNull()
+      .references(() => blackMarketListing.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    source: text("source").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    check(
+      "black_market_listing_audit_reason_check",
+      sql`length(trim(${table.reason})) > 0`
+    ),
+    check(
+      "black_market_listing_audit_version_check",
+      sql`${table.version} > 0`
+    ),
+    index("black_market_listing_audit_listing_created_idx").on(
+      table.listingId,
+      table.createdAt,
+      table.id
+    ),
+    index("black_market_listing_audit_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** Immutable successful sale, linked one-to-one to its Eteris journal. */
+export const blackMarketSale = pgTable(
+  "black_market_sale",
+  {
+    askingPrice: bigint("asking_price", { mode: "bigint" }).notNull(),
+    buyerUserId: text("buyer_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    buyerWalletId: text("buyer_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    eterisTransactionId: text("eteris_transaction_id")
+      .notNull()
+      .references(() => eterisTransaction.id, { onDelete: "restrict" })
+      .unique(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    listingId: text("listing_id")
+      .notNull()
+      .references(() => blackMarketListing.id, { onDelete: "restrict" })
+      .unique(),
+    sellerUserId: text("seller_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    sellerWalletId: text("seller_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+  },
+  (table) => [
+    check(
+      "black_market_sale_buyer_identity_check",
+      sql`num_nonnulls(${table.buyerUserId}, ${table.buyerWalletId}) = 1`
+    ),
+    check(
+      "black_market_sale_seller_identity_check",
+      sql`num_nonnulls(${table.sellerUserId}, ${table.sellerWalletId}) = 1`
+    ),
+    check("black_market_sale_price_check", sql`${table.askingPrice} > 0`),
+    index("black_market_sale_buyer_created_idx").on(
+      table.buyerUserId,
+      table.createdAt,
+      table.id
+    ),
+    index("black_market_sale_seller_created_idx").on(
+      table.sellerUserId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** Private, structured review evidence. Signals never mutate a sale. */
+export const blackMarketRiskSignal = pgTable(
+  "black_market_risk_signal",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    listingId: text("listing_id").references(() => blackMarketListing.id, {
+      onDelete: "restrict",
+    }),
+    metadata: jsonb("metadata")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    saleId: text("sale_id").references(() => blackMarketSale.id, {
+      onDelete: "restrict",
+    }),
+    signal: blackMarketRiskSignalKindEnum("signal").notNull(),
+    severity: text("severity", { enum: ["low", "medium", "high"] })
+      .notNull()
+      .default("low"),
+    subjectUserId: text("subject_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => [
+    check(
+      "black_market_risk_signal_target_check",
+      sql`num_nonnulls(${table.listingId}, ${table.saleId}, ${table.subjectUserId}) >= 1`
+    ),
+    index("black_market_risk_signal_listing_created_idx").on(
+      table.listingId,
+      table.createdAt,
+      table.id
+    ),
+    index("black_market_risk_signal_subject_created_idx").on(
+      table.subjectUserId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** Bounded ordinary grant policy; no endpoint may mint outside this row. */
+export const collectibleGrantCampaign = pgTable(
+  "collectible_grant_campaign",
+  {
+    auditReason: text("audit_reason").notNull(),
+    binding: collectibleBindingEnum("binding").notNull(),
+    cardTemplateId: text("card_template_id").references(() => cardTemplate.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    eligibilityExplanation: text("eligibility_explanation").notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    perAccountQuantity: integer("per_account_quantity").notNull(),
+    packTemplateId: text("pack_template_id").references(() => packTemplate.id, {
+      onDelete: "restrict",
+    }),
+    quantityCeiling: integer("quantity_ceiling").notNull(),
+    quantityIssued: integer("quantity_issued").notNull().default(0),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    state: collectibleGrantCampaignStateEnum("state")
+      .notNull()
+      .default("draft"),
+    targetKind: collectibleGrantTargetKindEnum("target_kind").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    version: integer("version").notNull().default(1),
+  },
+  (table) => [
+    check(
+      "collectible_grant_campaign_one_target_check",
+      sql`(${table.cardTemplateId} IS NOT NULL) <> (${table.packTemplateId} IS NOT NULL)`
+    ),
+    check(
+      "collectible_grant_campaign_target_kind_check",
+      sql`(${table.targetKind} = 'card' AND ${table.cardTemplateId} IS NOT NULL AND ${table.packTemplateId} IS NULL) OR (${table.targetKind} = 'pack' AND ${table.packTemplateId} IS NOT NULL AND ${table.cardTemplateId} IS NULL)`
+    ),
+    check(
+      "collectible_grant_campaign_quantity_check",
+      sql`${table.quantityCeiling} > 0 AND ${table.perAccountQuantity} > 0 AND ${table.quantityIssued} >= 0 AND ${table.quantityIssued} <= ${table.quantityCeiling}`
+    ),
+    check(
+      "collectible_grant_campaign_reason_check",
+      sql`length(trim(${table.auditReason})) > 0 AND length(trim(${table.eligibilityExplanation})) > 0`
+    ),
+    check(
+      "collectible_grant_campaign_window_check",
+      sql`${table.endsAt} IS NULL OR ${table.startsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`
+    ),
+    check(
+      "collectible_grant_campaign_version_check",
+      sql`${table.version} > 0`
+    ),
+    index("collectible_grant_campaign_state_window_idx").on(
+      table.state,
+      table.startsAt,
+      table.endsAt
+    ),
+    index("collectible_grant_campaign_card_target_idx").on(
+      table.cardTemplateId
+    ),
+    index("collectible_grant_campaign_pack_target_idx").on(
+      table.packTemplateId
+    ),
+  ]
+);
+
+/** One immutable, idempotent execution result for a grant campaign. */
+export const collectibleGrantExecution = pgTable(
+  "collectible_grant_execution",
+  {
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    campaignId: text("campaign_id")
+      .notNull()
+      .references(() => collectibleGrantCampaign.id, { onDelete: "restrict" }),
+    cardInstanceId: text("card_instance_id").references(() => cardInstance.id, {
+      onDelete: "restrict",
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    packInstanceId: text("pack_instance_id").references(() => packInstance.id, {
+      onDelete: "restrict",
+    }),
+    quantity: integer("quantity").notNull().default(1),
+    recipientUserId: text("recipient_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    recipientWalletId: text("recipient_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    resultAssetIds: jsonb("result_asset_ids")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    resultAt: timestamp("result_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    check(
+      "collectible_grant_execution_one_result_check",
+      sql`(${table.cardInstanceId} IS NOT NULL) <> (${table.packInstanceId} IS NOT NULL)`
+    ),
+    check(
+      "collectible_grant_execution_quantity_check",
+      sql`${table.quantity} > 0`
+    ),
+    check(
+      "collectible_grant_execution_recipient_identity_check",
+      sql`num_nonnulls(${table.recipientUserId}, ${table.recipientWalletId}) = 1`
+    ),
+    uniqueIndex("collectible_grant_execution_campaign_recipient_idx").on(
+      table.campaignId,
+      table.recipientUserId,
+      table.id
+    ),
+    index("collectible_grant_execution_campaign_created_idx").on(
+      table.campaignId,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_grant_execution_recipient_created_idx").on(
+      table.recipientUserId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** A configurable product offer. It deliberately points at a Pack Template;
+ * issuance resolves that template's latest published revision at purchase. */
+export const officialCardShopOffer = pgTable(
+  "official_card_shop_offer",
+  {
+    binding: collectibleBindingEnum("binding")
+      .notNull()
+      .default("transferable"),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    enabled: boolean("enabled").notNull().default(false),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    packTemplateId: text("pack_template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+    perAccountLimit: integer("per_account_limit"),
+    price: bigint("price", { mode: "bigint" }).notNull(),
+    remainingSales: integer("remaining_sales"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    totalSold: integer("total_sold").notNull().default(0),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    check("official_card_shop_offer_price_check", sql`${table.price} > 0`),
+    check(
+      "official_card_shop_offer_remaining_sales_check",
+      sql`${table.remainingSales} IS NULL OR ${table.remainingSales} >= 0`
+    ),
+    check(
+      "official_card_shop_offer_per_account_limit_check",
+      sql`${table.perAccountLimit} IS NULL OR ${table.perAccountLimit} > 0`
+    ),
+    check(
+      "official_card_shop_offer_total_sold_check",
+      sql`${table.totalSold} >= 0`
+    ),
+    check(
+      "official_card_shop_offer_window_check",
+      sql`${table.endsAt} IS NULL OR ${table.startsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`
+    ),
+    check("official_card_shop_offer_version_check", sql`${table.version} > 0`),
+    index("official_card_shop_offer_template_idx").on(table.packTemplateId),
+    index("official_card_shop_offer_availability_idx").on(
+      table.enabled,
+      table.startsAt,
+      table.endsAt
+    ),
+    index("official_card_shop_offer_remaining_sales_idx").on(
+      table.remainingSales
+    ),
+  ]
+);
+
+/** Append-only operational history for every offer transition. */
+export const officialCardShopOfferAuditEvent = pgTable(
+  "official_card_shop_offer_audit_event",
+  {
+    action: officialCardShopOfferAuditActionEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    offerId: text("offer_id")
+      .notNull()
+      .references(() => officialCardShopOffer.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    check(
+      "official_card_shop_offer_audit_reason_check",
+      sql`length(trim(${table.reason})) > 0`
+    ),
+    index("official_card_shop_offer_audit_offer_created_idx").on(
+      table.offerId,
+      table.createdAt,
+      table.id
+    ),
+    index("official_card_shop_offer_audit_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+  ]
+);
+
+/** Atomically maintained per-account usage projection for offer limits. */
+export const officialCardShopOfferUsage = pgTable(
+  "official_card_shop_offer_usage",
+  {
+    offerId: text("offer_id")
+      .notNull()
+      .references(() => officialCardShopOffer.id, { onDelete: "restrict" }),
+    purchasedQuantity: integer("purchased_quantity").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.offerId, table.userId] }),
+    check(
+      "official_card_shop_offer_usage_quantity_check",
+      sql`${table.purchasedQuantity} >= 0`
+    ),
+    index("official_card_shop_offer_usage_user_idx").on(table.userId),
+  ]
+);
+
+/** Immutable successful purchase, linked one-to-one to the Eteris journal. */
+export const officialCardShopPurchase = pgTable(
+  "official_card_shop_purchase",
+  {
+    binding: collectibleBindingEnum("binding").notNull(),
+    buyerUserId: text("buyer_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    buyerWalletId: text("buyer_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    eterisTransactionId: text("eteris_transaction_id")
+      .notNull()
+      .references(() => eterisTransaction.id, { onDelete: "restrict" })
+      .unique(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    offerId: text("offer_id")
+      .notNull()
+      .references(() => officialCardShopOffer.id, { onDelete: "restrict" }),
+    packTemplateId: text("pack_template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+    quantity: integer("quantity").notNull(),
+    revisionId: text("revision_id")
+      .notNull()
+      .references(() => packRevision.id, { onDelete: "restrict" }),
+    totalPrice: bigint("total_price", { mode: "bigint" }).notNull(),
+    unitPrice: bigint("unit_price", { mode: "bigint" }).notNull(),
+    offerVersion: integer("offer_version").notNull(),
+  },
+  (table) => [
+    check(
+      "official_card_shop_purchase_buyer_identity_check",
+      sql`num_nonnulls(${table.buyerUserId}, ${table.buyerWalletId}) = 1`
+    ),
+    check(
+      "official_card_shop_purchase_quantity_check",
+      sql`${table.quantity} BETWEEN 1 AND 10`
+    ),
+    check(
+      "official_card_shop_purchase_price_check",
+      sql`${table.unitPrice} > 0 AND ${table.totalPrice} > 0`
+    ),
+    index("official_card_shop_purchase_buyer_created_idx").on(
+      table.buyerUserId,
+      table.createdAt,
+      table.id
+    ),
+    index("official_card_shop_purchase_offer_created_idx").on(
+      table.offerId,
+      table.createdAt,
+      table.id
+    ),
+  ]
+);
+
+/** One issued Pack Instance per purchased quantity unit. */
+export const officialCardShopPurchaseItem = pgTable(
+  "official_card_shop_purchase_item",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    ordinal: integer("ordinal").notNull(),
+    packInstanceId: text("pack_instance_id")
+      .notNull()
+      .references(() => packInstance.id, { onDelete: "restrict" })
+      .unique(),
+    purchaseId: text("purchase_id")
+      .notNull()
+      .references(() => officialCardShopPurchase.id, { onDelete: "restrict" }),
+    revisionId: text("revision_id")
+      .notNull()
+      .references(() => packRevision.id, { onDelete: "restrict" }),
+  },
+  (table) => [
+    check(
+      "official_card_shop_purchase_item_ordinal_check",
+      sql`${table.ordinal} BETWEEN 1 AND 10`
+    ),
+    uniqueIndex("official_card_shop_purchase_item_purchase_ordinal_unique").on(
+      table.purchaseId,
+      table.ordinal
+    ),
+    index("official_card_shop_purchase_item_purchase_idx").on(table.purchaseId),
+  ]
+);
+
+/**
+ * A Gachapon Machine weights Pack Templates only.  Its entries are guarded by
+ * an append-only trigger once the machine leaves draft, so an active machine
+ * can never silently rewrite its public pool or its historical odds.
+ */
+export const gachaponMachine = pgTable(
+  "gachapon_machine",
+  {
+    binding: collectibleBindingEnum("binding")
+      .notNull()
+      .default("transferable"),
+    cost: bigint("cost", { mode: "bigint" }).notNull(),
+    createdByUserId: text("created_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    description: text("description").notNull().default(""),
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    globalQuota: integer("global_quota"),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    name: text("name").notNull(),
+    perAccountLimit: integer("per_account_limit"),
+    startsAt: timestamp("starts_at", { withTimezone: true }),
+    state: gachaponMachineStateEnum("state").notNull().default("draft"),
+    totalActivations: integer("total_activations").notNull().default(0),
+    updatedByUserId: text("updated_by_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    version: integer("version").notNull().default(1),
+    ...timestamps,
+  },
+  (table) => [
+    check("gachapon_machine_cost_check", sql`${table.cost} > 0`),
+    check(
+      "gachapon_machine_global_quota_check",
+      sql`${table.globalQuota} IS NULL OR ${table.globalQuota} > 0`
+    ),
+    check(
+      "gachapon_machine_per_account_limit_check",
+      sql`${table.perAccountLimit} IS NULL OR ${table.perAccountLimit} > 0`
+    ),
+    check(
+      "gachapon_machine_total_activations_check",
+      sql`${table.totalActivations} >= 0 AND (${table.globalQuota} IS NULL OR ${table.totalActivations} <= ${table.globalQuota})`
+    ),
+    check(
+      "gachapon_machine_window_check",
+      sql`${table.endsAt} IS NULL OR ${table.startsAt} IS NULL OR ${table.endsAt} > ${table.startsAt}`
+    ),
+    check("gachapon_machine_version_check", sql`${table.version} > 0`),
+    index("gachapon_machine_state_idx").on(table.state),
+    index("gachapon_machine_availability_idx").on(
+      table.state,
+      table.startsAt,
+      table.endsAt
+    ),
+    index("gachapon_machine_quota_idx").on(
+      table.globalQuota,
+      table.totalActivations
+    ),
+  ]
+);
+
+/** Positive integer Pack Template weights. */
+export const gachaponMachinePackEntry = pgTable(
+  "gachapon_machine_pack_entry",
+  {
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    machineId: text("machine_id")
+      .notNull()
+      .references(() => gachaponMachine.id, { onDelete: "restrict" }),
+    packTemplateId: text("pack_template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+    weight: integer("weight").notNull(),
+  },
+  (table) => [
+    check(
+      "gachapon_machine_pack_entry_weight_check",
+      sql`${table.weight} > 0 AND ${table.weight} <= 1000000`
+    ),
+    uniqueIndex("gachapon_machine_pack_entry_machine_template_unique").on(
+      table.machineId,
+      table.packTemplateId
+    ),
+    index("gachapon_machine_pack_entry_machine_idx").on(table.machineId),
+    index("gachapon_machine_pack_entry_template_idx").on(table.packTemplateId),
+  ]
+);
+
+/** Atomically maintained per-account activation usage projection. */
+export const gachaponMachineUsage = pgTable(
+  "gachapon_machine_usage",
+  {
+    activationCount: integer("activation_count").notNull().default(0),
+    machineId: text("machine_id")
+      .notNull()
+      .references(() => gachaponMachine.id, { onDelete: "restrict" }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.machineId, table.userId] }),
+    check(
+      "gachapon_machine_usage_activation_count_check",
+      sql`${table.activationCount} >= 0`
+    ),
+    index("gachapon_machine_usage_user_idx").on(table.userId),
+  ]
+);
+
+/** Immutable successful activation, linked one-to-one to Eteris and Pack. */
+export const gachaponActivation = pgTable(
+  "gachapon_activation",
+  {
+    chargedCost: bigint("charged_cost", { mode: "bigint" }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    eterisTransactionId: text("eteris_transaction_id")
+      .notNull()
+      .references(() => eterisTransaction.id, { onDelete: "restrict" })
+      .unique(),
+    fingerprint: text("fingerprint").notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    machineId: text("machine_id")
+      .notNull()
+      .references(() => gachaponMachine.id, { onDelete: "restrict" }),
+    machineVersion: integer("machine_version").notNull(),
+    packInstanceId: text("pack_instance_id")
+      .notNull()
+      .references(() => packInstance.id, { onDelete: "restrict" })
+      .unique(),
+    packTemplateId: text("pack_template_id")
+      .notNull()
+      .references(() => packTemplate.id, { onDelete: "restrict" }),
+    revisionId: text("revision_id")
+      .notNull()
+      .references(() => packRevision.id, { onDelete: "restrict" }),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    userWalletId: text("user_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+  },
+  (table) => [
+    check(
+      "gachapon_activation_user_identity_check",
+      sql`num_nonnulls(${table.userId}, ${table.userWalletId}) = 1`
+    ),
+    check("gachapon_activation_cost_check", sql`${table.chargedCost} > 0`),
+    check(
+      "gachapon_activation_machine_version_check",
+      sql`${table.machineVersion} > 0`
+    ),
+    index("gachapon_activation_machine_created_idx").on(
+      table.machineId,
+      table.createdAt,
+      table.id
+    ),
+    index("gachapon_activation_user_created_idx").on(
+      table.userId,
+      table.createdAt,
+      table.id
+    ),
+    index("gachapon_activation_template_idx").on(table.packTemplateId),
+  ]
+);
+
+/** Append-only operational history for machine configuration and state. */
+export const gachaponMachineAuditEvent = pgTable(
+  "gachapon_machine_audit_event",
+  {
+    action: gachaponMachineAuditActionEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    after: jsonb("after").$type<Record<string, unknown>>(),
+    before: jsonb("before").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    machineId: text("machine_id")
+      .notNull()
+      .references(() => gachaponMachine.id, { onDelete: "restrict" }),
+    reason: text("reason").notNull(),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    check(
+      "gachapon_machine_audit_reason_check",
+      sql`length(trim(${table.reason})) > 0`
+    ),
+    index("gachapon_machine_audit_machine_created_idx").on(
+      table.machineId,
+      table.createdAt,
+      table.id
+    ),
+    index("gachapon_machine_audit_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt
+    ),
+  ]
+);
+
+/**
+ * One append-only command record for operational collectible actions. Target
+ * references are intentionally restrictive: deleting an economic or issuance
+ * row must never erase the evidence that explains an administrative change.
+ * The polymorphic targetId keeps the private cursor contract stable while the
+ * nullable typed references provide database-level retention guarantees.
+ */
+export const collectibleAdminAction = pgTable(
+  "collectible_admin_action",
+  {
+    action: collectibleAdminActionKindEnum("action").notNull(),
+    actorUserId: text("actor_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    actorWalletId: text("actor_wallet_id").references(
+      (): AnyPgColumn => eterisWallet.id,
+      { onDelete: "restrict" }
+    ),
+    after: jsonb("after")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    before: jsonb("before")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    cardInstanceId: text("card_instance_id").references(() => cardInstance.id, {
+      onDelete: "restrict",
+    }),
+    cardTemplateId: text("card_template_id").references(() => cardTemplate.id, {
+      onDelete: "restrict",
+    }),
+    collectibleGrantCampaignId: text(
+      "collectible_grant_campaign_id"
+    ).references(() => collectibleGrantCampaign.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    expectedVersion: integer("expected_version"),
+    fingerprint: text("fingerprint").notNull(),
+    gachaponMachineId: text("gachapon_machine_id").references(
+      () => gachaponMachine.id,
+      { onDelete: "restrict" }
+    ),
+    giftOfferId: text("gift_offer_id").references(() => giftOffer.id, {
+      onDelete: "restrict",
+    }),
+    id: text("id").primaryKey().$defaultFn(generateId),
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    linkedActionId: text("linked_action_id").references(
+      (): AnyPgColumn => collectibleAdminAction.id,
+      { onDelete: "restrict" }
+    ),
+    linkedEterisTransactionId: text("linked_eteris_transaction_id").references(
+      () => eterisTransaction.id,
+      { onDelete: "restrict" }
+    ),
+    marketListingId: text("market_listing_id").references(
+      () => blackMarketListing.id,
+      { onDelete: "restrict" }
+    ),
+    packInstanceId: text("pack_instance_id").references(() => packInstance.id, {
+      onDelete: "restrict",
+    }),
+    packRevisionId: text("pack_revision_id").references(() => packRevision.id, {
+      onDelete: "restrict",
+    }),
+    packTemplateId: text("pack_template_id").references(() => packTemplate.id, {
+      onDelete: "restrict",
+    }),
+    officialCardShopOfferId: text("official_card_shop_offer_id").references(
+      () => officialCardShopOffer.id,
+      { onDelete: "restrict" }
+    ),
+    reason: text("reason").notNull(),
+    targetId: text("target_id").notNull(),
+    targetKind: collectibleAdminTargetKindEnum("target_kind").notNull(),
+    tradeOfferId: text("trade_offer_id").references(() => tradeOffer.id, {
+      onDelete: "restrict",
+    }),
+    version: integer("version").notNull(),
+  },
+  (table) => [
+    check(
+      "collectible_admin_action_reason_check",
+      sql`length(trim(${table.reason})) > 0`
+    ),
+    check("collectible_admin_action_version_check", sql`${table.version} > 0`),
+    check(
+      "collectible_admin_action_expected_version_check",
+      sql`${table.expectedVersion} IS NULL OR ${table.expectedVersion} > 0`
+    ),
+    check(
+      "collectible_admin_action_target_reference_check",
+      sql`(
+        (${table.targetKind} = 'card-instance' AND ${table.cardInstanceId} IS NOT NULL) OR
+        (${table.targetKind} = 'card-template' AND ${table.cardTemplateId} IS NOT NULL) OR
+        (${table.targetKind} = 'pack-instance' AND ${table.packInstanceId} IS NOT NULL) OR
+        (${table.targetKind} = 'pack-template' AND ${table.packTemplateId} IS NOT NULL) OR
+        (${table.targetKind} = 'pack-revision' AND ${table.packRevisionId} IS NOT NULL) OR
+        (${table.targetKind} = 'shop-offer' AND ${table.officialCardShopOfferId} IS NOT NULL) OR
+        (${table.targetKind} = 'gachapon-machine' AND ${table.gachaponMachineId} IS NOT NULL) OR
+        (${table.targetKind} = 'grant-campaign' AND ${table.collectibleGrantCampaignId} IS NOT NULL) OR
+        (${table.targetKind} = 'market-listing' AND ${table.marketListingId} IS NOT NULL) OR
+        (${table.targetKind} = 'trade-offer' AND ${table.tradeOfferId} IS NOT NULL) OR
+        (${table.targetKind} = 'gift-offer' AND ${table.giftOfferId} IS NOT NULL) OR
+        (${table.targetKind} = 'eteris-transaction' AND ${table.linkedEterisTransactionId} IS NOT NULL)
+      )`
+    ),
+    index("collectible_admin_action_created_cursor_idx").on(
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_admin_action_target_idx").on(
+      table.targetKind,
+      table.targetId,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_admin_action_actor_created_idx").on(
+      table.actorUserId,
+      table.createdAt,
+      table.id
+    ),
+    index("collectible_admin_action_linked_eteris_idx").on(
+      table.linkedEterisTransactionId
+    ),
   ]
 );
 
@@ -1600,6 +3887,12 @@ export const profileSettings = pgTable(
       .notNull()
       .default(PROFILE_DEFAULTS.bannerColor),
     bannerMode: profileBannerModeEnum("banner_mode").notNull().default("color"),
+    inboundTradesEnabled: boolean("inbound_trades_enabled")
+      .notNull()
+      .default(true),
+    inboundGiftsEnabled: boolean("inbound_gifts_enabled")
+      .notNull()
+      .default(true),
     replyNotificationsEnabled: boolean("reply_notifications_enabled")
       .notNull()
       .default(true),
@@ -1608,7 +3901,7 @@ export const profileSettings = pgTable(
       .$type<ProfileVisibilityConfig>()
       .notNull()
       .default(
-        sql`'{"favorites": true, "reviews": true, "reserved": {}, "streak": false}'::jsonb`
+        sql`'{"favorites": true, "publicCollection": false, "reviews": true, "reserved": {}, "streak": false}'::jsonb`
       ),
     ...timestamps,
   },
@@ -2309,6 +4602,7 @@ export const postRelations = relations(post, ({ many, one }) => ({
 }));
 
 export const mediaRelations = relations(media, ({ many, one }) => ({
+  cardTemplates: many(cardTemplate),
   coveredPosts: many(post),
   creators: many(creator),
   featuredPosts: many(featuredPost),
@@ -2318,8 +4612,794 @@ export const mediaRelations = relations(media, ({ many, one }) => ({
   }),
   emojis: many(emoji),
   postRelations: many(postMedia),
+  packTemplates: many(packTemplate),
   stickers: many(sticker),
 }));
+
+export const cardCharacterRelations = relations(
+  cardCharacter,
+  ({ many, one }) => ({
+    createdBy: one(user, {
+      fields: [cardCharacter.createdByUserId],
+      references: [user.id],
+      relationName: "card_character_created_by",
+    }),
+    templates: many(cardTemplate),
+    updatedBy: one(user, {
+      fields: [cardCharacter.updatedByUserId],
+      references: [user.id],
+      relationName: "card_character_updated_by",
+    }),
+  })
+);
+
+export const cardSeriesRelations = relations(cardSeries, ({ many, one }) => ({
+  createdBy: one(user, {
+    fields: [cardSeries.createdByUserId],
+    references: [user.id],
+    relationName: "card_series_created_by",
+  }),
+  templates: many(cardTemplate),
+  updatedBy: one(user, {
+    fields: [cardSeries.updatedByUserId],
+    references: [user.id],
+    relationName: "card_series_updated_by",
+  }),
+}));
+
+export const cardTemplateRelations = relations(
+  cardTemplate,
+  ({ many, one }) => ({
+    auditEvents: many(cardTemplateAuditEvent),
+    character: one(cardCharacter, {
+      fields: [cardTemplate.characterId],
+      references: [cardCharacter.id],
+    }),
+    createdBy: one(user, {
+      fields: [cardTemplate.createdByUserId],
+      references: [user.id],
+      relationName: "card_template_created_by",
+    }),
+    disabledBy: one(user, {
+      fields: [cardTemplate.disabledByUserId],
+      references: [user.id],
+      relationName: "card_template_disabled_by",
+    }),
+    grantCampaigns: many(collectibleGrantCampaign),
+    instances: many(cardInstance),
+    portraitMedia: one(media, {
+      fields: [cardTemplate.portraitMediaId],
+      references: [media.id],
+    }),
+    publishedBy: one(user, {
+      fields: [cardTemplate.publishedByUserId],
+      references: [user.id],
+      relationName: "card_template_published_by",
+    }),
+    renderedVariants: many(cardTemplateRenderedVariant),
+    series: one(cardSeries, {
+      fields: [cardTemplate.seriesId],
+      references: [cardSeries.id],
+    }),
+    updatedBy: one(user, {
+      fields: [cardTemplate.updatedByUserId],
+      references: [user.id],
+      relationName: "card_template_updated_by",
+    }),
+  })
+);
+
+export const cardTemplateRenderedVariantRelations = relations(
+  cardTemplateRenderedVariant,
+  ({ one }) => ({
+    template: one(cardTemplate, {
+      fields: [cardTemplateRenderedVariant.templateId],
+      references: [cardTemplate.id],
+    }),
+  })
+);
+
+export const cardTemplateAuditEventRelations = relations(
+  cardTemplateAuditEvent,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [cardTemplateAuditEvent.actorUserId],
+      references: [user.id],
+    }),
+    template: one(cardTemplate, {
+      fields: [cardTemplateAuditEvent.templateId],
+      references: [cardTemplate.id],
+    }),
+  })
+);
+
+export const cardInstanceRelations = relations(
+  cardInstance,
+  ({ many, one }) => ({
+    custodies: many(collectibleCustody),
+    pack: one(packInstance, {
+      fields: [cardInstance.packInstanceId],
+      references: [packInstance.id],
+    }),
+    owner: one(user, {
+      fields: [cardInstance.ownerUserId],
+      references: [user.id],
+    }),
+    template: one(cardTemplate, {
+      fields: [cardInstance.templateId],
+      references: [cardTemplate.id],
+    }),
+  })
+);
+
+export const packInstanceRelations = relations(
+  packInstance,
+  ({ many, one }) => ({
+    cards: many(cardInstance),
+    custodies: many(collectibleCustody),
+    events: many(collectibleOwnershipEvent),
+    execution: one(collectibleGrantExecution, {
+      fields: [packInstance.id],
+      references: [collectibleGrantExecution.packInstanceId],
+    }),
+    gachaponActivation: one(gachaponActivation, {
+      fields: [packInstance.id],
+      references: [gachaponActivation.packInstanceId],
+    }),
+    opening: one(packOpening, {
+      fields: [packInstance.id],
+      references: [packOpening.packInstanceId],
+    }),
+    officialCardShopPurchaseItem: one(officialCardShopPurchaseItem, {
+      fields: [packInstance.id],
+      references: [officialCardShopPurchaseItem.packInstanceId],
+    }),
+    owner: one(user, {
+      fields: [packInstance.ownerUserId],
+      references: [user.id],
+      relationName: "pack_instance_owner",
+    }),
+    revision: one(packRevision, {
+      fields: [packInstance.revisionId],
+      references: [packRevision.id],
+    }),
+    template: one(packTemplate, {
+      fields: [packInstance.templateId],
+      references: [packTemplate.id],
+    }),
+  })
+);
+
+export const collectibleCustodyRelations = relations(
+  collectibleCustody,
+  ({ one }) => ({
+    card: one(cardInstance, {
+      fields: [collectibleCustody.cardInstanceId],
+      references: [cardInstance.id],
+    }),
+    pack: one(packInstance, {
+      fields: [collectibleCustody.packInstanceId],
+      references: [packInstance.id],
+    }),
+    tradeOffer: one(tradeOffer, {
+      fields: [collectibleCustody.tradeOfferId],
+      references: [tradeOffer.id],
+    }),
+    giftOffer: one(giftOffer, {
+      fields: [collectibleCustody.giftOfferId],
+      references: [giftOffer.id],
+    }),
+    blackMarketListing: one(blackMarketListing, {
+      fields: [collectibleCustody.blackMarketListingId],
+      references: [blackMarketListing.id],
+    }),
+  })
+);
+
+export const tradeOfferRelations = relations(tradeOffer, ({ many, one }) => ({
+  actor: one(user, {
+    fields: [tradeOffer.actorUserId],
+    references: [user.id],
+    relationName: "trade_offer_actor",
+  }),
+  custodies: many(collectibleCustody),
+  history: many(tradeOfferHistory),
+  proposer: one(user, {
+    fields: [tradeOffer.proposerUserId],
+    references: [user.id],
+    relationName: "trade_offer_proposer",
+  }),
+  recipient: one(user, {
+    fields: [tradeOffer.recipientUserId],
+    references: [user.id],
+    relationName: "trade_offer_recipient",
+  }),
+}));
+
+export const tradeOfferHistoryRelations = relations(
+  tradeOfferHistory,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [tradeOfferHistory.actorUserId],
+      references: [user.id],
+      relationName: "trade_offer_history_actor",
+    }),
+    offer: one(tradeOffer, {
+      fields: [tradeOfferHistory.offerId],
+      references: [tradeOffer.id],
+    }),
+  })
+);
+
+export const giftOfferRelations = relations(giftOffer, ({ many, one }) => ({
+  actor: one(user, {
+    fields: [giftOffer.actorUserId],
+    references: [user.id],
+    relationName: "gift_offer_actor",
+  }),
+  custodies: many(collectibleCustody),
+  history: many(giftOfferHistory),
+  recipient: one(user, {
+    fields: [giftOffer.recipientUserId],
+    references: [user.id],
+    relationName: "gift_offer_recipient",
+  }),
+  sender: one(user, {
+    fields: [giftOffer.senderUserId],
+    references: [user.id],
+    relationName: "gift_offer_sender",
+  }),
+}));
+
+export const giftOfferHistoryRelations = relations(
+  giftOfferHistory,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [giftOfferHistory.actorUserId],
+      references: [user.id],
+      relationName: "gift_offer_history_actor",
+    }),
+    offer: one(giftOffer, {
+      fields: [giftOfferHistory.giftOfferId],
+      references: [giftOffer.id],
+    }),
+  })
+);
+
+export const blackMarketListingRelations = relations(
+  blackMarketListing,
+  ({ many, one }) => ({
+    audits: many(blackMarketListingAudit),
+    custodies: many(collectibleCustody),
+    feeReversalTransaction: one(eterisTransaction, {
+      fields: [blackMarketListing.feeReversalTransactionId],
+      references: [eterisTransaction.id],
+      relationName: "black_market_listing_fee_reversal",
+    }),
+    feeTransaction: one(eterisTransaction, {
+      fields: [blackMarketListing.feeTransactionId],
+      references: [eterisTransaction.id],
+      relationName: "black_market_listing_fee",
+    }),
+    seller: one(user, {
+      fields: [blackMarketListing.sellerUserId],
+      references: [user.id],
+      relationName: "black_market_listing_seller",
+    }),
+    sale: one(blackMarketSale, {
+      fields: [blackMarketListing.id],
+      references: [blackMarketSale.listingId],
+    }),
+  })
+);
+
+export const blackMarketListingAuditRelations = relations(
+  blackMarketListingAudit,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [blackMarketListingAudit.actorUserId],
+      references: [user.id],
+    }),
+    listing: one(blackMarketListing, {
+      fields: [blackMarketListingAudit.listingId],
+      references: [blackMarketListing.id],
+    }),
+  })
+);
+
+export const blackMarketSaleRelations = relations(
+  blackMarketSale,
+  ({ one }) => ({
+    buyer: one(user, {
+      fields: [blackMarketSale.buyerUserId],
+      references: [user.id],
+      relationName: "black_market_sale_buyer",
+    }),
+    eterisTransaction: one(eterisTransaction, {
+      fields: [blackMarketSale.eterisTransactionId],
+      references: [eterisTransaction.id],
+    }),
+    listing: one(blackMarketListing, {
+      fields: [blackMarketSale.listingId],
+      references: [blackMarketListing.id],
+    }),
+    seller: one(user, {
+      fields: [blackMarketSale.sellerUserId],
+      references: [user.id],
+      relationName: "black_market_sale_seller",
+    }),
+  })
+);
+
+export const blackMarketRiskSignalRelations = relations(
+  blackMarketRiskSignal,
+  ({ one }) => ({
+    listing: one(blackMarketListing, {
+      fields: [blackMarketRiskSignal.listingId],
+      references: [blackMarketListing.id],
+    }),
+    sale: one(blackMarketSale, {
+      fields: [blackMarketRiskSignal.saleId],
+      references: [blackMarketSale.id],
+    }),
+    subject: one(user, {
+      fields: [blackMarketRiskSignal.subjectUserId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const packOpeningRelations = relations(packOpening, ({ one }) => ({
+  owner: one(user, {
+    fields: [packOpening.ownerUserId],
+    references: [user.id],
+    relationName: "pack_opening_owner",
+  }),
+  pack: one(packInstance, {
+    fields: [packOpening.packInstanceId],
+    references: [packInstance.id],
+  }),
+  revision: one(packRevision, {
+    fields: [packOpening.revisionId],
+    references: [packRevision.id],
+  }),
+  template: one(packTemplate, {
+    fields: [packOpening.templateId],
+    references: [packTemplate.id],
+  }),
+}));
+
+export const collectibleOwnershipEventRelations = relations(
+  collectibleOwnershipEvent,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [collectibleOwnershipEvent.actorUserId],
+      references: [user.id],
+      relationName: "collectible_ownership_event_actor",
+    }),
+    card: one(cardInstance, {
+      fields: [collectibleOwnershipEvent.cardInstanceId],
+      references: [cardInstance.id],
+    }),
+    fromUser: one(user, {
+      fields: [collectibleOwnershipEvent.fromUserId],
+      references: [user.id],
+      relationName: "collectible_ownership_event_from",
+    }),
+    pack: one(packInstance, {
+      fields: [collectibleOwnershipEvent.packInstanceId],
+      references: [packInstance.id],
+    }),
+    toUser: one(user, {
+      fields: [collectibleOwnershipEvent.toUserId],
+      references: [user.id],
+      relationName: "collectible_ownership_event_to",
+    }),
+  })
+);
+
+export const userBlockRelations = relations(userBlock, ({ one }) => ({
+  blocked: one(user, {
+    fields: [userBlock.blockedUserId],
+    references: [user.id],
+    relationName: "user_block_blocked",
+  }),
+  blocker: one(user, {
+    fields: [userBlock.blockerUserId],
+    references: [user.id],
+    relationName: "user_block_blocker",
+  }),
+}));
+
+export const collectibleGrantCampaignRelations = relations(
+  collectibleGrantCampaign,
+  ({ many, one }) => ({
+    cardTemplate: one(cardTemplate, {
+      fields: [collectibleGrantCampaign.cardTemplateId],
+      references: [cardTemplate.id],
+    }),
+    createdBy: one(user, {
+      fields: [collectibleGrantCampaign.createdByUserId],
+      references: [user.id],
+      relationName: "collectible_grant_campaign_creator",
+    }),
+    executions: many(collectibleGrantExecution),
+    packTemplate: one(packTemplate, {
+      fields: [collectibleGrantCampaign.packTemplateId],
+      references: [packTemplate.id],
+    }),
+  })
+);
+
+export const collectibleGrantExecutionRelations = relations(
+  collectibleGrantExecution,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [collectibleGrantExecution.actorUserId],
+      references: [user.id],
+      relationName: "collectible_grant_execution_actor",
+    }),
+    campaign: one(collectibleGrantCampaign, {
+      fields: [collectibleGrantExecution.campaignId],
+      references: [collectibleGrantCampaign.id],
+    }),
+    card: one(cardInstance, {
+      fields: [collectibleGrantExecution.cardInstanceId],
+      references: [cardInstance.id],
+    }),
+    pack: one(packInstance, {
+      fields: [collectibleGrantExecution.packInstanceId],
+      references: [packInstance.id],
+    }),
+    recipient: one(user, {
+      fields: [collectibleGrantExecution.recipientUserId],
+      references: [user.id],
+      relationName: "collectible_grant_execution_recipient",
+    }),
+  })
+);
+
+export const officialCardShopOfferRelations = relations(
+  officialCardShopOffer,
+  ({ many, one }) => ({
+    auditEvents: many(officialCardShopOfferAuditEvent),
+    createdBy: one(user, {
+      fields: [officialCardShopOffer.createdByUserId],
+      references: [user.id],
+      relationName: "official_card_shop_offer_created_by",
+    }),
+    packTemplate: one(packTemplate, {
+      fields: [officialCardShopOffer.packTemplateId],
+      references: [packTemplate.id],
+    }),
+    purchases: many(officialCardShopPurchase),
+    updatedBy: one(user, {
+      fields: [officialCardShopOffer.updatedByUserId],
+      references: [user.id],
+      relationName: "official_card_shop_offer_updated_by",
+    }),
+    usage: many(officialCardShopOfferUsage),
+  })
+);
+
+export const officialCardShopOfferAuditEventRelations = relations(
+  officialCardShopOfferAuditEvent,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [officialCardShopOfferAuditEvent.actorUserId],
+      references: [user.id],
+    }),
+    offer: one(officialCardShopOffer, {
+      fields: [officialCardShopOfferAuditEvent.offerId],
+      references: [officialCardShopOffer.id],
+    }),
+  })
+);
+
+export const officialCardShopOfferUsageRelations = relations(
+  officialCardShopOfferUsage,
+  ({ one }) => ({
+    offer: one(officialCardShopOffer, {
+      fields: [officialCardShopOfferUsage.offerId],
+      references: [officialCardShopOffer.id],
+    }),
+    user: one(user, {
+      fields: [officialCardShopOfferUsage.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const officialCardShopPurchaseRelations = relations(
+  officialCardShopPurchase,
+  ({ many, one }) => ({
+    buyer: one(user, {
+      fields: [officialCardShopPurchase.buyerUserId],
+      references: [user.id],
+      relationName: "official_card_shop_purchase_buyer",
+    }),
+    eterisTransaction: one(eterisTransaction, {
+      fields: [officialCardShopPurchase.eterisTransactionId],
+      references: [eterisTransaction.id],
+    }),
+    items: many(officialCardShopPurchaseItem),
+    offer: one(officialCardShopOffer, {
+      fields: [officialCardShopPurchase.offerId],
+      references: [officialCardShopOffer.id],
+    }),
+    packTemplate: one(packTemplate, {
+      fields: [officialCardShopPurchase.packTemplateId],
+      references: [packTemplate.id],
+    }),
+    revision: one(packRevision, {
+      fields: [officialCardShopPurchase.revisionId],
+      references: [packRevision.id],
+    }),
+  })
+);
+
+export const officialCardShopPurchaseItemRelations = relations(
+  officialCardShopPurchaseItem,
+  ({ one }) => ({
+    pack: one(packInstance, {
+      fields: [officialCardShopPurchaseItem.packInstanceId],
+      references: [packInstance.id],
+    }),
+    purchase: one(officialCardShopPurchase, {
+      fields: [officialCardShopPurchaseItem.purchaseId],
+      references: [officialCardShopPurchase.id],
+    }),
+    revision: one(packRevision, {
+      fields: [officialCardShopPurchaseItem.revisionId],
+      references: [packRevision.id],
+    }),
+  })
+);
+
+export const gachaponMachineRelations = relations(
+  gachaponMachine,
+  ({ many, one }) => ({
+    activations: many(gachaponActivation),
+    auditEvents: many(gachaponMachineAuditEvent),
+    createdBy: one(user, {
+      fields: [gachaponMachine.createdByUserId],
+      references: [user.id],
+      relationName: "gachapon_machine_created_by",
+    }),
+    entries: many(gachaponMachinePackEntry),
+    updatedBy: one(user, {
+      fields: [gachaponMachine.updatedByUserId],
+      references: [user.id],
+      relationName: "gachapon_machine_updated_by",
+    }),
+    usage: many(gachaponMachineUsage),
+  })
+);
+
+export const gachaponMachinePackEntryRelations = relations(
+  gachaponMachinePackEntry,
+  ({ one }) => ({
+    machine: one(gachaponMachine, {
+      fields: [gachaponMachinePackEntry.machineId],
+      references: [gachaponMachine.id],
+    }),
+    packTemplate: one(packTemplate, {
+      fields: [gachaponMachinePackEntry.packTemplateId],
+      references: [packTemplate.id],
+    }),
+  })
+);
+
+export const gachaponMachineUsageRelations = relations(
+  gachaponMachineUsage,
+  ({ one }) => ({
+    machine: one(gachaponMachine, {
+      fields: [gachaponMachineUsage.machineId],
+      references: [gachaponMachine.id],
+    }),
+    user: one(user, {
+      fields: [gachaponMachineUsage.userId],
+      references: [user.id],
+    }),
+  })
+);
+
+export const gachaponActivationRelations = relations(
+  gachaponActivation,
+  ({ one }) => ({
+    eterisTransaction: one(eterisTransaction, {
+      fields: [gachaponActivation.eterisTransactionId],
+      references: [eterisTransaction.id],
+    }),
+    machine: one(gachaponMachine, {
+      fields: [gachaponActivation.machineId],
+      references: [gachaponMachine.id],
+    }),
+    pack: one(packInstance, {
+      fields: [gachaponActivation.packInstanceId],
+      references: [packInstance.id],
+    }),
+    packTemplate: one(packTemplate, {
+      fields: [gachaponActivation.packTemplateId],
+      references: [packTemplate.id],
+    }),
+    revision: one(packRevision, {
+      fields: [gachaponActivation.revisionId],
+      references: [packRevision.id],
+    }),
+    user: one(user, {
+      fields: [gachaponActivation.userId],
+      references: [user.id],
+      relationName: "gachapon_activation_user",
+    }),
+  })
+);
+
+export const gachaponMachineAuditEventRelations = relations(
+  gachaponMachineAuditEvent,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [gachaponMachineAuditEvent.actorUserId],
+      references: [user.id],
+    }),
+    machine: one(gachaponMachine, {
+      fields: [gachaponMachineAuditEvent.machineId],
+      references: [gachaponMachine.id],
+    }),
+  })
+);
+
+export const collectibleAdminActionRelations = relations(
+  collectibleAdminAction,
+  ({ one }) => ({
+    actor: one(user, {
+      fields: [collectibleAdminAction.actorUserId],
+      references: [user.id],
+    }),
+    cardInstance: one(cardInstance, {
+      fields: [collectibleAdminAction.cardInstanceId],
+      references: [cardInstance.id],
+    }),
+    cardTemplate: one(cardTemplate, {
+      fields: [collectibleAdminAction.cardTemplateId],
+      references: [cardTemplate.id],
+    }),
+    gachaponMachine: one(gachaponMachine, {
+      fields: [collectibleAdminAction.gachaponMachineId],
+      references: [gachaponMachine.id],
+    }),
+    giftOffer: one(giftOffer, {
+      fields: [collectibleAdminAction.giftOfferId],
+      references: [giftOffer.id],
+    }),
+    linkedEterisTransaction: one(eterisTransaction, {
+      fields: [collectibleAdminAction.linkedEterisTransactionId],
+      references: [eterisTransaction.id],
+    }),
+    marketListing: one(blackMarketListing, {
+      fields: [collectibleAdminAction.marketListingId],
+      references: [blackMarketListing.id],
+    }),
+    packInstance: one(packInstance, {
+      fields: [collectibleAdminAction.packInstanceId],
+      references: [packInstance.id],
+    }),
+    packRevision: one(packRevision, {
+      fields: [collectibleAdminAction.packRevisionId],
+      references: [packRevision.id],
+    }),
+    packTemplate: one(packTemplate, {
+      fields: [collectibleAdminAction.packTemplateId],
+      references: [packTemplate.id],
+    }),
+    tradeOffer: one(tradeOffer, {
+      fields: [collectibleAdminAction.tradeOfferId],
+      references: [tradeOffer.id],
+    }),
+  })
+);
+
+export const packTemplateRelations = relations(
+  packTemplate,
+  ({ many, one }) => ({
+    assetMedia: one(media, {
+      fields: [packTemplate.assetMediaId],
+      references: [media.id],
+    }),
+    createdBy: one(user, {
+      fields: [packTemplate.createdByUserId],
+      references: [user.id],
+      relationName: "pack_template_created_by",
+    }),
+    gachaponActivations: many(gachaponActivation),
+    gachaponEntries: many(gachaponMachinePackEntry),
+    latestPublishedRevision: one(packRevision, {
+      fields: [packTemplate.latestPublishedRevisionId],
+      references: [packRevision.id],
+      relationName: "pack_template_latest_revision",
+    }),
+    instances: many(packInstance),
+    officialCardShopOffers: many(officialCardShopOffer),
+    officialCardShopPurchases: many(officialCardShopPurchase),
+    revisions: many(packRevision),
+    retiredBy: one(user, {
+      fields: [packTemplate.retiredByUserId],
+      references: [user.id],
+      relationName: "pack_template_retired_by",
+    }),
+    updatedBy: one(user, {
+      fields: [packTemplate.updatedByUserId],
+      references: [user.id],
+      relationName: "pack_template_updated_by",
+    }),
+  })
+);
+
+export const packRevisionRelations = relations(
+  packRevision,
+  ({ many, one }) => ({
+    createdBy: one(user, {
+      fields: [packRevision.createdByUserId],
+      references: [user.id],
+      relationName: "pack_revision_created_by",
+    }),
+    drawGroups: many(packDrawGroup),
+    gachaponActivations: many(gachaponActivation),
+    instances: many(packInstance),
+    officialCardShopPurchaseItems: many(officialCardShopPurchaseItem),
+    officialCardShopPurchases: many(officialCardShopPurchase),
+    publishedBy: one(user, {
+      fields: [packRevision.publishedByUserId],
+      references: [user.id],
+      relationName: "pack_revision_published_by",
+    }),
+    template: one(packTemplate, {
+      fields: [packRevision.templateId],
+      references: [packTemplate.id],
+    }),
+    updatedBy: one(user, {
+      fields: [packRevision.updatedByUserId],
+      references: [user.id],
+      relationName: "pack_revision_updated_by",
+    }),
+  })
+);
+
+export const packDrawGroupRelations = relations(
+  packDrawGroup,
+  ({ many, one }) => ({
+    cardWeights: many(packDrawGroupCardWeight),
+    rarityWeights: many(packDrawGroupRarityWeight),
+    revision: one(packRevision, {
+      fields: [packDrawGroup.revisionId],
+      references: [packRevision.id],
+    }),
+  })
+);
+
+export const packDrawGroupRarityWeightRelations = relations(
+  packDrawGroupRarityWeight,
+  ({ one }) => ({
+    drawGroup: one(packDrawGroup, {
+      fields: [packDrawGroupRarityWeight.drawGroupId],
+      references: [packDrawGroup.id],
+    }),
+  })
+);
+
+export const packDrawGroupCardWeightRelations = relations(
+  packDrawGroupCardWeight,
+  ({ one }) => ({
+    cardTemplate: one(cardTemplate, {
+      fields: [packDrawGroupCardWeight.cardTemplateId],
+      references: [cardTemplate.id],
+    }),
+    drawGroup: one(packDrawGroup, {
+      fields: [packDrawGroupCardWeight.drawGroupId],
+      references: [packDrawGroup.id],
+    }),
+  })
+);
 
 export const mediaFolderRelations = relations(mediaFolder, ({ many, one }) => ({
   children: many(mediaFolder, {
@@ -2648,6 +5728,28 @@ export const eterisTransactionRelations = relations(
     actor: one(user, {
       fields: [eterisTransaction.actorUserId],
       references: [user.id],
+    }),
+    gachaponActivation: one(gachaponActivation, {
+      fields: [eterisTransaction.id],
+      references: [gachaponActivation.eterisTransactionId],
+    }),
+    officialCardShopPurchase: one(officialCardShopPurchase, {
+      fields: [eterisTransaction.id],
+      references: [officialCardShopPurchase.eterisTransactionId],
+    }),
+    blackMarketListingFee: one(blackMarketListing, {
+      fields: [eterisTransaction.id],
+      references: [blackMarketListing.feeTransactionId],
+      relationName: "black_market_listing_fee",
+    }),
+    blackMarketListingFeeReversal: one(blackMarketListing, {
+      fields: [eterisTransaction.id],
+      references: [blackMarketListing.feeReversalTransactionId],
+      relationName: "black_market_listing_fee_reversal",
+    }),
+    blackMarketSale: one(blackMarketSale, {
+      fields: [eterisTransaction.id],
+      references: [blackMarketSale.eterisTransactionId],
     }),
     postings: many(eterisPosting),
   })

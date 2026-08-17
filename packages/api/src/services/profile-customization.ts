@@ -32,6 +32,7 @@ import type {
   ProfileShowcaseVariant,
 } from "@repo/shared/profile-customization";
 
+import { assertCollectiblesMutationAllowed } from "./collectibles";
 import { setPublicWalletBalanceInTransaction } from "./eteris";
 import {
   resolveCurrentProfileDefaults as resolveManifestDefaults,
@@ -525,6 +526,10 @@ export async function saveProfileCustomization(
     userId: string;
   }
 ) {
+  // A saved profile configuration always persists the collectible Showcase
+  // rows alongside the cosmetic configuration. Keep that write behind the
+  // same launch gate as the rest of the collectible command surface.
+  assertCollectiblesMutationAllowed({ impersonated: input.impersonated });
   if (input.impersonated) {
     throw new ProfileCustomizationError(
       "IMPERSONATION",

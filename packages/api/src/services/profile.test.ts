@@ -10,14 +10,70 @@ import {
   getProfileEntitlements,
   getProfileEntitlementsForTier,
   getProfileSettingsForRead,
+  getResolvedProfileVisibility,
   getPublicCurrentStreak,
   getPublicProfileActivityCounts,
+  resolvePrivateProfileCustody,
   resolveIsolatedScalarProfileShowcases,
   resolvePublicAccountLevel,
   resolveScalarProfileShowcases,
   resolveProfileVisibility,
 } from "./profile";
 import { resolveCurrentProfileDefaults } from "./profile-customization-manifest";
+
+describe("public collectible custody projection", () => {
+  const now = new Date("2026-08-17T00:00:00.000Z");
+
+  it("keeps active Black Market custody visible while hiding trade and gift custody", () => {
+    expect(
+      resolvePrivateProfileCustody(
+        [
+          {
+            assetId: "market-card",
+            blackMarketExpiresAt: new Date("2026-08-20T00:00:00.000Z"),
+            blackMarketListingId: "listing-active",
+            blackMarketState: "active",
+          },
+          {
+            assetId: "trade-card",
+            blackMarketExpiresAt: null,
+            blackMarketListingId: null,
+            blackMarketState: null,
+          },
+          {
+            assetId: "gift-pack",
+            blackMarketExpiresAt: null,
+            blackMarketListingId: null,
+            blackMarketState: null,
+          },
+        ],
+        now
+      )
+    ).toEqual(new Set(["trade-card", "gift-pack"]));
+  });
+
+  it("hides terminal or expired listing custody on the next profile read", () => {
+    expect(
+      resolvePrivateProfileCustody(
+        [
+          {
+            assetId: "cancelled-card",
+            blackMarketExpiresAt: new Date("2026-08-20T00:00:00.000Z"),
+            blackMarketListingId: "listing-cancelled",
+            blackMarketState: "cancelled",
+          },
+          {
+            assetId: "expired-card",
+            blackMarketExpiresAt: new Date("2026-08-16T00:00:00.000Z"),
+            blackMarketListingId: "listing-expired",
+            blackMarketState: "active",
+          },
+        ],
+        now
+      )
+    ).toEqual(new Set(["cancelled-card", "expired-card"]));
+  });
+});
 
 function resolveEnabledScalarProfileConfiguration() {
   const defaults = resolveCurrentProfileDefaults();
@@ -217,6 +273,7 @@ describe(normalizeProfileVisibilityConfig, () => {
       })
     ).toEqual({
       favorites: false,
+      publicCollection: false,
       reserved: { futureFlag: true },
       reviews: true,
       streak: false,
@@ -246,6 +303,26 @@ describe(normalizeProfileVisibilityConfig, () => {
     });
     expect(isProfileActivityPublic(stored, "favorites")).toBe(true);
     expect(isProfileActivityPublic(stored, "reviews")).toBe(false);
+  });
+});
+
+describe(getResolvedProfileVisibility, () => {
+  it("reads the current collection preference on every request", async () => {
+    let visibilityConfig: unknown = { reserved: {} };
+    const findFirst = vi.fn(() => Promise.resolve({ visibilityConfig }));
+    const db = {
+      query: { profileSettings: { findFirst } },
+    };
+
+    await expect(
+      getResolvedProfileVisibility(db as never, "user-1")
+    ).resolves.toMatchObject({ publicCollection: false });
+
+    visibilityConfig = { publicCollection: true, reserved: {} };
+    await expect(
+      getResolvedProfileVisibility(db as never, "user-1")
+    ).resolves.toMatchObject({ publicCollection: true });
+    expect(findFirst).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -296,7 +373,13 @@ describe(getPublicCurrentStreak, () => {
       getPublicCurrentStreak(
         db as never,
         "user-1",
-        { favorites: true, reserved: {}, reviews: true, streak: true },
+        {
+          favorites: true,
+          publicCollection: false,
+          reserved: {},
+          reviews: true,
+          streak: true,
+        },
         new Date("2026-08-08T12:00:00.000Z")
       )
     ).resolves.toBeNull();

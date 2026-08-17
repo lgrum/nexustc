@@ -6,6 +6,8 @@ import eterisRouter from "./eteris";
 
 const mocks = vi.hoisted(() => ({
   adjust: vi.fn(),
+  cardShopReport: vi.fn(),
+  gachaponReport: vi.fn(),
   getMine: vi.fn(),
   getPublic: vi.fn(),
   grantStipend: vi.fn(),
@@ -62,6 +64,8 @@ vi.mock("../services/patreon-stipend", () => ({
 }));
 vi.mock("../services/economy-report", () => ({
   getDailyEconomyReport: mocks.report,
+  getGachaponEconomyProjection: mocks.gachaponReport,
+  getOfficialCardShopEconomyProjection: mocks.cardShopReport,
 }));
 
 function createContext(role = "user") {
@@ -90,6 +94,22 @@ beforeEach(() => {
   mocks.inspect.mockResolvedValue({ balance: "0", walletId: "wallet-1" });
   mocks.reconcile.mockResolvedValue({ matches: true });
   mocks.report.mockResolvedValue({ day: "2026-08-07" });
+  mocks.cardShopReport.mockResolvedValue({
+    activeOfferCount: 1,
+    configuredOfferCount: 2,
+    eterisBurned: "0",
+    purchaseCount: 0,
+    remainingLimitedQuota: 10,
+    soldPackCount: 0,
+  });
+  mocks.gachaponReport.mockResolvedValue({
+    activeMachineCount: 0,
+    activationCount: 0,
+    configuredMachineCount: 0,
+    eterisBurned: "0",
+    issuedPackCount: 0,
+    remainingGlobalQuota: 0,
+  });
   mocks.rateLimit.mockResolvedValue({ exceeded: false });
   mocks.setPublic.mockResolvedValue({ publicBalance: true });
 });
@@ -234,8 +254,37 @@ test("admins can inspect but moderators cannot, and only owners reconcile", asyn
     call(eterisRouter.admin.report, undefined, {
       context: createContext("admin"),
     })
-  ).resolves.toEqual({ day: "2026-08-07" });
-  expect(mocks.report).toHaveBeenCalledWith(expect.anything());
+  ).resolves.toEqual({
+    day: "2026-08-07",
+    gachapon: {
+      activeMachineCount: 0,
+      activationCount: 0,
+      configuredMachineCount: 0,
+      eterisBurned: "0",
+      issuedPackCount: 0,
+      remainingGlobalQuota: 0,
+    },
+    officialCardShop: {
+      activeOfferCount: 1,
+      configuredOfferCount: 2,
+      eterisBurned: "0",
+      purchaseCount: 0,
+      remainingLimitedQuota: 10,
+      soldPackCount: 0,
+    },
+  });
+  expect(mocks.report).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.any(Date)
+  );
+  expect(mocks.cardShopReport).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.any(Date)
+  );
+  expect(mocks.gachaponReport).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.any(Date)
+  );
   await expect(
     call(
       eterisRouter.admin.inspectWallet,

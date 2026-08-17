@@ -101,10 +101,30 @@ describe(ProfileLibrarySection, () => {
     });
   });
 
-  it("replaces duplicate visibility switches with customization status", () => {
+  it("updates collection visibility independently from activity", async () => {
     renderLibrary(true);
 
-    expect(screen.queryByRole("switch")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("switch", {
+        name: "Mostrar mi colección públicamente",
+      })
+    );
+
+    await waitFor(() => {
+      expect(mocks.updateVisibility).toHaveBeenCalledWith({
+        publicCollection: true,
+      });
+    });
+  });
+
+  it("keeps collection privacy independent from customization status", () => {
+    renderLibrary(true);
+
+    expect(
+      screen.getByRole("switch", {
+        name: "Mostrar mi colección públicamente",
+      })
+    ).toBeTruthy();
     expect(
       screen
         .getByRole("link", { name: "Personalizar perfil" })

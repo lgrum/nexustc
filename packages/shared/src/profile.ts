@@ -38,6 +38,8 @@ export type ProfileActivityCollection =
 
 export type ProfileVisibilityConfig = {
   favorites: boolean;
+  /** Full collectible collection visibility is an explicit opt-in. */
+  publicCollection: boolean;
   reviews: boolean;
   reserved: Record<string, boolean>;
   streak: boolean;
@@ -50,6 +52,7 @@ export type ProfileActivityVisibility = Pick<
 
 export const PROFILE_VISIBILITY_DEFAULTS = {
   favorites: true,
+  publicCollection: false,
   reviews: true,
   reserved: {},
   streak: false,
@@ -76,6 +79,10 @@ export function normalizeProfileVisibilityConfig(
       typeof config.favorites === "boolean"
         ? config.favorites
         : PROFILE_VISIBILITY_DEFAULTS.favorites,
+    publicCollection:
+      typeof config.publicCollection === "boolean"
+        ? config.publicCollection
+        : PROFILE_VISIBILITY_DEFAULTS.publicCollection,
     reviews:
       typeof config.reviews === "boolean"
         ? config.reviews

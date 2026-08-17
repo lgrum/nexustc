@@ -91,6 +91,15 @@ export function resolveProfileConfigurationManifest(
     if (!definition) {
       continue;
     }
+    // Collectible ownership is resolved by the request-bound profile adapter;
+    // this manifest may be returned from an hours-cached anonymous profile.
+    if (
+      definition.key === "card" ||
+      definition.key === "rare-card" ||
+      definition.key === "unopened-pack"
+    ) {
+      continue;
+    }
     if (definition.key === "favorite-games") {
       if (showcase.enabled && favoriteGames.length > 0) {
         showcases.push({

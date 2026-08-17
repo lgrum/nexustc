@@ -1249,12 +1249,17 @@ test("account closure deletes the identity in the same transaction", async () =>
     store.operations.push("reconcile-comments");
     return Promise.resolve();
   });
+  const reconcileCollectibles = vi.fn(() => {
+    store.operations.push("reconcile-collectibles");
+    return Promise.resolve();
+  });
 
   await closeAccountAndDeleteUser(
     store.db,
     "user-1",
     reconcileOutgoingLikes,
-    reconcileAuthoredCommentRewards
+    reconcileAuthoredCommentRewards,
+    reconcileCollectibles
   );
 
   expect(store.deletedTables).toContain(user);
@@ -1269,11 +1274,19 @@ test("account closure deletes the identity in the same transaction", async () =>
     expect.anything(),
     expect.objectContaining({ userId: "user-1" })
   );
+  expect(reconcileCollectibles).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({
+      userId: "user-1",
+      walletId: expect.any(String),
+    })
+  );
   expect(store.operations).toEqual([
     "lock-patron",
     "lock-user",
     "lock-user-streak",
     "lock-user-progression",
+    "reconcile-collectibles",
     "reconcile-likes",
     "reconcile-comments",
     "delete-user",
@@ -1307,6 +1320,7 @@ test("account closure removes the user from retained anomaly snapshots", async (
     store.db,
     "user-1",
     () => Promise.resolve(),
+    () => Promise.resolve(),
     () => Promise.resolve()
   );
 
@@ -1330,6 +1344,7 @@ test("account deletion rolls back when outgoing-like reconciliation fails", asyn
       "user-1",
       () =>
         Promise.reject(new ContributionProjectionMismatchError([wallet.id])),
+      () => Promise.resolve(),
       () => Promise.resolve()
     )
   ).rejects.toThrow("XP_PROJECTION_MISMATCH");

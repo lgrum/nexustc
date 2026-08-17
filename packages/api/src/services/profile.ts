@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, sql } from "@repo/db";
+import { and, eq, inArray, isNull, ne, sql } from "@repo/db";
 import type { db as database } from "@repo/db";
 import {
   patron,
@@ -12,6 +12,8 @@ import {
   profileRoleDefinition,
   profileSettings,
   profileSystemConfig,
+  collectibleCustody,
+  blackMarketListing,
   user,
 } from "@repo/db/schema/app";
 import { env } from "@repo/env";
@@ -40,10 +42,12 @@ import type {
 
 import { publicCatalogVisibilityCondition } from "../utils/early-access";
 import { userIsNotActivelyBanned } from "../utils/user-ban";
+import { resolveActiveBlackMarketSales } from "./black-market";
 import {
   getProfileCustomizationWalletBalance,
   getPublicWalletBalance,
 } from "./eteris";
+import { resolvePublicCollectibleShowcases } from "./profile-collectible-showcases";
 import { loadProfileCustomizationEditorState } from "./profile-customization";
 import {
   resolveCurrentProfileDefaults,
@@ -56,6 +60,43 @@ import { getStreakState } from "./streak";
 
 type Database = typeof database;
 export type ProfileEntitlementDb = Pick<Database, "query">;
+
+export type PublicProfileCustodyProjectionRow = {
+  assetId: string | null;
+  blackMarketExpiresAt: Date | null;
+  blackMarketListingId: string | null;
+  blackMarketState:
+    | "active"
+    | "administratively-cancelled"
+    | "cancelled"
+    | "expired"
+    | "sold"
+    | null;
+};
+
+/** Keep active Black Market custody public while every other custody remains private. */
+export function resolvePrivateProfileCustody(
+  rows: readonly PublicProfileCustodyProjectionRow[],
+  now = new Date()
+) {
+  return new Set(
+    rows.flatMap(
+      ({
+        assetId,
+        blackMarketExpiresAt,
+        blackMarketListingId,
+        blackMarketState,
+      }) => {
+        const isActiveBlackMarketSale =
+          Boolean(blackMarketListingId) &&
+          blackMarketState === "active" &&
+          blackMarketExpiresAt instanceof Date &&
+          blackMarketExpiresAt > now;
+        return assetId && !isActiveBlackMarketSale ? [assetId] : [];
+      }
+    )
+  );
+}
 
 export type ProfileEntitlements = {
   canUseAnimatedAvatar: boolean;
@@ -262,6 +303,64 @@ export async function getPublicScalarProfileShowcases(
     progression: getPublicAccountLevel(db, userId),
     publicWallet: getPublicWalletBalance(db, userId),
   });
+}
+
+/**
+ * Collectible Showcase output is deliberately separate from the cached
+ * profile manifest. The resolver rechecks the account, saved configuration,
+ * and authoritative current ownership on every request.
+ */
+export async function getPublicCollectibleProfileShowcases(
+  db: Database,
+  userId: string
+) {
+  if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
+    return [];
+  }
+  const customization = await loadProfileCustomizationEditorState(db, userId);
+  return resolvePublicCollectibleShowcases(
+    db,
+    userId,
+    customization.effectiveConfiguration,
+    {
+      resolveActiveCustody: async ({ assetIds, assetKind }) => {
+        const assetColumn =
+          assetKind === "card"
+            ? collectibleCustody.cardInstanceId
+            : collectibleCustody.packInstanceId;
+        const rows = await db
+          .select({
+            assetId: assetColumn,
+            blackMarketExpiresAt: blackMarketListing.expiresAt,
+            blackMarketListingId: collectibleCustody.blackMarketListingId,
+            blackMarketState: blackMarketListing.state,
+          })
+          .from(collectibleCustody)
+          .leftJoin(
+            blackMarketListing,
+            eq(blackMarketListing.id, collectibleCustody.blackMarketListingId)
+          )
+          .where(
+            and(
+              isNull(collectibleCustody.releasedAt),
+              inArray(assetColumn, [...assetIds])
+            )
+          );
+        return resolvePrivateProfileCustody(rows);
+      },
+      resolveActiveSales: async ({ assetIds, assetKind, profileUserId }) => {
+        try {
+          return await resolveActiveBlackMarketSales(db, {
+            assetIds,
+            assetKind,
+            profileUserId,
+          });
+        } catch {
+          return new Map();
+        }
+      },
+    }
+  );
 }
 
 export function getProfileCustomizationScalarPreview(
@@ -529,6 +628,8 @@ export async function getProfileSettingsForRead(db: Database, userId: string) {
       bannerAssetId: null,
       bannerColor: PROFILE_DEFAULTS.bannerColor,
       bannerMode: "color" as const,
+      inboundGiftsEnabled: true,
+      inboundTradesEnabled: true,
       visibilityConfig: {
         ...PROFILE_VISIBILITY_DEFAULTS,
         reserved: {},

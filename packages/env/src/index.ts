@@ -19,6 +19,10 @@ export const env = createEnv({
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     CLOUDFLARE_API_TOKEN: z.string().optional(),
     CRON_SECRET: z.string().min(16).optional(),
+    COLLECTIBLES_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     DATABASE_URL: z.string(),
     EXE_TOKEN: z.string(),
     PATREON_CAMPAIGN_ID: z.string(),
@@ -60,6 +64,7 @@ export const env = createEnv({
     CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
     CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
     CRON_SECRET: process.env.CRON_SECRET,
+    COLLECTIBLES_ENABLED: process.env.COLLECTIBLES_ENABLED,
     DATABASE_URL: process.env.DATABASE_URL,
     DAILY_STREAK_ENABLED: process.env.DAILY_STREAK_ENABLED,
     ETERIS_SPENDING_ENABLED: process.env.ETERIS_SPENDING_ENABLED,

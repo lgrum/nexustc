@@ -79,6 +79,45 @@ export function EconomyClient({ initialReport }: { initialReport: Report }) {
         />
       </section>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Tienda oficial</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <p>
+            Ofertas configuradas (incluye programadas):{" "}
+            {snapshot.officialCardShop.configuredOfferCount}
+          </p>
+          <p>Ofertas activas: {snapshot.officialCardShop.activeOfferCount}</p>
+          <p>
+            Cuota limitada restante:{" "}
+            {snapshot.officialCardShop.remainingLimitedQuota}
+          </p>
+          <p>Paquetes vendidos: {snapshot.officialCardShop.soldPackCount}</p>
+          <p>Compras de hoy: {snapshot.officialCardShop.purchaseCount}</p>
+          <p>
+            Eteris quemados por compras:{" "}
+            {snapshot.officialCardShop.eterisBurned}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Gachapon</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <p>
+            Máquinas configuradas: {snapshot.gachapon.configuredMachineCount}
+          </p>
+          <p>Máquinas activas: {snapshot.gachapon.activeMachineCount}</p>
+          <p>Cuota global restante: {snapshot.gachapon.remainingGlobalQuota}</p>
+          <p>Activaciones de hoy: {snapshot.gachapon.activationCount}</p>
+          <p>Paquetes emitidos: {snapshot.gachapon.issuedPackCount}</p>
+          <p>Eteris quemados por Gachapon: {snapshot.gachapon.eterisBurned}</p>
+        </CardContent>
+      </Card>
+
       <section className="grid gap-4 lg:grid-cols-2">
         <ReasonCard
           title="Emisión por motivo"
