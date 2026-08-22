@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getPublicCollectibleProfileShowcases } from "./profile";
 
@@ -35,7 +35,18 @@ function createCustodyDb(rows: readonly object[]) {
 }
 
 describe("profile Black Market showcase wiring", () => {
+  // Custody visibility compares listing expiry against wall-clock time; pin
+  // each scenario so fixtures never age out as real time advances.
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps active market custody public while trade and gift custody stay private", async () => {
+    vi.setSystemTime(new Date("2026-08-01T00:00:00.000Z"));
     const configuration = { effectiveConfiguration: { showcases: [] } };
     customization.loadProfileCustomizationEditorState.mockResolvedValueOnce(
       configuration
@@ -80,6 +91,7 @@ describe("profile Black Market showcase wiring", () => {
   });
 
   it("hides terminal and expired market custody on the next profile read", async () => {
+    vi.setSystemTime(new Date("2026-09-01T00:00:00.000Z"));
     const configuration = { effectiveConfiguration: { showcases: [] } };
     customization.loadProfileCustomizationEditorState.mockResolvedValue(
       configuration

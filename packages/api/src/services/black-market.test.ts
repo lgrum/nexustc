@@ -16,7 +16,7 @@ import {
   user,
 } from "@repo/db";
 import type { BlackMarketListingSearchInput } from "@repo/shared/collectibles";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as CollectiblesService from "./collectibles";
 
@@ -2073,6 +2073,17 @@ describe("Black Market purchase authority", () => {
 });
 
 describe("Black Market search, history, and projections", () => {
+  // Lazy expiry and active-listing projections compare against wall-clock
+  // time; pin it to the harness clock so seeded listings never age out as
+  // real time advances past their fixture expiry dates.
+  beforeEach(() => {
+    vi.useFakeTimers({ now: new Date("2026-08-01T00:00:00.000Z") });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   function searchSeed() {
     const market = new FakeMarket();
     market.addCard("samus-card", {

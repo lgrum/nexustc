@@ -55,6 +55,24 @@ vi.mock("@/lib/orpc", () => ({
           queryKey: ["trades", "detail", "offer-1"],
         }),
       },
+      eligible: {
+        queryOptions: () => ({
+          queryFn: () =>
+            Promise.resolve([
+              { assetId: "card-counter", characterName: "Samus", kind: "card" },
+            ]),
+          queryKey: ["trades", "eligible"],
+        }),
+      },
+      eligibleForParticipant: {
+        queryOptions: () => ({
+          queryFn: () =>
+            Promise.resolve([
+              { assetId: "pack-counter", kind: "pack", templateName: "Pack" },
+            ]),
+          queryKey: ["trades", "eligible-for-participant"],
+        }),
+      },
       reject: {
         mutationOptions: (options: Record<string, unknown>) =>
           mutationOptions(vi.fn(), options),
