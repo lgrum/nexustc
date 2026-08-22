@@ -15,7 +15,7 @@ import {
   profileDecorationVisualSchema,
 } from "@repo/shared/profile-customization";
 import type { ProfileDecorationVisual } from "@repo/shared/profile-customization";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -23,6 +23,11 @@ import { z } from "zod";
 import { ProfileDecorationSurface } from "@/components/profile/profile-decoration-surface";
 import { Button } from "@/components/ui/button";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  createEmptyDeferredMediaSelection,
+  optionalSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 
 import { CatalogLifecycleActions } from "../catalog-lifecycle-actions";
@@ -51,7 +56,7 @@ const formSchema = z
     fontKey: z.enum(["disabled", ...PROFILE_DECORATION_FONT_KEYS]),
     isFree: z.enum(["true", "false"]),
     itemId: z.string(),
-    mediaAssetId: z.string(),
+    mediaSelection: optionalSingleDeferredMediaSelectionSchema,
     name: z.string().trim().min(1).max(80),
     reducedMotion: z.enum(["disabled", "static", "omit"]),
     requiredTier: z.enum(["disabled", ...PATRON_TIER_KEYS]),
@@ -80,7 +85,7 @@ const emptyValues: DecorationFormValues = {
   fontKey: "disabled",
   isFree: "true",
   itemId: "",
-  mediaAssetId: "",
+  mediaSelection: createEmptyDeferredMediaSelection(),
   name: "",
   reducedMotion: "disabled",
   requiredTier: "disabled",
@@ -89,6 +94,7 @@ const emptyValues: DecorationFormValues = {
 };
 
 export function ProfileDecorationsAdminPage() {
+  const queryClient = useQueryClient();
   const { data, refetch } = useSuspenseQuery(
     orpc.profileCatalogAdmin.decorations.list.queryOptions()
   );
@@ -114,7 +120,6 @@ export function ProfileDecorationsAdminPage() {
               fontKey: value.fontKey === "disabled" ? null : value.fontKey,
               isFree: value.isFree === "true",
               itemId: value.itemId || undefined,
-              mediaAssetId: value.mediaAssetId.trim() || null,
               name: value.name.trim(),
               reducedMotion:
                 value.reducedMotion === "disabled"
@@ -126,6 +131,7 @@ export function ProfileDecorationsAdminPage() {
               stableKey: value.itemId ? undefined : value.stableKey.trim(),
             },
             expectedUpdatedAt: draftUpdatedAt ?? undefined,
+            mediaSelection: value.mediaSelection,
           });
         if (!result) {
           throw new Error("El servicio no devolvió el borrador guardado.");
@@ -134,6 +140,14 @@ export function ProfileDecorationsAdminPage() {
         setLoadedRevision({ id: result.revisionId, state: "draft" });
         setDraftUpdatedAt(result.updatedAt ?? null);
         await refetch();
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.media.admin.browse.queryKey(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.media.admin.list.queryKey(),
+          }),
+        ]);
         toast.success("Borrador de Decoration guardado");
       } catch (error) {
         toast.error(
@@ -166,7 +180,9 @@ export function ProfileDecorationsAdminPage() {
       fontKey: fontKey ?? "disabled",
       isFree: item.isFree ? "true" : "false",
       itemId: item.itemId,
-      mediaAssetId: item.mediaAssetId ?? "",
+      mediaSelection: createDeferredMediaSelectionFromExistingId(
+        item.mediaAssetId
+      ),
       name: item.name,
       reducedMotion: reducedMotion.success ? reducedMotion.data : "disabled",
       requiredTier: item.requiredTier ?? "disabled",
@@ -351,14 +367,13 @@ export function ProfileDecorationsAdminPage() {
                   )}
                 </form.AppField>
               </div>
-              <form.AppField name="mediaAssetId">
+              <form.AppField name="mediaSelection">
                 {(field) => (
-                  <field.TextField
-                    label="ID de recurso administrado (opcional)"
-                    onChange={(event) => {
-                      setPreviewAssetKey(null);
-                      field.handleChange(event.target.value);
-                    }}
+                  <field.MediaField
+                    description="Selecciona o prepara el recurso visual. Los archivos nuevos se suben únicamente al guardar el borrador."
+                    label="Imagen de la Decoration (opcional)"
+                    maxItems={1}
+                    ownerKind="Perfil"
                   />
                 )}
               </form.AppField>

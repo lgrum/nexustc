@@ -40,9 +40,12 @@ it("submits accessible freeze fields and keeps one idempotency key across a retr
     .mockResolvedValueOnce({ actionId: "action-1" });
   render(<CollectibleFreezesClient />);
 
-  fireEvent.change(screen.getByLabelText("ID del activo"), {
-    target: { value: "card-1" },
-  });
+  fireEvent.change(
+    screen.getByLabelText("Identificador técnico del coleccionable"),
+    {
+      target: { value: "card-1" },
+    }
+  );
   fireEvent.change(screen.getByLabelText("Versión esperada"), {
     target: { value: "4" },
   });
@@ -69,5 +72,7 @@ it("submits accessible freeze fields and keeps one idempotency key across a retr
   expect(state.mutateAsync.mock.calls[0]?.[0].idempotencyKey).toBe(
     state.mutateAsync.mock.calls[1]?.[0].idempotencyKey
   );
-  expect(screen.getByLabelText("ID del activo")).toBeTruthy();
+  expect(
+    screen.getByLabelText("Identificador técnico del coleccionable")
+  ).toBeTruthy();
 });

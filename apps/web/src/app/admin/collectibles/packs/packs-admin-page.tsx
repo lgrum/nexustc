@@ -1,8 +1,10 @@
 "use client";
 
 import type { PackDrawGroupDraft } from "@repo/shared/collectibles";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +17,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { orpcClient } from "@/lib/orpc";
+import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  createEmptyDeferredMediaSelection,
+  requiredSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
+import { orpc, orpcClient } from "@/lib/orpc";
 
 import { OperationalActionDialog } from "../operational-action-dialog";
 
@@ -39,10 +47,14 @@ const DEFAULT_GROUPS = JSON.stringify(
   2
 );
 
+const templateAssetFormSchema = z.object({
+  assetSelection: requiredSingleDeferredMediaSelectionSchema,
+});
+
 export function PacksAdminPage({ initialData }: { initialData: InitialData }) {
+  const queryClient = useQueryClient();
   const [data, setData] = useState(initialData);
   const [template, setTemplate] = useState({
-    assetMediaId: "",
     description: "",
     name: "",
   });
@@ -74,31 +86,52 @@ export function PacksAdminPage({ initialData }: { initialData: InitialData }) {
     }
   };
 
-  const saveTemplate = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    try {
-      if (templateEditId) {
-        const current = data.templates.find(({ id }) => id === templateEditId);
-        if (!current) {
-          return;
+  const templateForm = useAppForm({
+    defaultValues: {
+      assetSelection: createEmptyDeferredMediaSelection(),
+    },
+    onSubmit: async ({ formApi, value }) => {
+      try {
+        if (templateEditId) {
+          const current = data.templates.find(
+            ({ id }) => id === templateEditId
+          );
+          if (!current) {
+            return;
+          }
+          await orpcClient.collectiblesAdmin.packs.templates.saveDraft({
+            assetSelection: value.assetSelection,
+            draft: { ...template, id: templateEditId },
+            expectedVersion: current.version,
+          });
+        } else {
+          await orpcClient.collectiblesAdmin.packs.templates.create({
+            assetSelection: value.assetSelection,
+            draft: template,
+          });
         }
-        await orpcClient.collectiblesAdmin.packs.templates.saveDraft({
-          draft: { ...template, id: templateEditId },
-          expectedVersion: current.version,
-        });
-      } else {
-        await orpcClient.collectiblesAdmin.packs.templates.create(template);
+        const wasEditing = !!templateEditId;
+        setTemplateEditId(undefined);
+        setTemplate({ description: "", name: "" });
+        formApi.reset();
+        await reload();
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.media.admin.browse.queryKey(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.media.admin.list.queryKey(),
+          }),
+        ]);
+        toast.success(wasEditing ? "Pack actualizado" : "Pack guardado");
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "No se pudo guardar el Pack."
+        );
       }
-      setTemplateEditId(undefined);
-      setTemplate({ assetMediaId: "", description: "", name: "" });
-      await reload();
-      toast.success(templateEditId ? "Pack actualizado" : "Pack guardado");
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "No se pudo guardar el Pack."
-      );
-    }
-  };
+    },
+    validators: { onSubmit: templateAssetFormSchema },
+  });
 
   const saveRevision = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -251,38 +284,50 @@ export function PacksAdminPage({ initialData }: { initialData: InitialData }) {
         <h2 className="font-bold text-xl">
           {templateEditId ? "Editar Pack Template" : "Nuevo Pack Template"}
         </h2>
-        <form className="mt-4 grid gap-4" onSubmit={saveTemplate}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Field
-              label="Nombre"
-              onChange={(name) =>
-                setTemplate((current) => ({ ...current, name }))
-              }
-              value={template.name}
-            />
-            <Field
-              label="ID de imagen 2D administrada"
-              onChange={(assetMediaId) =>
-                setTemplate((current) => ({ ...current, assetMediaId }))
-              }
-              required
-              value={template.assetMediaId}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="pack-description">Descripción</Label>
-            <Textarea
-              id="pack-description"
-              onChange={(event) =>
-                setTemplate((current) => ({
-                  ...current,
-                  description: event.target.value,
-                }))
-              }
-              value={template.description}
-            />
-          </div>
-          <Button type="submit">Guardar Pack Template</Button>
+        <form
+          className="mt-4 grid gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            templateForm.handleSubmit();
+          }}
+        >
+          <templateForm.AppForm>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Nombre"
+                onChange={(name) =>
+                  setTemplate((current) => ({ ...current, name }))
+                }
+                value={template.name}
+              />
+              <templateForm.AppField name="assetSelection">
+                {(field) => (
+                  <field.MediaField
+                    allowAnimated={false}
+                    description="Selecciona o prepara el arte. Los archivos nuevos se suben únicamente al guardar el Pack Template."
+                    label="Imagen 2D del pack"
+                    maxItems={1}
+                    ownerKind="Pack"
+                    required
+                  />
+                )}
+              </templateForm.AppField>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="pack-description">Descripción</Label>
+              <Textarea
+                id="pack-description"
+                onChange={(event) =>
+                  setTemplate((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                value={template.description}
+              />
+            </div>
+            <Button type="submit">Guardar Pack Template</Button>
+          </templateForm.AppForm>
         </form>
       </section>
 
@@ -468,9 +513,14 @@ export function PacksAdminPage({ initialData }: { initialData: InitialData }) {
                     onClick={() => {
                       setTemplateEditId(item.id);
                       setTemplate({
-                        assetMediaId: item.assetMediaId,
                         description: item.description,
                         name: item.name,
+                      });
+                      templateForm.reset({
+                        assetSelection:
+                          createDeferredMediaSelectionFromExistingId(
+                            item.assetMediaId
+                          ),
                       });
                     }}
                     size="sm"

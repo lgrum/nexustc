@@ -10,13 +10,33 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/orpc", () => ({
   orpc: {
+    user: {
+      searchCollectibleParticipants: {
+        queryOptions: () => ({
+          queryFn: () =>
+            Promise.resolve([
+              {
+                avatarFallbackColor: null,
+                id: "recipient",
+                image: null,
+                name: "Lucía",
+              },
+            ]),
+          queryKey: ["user", "collectible-participants"],
+        }),
+      },
+    },
     gifts: {
       eligible: {
         queryOptions: () => ({
           queryFn: () =>
             Promise.resolve([
-              { assetId: "card-sender", kind: "card" },
-              { assetId: "pack-sender", kind: "pack" },
+              { assetId: "card-sender", characterName: "Samus", kind: "card" },
+              {
+                assetId: "pack-sender",
+                kind: "pack",
+                templateName: "Pack Zebes",
+              },
             ]),
           queryKey: ["gifts", "eligible"],
         }),
@@ -67,19 +87,13 @@ describe("gift composition UI", () => {
         version: 1,
       });
     renderGifts();
-    await waitFor(() =>
-      expect(screen.getByText("1/50 activos seleccionados")).toBeTruthy()
-    );
-
-    fireEvent.change(screen.getByLabelText("ID de la cuenta destinataria"), {
-      target: { value: "recipient" },
+    fireEvent.change(screen.getByLabelText("Persona destinataria"), {
+      target: { value: "Lucía" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Añadir activo" }));
-    const assetFields = screen.getAllByLabelText("ID del activo");
-    fireEvent.change(assetFields[0]!, { target: { value: "card-sender" } });
-    fireEvent.change(assetFields[1]!, { target: { value: "pack-sender" } });
-    const kindFields = screen.getAllByLabelText("Tipo");
-    fireEvent.change(kindFields[1]!, { target: { value: "pack" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Lucía" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Samus/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pack Zebes/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "Enviar regalo gratuito" })
     );

@@ -40,7 +40,7 @@ export default function GiftListClient({ mode }: { mode: "inbox" | "sent" }) {
               className="block space-y-2 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               href={`/cards/gifts/${item.id}`}
             >
-              <h2 className="font-bold">Regalo {item.id}</h2>
+              <h2 className="font-bold">Regalo pendiente</h2>
               <p className="text-muted-foreground text-sm">
                 {item.assetCount} activos · Vence{" "}
                 {new Date(item.expiresAt).toLocaleDateString("es-AR")}

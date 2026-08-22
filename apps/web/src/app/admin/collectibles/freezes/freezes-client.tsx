@@ -126,7 +126,9 @@ export function CollectibleFreezesClient() {
               </select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="collectible-freeze-asset">ID del activo</Label>
+              <Label htmlFor="collectible-freeze-asset">
+                Identificador técnico del coleccionable
+              </Label>
               <Input
                 id="collectible-freeze-asset"
                 onChange={(event) => setAssetId(event.target.value)}

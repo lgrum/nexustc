@@ -29,13 +29,19 @@ import type {
   NormalizedPackRevisionDraft,
   PackCandidate,
   PackDrawGroup,
+  PackTemplateDraft,
   PackValidationIssue,
 } from "@repo/shared/collectibles";
 import type z from "zod";
 
+import type { DeferredMediaSelectionInput } from "../utils/deferred-media";
+import { withDeferredMediaSelection } from "../utils/deferred-media";
 import { getManagedMediaAssetFromRecord } from "../utils/managed-media";
 
 type Database = typeof database;
+type PackAuthoringTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
 
 export class PackAuthoringError extends Error {
   readonly code:
@@ -64,7 +70,19 @@ export class PackAuthoringError extends Error {
 }
 
 export const packTemplateInputSchema = packTemplateDraftSchema;
+export const packTemplateDeferredDraftInputSchema =
+  packTemplateDraftSchema.omit({ assetMediaId: true });
 export const packRevisionInputSchema = packRevisionDraftSchema;
+
+export function assertStaticPackAssetUpload(input: { isAnimated: boolean }) {
+  if (input.isAnimated) {
+    throw new PackAuthoringError(
+      "INVALID_MEDIA",
+      "La imagen del pack debe ser estática.",
+      { assetSelection: "Las imágenes animadas no están permitidas." }
+    );
+  }
+}
 
 function parseInput<T>(schema: z.ZodType<T>, input: unknown, label: string): T {
   const parsed = schema.safeParse(input);
@@ -373,6 +391,119 @@ export async function createPackTemplate(
     );
   }
   return created;
+}
+
+async function savePackTemplateDraftInTransaction(
+  tx: PackAuthoringTransaction,
+  actorUserId: string,
+  draft: PackTemplateDraft,
+  templateId: string,
+  expectedVersion?: number
+) {
+  await requireManagedPackAsset(tx, draft.assetMediaId);
+  const [current] = draft.id
+    ? await tx
+        .select()
+        .from(packTemplate)
+        .where(eq(packTemplate.id, draft.id))
+        .for("update")
+    : [];
+  if (draft.id && !current) {
+    throw new PackAuthoringError("NOT_FOUND", "El pack no existe.");
+  }
+  if (!current) {
+    const [created] = await tx
+      .insert(packTemplate)
+      .values({
+        assetMediaId: draft.assetMediaId,
+        createdByUserId: actorUserId,
+        description: draft.description,
+        id: templateId,
+        name: draft.name,
+        updatedAt: new Date(),
+        updatedByUserId: actorUserId,
+      })
+      .returning();
+    if (!created) {
+      throw new PackAuthoringError(
+        "CONFLICT",
+        "No se pudo crear el Pack Template."
+      );
+    }
+    return created;
+  }
+  if (expectedVersion === undefined || current.version !== expectedVersion) {
+    throw new PackAuthoringError(
+      "CONFLICT",
+      "El pack cambió mientras lo editabas. Recarga antes de guardar."
+    );
+  }
+  if (current.lifecycle === "retired") {
+    throw new PackAuthoringError(
+      "INVALID_TRANSITION",
+      "Un Pack Template retirado no se puede editar."
+    );
+  }
+  const [updated] = await tx
+    .update(packTemplate)
+    .set({
+      assetMediaId: draft.assetMediaId,
+      description: draft.description,
+      name: draft.name,
+      updatedAt: new Date(),
+      updatedByUserId: actorUserId,
+      version: current.version + 1,
+    })
+    .where(
+      and(
+        eq(packTemplate.id, current.id),
+        eq(packTemplate.version, current.version)
+      )
+    )
+    .returning();
+  if (!updated) {
+    throw new PackAuthoringError(
+      "CONFLICT",
+      "El pack cambió mientras guardabas."
+    );
+  }
+  return updated;
+}
+
+export async function savePackTemplateDraftWithAsset(
+  db: Database,
+  actorUserId: string,
+  input: unknown,
+  assetSelection: DeferredMediaSelectionInput,
+  expectedVersion?: number
+) {
+  const draft = parseInput(packTemplateDeferredDraftInputSchema, input, "pack");
+  const templateId = draft.id ?? generateId();
+
+  return await withDeferredMediaSelection({
+    db,
+    onComplete: async ({ orderedMedia, tx }) => {
+      const [asset] = orderedMedia;
+      if (!asset) {
+        throw new PackAuthoringError(
+          "INVALID_MEDIA",
+          "Selecciona una imagen para el pack.",
+          { assetSelection: "La imagen del pack es obligatoria." }
+        );
+      }
+      return await savePackTemplateDraftInTransaction(
+        tx,
+        actorUserId,
+        { ...draft, assetMediaId: asset.id },
+        templateId,
+        expectedVersion
+      );
+    },
+    ownerKind: "Pack",
+    resourceName: templateId,
+    selection: assetSelection,
+    validatePendingFile: assertStaticPackAssetUpload,
+  });
 }
 
 export async function savePackTemplateDraft(

@@ -28,9 +28,12 @@ beforeEach(() => {
 
 it("submits administrative trade and gift closures with versions, reasons, and retry keys", async () => {
   render(<CollectibleOfferClosureClient />);
-  fireEvent.change(screen.getByLabelText("ID de oferta"), {
-    target: { value: "trade-1" },
-  });
+  fireEvent.change(
+    screen.getByLabelText("Identificador técnico del intercambio"),
+    {
+      target: { value: "trade-1" },
+    }
+  );
   fireEvent.change(screen.getByLabelText("Motivo del intercambio"), {
     target: { value: "Cierre administrativo" },
   });
@@ -45,7 +48,7 @@ it("submits administrative trade and gift closures with versions, reasons, and r
     reason: "Cierre administrativo",
   });
 
-  fireEvent.change(screen.getByLabelText("ID de regalo"), {
+  fireEvent.change(screen.getByLabelText("Identificador técnico del regalo"), {
     target: { value: "gift-1" },
   });
   fireEvent.change(screen.getByLabelText("Motivo del regalo"), {

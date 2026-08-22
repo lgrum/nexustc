@@ -84,20 +84,19 @@ import {
 } from "../services/official-card-shop";
 import {
   PackAuthoringError,
-  createPackTemplate,
   getPackRevisionDraft,
   inspectPackRevisionProbabilities,
   listPackRevisions,
   listPackTemplates,
+  packRevisionInputSchema,
+  packTemplateDeferredDraftInputSchema,
   previewPackRevisionPublicationImpact,
   publishPackRevision,
   retirePackTemplate,
   savePackRevisionDraft,
-  savePackTemplateDraft,
+  savePackTemplateDraftWithAsset,
   simulatePackRevisionDraft,
   validatePackRevisionDraft,
-  packRevisionInputSchema,
-  packTemplateInputSchema,
 } from "../services/pack-authoring";
 import {
   administrativelyCancelTradeOffer,
@@ -1083,10 +1082,22 @@ export default {
     },
     templates: {
       create: packMutationProcedure
-        .input(packTemplateInputSchema)
+        .input(
+          z
+            .object({
+              assetSelection: requiredSingleDeferredMediaSelectionInputSchema,
+              draft: packTemplateDeferredDraftInputSchema,
+            })
+            .strict()
+        )
         .handler(async ({ context: { db, session }, errors, input }) => {
           try {
-            return await createPackTemplate(db, session.user.id, input);
+            return await savePackTemplateDraftWithAsset(
+              db,
+              session.user.id,
+              input.draft,
+              input.assetSelection
+            );
           } catch (error) {
             translatePackError(error, errors);
           }
@@ -1120,17 +1131,19 @@ export default {
         .input(
           z
             .object({
-              draft: packTemplateInputSchema,
+              assetSelection: requiredSingleDeferredMediaSelectionInputSchema,
+              draft: packTemplateDeferredDraftInputSchema,
               expectedVersion: expectedVersionSchema.optional(),
             })
             .strict()
         )
         .handler(async ({ context: { db, session }, errors, input }) => {
           try {
-            return await savePackTemplateDraft(
+            return await savePackTemplateDraftWithAsset(
               db,
               session.user.id,
               input.draft,
+              input.assetSelection,
               input.expectedVersion
             );
           } catch (error) {

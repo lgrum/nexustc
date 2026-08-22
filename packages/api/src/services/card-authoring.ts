@@ -536,6 +536,7 @@ async function saveCardTemplateDraftInTransaction(
   tx: CardAuthoringTransaction,
   actorUserId: string,
   draft: CardTemplateDraft,
+  templateId: string,
   expectedVersion?: number
 ) {
   const [current] = draft.id
@@ -627,7 +628,6 @@ async function saveCardTemplateDraftInTransaction(
     await persistRenderVariants(tx, current.id, []);
     return updated;
   }
-  const templateId = draft.id ?? generateId();
   const updatedAt = new Date();
   const [created] = await tx
     .insert(cardTemplate)
@@ -693,7 +693,8 @@ export async function saveCardTemplateDraftWithPortrait(
       return await saveCardTemplateDraftInTransaction(
         tx,
         actorUserId,
-        { ...draft, id: templateId, portraitMediaId: portrait.id },
+        { ...draft, portraitMediaId: portrait.id },
+        templateId,
         expectedVersion
       );
     },

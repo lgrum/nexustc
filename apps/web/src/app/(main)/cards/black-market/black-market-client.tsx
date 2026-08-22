@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
+import { AssetPicker } from "@/components/collectibles/asset-picker";
+import type { CollectibleAssetOption } from "@/components/collectibles/asset-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,11 +57,9 @@ export default function BlackMarketClient() {
   const [sort, setSort] = useState<ListingSort>("newest");
   const [message, setMessage] = useState<string | null>(null);
   const [askingPrice, setAskingPrice] = useState("");
-  const [assetDraftId, setAssetDraftId] = useState("");
-  const [assetDraftType, setAssetDraftType] = useState<"card" | "pack">("card");
-  const [listingAssets, setListingAssets] = useState<
-    { assetId: string; kind: "card" | "pack" }[]
-  >([]);
+  const [listingAssets, setListingAssets] = useState<CollectibleAssetOption[]>(
+    []
+  );
   const [selectedListing, setSelectedListing] = useState<{
     askingPrice: string;
     id: string;
@@ -88,7 +88,6 @@ export default function BlackMarketClient() {
         setMessage(
           "Publicación creada. La tarifa quedó registrada y tus activos están en custodia."
         );
-        setAssetDraftId("");
         setListingAssets([]);
         setAskingPrice("");
         await Promise.all([
@@ -147,28 +146,6 @@ export default function BlackMarketClient() {
   );
   const fee = listingFeePreview(askingPrice);
 
-  function addAsset() {
-    const normalizedId = assetDraftId.trim();
-    if (!normalizedId) {
-      setMessage("Indica el ID exacto del activo que quieres añadir.");
-      return;
-    }
-    if (listingAssets.length >= 50) {
-      setMessage("Un lote puede contener como máximo 50 activos.");
-      return;
-    }
-    if (listingAssets.some(({ assetId }) => assetId === normalizedId)) {
-      setMessage("No puedes repetir un activo dentro del mismo lote.");
-      return;
-    }
-    setListingAssets((current) => [
-      ...current,
-      { assetId: normalizedId, kind: assetDraftType },
-    ]);
-    setAssetDraftId("");
-    setMessage(null);
-  }
-
   function submitPublish(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
@@ -178,12 +155,12 @@ export default function BlackMarketClient() {
     }
     publish.mutate({
       askingPrice: askingPrice.trim(),
-      assets: listingAssets,
+      assets: listingAssets.map(({ assetId, kind }) => ({ assetId, kind })),
       idempotencyKey: stableAttemptKey(
         "black-market-publish",
         JSON.stringify({
           askingPrice: askingPrice.trim(),
-          assets: listingAssets,
+          assets: listingAssets.map(({ assetId, kind }) => ({ assetId, kind })),
         }),
         publishAttempt
       ),
@@ -394,77 +371,27 @@ export default function BlackMarketClient() {
           </p>
         </div>
         <form className="grid gap-3" onSubmit={submitPublish}>
-          <div className="grid gap-3 sm:grid-cols-[1fr_10rem_auto]">
-            <label
-              className="space-y-1 text-sm"
-              htmlFor="black-market-asset-id"
-            >
-              ID exacto del activo
-              <Input
-                autoComplete="off"
-                id="black-market-asset-id"
-                onChange={(event) => setAssetDraftId(event.target.value)}
-                placeholder="Desde tu inventario"
-                value={assetDraftId}
-              />
-            </label>
-            <label
-              className="space-y-1 text-sm"
-              htmlFor="black-market-asset-type"
-            >
-              Tipo
-              <select
-                className="h-9 w-full rounded-lg border border-input bg-background px-3"
-                id="black-market-asset-type"
-                onChange={(event) =>
-                  setAssetDraftType(event.target.value as "card" | "pack")
-                }
-                value={assetDraftType}
-              >
-                <option value="card">Carta</option>
-                <option value="pack">Pack</option>
-              </select>
-            </label>
-            <Button onClick={addAsset} type="button" variant="outline">
-              Añadir activo
-            </Button>
-          </div>
-          {listingAssets.length > 0 ? (
-            <ul
-              aria-label="Activos del lote"
-              className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3"
-            >
-              {listingAssets.map((asset) => (
-                <li
-                  className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm"
-                  key={asset.assetId}
-                >
-                  <span className="truncate">
-                    {asset.kind === "card" ? "Carta" : "Pack"}: {asset.assetId}
-                  </span>
-                  <Button
-                    aria-label={`Quitar ${asset.assetId}`}
-                    onClick={() =>
-                      setListingAssets((current) =>
-                        current.filter(
-                          ({ assetId }) => assetId !== asset.assetId
-                        )
-                      )
-                    }
-                    size="sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    Quitar
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="rounded-xl border border-dashed p-3 text-muted-foreground text-sm">
-              Todavía no has añadido activos al lote.
-            </p>
-          )}
+          <AssetPicker
+            label="Coleccionables del lote"
+            loading={eligible.isLoading}
+            onChange={(assets) => {
+              setListingAssets(assets);
+              publishAttempt.current = null;
+            }}
+            options={[
+              ...(eligible.data?.cards ?? []).map((asset) => ({
+                ...asset,
+                assetId: asset.id,
+                kind: "card" as const,
+              })),
+              ...(eligible.data?.packs ?? []).map((asset) => ({
+                ...asset,
+                assetId: asset.id,
+                kind: "pack" as const,
+              })),
+            ]}
+            selected={listingAssets}
+          />
           <div className="grid gap-3 sm:grid-cols-[10rem_1fr_auto] sm:items-end">
             <label className="space-y-1 text-sm" htmlFor="black-market-price">
               Precio

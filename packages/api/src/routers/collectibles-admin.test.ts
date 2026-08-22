@@ -19,7 +19,7 @@ const services = vi.hoisted(() => ({
   createCardCharacter: vi.fn(),
   createCardSeries: vi.fn(),
   saveCardTemplateDraftWithPortrait: vi.fn(),
-  createPackTemplate: vi.fn(),
+  savePackTemplateDraftWithAsset: vi.fn(),
   freezeCardInstance: vi.fn(),
   freezePackInstance: vi.fn(),
   getCollectibleOperationalMetrics: vi.fn(),
@@ -72,7 +72,7 @@ vi.mock("../services/card-authoring", async (importOriginal) => ({
 }));
 vi.mock("../services/pack-authoring", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../services/pack-authoring")>()),
-  createPackTemplate: services.createPackTemplate,
+  savePackTemplateDraftWithAsset: services.savePackTemplateDraftWithAsset,
   inspectPackRevisionProbabilities: services.inspectPackRevisionProbabilities,
   publishPackRevision: services.publishPackRevision,
 }));
@@ -150,7 +150,7 @@ describe("collectiblesAdmin card boundaries", () => {
     services.saveCardTemplateDraftWithPortrait.mockResolvedValue({
       id: "template-1",
     });
-    services.createPackTemplate.mockResolvedValue({ id: "pack-1" });
+    services.savePackTemplateDraftWithAsset.mockResolvedValue({ id: "pack-1" });
     services.inspectPackRevisionProbabilities.mockResolvedValue({
       groups: [{ order: 1, rarityWeights: [], totalWeight: 1 }],
     });
@@ -500,14 +500,18 @@ describe("collectiblesAdmin card boundaries", () => {
     await expect(
       call(
         collectiblesAdminRouter.packs.templates.create,
-        { assetMediaId: "media-1", description: "Pack", name: "Inicial" },
+        {
+          assetSelection: [{ kind: "existing", mediaId: "media-1" }],
+          draft: { description: "Pack", name: "Inicial" },
+        },
         { context: createContext() }
       )
     ).resolves.toMatchObject({ id: "pack-1" });
-    expect(services.createPackTemplate).toHaveBeenCalledWith(
+    expect(services.savePackTemplateDraftWithAsset).toHaveBeenCalledWith(
       expect.anything(),
       "owner-1",
-      expect.objectContaining({ name: "Inicial" })
+      expect.objectContaining({ name: "Inicial" }),
+      [{ kind: "existing", mediaId: "media-1" }]
     );
     await expect(
       call(
@@ -549,14 +553,20 @@ describe("collectiblesAdmin card boundaries", () => {
     await expect(
       call(
         collectiblesAdminRouter.packs.templates.create,
-        { assetMediaId: "media-1", description: "Pack", name: "Admin" },
+        {
+          assetSelection: [{ kind: "existing", mediaId: "media-1" }],
+          draft: { description: "Pack", name: "Admin" },
+        },
         { context: createContext("admin") }
       )
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       call(
         collectiblesAdminRouter.packs.templates.create,
-        { assetMediaId: "media-1", description: "Pack", name: "Impersonado" },
+        {
+          assetSelection: [{ kind: "existing", mediaId: "media-1" }],
+          draft: { description: "Pack", name: "Impersonado" },
+        },
         { context: createContext("owner", "staff-1") }
       )
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

@@ -9,6 +9,9 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const offers = await orpcClient.collectiblesAdmin.shop.list({ limit: 100 });
-  return <CardShopAdminPage initialData={{ offers }} />;
+  const [offers, packTemplates] = await Promise.all([
+    orpcClient.collectiblesAdmin.shop.list({ limit: 100 }),
+    orpcClient.collectiblesAdmin.packs.templates.list(),
+  ]);
+  return <CardShopAdminPage initialData={{ offers, packTemplates }} />;
 }

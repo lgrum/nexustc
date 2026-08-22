@@ -23,6 +23,9 @@ import z from "zod";
 import { publishProfileCatalogRevision } from "./profile-catalog-publication";
 
 type Database = typeof database;
+type ProfileSkinTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
 
 const DEFAULT_SKIN_ITEM_ID = "profile-skin-default";
 const MIN_TEXT_CONTRAST = 4.5;
@@ -110,6 +113,10 @@ export const profileSkinDraftSchema = z
 
 export type ProfileSkinDraftInput = z.input<typeof profileSkinDraftSchema>;
 
+export const profileSkinDeferredDraftSchema = profileSkinDraftSchema.omit({
+  backgroundAssetId: true,
+});
+
 export class ProfileSkinCatalogError extends Error {
   readonly code:
     | "CONFLICT"
@@ -127,6 +134,16 @@ export class ProfileSkinCatalogError extends Error {
     this.name = "ProfileSkinCatalogError";
     this.code = code;
     this.fieldErrors = fieldErrors;
+  }
+}
+
+export function assertStaticProfileSkinUpload(input: { isAnimated: boolean }) {
+  if (input.isAnimated) {
+    throw new ProfileSkinCatalogError(
+      "INVALID_DRAFT",
+      "El fondo del Skin debe ser una imagen estática.",
+      { backgroundSelection: "Las imágenes animadas no están permitidas." }
+    );
   }
 }
 
@@ -420,7 +437,7 @@ export function listOwnerProfileSkins(db: Database) {
 }
 
 export function saveProfileSkinDraft(
-  db: Database,
+  db: Database | ProfileSkinTransaction,
   actorUserId: string,
   input: unknown,
   expectedUpdatedAt?: Date

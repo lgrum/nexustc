@@ -4071,7 +4071,7 @@ export const profileCatalogDecorationRevision = pgTable(
     }).onDelete("cascade"),
     foreignKey({
       columns: [table.mediaAssetId],
-      foreignColumns: [profileMediaAsset.id],
+      foreignColumns: [media.id],
       name: "pcdr_media_asset_fk",
     }).onDelete("restrict"),
   ]

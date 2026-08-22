@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import {
   and,
   asc,
+  cardCharacter,
   cardInstance,
+  cardSeries,
   cardTemplate,
   collectibleCustody,
   desc,
@@ -130,6 +132,7 @@ export type TradeOfferResult = {
 export type TradeOfferCommandResult = TradeOfferResult & { replayed: boolean };
 
 export type TradeOfferDetail = {
+  counterpartyUserId: string;
   expiresAt: Date;
   history: {
     action: string;
@@ -2042,6 +2045,10 @@ export async function getTradeOffer(
       side: row.side,
     })),
     expiresAt: offer.expiresAt,
+    counterpartyUserId:
+      offer.proposerUserId === viewerUserId
+        ? (offer.recipientUserId ?? "closed-account")
+        : (offer.proposerUserId ?? "closed-account"),
     history: history.map((row) => ({
       action: row.action,
       actorUserId: row.actorUserId,
@@ -2175,11 +2182,18 @@ export async function listEligibleTradeAssets(db: Database, userId: string) {
       .select({
         assetId: cardInstance.id,
         binding: cardInstance.binding,
+        characterName: cardCharacter.characterName,
+        edition: cardTemplate.edition,
+        gameName: cardCharacter.gameName,
         kind: sql<"card">`'card'`,
         mintNumber: cardInstance.mintNumber,
+        rarity: cardTemplate.rarity,
+        seriesName: cardSeries.name,
       })
       .from(cardInstance)
       .innerJoin(cardTemplate, eq(cardTemplate.id, cardInstance.templateId))
+      .innerJoin(cardCharacter, eq(cardCharacter.id, cardTemplate.characterId))
+      .innerJoin(cardSeries, eq(cardSeries.id, cardTemplate.seriesId))
       .where(
         and(
           eq(cardInstance.ownerUserId, userId),
@@ -2197,6 +2211,7 @@ export async function listEligibleTradeAssets(db: Database, userId: string) {
         binding: packInstance.binding,
         kind: sql<"pack">`'pack'`,
         mintNumber: sql<number | null>`null`,
+        templateName: packTemplate.name,
       })
       .from(packInstance)
       .innerJoin(packTemplate, eq(packTemplate.id, packInstance.templateId))

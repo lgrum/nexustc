@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import {
   and,
   asc,
+  cardCharacter,
   cardInstance,
+  cardSeries,
   cardTemplate,
   collectibleCustody,
   desc,
@@ -1678,11 +1680,18 @@ export async function listEligibleGiftAssets(db: Database, userId: string) {
       .select({
         assetId: cardInstance.id,
         binding: cardInstance.binding,
+        characterName: cardCharacter.characterName,
+        edition: cardTemplate.edition,
+        gameName: cardCharacter.gameName,
         kind: sql<"card">`'card'`,
         mintNumber: cardInstance.mintNumber,
+        rarity: cardTemplate.rarity,
+        seriesName: cardSeries.name,
       })
       .from(cardInstance)
       .innerJoin(cardTemplate, eq(cardTemplate.id, cardInstance.templateId))
+      .innerJoin(cardCharacter, eq(cardCharacter.id, cardTemplate.characterId))
+      .innerJoin(cardSeries, eq(cardSeries.id, cardTemplate.seriesId))
       .where(
         and(
           eq(cardInstance.ownerUserId, userId),
@@ -1700,6 +1709,7 @@ export async function listEligibleGiftAssets(db: Database, userId: string) {
         binding: packInstance.binding,
         kind: sql<"pack">`'pack'`,
         mintNumber: sql<number | null>`null`,
+        templateName: packTemplate.name,
       })
       .from(packInstance)
       .innerJoin(packTemplate, eq(packTemplate.id, packInstance.templateId))

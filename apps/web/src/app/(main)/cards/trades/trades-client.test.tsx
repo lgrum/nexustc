@@ -10,15 +10,57 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@/lib/orpc", () => ({
   orpc: {
+    user: {
+      searchCollectibleParticipants: {
+        queryOptions: () => ({
+          queryFn: () =>
+            Promise.resolve([
+              {
+                avatarFallbackColor: null,
+                id: "recipient",
+                image: null,
+                name: "Lucía",
+              },
+            ]),
+          queryKey: ["user", "collectible-participants"],
+        }),
+      },
+    },
     trades: {
       eligible: {
         queryOptions: () => ({
           queryFn: () =>
             Promise.resolve([
-              { assetId: "card-proposer", kind: "card" },
-              { assetId: "card-proposer-2", kind: "card" },
+              {
+                assetId: "card-proposer",
+                characterName: "Samus",
+                kind: "card",
+              },
+              {
+                assetId: "card-proposer-2",
+                characterName: "Ridley",
+                kind: "card",
+              },
             ]),
           queryKey: ["trades", "eligible"],
+        }),
+      },
+      eligibleForParticipant: {
+        queryOptions: () => ({
+          queryFn: () =>
+            Promise.resolve([
+              {
+                assetId: "card-recipient",
+                characterName: "Link",
+                kind: "card",
+              },
+              {
+                assetId: "pack-recipient",
+                kind: "pack",
+                templateName: "Pack Hyrule",
+              },
+            ]),
+          queryKey: ["trades", "eligible-for-participant"],
         }),
       },
       inbox: {
@@ -67,21 +109,15 @@ describe("trades bundle UI", () => {
         version: 1,
       });
     renderTrades();
-    await waitFor(() =>
-      expect(screen.getAllByText("1/50 activos seleccionados")).toHaveLength(2)
-    );
-
-    fireEvent.change(screen.getByLabelText("ID de la cuenta destinataria"), {
-      target: { value: "recipient" },
+    fireEvent.change(screen.getByLabelText("Persona destinataria"), {
+      target: { value: "Lucía" },
     });
-    const addButtons = screen.getAllByRole("button", { name: "Añadir activo" });
-    fireEvent.click(addButtons[0]!);
-    fireEvent.click(addButtons[1]!);
-    const assetFields = screen.getAllByLabelText("ID del activo");
-    fireEvent.change(assetFields[0]!, { target: { value: "card-proposer" } });
-    fireEvent.change(assetFields[1]!, { target: { value: "card-proposer-2" } });
-    fireEvent.change(assetFields[2]!, { target: { value: "card-recipient" } });
-    fireEvent.change(assetFields[3]!, { target: { value: "pack-recipient" } });
+    fireEvent.click(screen.getByRole("button", { name: "Buscar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Lucía" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Samus/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ridley/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Link/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Pack Hyrule/ }));
     fireEvent.click(
       screen.getByRole("button", { name: "Enviar oferta inmutable" })
     );
@@ -101,7 +137,7 @@ describe("trades bundle UI", () => {
       ],
       recipientAssets: [
         { assetId: "card-recipient", kind: "card" },
-        { assetId: "pack-recipient", kind: "card" },
+        { assetId: "pack-recipient", kind: "pack" },
       ],
     });
     expect(second.idempotencyKey).toBe(first.idempotencyKey);

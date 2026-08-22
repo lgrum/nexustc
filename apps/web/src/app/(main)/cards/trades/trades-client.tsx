@@ -5,31 +5,37 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 
+import { AssetPicker } from "@/components/collectibles/asset-picker";
+import type { CollectibleAssetOption } from "@/components/collectibles/asset-picker";
+import { ParticipantPicker } from "@/components/collectibles/participant-picker";
+import type { CollectibleParticipant } from "@/components/collectibles/participant-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
 
-type AssetKind = "card" | "pack";
-type DraftAsset = { assetId: string; kind: AssetKind };
-
-function createTradeIdempotencyKey(prefix: string) {
-  return `${prefix}-${crypto.randomUUID()}`;
+function references(assets: CollectibleAssetOption[]) {
+  return assets.map(({ assetId, kind }) => ({ assetId, kind }));
 }
 
-const blankAsset = (): DraftAsset => ({ assetId: "", kind: "card" });
-
 export default function TradesClient() {
-  const [recipientUserId, setRecipientUserId] = useState("");
-  const [proposerAssets, setProposerAssets] = useState<DraftAsset[]>([
-    blankAsset(),
-  ]);
-  const [recipientAssets, setRecipientAssets] = useState<DraftAsset[]>([
-    blankAsset(),
-  ]);
+  const [recipient, setRecipient] = useState<CollectibleParticipant | null>(
+    null
+  );
+  const [proposerAssets, setProposerAssets] = useState<
+    CollectibleAssetOption[]
+  >([]);
+  const [recipientAssets, setRecipientAssets] = useState<
+    CollectibleAssetOption[]
+  >([]);
   const [message, setMessage] = useState<string | null>(null);
   const sendKey = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const eligible = useQuery(orpc.trades.eligible.queryOptions());
+  const recipientEligible = useQuery({
+    ...orpc.trades.eligibleForParticipant.queryOptions({
+      input: { userId: recipient?.id ?? "unselected" },
+    }),
+    enabled: Boolean(recipient),
+  });
   const inbox = useQuery(
     orpc.trades.inbox.queryOptions({ input: { limit: 8, state: "sent" } })
   );
@@ -49,86 +55,26 @@ export default function TradesClient() {
       },
     })
   );
-  const eligibleKeys = new Set(
-    (eligible.data ?? []).map((asset) => `${asset.kind}:${asset.assetId}`)
-  );
-
-  function updateAsset(
-    side: "proposer" | "recipient",
-    index: number,
-    patch: Partial<DraftAsset>
-  ) {
-    const update = (assets: DraftAsset[]) =>
-      assets.map((asset, assetIndex) =>
-        assetIndex === index ? { ...asset, ...patch } : asset
-      );
-    if (side === "proposer") {
-      setProposerAssets(update);
-    } else {
-      setRecipientAssets(update);
-    }
-  }
-
-  function addAsset(side: "proposer" | "recipient") {
-    const update = (assets: DraftAsset[]) =>
-      assets.length >= 50 ? assets : [...assets, blankAsset()];
-    if (side === "proposer") {
-      setProposerAssets(update);
-    } else {
-      setRecipientAssets(update);
-    }
-  }
-
-  function removeAsset(side: "proposer" | "recipient", index: number) {
-    const update = (assets: DraftAsset[]) =>
-      assets.length <= 1
-        ? assets
-        : assets.filter((_, assetIndex) => assetIndex !== index);
-    if (side === "proposer") {
-      setProposerAssets(update);
-    } else {
-      setRecipientAssets(update);
-    }
-  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
-    const proposer = proposerAssets.map((asset) => ({
-      assetId: asset.assetId.trim(),
-      kind: asset.kind,
-    }));
-    const recipient = recipientAssets.map((asset) => ({
-      assetId: asset.assetId.trim(),
-      kind: asset.kind,
-    }));
-    const allIds = [...proposer, ...recipient].map((asset) => asset.assetId);
-    if (!recipientUserId.trim() || allIds.some((assetId) => !assetId)) {
-      setMessage("Completa la cuenta destinataria y todos los IDs exactos.");
-      return;
-    }
-    if (proposer.length > 50 || recipient.length > 50) {
-      setMessage("Cada lado puede incluir como máximo 50 activos.");
-      return;
-    }
-    if (new Set(allIds).size !== allIds.length) {
-      setMessage("No puedes repetir un activo dentro de la oferta.");
-      return;
-    }
     if (
-      proposer.some(
-        (asset) => !eligibleKeys.has(`${asset.kind}:${asset.assetId}`)
-      )
+      !recipient ||
+      proposerAssets.length === 0 ||
+      recipientAssets.length === 0
     ) {
-      setMessage("Una carta o Pack proponente ya no está disponible.");
+      setMessage(
+        "Selecciona una persona y al menos un coleccionable por cada lado."
+      );
       return;
     }
-    sendKey.current ??= createTradeIdempotencyKey("trade-send");
+    sendKey.current ??= `trade-send-${crypto.randomUUID()}`;
     send.mutate({
       idempotencyKey: sendKey.current,
-      proposerAssets: proposer,
-      recipientAssets: recipient,
-      recipientUserId: recipientUserId.trim(),
+      proposerAssets: references(proposerAssets),
+      recipientAssets: references(recipientAssets),
+      recipientUserId: recipient.id,
     });
   }
 
@@ -139,11 +85,11 @@ export default function TradesClient() {
           Intercambios privados
         </p>
         <h1 className="font-black text-4xl tracking-tight">
-          Ofertas de 1 a 50 activos por lado
+          Arma una oferta desde los inventarios
         </h1>
         <p className="text-muted-foreground">
-          El borrador no reserva nada. Al enviar, los términos quedan fijados
-          durante siete días y la persona destinataria decide si acepta.
+          Elige a la persona y los coleccionables de cada lado. Al enviar, los
+          términos quedan fijados durante siete días.
         </p>
         <nav
           className="flex flex-wrap gap-2"
@@ -163,46 +109,50 @@ export default function TradesClient() {
           </Link>
         </nav>
       </header>
-
       <form
         className="grid gap-5 rounded-3xl border bg-card/70 p-6 lg:grid-cols-2"
         onSubmit={submit}
       >
-        <div className="space-y-4 lg:col-span-2">
+        <div className="space-y-2 lg:col-span-2">
           <h2 className="font-bold text-2xl">Componer oferta</h2>
           <p className="text-muted-foreground text-sm">
-            Selecciona entre 1 y 50 Cartas o Packs sin abrir por cada lado. Se
-            rechazan duplicados, activos no transferibles y activos dentro de
-            otro Pack.
+            Puedes seleccionar entre 1 y 50 cartas o packs sin abrir por lado.
           </p>
         </div>
-        <label
-          className="space-y-1 font-medium text-sm lg:col-span-2"
-          htmlFor="trade-recipient-user-id"
-        >
-          ID de la cuenta destinataria
-          <Input
-            autoComplete="off"
-            id="trade-recipient-user-id"
-            onChange={(event) => setRecipientUserId(event.target.value)}
-            placeholder="user_…"
-            required
-            value={recipientUserId}
+        <div className="lg:col-span-2">
+          <ParticipantPicker
+            onChange={(participant) => {
+              setRecipient(participant);
+              setRecipientAssets([]);
+              sendKey.current = null;
+            }}
+            value={recipient}
           />
-        </label>
-        <AssetEditor
-          assets={proposerAssets}
+        </div>
+        <AssetPicker
           label="Lo que ofreces"
-          onAdd={() => addAsset("proposer")}
-          onChange={(index, patch) => updateAsset("proposer", index, patch)}
-          onRemove={(index) => removeAsset("proposer", index)}
+          loading={eligible.isLoading}
+          onChange={(assets) => {
+            setProposerAssets(assets);
+            sendKey.current = null;
+          }}
+          options={(eligible.data ?? []) as CollectibleAssetOption[]}
+          selected={proposerAssets}
         />
-        <AssetEditor
-          assets={recipientAssets}
+        <AssetPicker
+          emptyMessage={
+            recipient
+              ? "Esta cuenta no tiene coleccionables transferibles disponibles."
+              : "Selecciona primero a la persona destinataria."
+          }
           label="Lo que solicitas"
-          onAdd={() => addAsset("recipient")}
-          onChange={(index, patch) => updateAsset("recipient", index, patch)}
-          onRemove={(index) => removeAsset("recipient", index)}
+          loading={recipientEligible.isLoading}
+          onChange={(assets) => {
+            setRecipientAssets(assets);
+            sendKey.current = null;
+          }}
+          options={(recipientEligible.data ?? []) as CollectibleAssetOption[]}
+          selected={recipientAssets}
         />
         <div className="space-y-3 lg:col-span-2">
           {message ? (
@@ -220,15 +170,8 @@ export default function TradesClient() {
           >
             Enviar oferta inmutable
           </Button>
-          {send.isError ? (
-            <p className="text-muted-foreground text-xs">
-              Puedes corregir el problema y reintentar: conservaremos la misma
-              clave para evitar una oferta duplicada.
-            </p>
-          ) : null}
         </div>
       </form>
-
       <section
         className="grid gap-6 lg:grid-cols-2"
         aria-label="Ofertas pendientes"
@@ -250,90 +193,6 @@ export default function TradesClient() {
   );
 }
 
-function AssetEditor({
-  assets,
-  label,
-  onAdd,
-  onChange,
-  onRemove,
-}: {
-  assets: DraftAsset[];
-  label: string;
-  onAdd: () => void;
-  onChange: (index: number, patch: Partial<DraftAsset>) => void;
-  onRemove: (index: number) => void;
-}) {
-  const side = label === "Lo que ofreces" ? "proposer" : "recipient";
-  return (
-    <fieldset className="space-y-3 rounded-2xl border p-4">
-      <legend className="px-1 font-bold">{label}</legend>
-      <p className="text-muted-foreground text-sm">
-        {assets.length}/50 activos seleccionados
-      </p>
-      <div className="max-h-[32rem] space-y-3 overflow-y-auto pr-1">
-        {assets.map((asset, index) => {
-          const id = `trade-${side}-asset-${index}`;
-          return (
-            <div className="rounded-xl border p-3" key={`${side}-${index}`}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-semibold text-sm">
-                  Activo {index + 1}
-                </span>
-                <Button
-                  aria-label={`Quitar activo ${index + 1} de ${label}`}
-                  disabled={assets.length <= 1}
-                  onClick={() => onRemove(index)}
-                  type="button"
-                  variant="ghost"
-                >
-                  Quitar
-                </Button>
-              </div>
-              <label className="mt-2 block space-y-1 font-medium text-sm">
-                Tipo exacto
-                <select
-                  className="h-10 w-full rounded-lg border border-input bg-background px-3"
-                  onChange={(event) =>
-                    onChange(index, { kind: event.target.value as AssetKind })
-                  }
-                  value={asset.kind}
-                >
-                  <option value="card">Carta</option>
-                  <option value="pack">Pack sin abrir</option>
-                </select>
-              </label>
-              <label
-                className="mt-2 block space-y-1 font-medium text-sm"
-                htmlFor={id}
-              >
-                ID del activo
-                <Input
-                  autoComplete="off"
-                  id={id}
-                  onChange={(event) =>
-                    onChange(index, { assetId: event.target.value })
-                  }
-                  placeholder="ID exacto del inventario"
-                  required
-                  value={asset.assetId}
-                />
-              </label>
-            </div>
-          );
-        })}
-      </div>
-      <Button
-        disabled={assets.length >= 50}
-        onClick={onAdd}
-        type="button"
-        variant="outline"
-      >
-        Añadir activo
-      </Button>
-    </fieldset>
-  );
-}
-
 function OfferList({
   error,
   items,
@@ -347,8 +206,6 @@ function OfferList({
     id: string;
     proposerAssetCount?: number;
     recipientAssetCount?: number;
-    state: string;
-    version: number;
   }[];
   loading: boolean;
   title: string;
@@ -362,7 +219,7 @@ function OfferList({
         </p>
       ) : error ? (
         <p className="rounded-2xl border border-destructive/40 p-6 text-destructive">
-          No pudimos cargar las ofertas. Intenta nuevamente.
+          No pudimos cargar las ofertas.
         </p>
       ) : items.length === 0 ? (
         <p className="rounded-2xl border border-dashed p-6 text-muted-foreground">
@@ -376,11 +233,11 @@ function OfferList({
                 className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 href={`/cards/trades/${item.id}`}
               >
-                <span className="font-semibold">Oferta {item.id}</span>
+                <span className="font-semibold">Intercambio pendiente</span>
                 <span className="block text-muted-foreground text-sm">
-                  {item.proposerAssetCount ?? item.assetCount ?? 1} +{" "}
-                  {item.recipientAssetCount ?? item.assetCount ?? 1} activos ·
-                  Estado: {item.state}
+                  {item.proposerAssetCount ?? item.assetCount ?? 1} por{" "}
+                  {item.recipientAssetCount ?? item.assetCount ?? 1}{" "}
+                  coleccionables
                 </span>
                 <span className="block text-muted-foreground text-sm">
                   Vence {new Date(item.expiresAt).toLocaleDateString("es-AR")}

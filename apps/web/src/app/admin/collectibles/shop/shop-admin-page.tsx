@@ -21,6 +21,9 @@ import type { OperationalActionValues } from "../operational-action-dialog";
 
 type InitialData = {
   offers: Awaited<ReturnType<typeof orpcClient.collectiblesAdmin.shop.list>>;
+  packTemplates: Awaited<
+    ReturnType<typeof orpcClient.collectiblesAdmin.packs.templates.list>
+  >;
 };
 
 type OfferDraft = {
@@ -168,14 +171,28 @@ export function CardShopAdminPage({
         </h2>
         <form className="mt-4 grid gap-4" onSubmit={saveOffer}>
           <div className="grid gap-4 md:grid-cols-2">
-            <Field
-              label="ID del Pack Template"
-              onChange={(packTemplateId) =>
-                setDraft((current) => ({ ...current, packTemplateId }))
-              }
-              required
-              value={draft.packTemplateId}
-            />
+            <div className="grid gap-2">
+              <Label htmlFor="shop-pack-template">Tipo de pack</Label>
+              <select
+                className="h-10 rounded-lg border border-input bg-background px-3"
+                id="shop-pack-template"
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    packTemplateId: event.target.value,
+                  }))
+                }
+                required
+                value={draft.packTemplateId}
+              >
+                <option value="">Selecciona un pack</option>
+                {initialData.packTemplates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Field
               label="Precio entero en Eteris"
               min="1"

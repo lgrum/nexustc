@@ -113,7 +113,9 @@ export function CollectibleOfferClosureClient() {
         <CardContent>
           <form className="grid gap-4" onSubmit={cancelTrade}>
             <div className="grid gap-2">
-              <Label htmlFor="collectible-trade-id">ID de oferta</Label>
+              <Label htmlFor="collectible-trade-id">
+                Identificador técnico del intercambio
+              </Label>
               <Input
                 id="collectible-trade-id"
                 onChange={(event) => setTradeId(event.target.value)}
@@ -159,7 +161,9 @@ export function CollectibleOfferClosureClient() {
         <CardContent>
           <form className="grid gap-4" onSubmit={cancelGift}>
             <div className="grid gap-2">
-              <Label htmlFor="collectible-gift-id">ID de regalo</Label>
+              <Label htmlFor="collectible-gift-id">
+                Identificador técnico del regalo
+              </Label>
               <Input
                 id="collectible-gift-id"
                 onChange={(event) => setGiftId(event.target.value)}

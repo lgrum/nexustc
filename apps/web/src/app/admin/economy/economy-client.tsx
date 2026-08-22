@@ -185,7 +185,7 @@ export function EconomyClient({ initialReport }: { initialReport: Report }) {
                 {(field) => (
                   <field.TextField
                     className="flex-1"
-                    label="ID de usuario a auditar"
+                    label="Identificador técnico de la cuenta a auditar"
                     required
                   />
                 )}
@@ -337,7 +337,12 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
           >
             <xpForm.AppForm>
               <xpForm.AppField name="xpUserId">
-                {(field) => <field.TextField label="ID de usuario" required />}
+                {(field) => (
+                  <field.TextField
+                    label="Identificador técnico de la cuenta"
+                    required
+                  />
+                )}
               </xpForm.AppField>
               <xpForm.AppField name="xpAmount">
                 {(field) => (
@@ -370,7 +375,12 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
           >
             <eterisForm.AppForm>
               <eterisForm.AppField name="eterisUserId">
-                {(field) => <field.TextField label="ID de usuario" required />}
+                {(field) => (
+                  <field.TextField
+                    label="Identificador técnico de la cuenta"
+                    required
+                  />
+                )}
               </eterisForm.AppField>
               <eterisForm.AppField name="eterisAmount">
                 {(field) => (
@@ -407,7 +417,7 @@ function OwnerTools({ onReconciled }: { onReconciled: () => unknown }) {
               <reconciliationForm.AppField name="reconciliationUserId">
                 {(field) => (
                   <field.TextField
-                    label="ID de usuario a reconciliar"
+                    label="Identificador técnico de la cuenta a reconciliar"
                     required
                   />
                 )}

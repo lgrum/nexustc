@@ -32,6 +32,8 @@ export const MEDIA_OWNER_KINDS = [
   "Anuncio",
   "Articulo",
   "Carta",
+  "Pack",
+  "Perfil",
 ] as const;
 
 export type MediaOwnerKind = (typeof MEDIA_OWNER_KINDS)[number];

@@ -21,6 +21,9 @@ const service = vi.hoisted(() => ({
   sendTradeOffer: vi.fn(),
   unblockTradeUser: vi.fn(),
 }));
+const profile = vi.hoisted(() => ({
+  getResolvedProfileVisibility: vi.fn(),
+}));
 
 vi.mock("@repo/env", () => ({
   env: {
@@ -48,6 +51,7 @@ vi.mock("../services/trade-offer", () => ({
     }
   },
 }));
+vi.mock("../services/profile", () => profile);
 
 function createContext(): Context {
   return {
@@ -80,6 +84,12 @@ beforeEach(() => {
     version: 2,
   });
   service.listTradeOffers.mockResolvedValue({ items: [], nextCursor: null });
+  service.listEligibleTradeAssets.mockResolvedValue([
+    { assetId: "card-recipient", kind: "card" },
+  ]);
+  profile.getResolvedProfileVisibility.mockResolvedValue({
+    publicCollection: true,
+  });
 });
 
 describe("trade router boundaries", () => {
@@ -159,6 +169,32 @@ describe("trade router boundaries", () => {
     );
     expect(JSON.stringify(payload)).not.toMatch(
       /proposer|recipient|card-|pack-|termsHash/
+    );
+  });
+
+  it("only exposes a participant inventory when their collection is public", async () => {
+    profile.getResolvedProfileVisibility.mockResolvedValueOnce({
+      publicCollection: false,
+    });
+    await expect(
+      call(
+        tradesRouter.eligibleForParticipant,
+        { userId: "recipient" },
+        { context: createContext() }
+      )
+    ).resolves.toEqual([]);
+    expect(service.listEligibleTradeAssets).not.toHaveBeenCalled();
+
+    await expect(
+      call(
+        tradesRouter.eligibleForParticipant,
+        { userId: "recipient" },
+        { context: createContext() }
+      )
+    ).resolves.toEqual([{ assetId: "card-recipient", kind: "card" }]);
+    expect(service.listEligibleTradeAssets).toHaveBeenCalledWith(
+      expect.anything(),
+      "recipient"
     );
   });
 });

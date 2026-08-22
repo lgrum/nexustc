@@ -108,10 +108,9 @@ describe("Mercado Negro retry commands", () => {
       .mockResolvedValueOnce({ listingId: "listing-new", replayed: false });
     renderWithClient(<BlackMarketClient />);
 
-    fireEvent.change(screen.getByLabelText("ID exacto del activo"), {
-      target: { value: "card-1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Añadir activo" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Carta coleccionable/ })
+    );
     fireEvent.change(screen.getByLabelText("Precio"), {
       target: { value: "100" },
     });

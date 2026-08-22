@@ -38,6 +38,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AssetPicker } from "@/components/collectibles/asset-picker";
+import type { CollectibleAssetOption } from "@/components/collectibles/asset-picker";
 import { ProfileDecorationSurface } from "@/components/profile/profile-decoration-surface";
 import { ProfileSkinSurface } from "@/components/profile/profile-skin-surface";
 import { Button } from "@/components/ui/button";
@@ -449,14 +451,44 @@ function FavoriteGamesControl({
 }
 
 function CollectibleShowcaseControl({
+  cards,
   kind,
   onChange,
+  packs,
   payload,
 }: {
+  cards: Awaited<ReturnType<typeof orpcClient.cards.inventory>>["items"];
   kind: "card" | "rare-card" | "unopened-pack";
   onChange: (payload: Record<string, unknown>) => void;
+  packs: Awaited<ReturnType<typeof orpcClient.packs.inventory>>["items"];
   payload: Record<string, unknown>;
 }) {
+  const cardOptions: CollectibleAssetOption[] = cards.map((card) => ({
+    assetId: card.id,
+    characterName: card.characterName,
+    edition: card.edition,
+    gameName: card.gameName,
+    kind: "card",
+    mintNumber: card.mintNumber,
+    rarity: card.rarity,
+    seriesName: card.seriesName,
+  }));
+  const packTemplates = [
+    ...new Map(
+      packs.map((pack) => [
+        pack.templateId,
+        { id: pack.templateId, name: pack.templateName },
+      ])
+    ).values(),
+  ];
+  const series = [
+    ...new Map(
+      cards.map((card) => [
+        card.seriesId,
+        { id: card.seriesId, name: card.seriesName },
+      ])
+    ).values(),
+  ];
   const rawFilters =
     payload.filters &&
     typeof payload.filters === "object" &&
@@ -491,8 +523,9 @@ function CollectibleShowcaseControl({
           className="mt-2 grid gap-1.5 text-sm"
           htmlFor="profile-unopened-pack-template"
         >
-          <span className="font-medium">ID de Pack Template (opcional)</span>
-          <Input
+          <span className="font-medium">Tipo de pack (opcional)</span>
+          <select
+            className="h-10 rounded-lg border border-input bg-background px-3"
             id="profile-unopened-pack-template"
             onChange={(event) =>
               onChange({
@@ -500,9 +533,15 @@ function CollectibleShowcaseControl({
                 packTemplateId: event.target.value.trim() || null,
               })
             }
-            placeholder="Todos los packs sin abrir"
             value={packTemplateId}
-          />
+          >
+            <option value="">Todos los packs sin abrir</option>
+            {packTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
         </label>
         <p className="mt-2 text-muted-foreground text-xs leading-5">
           Se comprueba la propiedad actual al renderizar; abrir o transferir un
@@ -518,30 +557,24 @@ function CollectibleShowcaseControl({
         Filtros de colección
       </legend>
       {kind === "card" ? (
-        <label className="mt-2 grid gap-1.5 text-sm" htmlFor="profile-card-ids">
-          <span className="font-medium">IDs exactos de Card Instance</span>
-          <Input
-            id="profile-card-ids"
-            onChange={(event) =>
+        <div className="mt-2">
+          <AssetPicker
+            label="Cartas destacadas"
+            max={12}
+            onChange={(selected) =>
               onChange({
                 ...payload,
-                cardInstanceIds: event.target.value
-                  .split(/[\s,]+/)
-                  .map((value) => value.trim())
-                  .filter(Boolean),
+                cardInstanceIds: selected.map(({ assetId }) => assetId),
               })
             }
-            placeholder="card-instance-1, card-instance-2"
-            value={
+            options={cardOptions}
+            selected={cardOptions.filter((card) =>
               Array.isArray(payload.cardInstanceIds)
-                ? payload.cardInstanceIds.join(", ")
-                : ""
-            }
+                ? payload.cardInstanceIds.includes(card.assetId)
+                : false
+            )}
           />
-          <span className="text-muted-foreground text-xs">
-            Hasta 12 IDs, en el orden en que quieres mostrarlos.
-          </span>
-        </label>
+        </div>
       ) : null}
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <label
@@ -560,13 +593,20 @@ function CollectibleShowcaseControl({
           className="grid gap-1.5 text-sm"
           htmlFor={`profile-${kind}-series`}
         >
-          <span className="font-medium">Series ID</span>
-          <Input
+          <span className="font-medium">Serie</span>
+          <select
+            className="h-10 rounded-lg border border-input bg-background px-3"
             id={`profile-${kind}-series`}
             onChange={(event) => updateFilters("seriesId", event.target.value)}
-            placeholder="series-1"
             value={filters.seriesId}
-          />
+          >
+            <option value="">Todas las series</option>
+            {series.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
         </label>
         <label
           className="grid gap-1.5 text-sm"
@@ -667,11 +707,16 @@ function createShowcaseDragImage(source: HTMLElement, label: string) {
 }
 
 export function ProfileCustomizer({
+  collectibleInventory = { cards: [], packs: [] },
   favoriteGames,
   initialState,
   profile,
   scalarShowcases = [],
 }: {
+  collectibleInventory?: {
+    cards: Awaited<ReturnType<typeof orpcClient.cards.inventory>>["items"];
+    packs: Awaited<ReturnType<typeof orpcClient.packs.inventory>>["items"];
+  };
   favoriteGames?: FavoriteGamesEditorState;
   initialState: EditorState;
   profile: PublicProfile;
@@ -1484,6 +1529,7 @@ export function ProfileCustomizer({
                         showcase.type === "rare-card" ||
                         showcase.type === "unopened-pack" ? (
                           <CollectibleShowcaseControl
+                            cards={collectibleInventory.cards}
                             kind={showcase.type}
                             onChange={(payload) =>
                               updateShowcase(index, (current) => ({
@@ -1491,6 +1537,7 @@ export function ProfileCustomizer({
                                 payload,
                               }))
                             }
+                            packs={collectibleInventory.packs}
                             payload={showcase.payload}
                           />
                         ) : null}

@@ -66,7 +66,9 @@ export default function GiftDetailClient({ giftId }: { giftId: string }) {
         <p className="font-semibold text-primary text-xs uppercase tracking-[0.24em]">
           Detalle privado
         </p>
-        <h1 className="font-black text-4xl tracking-tight">Regalo {giftId}</h1>
+        <h1 className="font-black text-4xl tracking-tight">
+          Detalle del regalo
+        </h1>
         <p className="text-muted-foreground">
           Es una transferencia gratuita, sin Eteris ni precio. Los términos
           enviados no pueden editarse.
@@ -89,18 +91,18 @@ export default function GiftDetailClient({ giftId }: { giftId: string }) {
               </span>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
-              {data.assets.map((asset) => (
+              {data.assets.map((asset, index) => (
                 <li
                   className="rounded-2xl border p-4"
                   key={`${asset.kind}:${asset.assetId}`}
                 >
                   <p className="font-semibold">
-                    {asset.side === "sender" ? "Remitente" : "Destinatario"}
+                    {asset.kind === "card" ? "Carta" : "Pack sin abrir"}{" "}
+                    {index + 1}
                   </p>
                   <p className="text-muted-foreground text-sm">
-                    {asset.kind === "card" ? "Carta" : "Pack sin abrir"}
+                    Incluido en el regalo
                   </p>
-                  <code className="break-all text-xs">{asset.assetId}</code>
                 </li>
               ))}
             </ul>

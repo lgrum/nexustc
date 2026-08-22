@@ -18,15 +18,18 @@ import {
   rollbackProfileCatalogRevision,
 } from "../services/profile-catalog-lifecycle";
 import {
+  saveProfileDecorationDraftWithMedia,
+  saveProfileSkinDraftWithBackground,
+} from "../services/profile-catalog-media";
+import {
   correctProfileCatalogPurchase,
   ProfileCatalogPurchaseCorrectionError,
 } from "../services/profile-catalog-purchase-correction";
 import {
   listOwnerProfileDecorations,
-  profileDecorationDraftSchema,
+  profileDecorationDeferredDraftSchema,
   ProfileDecorationCatalogError,
   publishProfileDecorationDraft,
-  saveProfileDecorationDraft,
 } from "../services/profile-decoration-catalog";
 import {
   ProfileEntitlementAdminError,
@@ -35,11 +38,11 @@ import {
 } from "../services/profile-entitlement-admin";
 import {
   listOwnerProfileSkins,
-  profileSkinDraftSchema,
+  profileSkinDeferredDraftSchema,
   ProfileSkinCatalogError,
   publishProfileSkinDraft,
-  saveProfileSkinDraft,
 } from "../services/profile-skin-catalog";
+import { optionalSingleDeferredMediaSelectionInputSchema } from "../utils/deferred-media";
 
 function translateCatalogError(
   error: unknown,
@@ -375,17 +378,19 @@ export default {
     saveDraft: ownerProcedure
       .input(
         z.object({
-          draft: profileDecorationDraftSchema,
+          draft: profileDecorationDeferredDraftSchema,
           expectedUpdatedAt: z.coerce.date().optional(),
+          mediaSelection: optionalSingleDeferredMediaSelectionInputSchema,
         })
       )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
-          return await saveProfileDecorationDraft(
+          return await saveProfileDecorationDraftWithMedia(
             db,
             session.user.id,
             input.draft,
+            input.mediaSelection,
             input.expectedUpdatedAt
           );
         } catch (error) {
@@ -420,17 +425,19 @@ export default {
     saveDraft: ownerProcedure
       .input(
         z.object({
-          draft: profileSkinDraftSchema,
+          backgroundSelection: optionalSingleDeferredMediaSelectionInputSchema,
+          draft: profileSkinDeferredDraftSchema,
           expectedUpdatedAt: z.coerce.date().optional(),
         })
       )
       .handler(async ({ context: { db, session }, errors, input }) => {
         rejectImpersonation(session, errors);
         try {
-          return await saveProfileSkinDraft(
+          return await saveProfileSkinDraftWithBackground(
             db,
             session.user.id,
             input.draft,
+            input.backgroundSelection,
             input.expectedUpdatedAt
           );
         } catch (error) {

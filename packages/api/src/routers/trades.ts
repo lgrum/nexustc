@@ -11,6 +11,7 @@ import {
   protectedProcedure,
   slidingWindowRatelimitMiddleware,
 } from "../index";
+import { getResolvedProfileVisibility } from "../services/profile";
 import {
   acceptTradeOffer,
   cancelTradeOffer,
@@ -90,6 +91,15 @@ const detail = read
 const eligible = read.handler(({ context: { db, session } }) =>
   listEligibleTradeAssets(db, session.user.id)
 );
+
+const eligibleForParticipant = read
+  .input(z.object({ userId: z.string().trim().min(1).max(200) }).strict())
+  .handler(async ({ context: { db }, input }) => {
+    const visibility = await getResolvedProfileVisibility(db, input.userId);
+    return visibility.publicCollection
+      ? listEligibleTradeAssets(db, input.userId)
+      : [];
+  });
 
 const send = mutation
   .input(tradeOfferSendInputSchema)
@@ -173,6 +183,7 @@ export default {
   counteroffer,
   detail,
   eligible,
+  eligibleForParticipant,
   inbox,
   list,
   reject,

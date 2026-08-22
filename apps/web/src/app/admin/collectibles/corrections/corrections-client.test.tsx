@@ -30,9 +30,12 @@ beforeEach(() => {
 it("wires exceptional grant, ownership transfer, and separate Eteris reversal controls", async () => {
   render(<CollectibleCorrectionsClient />);
 
-  fireEvent.change(screen.getByLabelText("ID de plantilla"), {
-    target: { value: "template-1" },
-  });
+  fireEvent.change(
+    screen.getByLabelText("Identificador técnico de la plantilla de carta"),
+    {
+      target: { value: "template-1" },
+    }
+  );
   fireEvent.change(screen.getByLabelText("ID destinatario"), {
     target: { value: "user-1" },
   });
@@ -55,9 +58,12 @@ it("wires exceptional grant, ownership transfer, and separate Eteris reversal co
     templateId: "template-1",
   });
 
-  fireEvent.change(screen.getByLabelText("ID del activo"), {
-    target: { value: "card-1" },
-  });
+  fireEvent.change(
+    screen.getByLabelText("Identificador técnico del coleccionable"),
+    {
+      target: { value: "card-1" },
+    }
+  );
   fireEvent.change(screen.getByLabelText("Propietario actual"), {
     target: { value: "from-user" },
   });
@@ -83,9 +89,12 @@ it("wires exceptional grant, ownership transfer, and separate Eteris reversal co
     toUserId: "to-user",
   });
 
-  fireEvent.change(screen.getByLabelText("ID de transacción"), {
-    target: { value: "eteris-1" },
-  });
+  fireEvent.change(
+    screen.getByLabelText("Identificador técnico de la transacción Eteris"),
+    {
+      target: { value: "eteris-1" },
+    }
+  );
   fireEvent.change(screen.getByLabelText("Secuencia esperada"), {
     target: { value: "7" },
   });

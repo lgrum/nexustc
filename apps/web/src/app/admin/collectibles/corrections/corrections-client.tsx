@@ -177,7 +177,7 @@ export function CollectibleCorrectionsClient() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="correction-grant-template">
-                  ID de plantilla
+                  Identificador técnico de la plantilla de carta
                 </Label>
                 <Input
                   id="correction-grant-template"
@@ -264,7 +264,9 @@ export function CollectibleCorrectionsClient() {
                 </select>
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="correction-transfer-asset">ID del activo</Label>
+                <Label htmlFor="correction-transfer-asset">
+                  Identificador técnico del coleccionable
+                </Label>
                 <Input
                   id="correction-transfer-asset"
                   onChange={(event) => setTransferAssetId(event.target.value)}
@@ -342,7 +344,7 @@ export function CollectibleCorrectionsClient() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="correction-eteris-transaction">
-                  ID de transacción
+                  Identificador técnico de la transacción Eteris
                 </Label>
                 <Input
                   id="correction-eteris-transaction"

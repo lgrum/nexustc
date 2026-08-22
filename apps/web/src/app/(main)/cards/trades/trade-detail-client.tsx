@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
+import { AssetPicker } from "@/components/collectibles/asset-picker";
+import type { CollectibleAssetOption } from "@/components/collectibles/asset-picker";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
 
 function createTradeIdempotencyKey() {
@@ -15,9 +16,12 @@ function createTradeIdempotencyKey() {
 export default function TradeDetailClient({ offerId }: { offerId: string }) {
   const queryClient = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
-  const [blockUserId, setBlockUserId] = useState("");
-  const [counterProposerAsset, setCounterProposerAsset] = useState("");
-  const [counterRecipientAsset, setCounterRecipientAsset] = useState("");
+  const [counterProposerAssets, setCounterProposerAssets] = useState<
+    CollectibleAssetOption[]
+  >([]);
+  const [counterRecipientAssets, setCounterRecipientAssets] = useState<
+    CollectibleAssetOption[]
+  >([]);
   const actionKeys = useRef(new Map<string, string>());
   const getActionKey = (actionName: string) => {
     const key = `${offerId}:${actionName}`;
@@ -32,6 +36,13 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
   const detail = useQuery(
     orpc.trades.detail.queryOptions({ input: { offerId } })
   );
+  const eligible = useQuery(orpc.trades.eligible.queryOptions());
+  const counterpartyEligible = useQuery({
+    ...orpc.trades.eligibleForParticipant.queryOptions({
+      input: { userId: detail.data?.counterpartyUserId ?? "unselected" },
+    }),
+    enabled: Boolean(detail.data?.counterpartyUserId),
+  });
   const action = useMutation(
     orpc.trades.accept.mutationOptions({
       onError: (error) => setMessage(error.message),
@@ -85,7 +96,9 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
         <p className="font-semibold text-primary text-xs uppercase tracking-[0.24em]">
           Detalle privado
         </p>
-        <h1 className="font-black text-4xl tracking-tight">Oferta {offerId}</h1>
+        <h1 className="font-black text-4xl tracking-tight">
+          Detalle del intercambio
+        </h1>
         <p className="text-muted-foreground">
           Los términos se fijaron al enviar y no pueden editarse.
         </p>
@@ -107,18 +120,18 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
               </span>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
-              {data.assets.map((asset) => (
+              {data.assets.map((asset, index) => (
                 <li
                   className="rounded-2xl border p-4"
                   key={`${asset.side}:${asset.kind}:${asset.assetId}`}
                 >
                   <p className="font-semibold">
-                    {asset.side === "proposer" ? "Proponente" : "Destinatario"}
+                    {asset.kind === "card" ? "Carta" : "Pack sin abrir"}{" "}
+                    {index + 1}
                   </p>
                   <p className="text-muted-foreground text-sm">
-                    {asset.kind === "card" ? "Carta" : "Pack sin abrir"}
+                    {asset.side === "proposer" ? "Ofrecido" : "Solicitado"}
                   </p>
-                  <code className="break-all text-xs">{asset.assetId}</code>
                 </li>
               ))}
             </ul>
@@ -181,16 +194,24 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
               className="space-y-3 rounded-3xl border border-dashed p-5"
               onSubmit={(event) => {
                 event.preventDefault();
+                const [proposerAsset] = counterProposerAssets;
+                const [recipientAsset] = counterRecipientAssets;
+                if (!proposerAsset || !recipientAsset) {
+                  setMessage(
+                    "Selecciona una carta para cada lado de la contraoferta."
+                  );
+                  return;
+                }
                 counter.mutate({
                   idempotencyKey: getActionKey("counter"),
                   offerId,
                   proposerAsset: {
-                    assetId: counterProposerAsset,
-                    kind: "card",
+                    assetId: proposerAsset.assetId,
+                    kind: proposerAsset.kind,
                   },
                   recipientAsset: {
-                    assetId: counterRecipientAsset,
-                    kind: "card",
+                    assetId: recipientAsset.assetId,
+                    kind: recipientAsset.kind,
                   },
                 });
               }}
@@ -201,34 +222,25 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
                 anterior.
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <label
-                  className="space-y-1 text-sm"
-                  htmlFor="trade-counter-proposer-asset-id"
-                >
-                  Tu carta exacta
-                  <Input
-                    id="trade-counter-proposer-asset-id"
-                    onChange={(event) =>
-                      setCounterProposerAsset(event.target.value)
-                    }
-                    required
-                    value={counterProposerAsset}
-                  />
-                </label>
-                <label
-                  className="space-y-1 text-sm"
-                  htmlFor="trade-counter-recipient-asset-id"
-                >
-                  Carta solicitada
-                  <Input
-                    id="trade-counter-recipient-asset-id"
-                    onChange={(event) =>
-                      setCounterRecipientAsset(event.target.value)
-                    }
-                    required
-                    value={counterRecipientAsset}
-                  />
-                </label>
+                <AssetPicker
+                  label="Lo que ofreces"
+                  loading={eligible.isLoading}
+                  max={1}
+                  onChange={setCounterProposerAssets}
+                  options={(eligible.data ?? []) as CollectibleAssetOption[]}
+                  selected={counterProposerAssets}
+                />
+                <AssetPicker
+                  label="Lo que solicitas"
+                  loading={counterpartyEligible.isLoading}
+                  max={1}
+                  onChange={setCounterRecipientAssets}
+                  options={
+                    (counterpartyEligible.data ??
+                      []) as CollectibleAssetOption[]
+                  }
+                  selected={counterRecipientAssets}
+                />
               </div>
               <Button disabled={counter.isPending} type="submit">
                 Enviar contraoferta
@@ -244,34 +256,14 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
               Bloquear una cuenta evita nuevas ofertas y cierra de forma segura
               las que sigan pendientes entre ambas cuentas.
             </p>
-            <form
-              className="flex flex-col gap-3 sm:flex-row"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const userId = blockUserId.trim();
-                if (userId) {
-                  block.mutate({ userId });
-                }
-              }}
+            <Button
+              disabled={block.isPending}
+              onClick={() => block.mutate({ userId: data.counterpartyUserId })}
+              type="button"
+              variant="outline"
             >
-              <label className="sr-only" htmlFor="trade-block-user-id">
-                ID de la cuenta a bloquear
-              </label>
-              <Input
-                autoComplete="off"
-                id="trade-block-user-id"
-                onChange={(event) => setBlockUserId(event.target.value)}
-                placeholder="ID de la cuenta a bloquear"
-                value={blockUserId}
-              />
-              <Button
-                disabled={block.isPending}
-                type="submit"
-                variant="outline"
-              >
-                Bloquear cuenta
-              </Button>
-            </form>
+              Bloquear a la otra cuenta
+            </Button>
           </section>
         </>
       ) : null}
