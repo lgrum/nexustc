@@ -27,6 +27,8 @@ import {
   purchaseBlackMarketListing,
   searchBlackMarketListings,
 } from "../services/black-market";
+import { translateDomainError } from "../utils/domain-errors";
+import type { ProcedureErrors } from "../utils/domain-errors";
 
 const read = publicProcedure.use(slidingWindowRatelimitMiddleware(60, 60));
 const mutation = protectedProcedure
@@ -39,27 +41,16 @@ const adminCancellationInput = blackMarketAdminCancellationInputSchema.and(
   z.object({ expectedVersion: z.number().int().positive() }).strict()
 );
 
-type ProcedureErrors = Parameters<
-  Parameters<typeof mutation.handler>[0]
->[0]["errors"];
-
 function translateBlackMarketError(
   error: unknown,
   errors: ProcedureErrors
 ): never {
-  if (!(error instanceof BlackMarketError)) {
-    throw error;
-  }
-  if (error.code === "LISTING_NOT_FOUND") {
-    throw errors.NOT_FOUND({ message: error.message });
-  }
-  if (error.code === "PERMISSION_DENIED") {
-    throw errors.FORBIDDEN({ message: error.message });
-  }
-  if (error.code === "STALE_PRICE" || error.code === "STALE_VERSION") {
-    throw errors.BAD_REQUEST({ message: `${error.code}: ${error.message}` });
-  }
-  throw errors.BAD_REQUEST({ message: `${error.code}: ${error.message}` });
+  return translateDomainError(error, errors, {
+    badRequestIncludesCode: true,
+    errorClass: BlackMarketError,
+    forbiddenCodes: ["PERMISSION_DENIED"],
+    notFoundCodes: ["LISTING_NOT_FOUND"],
+  });
 }
 
 const search = read

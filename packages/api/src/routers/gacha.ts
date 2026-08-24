@@ -25,6 +25,8 @@ import {
   transitionGachaponMachine,
   updateGachaponMachine,
 } from "../services/gachapon";
+import { translateDomainError } from "../utils/domain-errors";
+import type { ProcedureErrors } from "../utils/domain-errors";
 
 const publicRead = publicProcedure.use(
   slidingWindowRatelimitMiddleware(60, 60)
@@ -62,24 +64,8 @@ const transitionSchema = z
 
 function translateGachaponError(
   error: unknown,
-  errors: Parameters<Parameters<typeof mutation.handler>[0]>[0]["errors"]
+  errors: ProcedureErrors
 ): never {
-  if (error instanceof GachaponError) {
-    if (
-      error.code === "IDEMPOTENCY_CONFLICT" ||
-      error.code === "STALE_COST" ||
-      error.code === "STALE_VERSION"
-    ) {
-      throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
-    }
-    if (
-      error.code === "ACTIVATION_NOT_FOUND" ||
-      error.code === "MACHINE_UNAVAILABLE"
-    ) {
-      throw errors.NOT_FOUND({ message: error.message });
-    }
-    throw errors.BAD_REQUEST({ message: error.message });
-  }
   if (error instanceof EterisError) {
     if (error.code === "IDEMPOTENCY_CONFLICT") {
       throw errors.PROFILE_CUSTOMIZATION_CONFLICT({
@@ -93,8 +79,77 @@ function translateGachaponError(
           : "Tu billetera no permite activar esta máquina.",
     });
   }
-  throw error;
+  return translateDomainError(error, errors, {
+    conflictCodes: ["IDEMPOTENCY_CONFLICT", "STALE_COST", "STALE_VERSION"],
+    errorClass: GachaponError,
+    notFoundCodes: ["ACTIVATION_NOT_FOUND", "MACHINE_UNAVAILABLE"],
+  });
 }
+
+/**
+ * Admin machine lifecycle lives only on the collectiblesAdmin domain
+ * (`collectiblesAdmin/gacha/*`), which is where cache-tags maps these
+ * mutations. Keep it out of the public gacha router to avoid a second,
+ * unmapped mount of the same procedures.
+ */
+export const admin = {
+  list: adminRead
+    .input(limitInput)
+    .handler(({ context: { db }, input }) =>
+      listGachaponMachinesForAdmin(db, input?.limit)
+    ),
+  create: adminMutation
+    .input(
+      gachaponMachineDraftSchema.and(
+        z.object({ reason: reasonSchema }).strict()
+      )
+    )
+    .handler(async ({ context: { db, session }, errors, input }) => {
+      try {
+        return await createGachaponMachine(db, {
+          ...input,
+          actorUserId: session.user.id,
+        });
+      } catch (error) {
+        translateGachaponError(error, errors);
+      }
+    }),
+  update: adminMutation
+    .input(
+      gachaponMachineDraftSchema.and(
+        z
+          .object({
+            expectedVersion: expectedVersionSchema,
+            machineId: z.string().trim().min(1).max(200),
+            reason: reasonSchema,
+          })
+          .strict()
+      )
+    )
+    .handler(async ({ context: { db, session }, errors, input }) => {
+      try {
+        return await updateGachaponMachine(db, {
+          ...input,
+          actorUserId: session.user.id,
+        });
+      } catch (error) {
+        translateGachaponError(error, errors);
+      }
+    }),
+  transition: adminMutation
+    .input(transitionSchema)
+    .handler(async ({ context: { db, session }, errors, input }) => {
+      try {
+        return await transitionGachaponMachine(db, {
+          ...input,
+          actorUserId: session.user.id,
+          impersonated: Boolean(session.session?.impersonatedBy),
+        });
+      } catch (error) {
+        translateGachaponError(error, errors);
+      }
+    }),
+};
 
 export default {
   activationById: privateRead
@@ -160,62 +215,4 @@ export default {
         translateGachaponError(error, errors);
       }
     }),
-  admin: {
-    list: adminRead
-      .input(limitInput)
-      .handler(({ context: { db }, input }) =>
-        listGachaponMachinesForAdmin(db, input?.limit)
-      ),
-    create: adminMutation
-      .input(
-        gachaponMachineDraftSchema.and(
-          z.object({ reason: reasonSchema }).strict()
-        )
-      )
-      .handler(async ({ context: { db, session }, errors, input }) => {
-        try {
-          return await createGachaponMachine(db, {
-            ...input,
-            actorUserId: session.user.id,
-          });
-        } catch (error) {
-          translateGachaponError(error, errors);
-        }
-      }),
-    update: adminMutation
-      .input(
-        gachaponMachineDraftSchema.and(
-          z
-            .object({
-              expectedVersion: expectedVersionSchema,
-              machineId: z.string().trim().min(1).max(200),
-              reason: reasonSchema,
-            })
-            .strict()
-        )
-      )
-      .handler(async ({ context: { db, session }, errors, input }) => {
-        try {
-          return await updateGachaponMachine(db, {
-            ...input,
-            actorUserId: session.user.id,
-          });
-        } catch (error) {
-          translateGachaponError(error, errors);
-        }
-      }),
-    transition: adminMutation
-      .input(transitionSchema)
-      .handler(async ({ context: { db, session }, errors, input }) => {
-        try {
-          return await transitionGachaponMachine(db, {
-            ...input,
-            actorUserId: session.user.id,
-            impersonated: Boolean(session.session?.impersonatedBy),
-          });
-        } catch (error) {
-          translateGachaponError(error, errors);
-        }
-      }),
-  },
 };

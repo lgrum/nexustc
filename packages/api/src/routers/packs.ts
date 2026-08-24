@@ -27,6 +27,8 @@ import {
   packOpeningReadInputSchema,
   retryPackOpeningNotification,
 } from "../services/pack-opening";
+import { translateDomainError } from "../utils/domain-errors";
+import type { ProcedureErrors } from "../utils/domain-errors";
 
 const idInput = z.object({ id: z.string().trim().min(1).max(200) }).strict();
 
@@ -61,18 +63,11 @@ const mutation = protectedProcedure
   .use(collectiblesMutationMiddleware)
   .use(slidingWindowRatelimitMiddleware(5, 60));
 
-function translateOpeningError(
-  error: unknown,
-  errors: Parameters<Parameters<typeof mutation.handler>[0]>[0]["errors"]
-): never {
-  if (!(error instanceof PackOpeningError)) {
-    throw error;
-  }
-  if (error.code === "NOT_FOUND") {
-    throw errors.NOT_FOUND({ message: error.message });
-  }
-  throw errors.BAD_REQUEST({
-    message: `${error.code}: ${error.message}`,
+function translateOpeningError(error: unknown, errors: ProcedureErrors): never {
+  return translateDomainError(error, errors, {
+    badRequestIncludesCode: true,
+    errorClass: PackOpeningError,
+    notFoundCodes: ["NOT_FOUND"],
   });
 }
 
@@ -127,20 +122,12 @@ const retryNotification = mutation
 export default {
   detail,
   get: detail,
-  getById: detail,
   history,
   inventory,
   list,
   publicCollection,
-  collection: publicCollection,
   open,
   opening,
   provenance,
   retryNotification,
-  private: {
-    history,
-    inventory,
-    opening,
-    provenance,
-  },
 };

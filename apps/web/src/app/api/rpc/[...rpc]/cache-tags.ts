@@ -113,6 +113,14 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["user/toggleBookmark", ["profiles"]],
 ]);
 
+function unwrapJsonEnvelope(responseBody: unknown): unknown {
+  return responseBody &&
+    typeof responseBody === "object" &&
+    "json" in responseBody
+    ? responseBody.json
+    : responseBody;
+}
+
 export function getCacheTagsForProcedure(
   procedurePath: string,
   options?: { responseBody?: unknown; userId?: string }
@@ -122,13 +130,7 @@ export function getCacheTagsForProcedure(
       return ["card-shop", "packs"];
     }
     if (procedurePath.includes("/gacha/")) {
-      const responseBody = options?.responseBody;
-      const output =
-        responseBody &&
-        typeof responseBody === "object" &&
-        "json" in responseBody
-          ? responseBody.json
-          : responseBody;
+      const output = unwrapJsonEnvelope(options?.responseBody);
       const machineId =
         output &&
         typeof output === "object" &&
@@ -140,11 +142,7 @@ export function getCacheTagsForProcedure(
         ? ["gachapon", `gachapon:${machineId}`, "packs"]
         : ["gachapon", "packs"];
     }
-    const responseBody = options?.responseBody;
-    const output =
-      responseBody && typeof responseBody === "object" && "json" in responseBody
-        ? responseBody.json
-        : responseBody;
+    const output = unwrapJsonEnvelope(options?.responseBody);
     if (output && typeof output === "object") {
       const templateId =
         "templateId" in output && typeof output.templateId === "string"
@@ -176,19 +174,13 @@ export function getCacheTagsForProcedure(
     procedurePath === "progression/getMine" ||
     procedurePath === "rating/toggleReviewLike"
   ) {
-    if (!(options?.responseBody && typeof options.responseBody === "object")) {
-      return [];
-    }
-    const output =
-      "json" in options.responseBody
-        ? options.responseBody.json
-        : options.responseBody;
+    const output = unwrapJsonEnvelope(options?.responseBody);
     if (!(output && typeof output === "object")) {
       return [];
     }
     const profileUserId =
       procedurePath === "comicProgress/update"
-        ? options.userId
+        ? options?.userId
         : "profileUserId" in output && typeof output.profileUserId === "string"
           ? output.profileUserId
           : undefined;

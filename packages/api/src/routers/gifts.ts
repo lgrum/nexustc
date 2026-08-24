@@ -19,6 +19,8 @@ import {
   rejectGiftOffer,
   sendGiftOffer,
 } from "../services/gift-offer";
+import { translateDomainError } from "../utils/domain-errors";
+import type { ProcedureErrors } from "../utils/domain-errors";
 
 const read = protectedProcedure.use(slidingWindowRatelimitMiddleware(60, 60));
 const mutation = protectedProcedure
@@ -28,21 +30,13 @@ const acceptMutation = protectedProcedure
   .use(collectiblesMutationMiddleware)
   .use(slidingWindowRatelimitMiddleware(10, 60));
 
-type ProcedureErrors = Parameters<
-  Parameters<typeof mutation.handler>[0]
->[0]["errors"];
-
 function translateGiftError(error: unknown, errors: ProcedureErrors): never {
-  if (!(error instanceof GiftOfferError)) {
-    throw error;
-  }
-  if (error.code === "OFFER_NOT_FOUND" || error.code === "ASSET_NOT_FOUND") {
-    throw errors.NOT_FOUND({ message: error.message });
-  }
-  if (error.code === "PERMISSION_DENIED") {
-    throw errors.FORBIDDEN({ message: error.message });
-  }
-  throw errors.BAD_REQUEST({ message: `${error.code}: ${error.message}` });
+  return translateDomainError(error, errors, {
+    badRequestIncludesCode: true,
+    errorClass: GiftOfferError,
+    forbiddenCodes: ["PERMISSION_DENIED"],
+    notFoundCodes: ["OFFER_NOT_FOUND", "ASSET_NOT_FOUND"],
+  });
 }
 
 const list = read

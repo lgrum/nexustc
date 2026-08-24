@@ -103,7 +103,9 @@ import {
   TradeOfferError,
 } from "../services/trade-offer";
 import { requiredSingleDeferredMediaSelectionInputSchema } from "../utils/deferred-media";
-import gacha from "./gacha";
+import { translateDomainError } from "../utils/domain-errors";
+import type { ProcedureErrors } from "../utils/domain-errors";
+import { admin as gachaAdmin } from "./gacha";
 
 const expectedVersionSchema = z.number().int().positive();
 const reasonSchema = z.string().trim().min(3).max(500);
@@ -136,45 +138,21 @@ const shopMutationProcedure = permissionProcedure({ cardShop: ["manage"] })
   .use(collectiblesMutationMiddleware)
   .use(slidingWindowRatelimitMiddleware(20, 60));
 
-function translateCardError(
-  error: unknown,
-  errors: Parameters<
-    Parameters<typeof mutationProcedure.handler>[0]
-  >[0]["errors"]
-): never {
-  if (!(error instanceof CardAuthoringError)) {
-    throw error;
-  }
-  if (error.code === "NOT_FOUND") {
-    throw errors.NOT_FOUND({ message: error.message });
-  }
-  if (error.code === "CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
-  }
-  throw errors.BAD_REQUEST({
-    data: error.fieldErrors,
-    message: error.message,
+function translateCardError(error: unknown, errors: ProcedureErrors): never {
+  return translateDomainError(error, errors, {
+    conflictCodes: ["CONFLICT"],
+    errorClass: CardAuthoringError,
+    notFoundCodes: ["NOT_FOUND"],
+    toBadRequestData: (domainError) => domainError.fieldErrors,
   });
 }
 
-function translatePackError(
-  error: unknown,
-  errors: Parameters<
-    Parameters<typeof mutationProcedure.handler>[0]
-  >[0]["errors"]
-): never {
-  if (!(error instanceof PackAuthoringError)) {
-    throw error;
-  }
-  if (error.code === "NOT_FOUND") {
-    throw errors.NOT_FOUND({ message: error.message });
-  }
-  if (error.code === "CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
-  }
-  throw errors.BAD_REQUEST({
-    data: error.fieldErrors,
-    message: error.message,
+function translatePackError(error: unknown, errors: ProcedureErrors): never {
+  return translateDomainError(error, errors, {
+    conflictCodes: ["CONFLICT"],
+    errorClass: PackAuthoringError,
+    notFoundCodes: ["NOT_FOUND"],
+    toBadRequestData: (domainError) => domainError.fieldErrors,
   });
 }
 
@@ -649,7 +627,7 @@ const operationalProcedures = {
 } as const;
 
 export default {
-  gacha: gacha.admin,
+  gacha: gachaAdmin,
   freezes: moderationProcedures,
   moderation: moderationProcedures,
   offers: administrativeOfferProcedures,

@@ -67,14 +67,8 @@ export default {
   },
   detail,
   get: detail,
-  getById: detail,
   inventory,
   list,
   publicCollection,
-  collection: publicCollection,
-  private: {
-    inventory,
-    provenance,
-  },
   provenance,
 };

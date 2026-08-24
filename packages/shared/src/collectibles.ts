@@ -39,7 +39,6 @@ export const COLLECTIBLE_RARITY_LABELS = {
   epic: "Épico",
   legendary: "Legendario",
 } as const satisfies Record<CollectibleRarity, string>;
-export const RARITY_CATALOG = COLLECTIBLE_RARITY_CATALOG;
 export const RARITY_ORDER = COLLECTIBLE_RARITY_KEYS;
 
 export const COLLECTIBLE_BINDINGS = ["transferable", "account-bound"] as const;
@@ -488,8 +487,6 @@ export function buildCardRenderPlan(
   };
 }
 
-export const createCardRenderPlan = buildCardRenderPlan;
-
 export function getCardEffectCatalogEntry(effect: CardEffectConfig) {
   const parsed = cardEffectConfigSchema.parse(effect);
   return CARD_EFFECT_CATALOG.find((entry) => entry.key === parsed.effect)!;
@@ -593,7 +590,6 @@ export function formatCardMintNumber(
     : `#${mintNumber}/${lifetimeSupplyCeiling}`;
 }
 
-export const formatMintNumber = formatCardMintNumber;
 export const getCardMintDisplay = formatCardMintNumber;
 
 export const collectibleAssetReferenceSchema = z

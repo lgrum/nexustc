@@ -19,6 +19,8 @@ import {
   retryOfficialCardShopPurchaseNotification,
   listOwnOfficialCardShopPurchases,
 } from "../services/official-card-shop";
+import { translateDomainError } from "../utils/domain-errors";
+import type { ProcedureErrors } from "../utils/domain-errors";
 
 const publicRead = publicProcedure.use(
   slidingWindowRatelimitMiddleware(60, 60)
@@ -32,18 +34,8 @@ const mutation = protectedProcedure
 
 function translatePurchaseError(
   error: unknown,
-  errors: Parameters<Parameters<typeof mutation.handler>[0]>[0]["errors"]
+  errors: ProcedureErrors
 ): never {
-  if (error instanceof OfficialCardShopError) {
-    if (
-      error.code === "STALE_PRICE" ||
-      error.code === "STALE_VERSION" ||
-      error.code === "IDEMPOTENCY_CONFLICT"
-    ) {
-      throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
-    }
-    throw errors.BAD_REQUEST({ message: error.message });
-  }
   if (error instanceof EterisError) {
     if (error.code === "IDEMPOTENCY_CONFLICT") {
       throw errors.PROFILE_CUSTOMIZATION_CONFLICT({
@@ -57,7 +49,10 @@ function translatePurchaseError(
           : "Tu billetera no permite completar esta compra.",
     });
   }
-  throw error;
+  return translateDomainError(error, errors, {
+    conflictCodes: ["STALE_PRICE", "STALE_VERSION", "IDEMPOTENCY_CONFLICT"],
+    errorClass: OfficialCardShopError,
+  });
 }
 
 const offerIdInput = z

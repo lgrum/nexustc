@@ -2,7 +2,7 @@ import { call } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Context } from "../context";
-import gachaRouter from "./gacha";
+import gachaRouter, { admin as gachaAdmin } from "./gacha";
 
 const flags = vi.hoisted(() => ({ enabled: true }));
 const service = vi.hoisted(() => ({
@@ -152,11 +152,7 @@ describe("gacha router boundaries", () => {
 
   it("requires gacha management capability and rejects impersonated mutations", async () => {
     await expect(
-      call(
-        gachaRouter.admin.list,
-        { limit: 10 },
-        { context: createContext("admin") }
-      )
+      call(gachaAdmin.list, { limit: 10 }, { context: createContext("admin") })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       call(
