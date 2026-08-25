@@ -194,7 +194,8 @@ describe("trade router boundaries", () => {
     ).resolves.toEqual([{ assetId: "card-recipient", kind: "card" }]);
     expect(service.listEligibleTradeAssets).toHaveBeenCalledWith(
       expect.anything(),
-      "recipient"
+      "recipient",
+      { excludeActiveCustody: false }
     );
   });
 });

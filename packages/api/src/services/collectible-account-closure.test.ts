@@ -72,7 +72,7 @@ describe("collectible account closure", () => {
       { id: "listing-1" },
       expect.objectContaining({
         actorUserId: "user-1",
-        reverseFee: true,
+        reverseFee: false,
       })
     );
   });

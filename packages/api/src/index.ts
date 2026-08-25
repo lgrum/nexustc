@@ -27,6 +27,9 @@ export const o = os.$context<Context>().errors({
   BAD_REQUEST: {
     status: 400,
   },
+  CONFLICT: {
+    status: 409,
+  },
   FORBIDDEN: {
     status: 403,
   },

@@ -37,6 +37,7 @@ import type z from "zod";
 import type { DeferredMediaSelectionInput } from "../utils/deferred-media";
 import { withDeferredMediaSelection } from "../utils/deferred-media";
 import { getManagedMediaAssetFromRecord } from "../utils/managed-media";
+import { appendCollectibleAdminAction } from "./collectible-admin-action";
 
 type Database = typeof database;
 type PackAuthoringTransaction = Parameters<
@@ -584,12 +585,18 @@ export async function savePackRevisionDraft(
   }
   return db.transaction(async (tx) => {
     const [template] = await tx
-      .select({ id: packTemplate.id })
+      .select({ id: packTemplate.id, lifecycle: packTemplate.lifecycle })
       .from(packTemplate)
       .where(eq(packTemplate.id, templateId))
       .for("update");
     if (!template) {
       throw new PackAuthoringError("NOT_FOUND", "El Pack Template no existe.");
+    }
+    if (template.lifecycle === "retired") {
+      throw new PackAuthoringError(
+        "INVALID_TRANSITION",
+        "Un pack retirado no se puede editar."
+      );
     }
 
     const [current] = parsed.id
@@ -732,11 +739,42 @@ export async function inspectPackRevisionProbabilities(
   }
 }
 
+export type PackPublicationShopOfferSummary = {
+  enabled: boolean;
+  id: string;
+  packTemplateId: string;
+  price: string;
+  version: number;
+  warning: string;
+};
+
+export type PackPublicationMachineSummary = {
+  binding: string;
+  cost: string;
+  id: string;
+  name: string;
+  packTemplateId: string;
+  state: string;
+  version: number;
+  warning: string;
+};
+
+export type PackPublicationGrantCampaignSummary = {
+  endsAt: Date | null;
+  id: string;
+  packTemplateId: string | null;
+  quantityCeiling: number | null;
+  quantityIssued: number;
+  startsAt: Date | null;
+  state: string;
+  version: number;
+  warning: string;
+};
+
 export type PackPublicationImpact = {
-  activeGachaponMachines: unknown[];
-  activeGrantCampaigns: unknown[];
-  activePromotions: unknown[];
-  activeShopOffers: unknown[];
+  activeGachaponMachines: PackPublicationMachineSummary[];
+  activeGrantCampaigns: PackPublicationGrantCampaignSummary[];
+  activeShopOffers: PackPublicationShopOfferSummary[];
   cardPoolChanges: {
     addedCardTemplateIds: string[];
     removedCardTemplateIds: string[];
@@ -748,15 +786,14 @@ export type PackPublicationImpact = {
   };
   unavailableTemplateIds: string[];
   // Stable aliases make the preview self-describing for later acquisition
-  // channels without changing the original fields.
-  gachaponMachines: unknown[];
-  grantCampaigns: unknown[];
-  promotions: unknown[];
-  shopOffers: unknown[];
-  affectedGachaponMachines: unknown[];
-  affectedGrantCampaigns: unknown[];
-  affectedPromotions: unknown[];
-  affectedShopOffers: unknown[];
+  // channels without changing the original fields. Audited grant campaigns
+  // are the only promotion-style channel in the ecosystem today.
+  gachaponMachines: PackPublicationMachineSummary[];
+  grantCampaigns: PackPublicationGrantCampaignSummary[];
+  shopOffers: PackPublicationShopOfferSummary[];
+  affectedGachaponMachines: PackPublicationMachineSummary[];
+  affectedGrantCampaigns: PackPublicationGrantCampaignSummary[];
+  affectedShopOffers: PackPublicationShopOfferSummary[];
   poolChanges: {
     addedCardTemplateIds: string[];
     removedCardTemplateIds: string[];
@@ -764,10 +801,9 @@ export type PackPublicationImpact = {
 };
 
 export type PackPublicationImpactSources = {
-  gachaponMachines?: readonly unknown[];
-  grantCampaigns?: readonly unknown[];
-  promotions?: readonly unknown[];
-  shopOffers?: readonly unknown[];
+  gachaponMachines?: readonly PackPublicationMachineSummary[];
+  grantCampaigns?: readonly PackPublicationGrantCampaignSummary[];
+  shopOffers?: readonly PackPublicationShopOfferSummary[];
 };
 
 type PackPublicationImpactCandidateSets = {
@@ -803,11 +839,9 @@ export function buildPackPublicationImpact(
   const activeShopOffers = [...(sources.shopOffers ?? [])];
   const activeGachaponMachines = [...(sources.gachaponMachines ?? [])];
   const activeGrantCampaigns = [...(sources.grantCampaigns ?? [])];
-  const activePromotions = [...(sources.promotions ?? [])];
   return {
     activeGachaponMachines,
     activeGrantCampaigns,
-    activePromotions,
     activeShopOffers,
     cardPoolChanges: {
       addedCardTemplateIds: [...nextCards].filter(
@@ -826,11 +860,9 @@ export function buildPackPublicationImpact(
     unavailableTemplateIds: [...new Set(unavailableTemplateIds)],
     gachaponMachines: activeGachaponMachines,
     grantCampaigns: activeGrantCampaigns,
-    promotions: activePromotions,
     shopOffers: activeShopOffers,
     affectedGachaponMachines: activeGachaponMachines,
     affectedGrantCampaigns: activeGrantCampaigns,
-    affectedPromotions: activePromotions,
     affectedShopOffers: activeShopOffers,
     poolChanges: {
       addedCardTemplateIds: [...nextCards].filter(
@@ -1025,6 +1057,12 @@ export async function publishPackRevision(
     if (!template) {
       throw new PackAuthoringError("NOT_FOUND", "El Pack Template no existe.");
     }
+    if (template.lifecycle === "retired") {
+      throw new PackAuthoringError(
+        "INVALID_TRANSITION",
+        "Un pack retirado no se puede publicar."
+      );
+    }
     if (!revision) {
       throw new PackAuthoringError("NOT_FOUND", "La revisión no existe.");
     }
@@ -1124,6 +1162,28 @@ export async function publishPackRevision(
         "El pack cambió mientras se publicaba."
       );
     }
+    await appendCollectibleAdminAction(tx, {
+      action: "publish-impact",
+      actorUserId,
+      after: {
+        availability: published.availability,
+        configurationHash,
+        revision: nextRevision,
+        templateLifecycle: "active",
+        version: published.version,
+      },
+      before: {
+        availability: revision.availability,
+        latestPublishedRevisionId: template.latestPublishedRevisionId,
+        lifecycle: revision.lifecycle,
+        version: revision.version,
+      },
+      idempotencyKey: `pack-publish:${revision.id}:${revision.version}`,
+      reason: input.reason?.trim() || "Publicación de la revisión del pack.",
+      targetId: revision.id,
+      targetKind: "pack-revision",
+      version: published.version,
+    });
     const shopOffers = await listPackTemplateShopOffers(tx, templateId);
     const gachaponMachines = await listPackTemplateGachaponMachines(
       tx,
@@ -1202,6 +1262,26 @@ export async function retirePackTemplate(
         "El pack cambió mientras se retiraba."
       );
     }
+    await appendCollectibleAdminAction(tx, {
+      action: "retire",
+      actorUserId,
+      after: {
+        latestPublishedRevisionId: updated.latestPublishedRevisionId,
+        lifecycle: updated.lifecycle,
+        version: updated.version,
+      },
+      before: {
+        latestPublishedRevisionId: current.latestPublishedRevisionId,
+        lifecycle: current.lifecycle,
+        version: current.version,
+      },
+      expectedVersion: input.expectedVersion,
+      idempotencyKey: `pack-retire:${templateId}:${current.version}`,
+      reason: input.reason.trim(),
+      targetId: templateId,
+      targetKind: "pack-template",
+      version: updated.version,
+    });
     return updated;
   });
 }

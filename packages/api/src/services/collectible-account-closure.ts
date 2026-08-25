@@ -39,7 +39,7 @@ export type CollectibleAccountClosureDependencies = {
   closeListing(
     tx: CollectibleAccountClosureTransaction,
     listing: ClosureRecord,
-    input: ClosureCommandInput & { reverseFee: true }
+    input: ClosureCommandInput & { reverseFee: boolean }
   ): Promise<unknown>;
   closeTrade(
     tx: CollectibleAccountClosureTransaction,
@@ -361,7 +361,10 @@ export async function reconcileCollectiblesForAccountClosureInTransaction(
       ...input,
       actorUserId: input.userId,
       idempotencyKey: `account-closure:listing:${listing.id}`,
-      reverseFee: true,
+      // Fee policy (stories 79/80): closure is a voluntary cancellation, so
+      // the listing fee is not refunded. Only platform-initiated
+      // cancellations through no fault of the seller reverse the fee.
+      reverseFee: false,
     });
   }
   await dependencies.pseudonymize(tx, input);

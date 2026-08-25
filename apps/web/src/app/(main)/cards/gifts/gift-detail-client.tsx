@@ -28,6 +28,12 @@ export default function GiftDetailClient({ giftId }: { giftId: string }) {
   const detail = useQuery(
     orpc.gifts.detail.queryOptions({ input: { giftId } })
   );
+  // Every terminal mutation refreshes the whole gifts domain (partial-match
+  // key): the detail itself, both list readers, and custody-sensitive
+  // eligible lists.
+  const invalidateGifts = async () => {
+    await queryClient.invalidateQueries({ queryKey: orpc.gifts.key() });
+  };
   const accept = useMutation(
     orpc.gifts.accept.mutationOptions({
       onError: (error) => setMessage(error.message),
@@ -37,22 +43,26 @@ export default function GiftDetailClient({ giftId }: { giftId: string }) {
             ? "Recuperamos tu respuesta anterior."
             : "Regalo aceptado: la transferencia es irreversible."
         );
-        await queryClient.invalidateQueries({ queryKey: ["gifts"] });
+        await invalidateGifts();
       },
     })
   );
   const reject = useMutation(
     orpc.gifts.reject.mutationOptions({
       onError: (error) => setMessage(error.message),
-      onSuccess: () =>
-        setMessage("Regalo rechazado; ningún activo cambió de dueño."),
+      onSuccess: async () => {
+        setMessage("Regalo rechazado; ningún activo cambió de dueño.");
+        await invalidateGifts();
+      },
     })
   );
   const cancel = useMutation(
     orpc.gifts.cancel.mutationOptions({
       onError: (error) => setMessage(error.message),
-      onSuccess: () =>
-        setMessage("Regalo cancelado; ningún activo cambió de dueño."),
+      onSuccess: async () => {
+        setMessage("Regalo cancelado; ningún activo cambió de dueño.");
+        await invalidateGifts();
+      },
     })
   );
   const { data } = detail;

@@ -16,6 +16,15 @@ export const env = createEnv({
   server: {
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: httpUrlSchema,
+    BLACK_MARKET_MAX_PRICE: z
+      .string()
+      .regex(/^\d{1,19}$/, "Debe ser un entero positivo de hasta 19 dígitos.")
+      .transform((value) => BigInt(value))
+      .refine(
+        (value) => value >= 1n && value <= 9_223_372_036_854_775_807n,
+        "El tope de precio excede el rango del libro mayor."
+      )
+      .default(() => 1_000_000n),
     CLOUDFLARE_ACCOUNT_ID: z.string(),
     CLOUDFLARE_API_TOKEN: z.string().optional(),
     CRON_SECRET: z.string().min(16).optional(),
@@ -61,6 +70,7 @@ export const env = createEnv({
   runtimeEnv: {
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    BLACK_MARKET_MAX_PRICE: process.env.BLACK_MARKET_MAX_PRICE,
     CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
     CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
     CRON_SECRET: process.env.CRON_SECRET,

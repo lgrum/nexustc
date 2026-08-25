@@ -3,6 +3,7 @@ import {
   giftOfferListInputSchema,
   giftOfferSendInputSchema,
 } from "@repo/shared/collectibles";
+import z from "zod";
 
 import {
   collectiblesMutationMiddleware,
@@ -17,6 +18,7 @@ import {
   listEligibleGiftAssets,
   listGiftOffers,
   rejectGiftOffer,
+  retryGiftOfferNotification,
   sendGiftOffer,
 } from "../services/gift-offer";
 import { translateDomainError } from "../utils/domain-errors";
@@ -117,6 +119,20 @@ const cancel = mutation
     }
   });
 
+const retryNotification = mutation
+  .input(z.object({ giftId: z.string().trim().min(1).max(200) }).strict())
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await retryGiftOfferNotification(
+        db,
+        session.user.id,
+        input.giftId
+      );
+    } catch (error) {
+      translateGiftError(error, errors);
+    }
+  });
+
 export default {
   accept,
   cancel,
@@ -125,6 +141,7 @@ export default {
   inbox,
   list,
   reject,
+  retryNotification,
   send,
   sent,
 };

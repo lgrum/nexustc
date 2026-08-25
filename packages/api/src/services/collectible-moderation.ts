@@ -209,6 +209,9 @@ async function releaseCustodyParents(
       continue;
     }
     if (row.blackMarketListingId) {
+      // Fee policy (stories 79/80): a freeze/restore custody release cancels
+      // the seller's listing through no fault of theirs, so the platform
+      // reverses the publication fee exactly once.
       const result =
         await administrativelyCancelBlackMarketListingInTransaction(
           tx,
@@ -217,7 +220,8 @@ async function releaseCustodyParents(
           input.reason,
           `${input.idempotencyKey}:custody:market-listing:${row.blackMarketListingId}`,
           now,
-          input.metrics
+          input.metrics,
+          true
         );
       if (!result.replayed) {
         await appendCollectibleAdminAction(tx, {

@@ -20,6 +20,7 @@ import {
   listEligibleTradeAssets,
   listTradeOffers,
   rejectTradeOffer,
+  retryTradeOfferNotification,
   sendTradeOffer,
   TradeOfferError,
   blockTradeUser,
@@ -34,6 +35,11 @@ const mutation = protectedProcedure
   .use(collectiblesMutationMiddleware)
   .use(slidingWindowRatelimitMiddleware(5, 60));
 const acceptMutation = protectedProcedure
+  .use(collectiblesMutationMiddleware)
+  .use(slidingWindowRatelimitMiddleware(10, 60));
+// Blocking cancels Sent offers, which is a collectible mutation: it must stop
+// while the Collectibles Gate is off and during impersonated sessions.
+const blockMutation = protectedProcedure
   .use(collectiblesMutationMiddleware)
   .use(slidingWindowRatelimitMiddleware(10, 60));
 
@@ -88,9 +94,15 @@ const eligibleForParticipant = read
   .input(z.object({ userId: z.string().trim().min(1).max(200) }).strict())
   .handler(async ({ context: { db }, input }) => {
     const visibility = await getResolvedProfileVisibility(db, input.userId);
-    return visibility.publicCollection
-      ? listEligibleTradeAssets(db, input.userId)
-      : [];
+    if (!visibility.publicCollection) {
+      return [];
+    }
+    // Public-collection shaped on purpose: custody-filtered data would let a
+    // viewer diff it against the public collection to detect private
+    // reservations. Composition re-validates every asset at send time.
+    return listEligibleTradeAssets(db, input.userId, {
+      excludeActiveCustody: false,
+    });
   });
 
 const send = mutation
@@ -143,8 +155,21 @@ const counteroffer = mutation
     }
   });
 
-const block = protectedProcedure
-  .use(slidingWindowRatelimitMiddleware(10, 60))
+const retryNotification = mutation
+  .input(z.object({ offerId: z.string().trim().min(1).max(200) }).strict())
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await retryTradeOfferNotification(
+        db,
+        session.user.id,
+        input.offerId
+      );
+    } catch (error) {
+      translateTradeError(error, errors);
+    }
+  });
+
+const block = blockMutation
   .input(z.object({ userId: z.string().trim().min(1).max(200) }).strict())
   .handler(async ({ context: { db, session }, errors, input }) => {
     try {
@@ -179,6 +204,7 @@ export default {
   inbox,
   list,
   reject,
+  retryNotification,
   send,
   sent,
   unblock,

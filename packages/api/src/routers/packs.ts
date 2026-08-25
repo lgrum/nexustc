@@ -66,6 +66,16 @@ const mutation = protectedProcedure
 function translateOpeningError(error: unknown, errors: ProcedureErrors): never {
   return translateDomainError(error, errors, {
     badRequestIncludesCode: true,
+    // State conflicts surface as declared 409s instead of a BAD_REQUEST whose
+    // only signal is a code prefix inside the message.
+    conflictCodes: [
+      "ACCOUNT_INELIGIBLE",
+      "ACTIVE_CUSTODY",
+      "ALREADY_OPENED",
+      "IDEMPOTENCY_CONFLICT",
+      "OWNERSHIP_CHANGED",
+      "UNAVAILABLE",
+    ],
     errorClass: PackOpeningError,
     notFoundCodes: ["NOT_FOUND"],
   });

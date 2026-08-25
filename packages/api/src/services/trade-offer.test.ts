@@ -19,8 +19,10 @@ import {
   cancelTradeOffer as cancelTradeOfferCommand,
   counterOfferTradeOffer,
   expireCollectibleTradeOffersBatch,
+  listEligibleTradeAssets,
   listTradeOffers,
   rejectTradeOffer as rejectTradeOfferCommand,
+  retryTradeOfferNotification,
   sendTradeOffer as sendTradeOfferCommand,
   blockTradeUser,
   updateInboundTradePreference,
@@ -989,6 +991,66 @@ describe("single-asset trade offer service", () => {
     notification.createUserNotification.mockClear();
   });
 
+  it("keeps reserved assets out of eligible lists unless explicitly public-collection shaped", async () => {
+    const state = {
+      cards: [
+        { assetId: "card-open", binding: "transferable", kind: "card" },
+        { assetId: "card-reserved", binding: "transferable", kind: "card" },
+      ],
+      // Active custody reserving exactly one transferable card.
+      custody: [{ assetId: "card-reserved" }],
+      packs: [{ assetId: "pack-open", binding: "transferable", kind: "pack" }],
+    };
+    const database = {
+      select: () => ({
+        from: (table: unknown) => {
+          const rows =
+            table === cardInstance
+              ? state.cards
+              : table === packInstance
+                ? state.packs
+                : table === collectibleCustody
+                  ? state.custody
+                  : [];
+          const promise = Promise.resolve(rows);
+          const builder = {
+            innerJoin: () => builder,
+            orderBy: () => promise,
+            // Drizzle builders are thenable after `where`; the fake mirrors
+            // that so queries awaiting directly after `where` resolve.
+            // oxlint-disable-next-line unicorn/no-thenable -- test double for a thenable query builder
+            then: (...args: Parameters<typeof promise.then>) =>
+              promise.then(...args),
+            where: () => builder,
+          };
+          return builder;
+        },
+      }),
+    };
+
+    const filtered = await listEligibleTradeAssets(
+      database as unknown as TradeDatabase,
+      "recipient"
+    );
+    expect(filtered.map(({ assetId }) => assetId)).toEqual([
+      "card-open",
+      "pack-open",
+    ]);
+
+    // Public-collection shape for participant previews: reserved assets stay
+    // visible so the list cannot reveal private custody (story 33).
+    const publicShaped = await listEligibleTradeAssets(
+      database as unknown as TradeDatabase,
+      "recipient",
+      { excludeActiveCustody: false }
+    );
+    expect(publicShaped.map(({ assetId }) => assetId)).toEqual([
+      "card-open",
+      "card-reserved",
+      "pack-open",
+    ]);
+  });
+
   it("blocks an unopened Pack from trade when its historical revision is disabled", async () => {
     const database = new TradeDatabaseHarness();
     database.state.revisionAvailability = "disabled";
@@ -1767,5 +1829,63 @@ describe("single-asset trade offer service", () => {
       code: "ACTIVE_CUSTODY",
       name: "TradeOfferError",
     });
+  });
+});
+
+describe("retryTradeOfferNotification", () => {
+  function offerDb(queuedRows: unknown[][]) {
+    const make = () => {
+      const chain: Record<string, unknown> = {};
+      const resolveNext = () => Promise.resolve(queuedRows.shift() ?? []);
+      for (const step of ["from", "where"]) {
+        chain[step] = vi.fn(() => chain);
+      }
+      chain.limit = vi.fn(resolveNext);
+      return chain;
+    };
+    return { select: vi.fn(() => make()) };
+  }
+
+  beforeEach(() => {
+    notification.createUserNotification.mockClear();
+  });
+
+  it("redelivers terminal-state notifications to both participants without an actor", async () => {
+    const db = offerDb([
+      [{ state: "expired" }],
+      [{ proposerUserId: "proposer-1", recipientUserId: "recipient-1" }],
+    ]);
+    await retryTradeOfferNotification(db as never, "proposer-1", "offer-1");
+    expect(notification.createUserNotification).toHaveBeenCalledTimes(2);
+    const calls = notification.createUserNotification.mock.calls.map(
+      ([, input]) => input as Record<string, unknown>
+    );
+    expect(calls.map(({ targetUserId }) => targetUserId).toSorted()).toEqual([
+      "proposer-1",
+      "recipient-1",
+    ]);
+    for (const call of calls) {
+      // System-driven redelivery keeps the proposer included.
+      expect(call.sourceUserId).toBeUndefined();
+    }
+  });
+
+  it("redelivers a sent-state notification only to the recipient", async () => {
+    const db = offerDb([
+      [{ state: "sent" }],
+      [{ proposerUserId: "proposer-1", recipientUserId: "recipient-1" }],
+    ]);
+    await retryTradeOfferNotification(db as never, "proposer-1", "offer-1");
+    expect(notification.createUserNotification).toHaveBeenCalledTimes(1);
+    const [, input] = notification.createUserNotification.mock.calls[0]!;
+    expect(input).toMatchObject({ targetUserId: "recipient-1" });
+  });
+
+  it("rejects non-participants with OFFER_NOT_FOUND", async () => {
+    const db = offerDb([[]]);
+    await expect(
+      retryTradeOfferNotification(db as never, "outsider-1", "offer-1")
+    ).rejects.toMatchObject({ code: "OFFER_NOT_FOUND" });
+    expect(notification.createUserNotification).not.toHaveBeenCalled();
   });
 });

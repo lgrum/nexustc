@@ -1365,7 +1365,9 @@ const service = await import("./black-market");
 const {
   administrativelyCancelBlackMarketListingInTransaction,
   administrativelyCancelBlackMarketListing,
+  BLACK_MARKET_MAX_PRICE,
   cancelBlackMarketListing,
+  detectBlackMarketSaleRiskSignals,
   expireBlackMarketListingsBatch,
   getBlackMarketListingDetail,
   getBlackMarketSaleHistory,
@@ -1375,6 +1377,7 @@ const {
   purchaseBlackMarketListing: purchaseBlackMarketListingService,
   recordBlackMarketRiskSignals,
   resolveActiveBlackMarketSales,
+  retryBlackMarketListingNotification,
   searchBlackMarketListings,
 } = service;
 
@@ -1746,7 +1749,7 @@ describe("Black Market terminal states", () => {
     ).toBeNull();
   });
 
-  it("reverses a platform account-closure listing fee exactly once without selling the asset", async () => {
+  it("reverses a compliant platform cancellation fee exactly once without selling the asset", async () => {
     const market = new FakeMarket();
     market.state.wallets.get("seller-1")!.balance = 10n;
     market.addCard("card-closure");
@@ -1762,20 +1765,20 @@ describe("Black Market terminal states", () => {
 
     const first = await administrativelyCancelBlackMarketListingInTransaction(
       market.db as never,
-      "seller-1",
+      "admin-1",
       listing.listingId,
-      "Cierre de cuenta",
-      `account-closure:listing:${listing.listingId}`,
+      "Congelación conforme del activo",
+      `freeze-release:listing:${listing.listingId}`,
       market.now,
       undefined,
       true
     );
     const second = await administrativelyCancelBlackMarketListingInTransaction(
       market.db as never,
-      "seller-1",
+      "admin-1",
       listing.listingId,
-      "Cierre de cuenta",
-      `account-closure:listing:${listing.listingId}`,
+      "Congelación conforme del activo",
+      `freeze-release:listing:${listing.listingId}`,
       market.now,
       undefined,
       true
@@ -1884,7 +1887,7 @@ describe("Black Market purchase authority", () => {
     expect(market.state.wallets.get("seller-1")?.balance).toBe(10n + 200n);
     expect(
       market.state.transactions.find(
-        (row) => row.idempotencyKey === "bundle-buy"
+        (row) => row.idempotencyKey === "market-sale:bundle-buy"
       )?.postings
     ).toEqual([
       { amount: -200n, walletId: "wallet-buyer-1" },
@@ -2035,9 +2038,11 @@ describe("Black Market purchase authority", () => {
     );
     expect(first.replayed).toBe(false);
     expect(replay.replayed).toBe(true);
+    // The ledger key is domain-scoped so one caller key cannot collide with
+    // other globally-unique idempotency domains.
     expect(
       market.state.transactions.filter(
-        (row) => row.idempotencyKey === input.idempotencyKey
+        (row) => row.idempotencyKey === `market-sale:${input.idempotencyKey}`
       )
     ).toHaveLength(1);
     expect(market.state.sales.size).toBe(1);
@@ -2303,7 +2308,7 @@ describe("Black Market search, history, and projections", () => {
     expect(eligible.packs).toEqual([]);
   });
 
-  it("lazily expires stale listings before returning public search results", async () => {
+  it("excludes stale listings from public search results without running the bulk sweep on read", async () => {
     const market = searchSeed();
     const stale = market.state.listings.get("single-link")!;
     stale.expiresAt = new Date("2026-07-23T00:00:00.000Z");
@@ -2314,10 +2319,12 @@ describe("Black Market search, history, and projections", () => {
       "bundle-samus",
       "single-samus",
     ]);
+    // Reads no longer expire globally; only the cron or the record being read
+    // transitions it.
+    expect(market.state.listings.get("single-link")?.state).toBe("active");
+    const batch = await expireBlackMarketListingsBatch(market.db as never);
+    expect(batch.listingIds).toEqual(["single-link"]);
     expect(market.state.listings.get("single-link")?.state).toBe("expired");
-    expect(
-      market.state.custody.get("custody-single-link-link-card")?.releaseKind
-    ).toBe("expired");
   });
 
   it("projects active En venta links for mixed bundles and removes them after cancellation", async () => {
@@ -2391,7 +2398,7 @@ describe("Black Market review and notification boundaries", () => {
     expect(notifications.calls).toHaveLength(0);
   });
 
-  it("notifies only participants and excludes outsiders", async () => {
+  it("notifies both sale participants and excludes outsiders", async () => {
     const market = new FakeMarket();
     market.seedListing({
       askingPrice: 10n,
@@ -2410,9 +2417,32 @@ describe("Black Market review and notification boundaries", () => {
       saleId: "sale-1",
       state: "sold",
     });
+    // A completed purchase reaches buyer AND seller; the actor is not
+    // excluded from a sale they took part in. Outsiders get nothing.
+    expect(notifications.calls).toHaveLength(2);
+    const targets = notifications.calls.map(
+      (call: { targetUserId?: string }) => call.targetUserId
+    );
+    expect(targets).toContain("buyer-1");
+    expect(targets).toContain("seller-1");
+    expect(targets).not.toContain("outsider-1");
+  });
+
+  it("notifies the seller when a listing expires under a system actor", async () => {
+    const market = new FakeMarket();
+    market.seedListing({
+      askingPrice: 10n,
+      assets: [],
+      id: "expiry-notification-listing",
+    });
+    await notifyBlackMarketParticipants(market.db as never, {
+      actorUserId: null,
+      kind: "expired",
+      listingId: "expiry-notification-listing",
+      state: "expired",
+    });
     expect(notifications.calls).toHaveLength(1);
     expect(notifications.calls[0]?.targetUserId).toBe("seller-1");
-    expect(notifications.calls[0]?.targetUserId).not.toBe("outsider-1");
   });
 
   it("stores structured risk signals without performing a reversal", async () => {
@@ -2438,5 +2468,123 @@ describe("Black Market review and notification boundaries", () => {
       subjectUserId: "seller-1",
     });
     expect(market.state.listings.get("listing-1")).toBeUndefined();
+  });
+
+  describe("risk signal detection", () => {
+    // Query results are consumed in detector call order:
+    // reciprocal, repeated-transfers (per kind), rapid-relisting (per kind).
+    function detectorDb(queue: unknown[][]) {
+      const make = () => {
+        const chain: Record<string, unknown> = {};
+        const resolveNext = () => Promise.resolve(queue.shift() ?? []);
+        for (const step of ["from", "innerJoin", "where", "groupBy"]) {
+          chain[step] = vi.fn(() => chain);
+        }
+        chain.limit = vi.fn(resolveNext);
+        chain.having = vi.fn(resolveNext);
+        return chain;
+      };
+      return { select: vi.fn(() => make()) };
+    }
+
+    const base = {
+      buyerUserId: "buyer-1",
+      publishedAt: new Date("2026-08-01T00:00:00.000Z"),
+      sellerUserId: "seller-1",
+      transferredAssets: [{ assetId: "card-1", kind: "card" as const }],
+    };
+
+    it("flags an extreme price relative to the configured ceiling", async () => {
+      const db = detectorDb([[], [], [], [], []]);
+      const high = await detectBlackMarketSaleRiskSignals(db as never, {
+        ...base,
+        askingPrice: BLACK_MARKET_MAX_PRICE,
+        transferredAssets: [],
+      });
+      expect(high).toEqual([{ severity: "high", signal: "extreme-price" }]);
+    });
+
+    it("detects reciprocal activity, repeated transfers, and rapid relisting", async () => {
+      const db = detectorDb([
+        [{ id: "prior-sale" }], // reciprocal prior reverse-direction sale
+        [{ assetId: "card-1" }], // repeated transfers (cards)
+        [], // repeated transfers (packs) — none
+        [], // rapid relisting (cards)
+        [], // rapid relisting (packs)
+      ]);
+      const signals = await detectBlackMarketSaleRiskSignals(db as never, {
+        ...base,
+        askingPrice: 100n,
+      });
+      expect(signals.map(({ signal }) => signal)).toEqual([
+        "reciprocal-activity",
+        "repeated-transfers",
+      ]);
+    });
+
+    it("returns no signals for an ordinary sale", async () => {
+      const db = detectorDb([[], [], [], [], []]);
+      const signals = await detectBlackMarketSaleRiskSignals(db as never, {
+        ...base,
+        askingPrice: 100n,
+      });
+      expect(signals).toEqual([]);
+    });
+  });
+
+  describe("retryBlackMarketListingNotification", () => {
+    function listingDb(queuedRows: unknown[][]) {
+      const make = () => {
+        const chain: Record<string, unknown> = {};
+        const resolveNext = () => Promise.resolve(queuedRows.shift() ?? []);
+        for (const step of ["from", "where"]) {
+          chain[step] = vi.fn(() => chain);
+        }
+        chain.limit = vi.fn(resolveNext);
+        return chain;
+      };
+      return { select: vi.fn(() => make()) };
+    }
+
+    it("redelivers a sold notification to both participants without an actor", async () => {
+      notifications.calls = [];
+      const db = listingDb([
+        [{ id: "listing-1", sellerUserId: "seller-1", state: "sold" }],
+        [{ buyerUserId: "buyer-1", id: "sale-1" }],
+        // notifyBlackMarketParticipants re-reads the listing and the sale.
+        [{ sellerUserId: "seller-1" }],
+        [{ buyerUserId: "buyer-1" }],
+      ]);
+      const delivered = await retryBlackMarketListingNotification(
+        db as never,
+        "buyer-1",
+        "listing-1"
+      );
+      expect(delivered.toSorted()).toEqual(["buyer-1", "seller-1"]);
+      expect(notifications.calls).toHaveLength(2);
+    });
+
+    it("rejects outsiders with LISTING_NOT_FOUND semantics", async () => {
+      notifications.calls = [];
+      const db = listingDb([
+        [{ id: "listing-1", sellerUserId: "seller-1", state: "active" }],
+        [],
+      ]);
+      await expect(
+        retryBlackMarketListingNotification(
+          db as never,
+          "outsider-1",
+          "listing-1"
+        )
+      ).rejects.toMatchObject({ code: "PERMISSION_DENIED" });
+      expect(notifications.calls).toHaveLength(0);
+    });
+
+    it("reports a missing listing as LISTING_NOT_FOUND", async () => {
+      const db = listingDb([[]]);
+      await expect(
+        retryBlackMarketListingNotification(db as never, "buyer-1", "missing")
+      ).rejects.toMatchObject({ code: "LISTING_NOT_FOUND" });
+    });
   });
 });

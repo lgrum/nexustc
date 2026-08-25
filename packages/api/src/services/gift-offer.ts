@@ -759,7 +759,7 @@ export async function sendGiftOffer(
     await deliverGiftNotification(db, {
       actorUserId: senderUserId,
       giftId: result.giftId,
-      kind: "sent",
+      kind: result.state,
       state: result.state,
     }).catch(() => null);
   }
@@ -1099,7 +1099,9 @@ async function runGiftTransition(
   );
   if (!result.replayed) {
     await deliverGiftNotification(db, {
-      actorUserId,
+      // Expiry is system-driven even when it runs lazily under the sender's
+      // identity, so the sender keeps being told their gift expired.
+      actorUserId: action === "expire" ? null : actorUserId,
       giftId: result.giftId,
       kind: result.state,
       state: result.state,
@@ -1250,6 +1252,15 @@ export async function updateInboundGiftPreference(
   const result = await withCollectibleDeadlockRetry(
     () =>
       db.transaction(async (tx) => {
+        // Sends lock these same participant rows before re-checking the
+        // inbound preference. Taking the lock first serializes a concurrent
+        // send against this sweep: either it sees the disabled preference and
+        // fails, or this sweep sees and closes its freshly committed gift.
+        await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.id, userId))
+          .for("update");
         const existing = await tx
           .select({ userId: profileSettings.userId })
           .from(profileSettings)
@@ -1451,6 +1462,12 @@ export type GiftExpiryBatchResult = {
   participantUserIds: string[];
 };
 
+/**
+ * The gate is deliberately skipped inside expiry transitions: releasing
+ * expired custody must proceed even while collectible mutations are disabled
+ * or impersonated, or the affected assets would stay locked with no
+ * interactive way to free them.
+ */
 export async function expireCollectibleGiftOffersBatch(
   db: Database,
   options: { limit?: number; metrics?: CollectibleMetricSink; now?: Date } = {}
@@ -1599,7 +1616,6 @@ export async function listGiftOffers(
   role: "all" | "inbox" | "sent" = "all"
 ) {
   const input = giftOfferListInputSchema.parse(rawInput);
-  await expireCollectibleGiftOffersBatch(db);
   const cursor = decodeCursor(input.cursor);
   const participantCondition =
     role === "inbox"
@@ -1610,34 +1626,56 @@ export async function listGiftOffers(
             eq(giftOffer.senderUserId, viewerUserId),
             eq(giftOffer.recipientUserId, viewerUserId)
           );
-  const rows = await db
-    .select({
-      expiresAt: giftOffer.expiresAt,
-      id: giftOffer.id,
-      recipientUserId: giftOffer.recipientUserId,
-      senderUserId: giftOffer.senderUserId,
-      sentAt: giftOffer.sentAt,
-      state: giftOffer.state,
-      version: giftOffer.version,
-    })
-    .from(giftOffer)
-    .where(
-      and(
-        participantCondition,
-        input.state ? eq(giftOffer.state, input.state) : undefined,
-        cursor
-          ? or(
-              lt(giftOffer.sentAt, cursor.sentAt),
-              and(
-                eq(giftOffer.sentAt, cursor.sentAt),
-                lt(giftOffer.id, cursor.id)
+  // Lazy expiry is page-scoped: only gifts this query actually returns are
+  // transitioned, keeping each read to a couple of short statements. The
+  // shared cron owns the bulk sweep.
+  const selectPage = () =>
+    db
+      .select({
+        expiresAt: giftOffer.expiresAt,
+        id: giftOffer.id,
+        recipientUserId: giftOffer.recipientUserId,
+        senderUserId: giftOffer.senderUserId,
+        sentAt: giftOffer.sentAt,
+        state: giftOffer.state,
+        version: giftOffer.version,
+      })
+      .from(giftOffer)
+      .where(
+        and(
+          participantCondition,
+          input.state ? eq(giftOffer.state, input.state) : undefined,
+          cursor
+            ? or(
+                lt(giftOffer.sentAt, cursor.sentAt),
+                and(
+                  eq(giftOffer.sentAt, cursor.sentAt),
+                  lt(giftOffer.id, cursor.id)
+                )
               )
-            )
-          : undefined
+            : undefined
+        )
       )
-    )
-    .orderBy(desc(giftOffer.sentAt), desc(giftOffer.id))
-    .limit(input.limit + 1);
+      .orderBy(desc(giftOffer.sentAt), desc(giftOffer.id))
+      .limit(input.limit + 1);
+  let rows = await selectPage();
+  const now = new Date();
+  const staleRows = rows.filter(
+    (row) => row.state === "sent" && now >= row.expiresAt
+  );
+  if (staleRows.length > 0) {
+    for (const row of staleRows) {
+      await expireGiftOffer(db, sentGiftParticipant(row.senderUserId), {
+        giftId: row.id,
+        idempotencyKey: `gift-expiry:${row.id}:${row.expiresAt.toISOString()}`,
+        now,
+        skipGate: true,
+      }).catch(() => null);
+    }
+    // Re-read once so terminal gifts leave the page and custody counts
+    // reflect the release instead of the pre-expiry snapshot.
+    rows = await selectPage();
+  }
   const page = rows.slice(0, input.limit);
   const counts = new Map<string, number>();
   if (page.length > 0) {
@@ -1740,7 +1778,9 @@ export async function listEligibleGiftAssets(db: Database, userId: string) {
 async function deliverGiftNotification(
   db: Database,
   input: {
-    actorUserId: string;
+    // Null when the transition is system-driven (expiry): every participant
+    // is an affected party and must be notified, including the sender.
+    actorUserId?: string | null;
     giftId: string;
     kind: string;
     state: string;
@@ -1755,38 +1795,86 @@ async function deliverGiftNotification(
     .where(eq(giftOffer.id, input.giftId))
     .limit(1);
   if (!offer) {
-    return;
+    return [];
   }
   const targets =
     input.kind === "sent"
       ? [offer.recipientUserId]
       : [offer.senderUserId, offer.recipientUserId];
+  const delivered: string[] = [];
   await Promise.all(
     [...new Set(targets)]
       .filter((targetUserId): targetUserId is string => Boolean(targetUserId))
       .filter((target) => target !== input.actorUserId)
-      .map((targetUserId) =>
-        createUserNotification(db, {
+      .map(async (targetUserId) => {
+        await createUserNotification(db, {
           dedupeKey: `collectible-gift:${input.giftId}:${input.state}:${targetUserId}`,
           description:
             input.kind === "sent"
               ? "Tienes un regalo de coleccionables pendiente de aceptar."
-              : `El regalo de coleccionables terminó como «${input.state}».`,
+              : input.state === "expired"
+                ? "Tu regalo de coleccionables expiró sin aceptarse y los coleccionables fueron liberados."
+                : `El regalo de coleccionables terminó como «${input.state}».`,
           metadata: {
             category: "collectible_gift",
             giftId: input.giftId,
             linkPath: `/cards/gifts/${input.giftId}`,
             state: input.state,
           },
-          sourceUserId: input.actorUserId,
+          sourceUserId: input.actorUserId ?? undefined,
           targetUserId,
           title:
             input.kind === "sent"
               ? "Nuevo regalo de coleccionables"
               : "Actualización de tu regalo",
-        })
-      )
+        });
+        delivered.push(targetUserId);
+      })
   );
+  return delivered;
+}
+
+/**
+ * Retryable post-commit delivery boundary. Dedupe keys keep redeliveries
+ * single, so this is safe to call repeatedly after a swallowed failure.
+ */
+export async function retryGiftOfferNotification(
+  db: Database,
+  requesterUserId: string,
+  giftId: string
+) {
+  const [gift] = await db
+    .select({ state: giftOffer.state })
+    .from(giftOffer)
+    .where(
+      and(
+        eq(giftOffer.id, giftId),
+        or(
+          eq(giftOffer.senderUserId, requesterUserId),
+          eq(giftOffer.recipientUserId, requesterUserId)
+        )
+      )
+    )
+    .limit(1);
+  if (!gift) {
+    throw new GiftOfferError(
+      "OFFER_NOT_FOUND",
+      "El regalo no existe o no participas en él."
+    );
+  }
+  if (gift.state === "sent") {
+    return deliverGiftNotification(db, {
+      kind: "sent",
+      giftId,
+      state: gift.state,
+    });
+  }
+  return deliverGiftNotification(db, {
+    actorUserId: null,
+    giftId,
+    kind: gift.state,
+    state: gift.state,
+  });
 }
 
 export function notifyGiftOfferParticipants(

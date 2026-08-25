@@ -32,6 +32,7 @@ import { isUserBanActive } from "../utils/user-ban";
 import {
   CollectibleIssuanceError,
   issuePackInTransaction,
+  runCollectibleIssuanceInTransaction,
 } from "./collectible-issuance";
 import {
   assertCollectiblesMutationAllowed,
@@ -983,21 +984,26 @@ export async function purchaseOfficialCardShopOffer(
           const issued: Awaited<ReturnType<typeof issuePackInTransaction>>[] =
             [];
           try {
-            for (let ordinal = 1; ordinal <= input.quantity; ordinal += 1) {
-              issued.push(
-                await issuePackInTransaction(tx, {
-                  actorUserId: rawInput.actorUserId ?? rawInput.userId,
-                  binding: offer.binding,
-                  issueReference: `${input.idempotencyKey}:${ordinal}`,
-                  issueSource: "official_shop",
-                  metrics: rawInput.metrics,
-                  now,
-                  ownerUserId: rawInput.userId,
-                  packTemplateId: offer.packTemplateId,
-                  random: rawInput.random,
-                })
-              );
-            }
+            // A savepoint keeps a mid-quantity exhaustion from leaving partial
+            // issuance behind while the exhausted marker commits on this
+            // channel, exactly like gachapon activation.
+            await runCollectibleIssuanceInTransaction(tx, async (nestedTx) => {
+              for (let ordinal = 1; ordinal <= input.quantity; ordinal += 1) {
+                issued.push(
+                  await issuePackInTransaction(nestedTx, {
+                    actorUserId: rawInput.actorUserId ?? rawInput.userId,
+                    binding: offer.binding,
+                    issueReference: `${input.idempotencyKey}:${ordinal}`,
+                    issueSource: "official_shop",
+                    metrics: rawInput.metrics,
+                    now,
+                    ownerUserId: rawInput.userId,
+                    packTemplateId: offer.packTemplateId,
+                    random: rawInput.random,
+                  })
+                );
+              }
+            });
           } catch (error) {
             throwPurchaseError(error);
           }
@@ -1005,7 +1011,7 @@ export async function purchaseOfficialCardShopOffer(
           const totalPrice = offer.price * BigInt(input.quantity);
           const settlement = await postEterisTransactionInTransaction(tx, {
             actorUserId: rawInput.actorUserId ?? rawInput.userId,
-            idempotencyKey: input.idempotencyKey,
+            idempotencyKey: `card-shop:${input.idempotencyKey}`,
             kind: "purchase",
             metadata: {
               cardShopOfferId: offer.id,
@@ -1081,6 +1087,11 @@ export async function purchaseOfficialCardShopOffer(
               userId: rawInput.userId,
             });
           }
+          // Customer purchases never bump `version`: that counter is the
+          // operator-edit confirmation token (`expectedOfferVersion`), and
+          // unrelated buyers must not invalidate each other's in-flight
+          // confirmations when price/pool are unchanged. Counter updates are
+          // serialized by the offer row lock taken above.
           await tx
             .update(officialCardShopOffer)
             .set({
@@ -1090,7 +1101,6 @@ export async function purchaseOfficialCardShopOffer(
                   : offer.remainingSales - input.quantity,
               totalSold: sql`${officialCardShopOffer.totalSold} + ${input.quantity}`,
               updatedAt: now,
-              version: sql`${officialCardShopOffer.version} + 1`,
             })
             .where(
               and(

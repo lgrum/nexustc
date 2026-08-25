@@ -51,7 +51,10 @@ export default function TradesClient() {
             ? "La oferta ya estaba enviada; recuperamos el resultado."
             : "Oferta enviada. Todos tus activos quedaron en custodia privada."
         );
-        await queryClient.invalidateQueries({ queryKey: ["trades"] });
+        // oRPC keys start with the procedure path array, so a string like
+        // ["trades"] never matches. Invalidate via the domain's partial-match
+        // key to refresh inbox/sent/eligible readers.
+        await queryClient.invalidateQueries({ queryKey: orpc.trades.key() });
       },
     })
   );

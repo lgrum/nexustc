@@ -43,6 +43,12 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
     }),
     enabled: Boolean(detail.data?.counterpartyUserId),
   });
+  // Every terminal mutation refreshes the whole trades domain (partial-match
+  // key): the detail itself, both list readers, and custody-sensitive
+  // eligible lists.
+  const invalidateTrades = async () => {
+    await queryClient.invalidateQueries({ queryKey: orpc.trades.key() });
+  };
   const action = useMutation(
     orpc.trades.accept.mutationOptions({
       onError: (error) => setMessage(error.message),
@@ -52,26 +58,35 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
             ? "Recuperamos tu respuesta anterior."
             : `Oferta ${result.state}.`
         );
-        await queryClient.invalidateQueries({ queryKey: ["trades"] });
+        await invalidateTrades();
       },
     })
   );
   const reject = useMutation(
     orpc.trades.reject.mutationOptions({
       onError: (error) => setMessage(error.message),
-      onSuccess: () => setMessage("Oferta rechazada."),
+      onSuccess: async () => {
+        setMessage("Oferta rechazada.");
+        await invalidateTrades();
+      },
     })
   );
   const cancel = useMutation(
     orpc.trades.cancel.mutationOptions({
       onError: (error) => setMessage(error.message),
-      onSuccess: () => setMessage("Oferta cancelada."),
+      onSuccess: async () => {
+        setMessage("Oferta cancelada.");
+        await invalidateTrades();
+      },
     })
   );
   const counter = useMutation(
     orpc.trades.counteroffer.mutationOptions({
       onError: (error) => setMessage(error.message),
-      onSuccess: () => setMessage("La contraoferta creó una nueva oferta."),
+      onSuccess: async () => {
+        setMessage("La contraoferta creó una nueva oferta.");
+        await invalidateTrades();
+      },
     })
   );
   const block = useMutation(
@@ -81,7 +96,7 @@ export default function TradeDetailClient({ offerId }: { offerId: string }) {
         setMessage(
           "La cuenta quedó bloqueada y sus ofertas pendientes se cerraron."
         );
-        await queryClient.invalidateQueries({ queryKey: ["trades"] });
+        await invalidateTrades();
       },
     })
   );

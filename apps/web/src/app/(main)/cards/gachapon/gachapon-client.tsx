@@ -57,7 +57,7 @@ export function GachaponClient({
           "No se pudo activar la máquina. Actualiza la disponibilidad e inténtalo nuevamente."
       );
       if (
-        candidate.code === "PROFILE_CUSTOMIZATION_CONFLICT" ||
+        candidate.code === "CONFLICT" ||
         /versión|coste|clave de activación/i.test(candidate.message ?? "")
       ) {
         const refreshed = await machinesQuery.refetch();

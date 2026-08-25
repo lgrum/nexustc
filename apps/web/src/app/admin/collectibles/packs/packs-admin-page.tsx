@@ -33,6 +33,10 @@ type InitialData = {
   >;
 };
 
+type RevisionImpact = Awaited<
+  ReturnType<typeof orpcClient.collectiblesAdmin.packs.revisions.preview>
+>;
+
 const DEFAULT_GROUPS = JSON.stringify(
   [
     {
@@ -72,7 +76,7 @@ export function PacksAdminPage({ initialData }: { initialData: InitialData }) {
   const [bindingPolicy, setBindingPolicy] = useState<
     "transferable" | "account-bound" | "either"
   >("either");
-  const [impact, setImpact] = useState<unknown>(null);
+  const [impact, setImpact] = useState<RevisionImpact | null>(null);
   const [probabilities, setProbabilities] = useState<unknown>(null);
   const [simulation, setSimulation] = useState<unknown>(null);
   const [templateToRetire, setTemplateToRetire] =
@@ -463,9 +467,65 @@ export function PacksAdminPage({ initialData }: { initialData: InitialData }) {
           </div>
         </form>
         {impact ? (
-          <pre className="mt-4 overflow-auto rounded-xl border bg-muted/30 p-4 text-xs">
-            {JSON.stringify(impact, null, 2)}
-          </pre>
+          <section
+            aria-live="polite"
+            className="mt-4 space-y-4 rounded-xl border bg-muted/30 p-4 text-xs"
+          >
+            <h3 className="font-bold text-sm">
+              Impacto estimado de la publicación
+            </h3>
+            <ul className="grid gap-1 md:grid-cols-3">
+              <li>
+                Pool: {impact.poolChanges.addedCardTemplateIds.length} nueva
+                {impact.poolChanges.addedCardTemplateIds.length === 1
+                  ? ""
+                  : "s"}{" "}
+                / {impact.poolChanges.removedCardTemplateIds.length} retirada
+                {impact.poolChanges.removedCardTemplateIds.length === 1
+                  ? ""
+                  : "s"}
+              </li>
+              <li>
+                Garantías:{" "}
+                {impact.guaranteeChanges.changed
+                  ? "modificadas"
+                  : "sin cambios"}
+              </li>
+              <li>
+                Plantillas no disponibles:{" "}
+                {impact.unavailableTemplateIds.length}
+              </li>
+            </ul>
+            <div className="grid gap-3 md:grid-cols-3">
+              <ImpactChannel
+                empty="Sin ofertas de tienda activas."
+                items={impact.shopOffers.map((offer) => ({
+                  detail: `${offer.price} Eteris · v${offer.version}`,
+                  id: offer.id,
+                  warning: offer.warning,
+                }))}
+                title={`Ofertas de tienda (${impact.shopOffers.length})`}
+              />
+              <ImpactChannel
+                empty="Sin máquinas activas ni pausadas."
+                items={impact.gachaponMachines.map((machine) => ({
+                  detail: machine.name,
+                  id: machine.id,
+                  warning: machine.warning,
+                }))}
+                title={`Máquinas de gachapon (${impact.gachaponMachines.length})`}
+              />
+              <ImpactChannel
+                empty="Sin campañas de concesión activas."
+                items={impact.grantCampaigns.map((campaign) => ({
+                  detail: `${campaign.quantityIssued} emitidos · v${campaign.version}`,
+                  id: campaign.id,
+                  warning: campaign.warning,
+                }))}
+                title={`Campañas de concesión (${impact.grantCampaigns.length})`}
+              />
+            </div>
+          </section>
         ) : null}
         {simulation ? (
           <pre className="mt-4 overflow-auto rounded-xl border bg-muted/30 p-4 text-xs">
@@ -578,6 +638,39 @@ function Field({
         required={required}
         value={value}
       />
+    </div>
+  );
+}
+
+function ImpactChannel({
+  empty,
+  items,
+  title,
+}: {
+  empty: string;
+  items: { detail: string; id: string; warning?: string }[];
+  title: string;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="font-semibold">{title}</p>
+      {items.length === 0 ? (
+        <p className="text-muted-foreground">{empty}</p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item) => (
+            <li key={item.id}>
+              <span className="font-mono">{item.id}</span>
+              <span className="block text-muted-foreground">{item.detail}</span>
+              {item.warning ? (
+                <span className="block text-muted-foreground italic">
+                  {item.warning}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

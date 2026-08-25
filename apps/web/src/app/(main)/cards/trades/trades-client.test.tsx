@@ -27,6 +27,7 @@ vi.mock("@/lib/orpc", () => ({
       },
     },
     trades: {
+      key: () => ["trades"],
       eligible: {
         queryOptions: () => ({
           queryFn: () =>

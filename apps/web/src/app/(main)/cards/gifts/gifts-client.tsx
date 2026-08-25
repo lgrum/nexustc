@@ -35,7 +35,10 @@ export default function GiftsClient() {
             ? "El regalo ya estaba enviado; recuperamos el resultado."
             : "Regalo enviado. Es gratuito y tus activos quedaron en custodia privada."
         );
-        await queryClient.invalidateQueries({ queryKey: ["gifts"] });
+        // oRPC keys start with the procedure path array, so a string like
+        // ["gifts"] never matches. Invalidate via the domain's partial-match
+        // key to refresh inbox/sent/eligible readers.
+        await queryClient.invalidateQueries({ queryKey: orpc.gifts.key() });
       },
     })
   );

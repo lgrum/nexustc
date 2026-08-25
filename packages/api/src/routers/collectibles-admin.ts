@@ -10,6 +10,8 @@ import {
   cardEffectConfigSchema,
   cardPresentationMetadataSchema,
   collectibleBindingSchema,
+  createDeterministicCollectibleRandom,
+  deterministicSeedFromId,
   officialCardShopOfferDraftSchema,
 } from "@repo/shared/collectibles";
 import z from "zod";
@@ -172,7 +174,7 @@ function translateGrantError(
     throw errors.NOT_FOUND({ message: error.message });
   }
   if (error.code === "IDEMPOTENCY_CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+    throw errors.CONFLICT({ message: error.message });
   }
   throw errors.BAD_REQUEST({ message: error.message });
 }
@@ -187,7 +189,7 @@ function translateShopError(
     throw error;
   }
   if (error.code === "STALE_VERSION" || error.code === "IDEMPOTENCY_CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+    throw errors.CONFLICT({ message: error.message });
   }
   if (error.code === "OFFER_UNAVAILABLE") {
     throw errors.NOT_FOUND({ message: error.message });
@@ -206,7 +208,7 @@ function translateModerationError(
     throw errors.NOT_FOUND({ message: error.message });
   }
   if (error.code === "STALE_VERSION" || error.code === "IDEMPOTENCY_CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+    throw errors.CONFLICT({ message: error.message });
   }
   throw errors.BAD_REQUEST({ message: error.message });
 }
@@ -222,7 +224,7 @@ function translateTradeAdminError(
     throw errors.NOT_FOUND({ message: error.message });
   }
   if (error.code === "STALE_VERSION" || error.code === "IDEMPOTENCY_CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+    throw errors.CONFLICT({ message: error.message });
   }
   throw errors.BAD_REQUEST({ message: error.message });
 }
@@ -238,7 +240,7 @@ function translateGiftAdminError(
     throw errors.NOT_FOUND({ message: error.message });
   }
   if (error.code === "STALE_VERSION" || error.code === "IDEMPOTENCY_CONFLICT") {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+    throw errors.CONFLICT({ message: error.message });
   }
   throw errors.BAD_REQUEST({ message: error.message });
 }
@@ -260,7 +262,7 @@ function translateCorrectionError(
     error.code === "IDEMPOTENCY_CONFLICT" ||
     error.code === "OWNERSHIP_CHANGED"
   ) {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({ message: error.message });
+    throw errors.CONFLICT({ message: error.message });
   }
   throw errors.BAD_REQUEST({ message: error.message });
 }
@@ -1024,15 +1026,35 @@ export default {
           z
             .object({
               iterations: z.number().int().min(1).max(100_000).default(1000),
+              // Optional explicit seed. When omitted, the seed is derived
+              // deterministically from the revision ID so repeated runs of
+              // the same revision produce identical, comparable aggregates.
+              seed: z.number().int().min(0).max(2_147_483_647).optional(),
               revisionId: z.string().trim().min(1),
             })
             .strict()
         )
         .handler(async ({ context: { db }, errors, input }) => {
           try {
-            return await simulatePackRevisionDraft(db, input.revisionId, {
-              iterations: input.iterations,
-            });
+            const result = await simulatePackRevisionDraft(
+              db,
+              input.revisionId,
+              {
+                iterations: input.iterations,
+                random: createDeterministicCollectibleRandom(
+                  input.seed ??
+                    deterministicSeedFromId(
+                      `pack-simulation:${input.revisionId}`
+                    )
+                ),
+              }
+            );
+            return {
+              ...result,
+              seed:
+                input.seed ??
+                deterministicSeedFromId(`pack-simulation:${input.revisionId}`),
+            };
           } catch (error) {
             translatePackError(error, errors);
           }

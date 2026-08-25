@@ -76,8 +76,8 @@ export function CardShopAdminPage({
     const input = {
       ...draft,
       endsAt: toIsoOrNull(draft.endsAt),
-      perAccountLimit: positiveOrNull(draft.perAccountLimit),
-      remainingSales: nonNegativeOrNull(draft.remainingSales),
+      perAccountLimit: optionalNumber(draft.perAccountLimit),
+      remainingSales: optionalNumber(draft.remainingSales),
       startsAt: toIsoOrNull(draft.startsAt),
       reason: editingOfferId
         ? "Actualización de configuración de oferta"
@@ -468,12 +468,11 @@ function toIsoOrNull(value: string) {
   return value ? new Date(value).toISOString() : null;
 }
 
-function positiveOrNull(value: string) {
-  return value ? Number(value) : null;
-}
-
-function nonNegativeOrNull(value: string) {
-  return value ? Number(value) : null;
+// Only an empty field means "unlimited". A typed 0 is a real value: zero
+// remaining stock (sold out) and a per-account limit of exactly one pack.
+function optionalNumber(value: string) {
+  const trimmed = value.trim();
+  return trimmed === "" ? null : Number(trimmed);
 }
 
 function fromOffer(offer: InitialData["offers"][number]): OfferDraft {

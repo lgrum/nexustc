@@ -32,6 +32,8 @@ export const COLLECTIBLE_ADMIN_TARGETS = [
   "card-instance",
   "pack-instance",
   "card-template",
+  "card-character",
+  "card-series",
   "pack-template",
   "pack-revision",
   "shop-offer",
@@ -138,6 +140,12 @@ function targetReference(
     }
     case "card-template": {
       return { cardTemplateId: targetId };
+    }
+    case "card-character": {
+      return { cardCharacterId: targetId };
+    }
+    case "card-series": {
+      return { cardSeriesId: targetId };
     }
     case "pack-template": {
       return { packTemplateId: targetId };

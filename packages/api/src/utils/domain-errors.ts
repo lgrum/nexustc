@@ -39,7 +39,10 @@ export function translateDomainError<TError extends DomainError>(
     throw errors.FORBIDDEN({ message: domainError.message });
   }
   if (mapping.conflictCodes?.includes(domainError.code)) {
-    throw errors.PROFILE_CUSTOMIZATION_CONFLICT({
+    // Dedicated generic conflict declaration: stale-version, stale-price, and
+    // idempotency replays must not masquerade as a profile-customization
+    // error on clients that branch on the stable code.
+    throw errors.CONFLICT({
       message: domainError.message,
     });
   }

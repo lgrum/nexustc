@@ -36,6 +36,7 @@ import z from "zod";
 import type { DeferredMediaSelectionInput } from "../utils/deferred-media";
 import { withDeferredMediaSelection } from "../utils/deferred-media";
 import { getManagedMediaAssetFromRecord } from "../utils/managed-media";
+import { appendCollectibleAdminAction } from "./collectible-admin-action";
 
 type Database = typeof database;
 type CardAuthoringTransaction = Parameters<
@@ -421,6 +422,17 @@ export async function retireCardCharacter(
       .set({ lifecycle: "retired", updatedByUserId: actorUserId })
       .where(eq(cardCharacter.id, characterId))
       .returning();
+    await appendCollectibleAdminAction(tx, {
+      action: "retire",
+      actorUserId,
+      after: { lifecycle: "retired" },
+      before: { lifecycle: current.lifecycle, updatedAt: current.updatedAt },
+      idempotencyKey: `card-character-retire:${characterId}:${current.updatedAt.toISOString()}`,
+      reason,
+      targetId: characterId,
+      targetKind: "card-character",
+      version: 1,
+    });
     return {
       id: updated?.id ?? characterId,
       lifecycle: "retired" as const,
@@ -465,6 +477,17 @@ export async function retireCardSeries(
       .set({ lifecycle: "retired", updatedByUserId: actorUserId })
       .where(eq(cardSeries.id, seriesId))
       .returning();
+    await appendCollectibleAdminAction(tx, {
+      action: "retire",
+      actorUserId,
+      after: { lifecycle: "retired" },
+      before: { lifecycle: current.lifecycle, updatedAt: current.updatedAt },
+      idempotencyKey: `card-series-retire:${seriesId}:${current.updatedAt.toISOString()}`,
+      reason,
+      targetId: seriesId,
+      targetKind: "card-series",
+      version: 1,
+    });
     return {
       id: updated?.id ?? seriesId,
       lifecycle: "retired" as const,

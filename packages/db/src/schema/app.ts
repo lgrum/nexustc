@@ -676,6 +676,8 @@ export const collectibleAdminTargetKindEnum = pgEnum(
     "card-instance",
     "pack-instance",
     "card-template",
+    "card-character",
+    "card-series",
     "pack-template",
     "pack-revision",
     "shop-offer",
@@ -2760,7 +2762,14 @@ export const collectibleAdminAction = pgTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
+    cardCharacterId: text("card_character_id").references(
+      () => cardCharacter.id,
+      { onDelete: "restrict" }
+    ),
     cardInstanceId: text("card_instance_id").references(() => cardInstance.id, {
+      onDelete: "restrict",
+    }),
+    cardSeriesId: text("card_series_id").references(() => cardSeries.id, {
       onDelete: "restrict",
     }),
     cardTemplateId: text("card_template_id").references(() => cardTemplate.id, {
@@ -2831,6 +2840,8 @@ export const collectibleAdminAction = pgTable(
       sql`(
         (${table.targetKind} = 'card-instance' AND ${table.cardInstanceId} IS NOT NULL) OR
         (${table.targetKind} = 'card-template' AND ${table.cardTemplateId} IS NOT NULL) OR
+        (${table.targetKind} = 'card-character' AND ${table.cardCharacterId} IS NOT NULL) OR
+        (${table.targetKind} = 'card-series' AND ${table.cardSeriesId} IS NOT NULL) OR
         (${table.targetKind} = 'pack-instance' AND ${table.packInstanceId} IS NOT NULL) OR
         (${table.targetKind} = 'pack-template' AND ${table.packTemplateId} IS NOT NULL) OR
         (${table.targetKind} = 'pack-revision' AND ${table.packRevisionId} IS NOT NULL) OR

@@ -2259,6 +2259,35 @@ export function hashPackConfiguration(input: unknown) {
 export const computePackConfigurationHash = hashPackConfiguration;
 export const packConfigurationHash = hashPackConfiguration;
 
+/**
+ * Small deterministic PRNG (mulberry32) for administrative simulations. It is
+ * NOT a CSPRNG and must never back issuance randomness; it exists so two runs
+ * with the same seed produce identical aggregates for review comparisons.
+ */
+export function createDeterministicCollectibleRandom(seed: number) {
+  // oxlint-disable eslint/no-bitwise, unicorn/prefer-math-trunc, eslint/operator-assignment -- mulberry32 is intentionally bit-level 32-bit arithmetic; it is never used for issuance randomness.
+  let state = Math.trunc(seed) | 0;
+  return () => {
+    state = (state + 0x6d_2b_79_f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
+  };
+  // oxlint-enable eslint/no-bitwise, unicorn/prefer-math-trunc, eslint/operator-assignment
+}
+
+/** Stable 31-bit seed derived from an identifier when no explicit seed is given. */
+export function deterministicSeedFromId(value: string) {
+  // oxlint-disable eslint/no-bitwise, unicorn/prefer-code-point, unicorn/prefer-math-trunc -- FNV-1a intentionally hashes UTF-16 code units with 32-bit bitwise arithmetic.
+  let hash = 2_166_136_261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16_777_619);
+  }
+  return (hash >>> 0) % 2_147_483_647;
+  // oxlint-enable eslint/no-bitwise, unicorn/prefer-code-point, unicorn/prefer-math-trunc
+}
+
 export type PackProbabilityInspection = {
   groups: {
     order: number;

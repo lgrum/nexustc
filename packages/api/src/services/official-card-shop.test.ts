@@ -50,6 +50,10 @@ vi.mock("./collectible-issuance", () => ({
     }
   },
   issuePackInTransaction: ledger.issue,
+  runCollectibleIssuanceInTransaction: (
+    tx: unknown,
+    callback: (nestedTx: unknown) => Promise<unknown>
+  ) => callback(tx),
 }));
 vi.mock("./eteris", () => ({
   getOrCreateUserWalletInTransaction: ledger.wallet,

@@ -27,6 +27,7 @@ vi.mock("@/lib/orpc", () => ({
       },
     },
     gifts: {
+      key: () => ["gifts"],
       eligible: {
         queryOptions: () => ({
           queryFn: () =>

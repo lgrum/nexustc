@@ -25,8 +25,11 @@ import {
   listEligibleBlackMarketAssets,
   publishBlackMarketListing,
   purchaseBlackMarketListing,
+  retryBlackMarketListingNotification,
   searchBlackMarketListings,
 } from "../services/black-market";
+import { CollectibleAdminActionError } from "../services/collectible-admin-action";
+import { EterisError } from "../services/eteris";
 import { translateDomainError } from "../utils/domain-errors";
 import type { ProcedureErrors } from "../utils/domain-errors";
 
@@ -45,6 +48,29 @@ function translateBlackMarketError(
   error: unknown,
   errors: ProcedureErrors
 ): never {
+  // Ledger postings and the admin-audit append throw their own typed errors;
+  // both must surface declared domain codes instead of undeclared 500s.
+  if (error instanceof EterisError) {
+    if (error.code === "IDEMPOTENCY_CONFLICT") {
+      throw errors.CONFLICT({
+        message: "La clave de compra ya fue usada para otra operación.",
+      });
+    }
+    throw errors.BAD_REQUEST({
+      message:
+        error.code === "INSUFFICIENT_FUNDS"
+          ? "No tienes Eteris suficientes para esta compra."
+          : "Tu billetera no permite completar esta operación.",
+    });
+  }
+  if (
+    error instanceof CollectibleAdminActionError &&
+    error.code === "IDEMPOTENCY_CONFLICT"
+  ) {
+    throw errors.CONFLICT({
+      message: "La clave administrativa ya fue usada con datos diferentes.",
+    });
+  }
   return translateDomainError(error, errors, {
     badRequestIncludesCode: true,
     errorClass: BlackMarketError,
@@ -135,6 +161,20 @@ const correct = moderation
     }
   });
 
+const retryNotification = mutation
+  .input(z.object({ listingId: z.string().trim().min(1).max(200) }).strict())
+  .handler(async ({ context: { db, session }, errors, input }) => {
+    try {
+      return await retryBlackMarketListingNotification(
+        db,
+        session.user.id,
+        input.listingId
+      );
+    } catch (error) {
+      translateBlackMarketError(error, errors);
+    }
+  });
+
 export default {
   adminCancel,
   cancel,
@@ -144,5 +184,6 @@ export default {
   history,
   publish,
   purchase,
+  retryNotification,
   search,
 };

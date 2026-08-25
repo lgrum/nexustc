@@ -29,6 +29,8 @@ import {
   normalizeCardIdentity,
   normalizeCollectiblePayload,
   computePackConfigurationHash,
+  createDeterministicCollectibleRandom,
+  deterministicSeedFromId,
   normalizePackRevisionDraft,
   publicCardInstanceSchema,
   publicPackInstanceSchema,
@@ -993,5 +995,55 @@ describe("pack revision contracts", () => {
     expect(left.draws).toBe(24);
     expect(left).not.toHaveProperty("outcomes");
     expect(left.guaranteeFailures).toBe(0);
+  });
+
+  it("produces identical aggregates from a seed or an id-derived deterministic seed", () => {
+    const candidates = [
+      {
+        cardTemplateId: "card-1",
+        rarity: "rare" as const,
+        available: true,
+        weight: 3,
+      },
+      {
+        cardTemplateId: "card-2",
+        rarity: "common" as const,
+        available: true,
+        weight: 1,
+      },
+    ];
+    const seeded = simulatePackRevision(draft, {
+      candidates,
+      iterations: 500,
+      random: createDeterministicCollectibleRandom(1234),
+    });
+    const replayed = simulatePackRevision(draft, {
+      candidates,
+      iterations: 500,
+      random: createDeterministicCollectibleRandom(1234),
+    });
+    expect(seeded).toEqual(replayed);
+
+    const derivedSeed = deterministicSeedFromId("revision-sim-1");
+    expect(
+      simulatePackRevision(draft, {
+        candidates,
+        iterations: 500,
+        random: createDeterministicCollectibleRandom(derivedSeed),
+      })
+    ).toEqual(
+      simulatePackRevision(draft, {
+        candidates,
+        iterations: 500,
+        random: createDeterministicCollectibleRandom(
+          deterministicSeedFromId("revision-sim-1")
+        ),
+      })
+    );
+    // Different ids derive different seeds, so distinct revisions do not
+    // accidentally share a random stream.
+    expect(deterministicSeedFromId("revision-sim-1")).not.toBe(
+      deterministicSeedFromId("revision-sim-2")
+    );
   });
 });

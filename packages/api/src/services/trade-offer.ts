@@ -881,6 +881,15 @@ export async function updateInboundTradePreference(
   const result = await withCollectibleDeadlockRetry(
     () =>
       db.transaction(async (tx) => {
+        // Sends lock these same participant rows before re-checking the
+        // inbound preference. Taking the lock first serializes a concurrent
+        // send against this sweep: either it sees the disabled preference and
+        // fails, or this sweep sees and closes its freshly committed offer.
+        await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.id, userId))
+          .for("update");
         const existingSettings = await tx
           .select({ userId: profileSettings.userId })
           .from(profileSettings)
@@ -1559,7 +1568,9 @@ async function runTradeTransition(
   );
   if (!result.replayed) {
     await deliverTradeNotification(db, {
-      actorUserId,
+      // Expiry is system-driven even when it runs lazily under the proposer's
+      // identity, so the proposer keeps being told their offer expired.
+      actorUserId: action === "expire" ? null : actorUserId,
       kind: result.state,
       offerId: result.offerId,
       recipientUserId: undefined,
@@ -1711,7 +1722,10 @@ export type TradeExpiryBatchResult = {
 /**
  * Scheduled and lazy reads both enter expiry through expireTradeOffer. The
  * batch only discovers bounded IDs; custody release and terminal history stay
- * in the same idempotent transition as an interactive command.
+ * in the same idempotent transition as an interactive command. The gate is
+ * deliberately skipped (`skipGate: true`): releasing expired custody must
+ * proceed even while collectible mutations are disabled or impersonated, or
+ * the affected assets would stay locked with no interactive way to free them.
  */
 export async function expireCollectibleTradeOffersBatch(
   db: Database,
@@ -2088,7 +2102,6 @@ export async function listTradeOffers(
   role: "inbox" | "sent" | "all" = "all"
 ) {
   const input = tradeOfferListInputSchema.parse(rawInput);
-  await expireCollectibleTradeOffersBatch(db);
   const cursor = decodeCursor(input.cursor);
   const participantCondition =
     role === "inbox"
@@ -2099,34 +2112,56 @@ export async function listTradeOffers(
             eq(tradeOffer.proposerUserId, viewerUserId),
             eq(tradeOffer.recipientUserId, viewerUserId)
           );
-  const rows = await db
-    .select({
-      expiresAt: tradeOffer.expiresAt,
-      id: tradeOffer.id,
-      proposerUserId: tradeOffer.proposerUserId,
-      recipientUserId: tradeOffer.recipientUserId,
-      sentAt: tradeOffer.sentAt,
-      state: tradeOffer.state,
-      version: tradeOffer.version,
-    })
-    .from(tradeOffer)
-    .where(
-      and(
-        participantCondition,
-        input.state ? eq(tradeOffer.state, input.state) : undefined,
-        cursor
-          ? or(
-              lt(tradeOffer.sentAt, cursor.sentAt),
-              and(
-                eq(tradeOffer.sentAt, cursor.sentAt),
-                lt(tradeOffer.id, cursor.id)
+  // Lazy expiry is page-scoped: only offers this query actually returns are
+  // transitioned, keeping each read to a couple of short statements. The
+  // shared cron owns the bulk sweep.
+  const selectPage = () =>
+    db
+      .select({
+        expiresAt: tradeOffer.expiresAt,
+        id: tradeOffer.id,
+        proposerUserId: tradeOffer.proposerUserId,
+        recipientUserId: tradeOffer.recipientUserId,
+        sentAt: tradeOffer.sentAt,
+        state: tradeOffer.state,
+        version: tradeOffer.version,
+      })
+      .from(tradeOffer)
+      .where(
+        and(
+          participantCondition,
+          input.state ? eq(tradeOffer.state, input.state) : undefined,
+          cursor
+            ? or(
+                lt(tradeOffer.sentAt, cursor.sentAt),
+                and(
+                  eq(tradeOffer.sentAt, cursor.sentAt),
+                  lt(tradeOffer.id, cursor.id)
+                )
               )
-            )
-          : undefined
+            : undefined
+        )
       )
-    )
-    .orderBy(desc(tradeOffer.sentAt), desc(tradeOffer.id))
-    .limit(input.limit + 1);
+      .orderBy(desc(tradeOffer.sentAt), desc(tradeOffer.id))
+      .limit(input.limit + 1);
+  let rows = await selectPage();
+  const now = new Date();
+  const staleRows = rows.filter(
+    (row) => row.state === "sent" && now >= row.expiresAt
+  );
+  if (staleRows.length > 0) {
+    for (const row of staleRows) {
+      await expireTradeOffer(db, sentTradeParticipant(row.proposerUserId), {
+        idempotencyKey: `trade-expiry:${row.id}:${row.expiresAt.toISOString()}`,
+        now,
+        offerId: row.id,
+        skipGate: true,
+      }).catch(() => null);
+    }
+    // Re-read once so terminal offers leave the page and custody counts
+    // reflect the release instead of the pre-expiry snapshot.
+    rows = await selectPage();
+  }
   const page = rows.slice(0, input.limit);
   const counts = new Map<string, { proposer: number; recipient: number }>();
   if (page.length > 0) {
@@ -2176,7 +2211,17 @@ export async function listTradeOffers(
   };
 }
 
-export async function listEligibleTradeAssets(db: Database, userId: string) {
+/**
+ * When `excludeActiveCustody` is false the result is public-collection shaped:
+ * it keeps assets reserved by private trades/gifts so another user's
+ * composition view cannot reveal which items sit in active custody (story 33).
+ * Send-time validation still rejects those assets for actual offers.
+ */
+export async function listEligibleTradeAssets(
+  db: Database,
+  userId: string,
+  options: { excludeActiveCustody?: boolean } = {}
+) {
   const [cards, packs] = await Promise.all([
     db
       .select({
@@ -2229,6 +2274,9 @@ export async function listEligibleTradeAssets(db: Database, userId: string) {
       .orderBy(asc(packInstance.id)),
   ]);
   const assets = [...cards, ...packs].filter(Boolean);
+  if (options.excludeActiveCustody === false) {
+    return assets;
+  }
   const active = await findActiveCollectibleCustody(
     db,
     assets.map(({ assetId, kind }) => ({ assetId, kind }))
@@ -2242,10 +2290,12 @@ export async function listEligibleTradeAssets(db: Database, userId: string) {
 async function deliverTradeNotification(
   db: Database,
   input: {
-    actorUserId: string;
+    // Null when the transition is system-driven (expiry): every participant
+    // is an affected party and must be notified, including the proposer.
+    actorUserId?: string | null;
     kind: string;
     offerId: string;
-    recipientUserId?: string;
+    recipientUserId?: string | null;
     state: string;
   }
 ) {
@@ -2258,38 +2308,86 @@ async function deliverTradeNotification(
     .where(eq(tradeOffer.id, input.offerId))
     .limit(1);
   if (!offer) {
-    return;
+    return [];
   }
   const targets =
     input.kind === "sent"
       ? [offer.recipientUserId]
       : [offer.proposerUserId, offer.recipientUserId];
+  const delivered: string[] = [];
   await Promise.all(
     [...new Set(targets)]
       .filter((targetUserId): targetUserId is string => Boolean(targetUserId))
       .filter((target) => target !== input.actorUserId)
-      .map((targetUserId) =>
-        createUserNotification(db, {
+      .map(async (targetUserId) => {
+        await createUserNotification(db, {
           dedupeKey: `collectible-trade:${input.offerId}:${input.state}:${targetUserId}`,
           description:
             input.kind === "sent"
               ? "Tienes una nueva oferta de intercambio de coleccionables."
-              : `La oferta de intercambio terminó como «${input.state}».`,
+              : input.state === "expired"
+                ? "Una oferta de intercambio tuya expiró sin aceptarse y los coleccionables fueron liberados."
+                : `La oferta de intercambio terminó como «${input.state}».`,
           metadata: {
             category: "collectible_trade",
             linkPath: `/cards/trades/${input.offerId}`,
             offerId: input.offerId,
             state: input.state,
           },
-          sourceUserId: input.actorUserId,
+          sourceUserId: input.actorUserId ?? undefined,
           targetUserId,
           title:
             input.kind === "sent"
               ? "Nueva oferta de intercambio"
               : "Actualización de tu intercambio",
-        })
-      )
+        });
+        delivered.push(targetUserId);
+      })
   );
+  return delivered;
+}
+
+/**
+ * Retryable post-commit delivery boundary. Dedupe keys keep redeliveries
+ * single, so this is safe to call repeatedly after a swallowed failure.
+ */
+export async function retryTradeOfferNotification(
+  db: Database,
+  requesterUserId: string,
+  offerId: string
+) {
+  const [offer] = await db
+    .select({ state: tradeOffer.state })
+    .from(tradeOffer)
+    .where(
+      and(
+        eq(tradeOffer.id, offerId),
+        or(
+          eq(tradeOffer.proposerUserId, requesterUserId),
+          eq(tradeOffer.recipientUserId, requesterUserId)
+        )
+      )
+    )
+    .limit(1);
+  if (!offer) {
+    throw new TradeOfferError(
+      "OFFER_NOT_FOUND",
+      "La oferta no existe o no participas en ella."
+    );
+  }
+  if (offer.state === "sent") {
+    return deliverTradeNotification(db, {
+      kind: "sent",
+      offerId,
+      state: offer.state,
+    });
+  }
+  return deliverTradeNotification(db, {
+    actorUserId: null,
+    kind: offer.state,
+    offerId,
+    state: offer.state,
+  });
 }
 
 export const createTradeOffer = sendTradeOffer;

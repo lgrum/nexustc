@@ -72,13 +72,13 @@ export function CardShopClient({ initialOffers }: { initialOffers: Offer[] }) {
       const candidate = error as { code?: string; message?: string };
       const text = candidate.message ?? "No pudimos completar la compra.";
       if (
-        candidate.code === "PROFILE_CUSTOMIZATION_CONFLICT" ||
+        candidate.code === "CONFLICT" ||
         /versión|precio|clave de compra/i.test(text)
       ) {
         setStaleConsent(true);
-        setMessage(
-          "La oferta cambió mientras confirmabas. Actualiza el precio y vuelve a aceptar la compra."
-        );
+        // Surface the declared server reason (stale price/version vs reused
+        // idempotency key) instead of a generic "offer changed" label.
+        setMessage(text);
         const refreshed = await offersQuery.refetch();
         const currentOffer = refreshed.data?.find(({ id }) => id === offer.id);
         if (currentOffer) {

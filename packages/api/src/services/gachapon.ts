@@ -1129,13 +1129,17 @@ export async function activateGachapon(
         const reachesGlobalQuota =
           machine.globalQuota !== null &&
           machine.totalActivations + 1 >= machine.globalQuota;
+        // Customer activations never bump `version`: that counter is the
+        // operator-edit confirmation token (`expectedMachineVersion`), and
+        // unrelated players must not invalidate each other's in-flight
+        // confirmations when cost/pool are unchanged. Counter updates are
+        // serialized by the machine row lock taken above.
         const [updatedMachine] = await tx
           .update(gachaponMachine)
           .set({
             state: reachesGlobalQuota ? "exhausted" : "active",
             totalActivations: machine.totalActivations + 1,
             updatedAt: now,
-            version: machine.version + 1,
           })
           .where(
             and(

@@ -12,6 +12,7 @@ import {
   cardSeries,
   cardTemplate,
   collectibleCustody,
+  collectibleOwnershipEvent,
   desc,
   eq,
   gte,
@@ -88,7 +89,24 @@ const BLACK_MARKET_EXPIRY_DAYS = 30;
 export const BLACK_MARKET_LISTING_EXPIRY_MS =
   BLACK_MARKET_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
 export const BLACK_MARKET_MIN_PRICE = 1n;
-export const BLACK_MARKET_MAX_PRICE = 9_223_372_036_854_775_807n;
+/** Hard ledger ceiling; every bigint column must stay representable. */
+const BLACK_MARKET_LEDGER_MAX_PRICE = 9_223_372_036_854_775_807n;
+/**
+ * Owner-configured asking-price ceiling. The env contract validates the
+ * literal; this clamp fails safe to the ledger ceiling when the variable is
+ * absent (partial test doubles), so the bound can never silently widen.
+ */
+export const BLACK_MARKET_MAX_PRICE = (() => {
+  const configured = env.BLACK_MARKET_MAX_PRICE;
+  if (
+    typeof configured === "bigint" &&
+    configured >= BLACK_MARKET_MIN_PRICE &&
+    configured <= BLACK_MARKET_LEDGER_MAX_PRICE
+  ) {
+    return configured;
+  }
+  return BLACK_MARKET_LEDGER_MAX_PRICE;
+})();
 
 export type BlackMarketErrorCode =
   | "ACCOUNT_INELIGIBLE"
@@ -147,6 +165,12 @@ export type BlackMarketPurchaseResult = {
   transferredAssetIds: string[];
 };
 
+/** Fresh purchases carry extra context for post-commit risk review. */
+type PurchaseInTransactionResult = BlackMarketPurchaseResult & {
+  publishedAt?: Date;
+  transferredAssets?: { assetId: string; kind: "card" | "pack" }[];
+};
+
 export type BlackMarketListingSummary = {
   askingPrice: string;
   assetCount: number;
@@ -189,7 +213,11 @@ function nowDate(value?: Date) {
   return value ?? new Date();
 }
 
-function parsePrice(value: bigint | number | string): bigint {
+function parsePrice(
+  value: bigint | number | string,
+  options: { max?: bigint } = {}
+): bigint {
+  const max = options.max ?? BLACK_MARKET_LEDGER_MAX_PRICE;
   let result: bigint;
   if (typeof value === "bigint") {
     result = value;
@@ -209,7 +237,7 @@ function parsePrice(value: bigint | number | string): bigint {
       "El precio debe ser un entero positivo."
     );
   }
-  if (result < BLACK_MARKET_MIN_PRICE || result > BLACK_MARKET_MAX_PRICE) {
+  if (result < BLACK_MARKET_MIN_PRICE || result > max) {
     throw new BlackMarketError(
       "INVALID_PRICE",
       "El precio está fuera del rango permitido."
@@ -674,7 +702,11 @@ async function publishInTransaction(
   options: { metrics?: CollectibleMetricSink; now?: Date } = {}
 ) {
   const input = blackMarketListingPublishInputSchema.parse(rawInput);
-  const askingPrice = parsePrice(input.askingPrice);
+  // New listings honor the owner-configured ceiling; purchases of legacy
+  // listings keep validating against the hard ledger bound instead.
+  const askingPrice = parsePrice(input.askingPrice, {
+    max: BLACK_MARKET_MAX_PRICE,
+  });
   const assets = canonicalAssets(input.assets);
   const publishedAt = nowDate(options.now);
   const fingerprint = termsFingerprint(sellerUserId, {
@@ -1127,7 +1159,9 @@ async function runTransition(
             },
             before: { state: "active" },
             expectedVersion: rawInput.expectedVersion,
-            idempotencyKey: rawInput.idempotencyKey,
+            // Namespaced so one caller key cannot collide across the
+            // globally-unique admin-audit table and other domains.
+            idempotencyKey: `market-admin-cancel:${rawInput.idempotencyKey}`,
             metrics: options.metrics,
             reason: rawInput.reason ?? "Cancelación administrativa.",
             targetId: transitionResult.listingId,
@@ -1141,7 +1175,9 @@ async function runTransition(
   );
   if (!result.replayed) {
     await notifyBlackMarketParticipants(db, {
-      actorUserId,
+      // Expiry is system-driven even when it runs lazily under the seller's
+      // identity, so the seller keeps receiving the release notification.
+      actorUserId: action === "expire" ? null : actorUserId,
       kind: result.state,
       listingId: result.listingId,
       state: result.state,
@@ -1372,7 +1408,7 @@ async function purchaseInTransaction(
   buyerUserId: string,
   rawInput: BlackMarketPurchaseInput,
   options: { metrics?: CollectibleMetricSink; now?: Date } = {}
-): Promise<BlackMarketPurchaseResult> {
+): Promise<PurchaseInTransactionResult> {
   const input = blackMarketPurchaseInputSchema.parse(rawInput);
   const expectedPrice = parsePrice(input.expectedPrice);
   const fingerprint = actionFingerprint(
@@ -1512,7 +1548,7 @@ async function purchaseInTransaction(
   const transaction = await postEterisTransactionInTransaction(tx, {
     actorUserId: buyerUserId,
     createdAt: now,
-    idempotencyKey: input.idempotencyKey,
+    idempotencyKey: `market-sale:${input.idempotencyKey}`,
     kind: "market_sale",
     metadata: {
       askingPrice: expectedPrice.toString(),
@@ -1598,13 +1634,15 @@ async function purchaseInTransaction(
     askingPrice: expectedPrice.toString(),
     buyerUserId,
     listingId: listing.id,
+    publishedAt: listing.publishedAt,
     replayed: false,
     saleId,
     sellerUserId,
     state: "sold" as const,
     transactionId: transaction.id,
     transferredAssetIds,
-  } satisfies BlackMarketPurchaseResult;
+    transferredAssets: assets,
+  } satisfies PurchaseInTransactionResult;
   await appendAudit(tx, {
     action: "sold",
     actorUserId: buyerUserId,
@@ -1677,7 +1715,7 @@ export async function purchaseBlackMarketListing(
     ...contractInput
   } = rawInput;
   blackMarketPurchaseInputSchema.parse(contractInput);
-  const result = await withCollectibleDeadlockRetry(
+  const outcome = await withCollectibleDeadlockRetry(
     () =>
       db.transaction(async (tx) => {
         await tx.execute(
@@ -1704,21 +1742,37 @@ export async function purchaseBlackMarketListing(
     }
     throw error;
   });
-  if (!result.replayed) {
+  if (!outcome.replayed && outcome.publishedAt && outcome.transferredAssets) {
     await notifyBlackMarketParticipants(db, {
       actorUserId: buyerUserId,
       kind: "sold",
-      listingId: result.listingId,
-      saleId: result.saleId,
+      listingId: outcome.listingId,
+      saleId: outcome.saleId,
       state: "sold",
     }).catch(() => null);
-    await recordBlackMarketRiskSignals(db, {
-      listingId: result.listingId,
-      saleId: result.saleId,
-      subjectUserId: result.sellerUserId,
-      signals: [],
-    }).catch(() => null);
+    try {
+      const signals = await detectBlackMarketSaleRiskSignals(db, {
+        askingPrice: BigInt(outcome.askingPrice),
+        buyerUserId: outcome.buyerUserId,
+        publishedAt: outcome.publishedAt,
+        sellerUserId: outcome.sellerUserId,
+        transferredAssets: outcome.transferredAssets,
+      });
+      await recordBlackMarketRiskSignals(db, {
+        listingId: outcome.listingId,
+        saleId: outcome.saleId,
+        signals,
+        subjectUserId: outcome.sellerUserId,
+      });
+    } catch {
+      // Risk review is advisory; a detection failure must never fail the sale.
+    }
   }
+  const {
+    publishedAt: _publishedAt,
+    transferredAssets: _transferredAssets,
+    ...result
+  } = outcome;
   return result;
 }
 
@@ -1732,6 +1786,12 @@ export type BlackMarketExpiryBatchResult = {
   participantUserIds: string[];
 };
 
+/**
+ * The gate is deliberately skipped inside expiry transitions: releasing
+ * expired custody must proceed even while collectible mutations are disabled
+ * or impersonated, or the affected assets would stay locked with no
+ * interactive way to free them.
+ */
 export async function expireBlackMarketListingsBatch(
   db: Database,
   options: { limit?: number; metrics?: CollectibleMetricSink; now?: Date } = {}
@@ -2206,12 +2266,9 @@ export async function searchBlackMarketListings(
   rawInput: unknown = {}
 ) {
   const input = blackMarketListingSearchInputSchema.parse(rawInput);
-  try {
-    await expireBlackMarketListingsBatch(db, { limit: 100 });
-  } catch {
-    // A read must remain available during a partial rollout; the shared cron
-    // will retry the same terminal transition.
-  }
+  // Reads never run the global expiry sweep: bulk expiration belongs to the
+  // shared cron, and search already excludes past-due listings via its
+  // `expiresAt > now` predicate, so nothing it returns needs a transition.
   const cursor = decodeSearchCursor(input.cursor);
   const now = new Date();
   const sortExpression = listingSortExpression(input.sort);
@@ -2565,23 +2622,242 @@ export async function getBlackMarketSaleHistory(
 
 export const listBlackMarketSaleHistory = getBlackMarketSaleHistory;
 
+export type BlackMarketRiskSignalCandidate = {
+  metadata?: Record<string, unknown>;
+  severity?: "low" | "medium" | "high";
+  signal:
+    | "reciprocal-activity"
+    | "related-accounts"
+    | "extreme-price"
+    | "repeated-transfers"
+    | "rapid-relisting"
+    | "repeated-cancellation";
+};
+
+const RISK_SIGNAL_RECIPROCAL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+const RISK_SIGNAL_TRANSFER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+/** Ownership events (the fresh sale included) that flag churn. */
+const RISK_SIGNAL_REPEATED_TRANSFERS = 3;
+const RISK_SIGNAL_RAPID_RELISTING_MS = 24 * 60 * 60 * 1000;
+/**
+ * "Extreme" is defined relative to the owner-configured ceiling: a sale at or
+ * above one fifth of it gets reviewed, at or above the full ceiling flagged
+ * high. This stays deterministic and needs no extra query.
+ */
+const RISK_SIGNAL_EXTREME_PRICE_MEDIUM_SHARE = 5n;
+
+async function detectRepeatedTransfers(
+  db: Database,
+  input: {
+    cardInstanceIds: string[];
+    packInstanceIds: string[];
+    windowStart: Date;
+  }
+): Promise<string[]> {
+  const flaggedAssetIds: string[] = [];
+  if (input.cardInstanceIds.length > 0) {
+    const rows = await db
+      .select({
+        assetId: collectibleOwnershipEvent.cardInstanceId,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(collectibleOwnershipEvent)
+      .where(
+        and(
+          inArray(
+            collectibleOwnershipEvent.cardInstanceId,
+            input.cardInstanceIds
+          ),
+          gte(collectibleOwnershipEvent.occurredAt, input.windowStart)
+        )
+      )
+      .groupBy(collectibleOwnershipEvent.cardInstanceId)
+      .having(sql`count(*) >= ${RISK_SIGNAL_REPEATED_TRANSFERS}`);
+    for (const row of rows) {
+      if (row.assetId) {
+        flaggedAssetIds.push(row.assetId);
+      }
+    }
+  }
+  if (input.packInstanceIds.length > 0) {
+    const rows = await db
+      .select({
+        assetId: collectibleOwnershipEvent.packInstanceId,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(collectibleOwnershipEvent)
+      .where(
+        and(
+          inArray(
+            collectibleOwnershipEvent.packInstanceId,
+            input.packInstanceIds
+          ),
+          gte(collectibleOwnershipEvent.occurredAt, input.windowStart)
+        )
+      )
+      .groupBy(collectibleOwnershipEvent.packInstanceId)
+      .having(sql`count(*) >= ${RISK_SIGNAL_REPEATED_TRANSFERS}`);
+    for (const row of rows) {
+      if (row.assetId) {
+        flaggedAssetIds.push(row.assetId);
+      }
+    }
+  }
+  return flaggedAssetIds;
+}
+
+async function detectRapidRelisting(
+  db: Database,
+  input: {
+    acquiredAfter: Date;
+    cardInstanceIds: string[];
+    packInstanceIds: string[];
+    publishedAt: Date;
+    sellerUserId: string;
+  }
+): Promise<boolean> {
+  const window = and(
+    eq(collectibleOwnershipEvent.toUserId, input.sellerUserId),
+    gte(collectibleOwnershipEvent.occurredAt, input.acquiredAfter),
+    lte(collectibleOwnershipEvent.occurredAt, input.publishedAt)
+  );
+  if (input.cardInstanceIds.length > 0) {
+    const [card] = await db
+      .select({ id: collectibleOwnershipEvent.id })
+      .from(collectibleOwnershipEvent)
+      .where(
+        and(
+          window,
+          inArray(
+            collectibleOwnershipEvent.cardInstanceId,
+            input.cardInstanceIds
+          )
+        )
+      )
+      .limit(1);
+    if (card) {
+      return true;
+    }
+  }
+  if (input.packInstanceIds.length > 0) {
+    const [pack] = await db
+      .select({ id: collectibleOwnershipEvent.id })
+      .from(collectibleOwnershipEvent)
+      .where(
+        and(
+          window,
+          inArray(
+            collectibleOwnershipEvent.packInstanceId,
+            input.packInstanceIds
+          )
+        )
+      )
+      .limit(1);
+    if (pack) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Best-effort post-commit review heuristics for a settled sale. Related
+ * accounts are deliberately not detected here: the platform does not retain
+ * the device or network telemetry such a heuristic would require.
+ */
+export async function detectBlackMarketSaleRiskSignals(
+  db: Database,
+  input: {
+    askingPrice: bigint;
+    buyerUserId: string;
+    publishedAt: Date;
+    sellerUserId: string;
+    transferredAssets: readonly { assetId: string; kind: "card" | "pack" }[];
+  }
+): Promise<BlackMarketRiskSignalCandidate[]> {
+  const signals: BlackMarketRiskSignalCandidate[] = [];
+  const now = new Date();
+
+  if (input.askingPrice >= BLACK_MARKET_MAX_PRICE) {
+    signals.push({ severity: "high", signal: "extreme-price" });
+  } else if (
+    input.askingPrice * RISK_SIGNAL_EXTREME_PRICE_MEDIUM_SHARE >=
+    BLACK_MARKET_MAX_PRICE
+  ) {
+    signals.push({ severity: "medium", signal: "extreme-price" });
+  }
+
+  const [reciprocal] = await db
+    .select({ id: blackMarketSale.id })
+    .from(blackMarketSale)
+    .innerJoin(
+      blackMarketListing,
+      eq(blackMarketListing.id, blackMarketSale.listingId)
+    )
+    .where(
+      and(
+        // The current seller previously bought from the current buyer.
+        eq(blackMarketSale.buyerUserId, input.sellerUserId),
+        eq(blackMarketListing.sellerUserId, input.buyerUserId),
+        gte(
+          blackMarketSale.createdAt,
+          new Date(now.getTime() - RISK_SIGNAL_RECIPROCAL_WINDOW_MS)
+        )
+      )
+    )
+    .limit(1);
+  if (reciprocal) {
+    signals.push({
+      metadata: { counterpartUserId: input.buyerUserId },
+      severity: "medium",
+      signal: "reciprocal-activity",
+    });
+  }
+
+  const cardInstanceIds = input.transferredAssets
+    .filter(({ kind }) => kind === "card")
+    .map(({ assetId }) => assetId);
+  const packInstanceIds = input.transferredAssets
+    .filter(({ kind }) => kind === "pack")
+    .map(({ assetId }) => assetId);
+
+  const repeatedAssetIds = await detectRepeatedTransfers(db, {
+    cardInstanceIds,
+    packInstanceIds,
+    windowStart: new Date(now.getTime() - RISK_SIGNAL_TRANSFER_WINDOW_MS),
+  });
+  if (repeatedAssetIds.length > 0) {
+    signals.push({
+      metadata: { assetIds: repeatedAssetIds.slice(0, 50) },
+      severity: "low",
+      signal: "repeated-transfers",
+    });
+  }
+
+  if (
+    await detectRapidRelisting(db, {
+      acquiredAfter: new Date(
+        input.publishedAt.getTime() - RISK_SIGNAL_RAPID_RELISTING_MS
+      ),
+      cardInstanceIds,
+      packInstanceIds,
+      publishedAt: input.publishedAt,
+      sellerUserId: input.sellerUserId,
+    })
+  ) {
+    signals.push({ severity: "low", signal: "rapid-relisting" });
+  }
+
+  return signals;
+}
+
 export async function recordBlackMarketRiskSignals(
   db: Database,
   input: {
     listingId?: string;
     saleId?: string;
     subjectUserId?: string;
-    signals: readonly {
-      metadata?: Record<string, unknown>;
-      severity?: "low" | "medium" | "high";
-      signal:
-        | "reciprocal-activity"
-        | "related-accounts"
-        | "extreme-price"
-        | "repeated-transfers"
-        | "rapid-relisting"
-        | "repeated-cancellation";
-    }[];
+    signals: readonly BlackMarketRiskSignalCandidate[];
   }
 ) {
   if (input.signals.length === 0) {
@@ -2607,7 +2883,7 @@ export async function recordBlackMarketRiskSignals(
 export async function notifyBlackMarketParticipants(
   db: Database,
   input: {
-    actorUserId: string;
+    actorUserId?: string | null;
     kind: string;
     listingId: string;
     saleId?: string;
@@ -2629,36 +2905,140 @@ export async function notifyBlackMarketParticipants(
         .where(eq(blackMarketSale.id, input.saleId))
         .limit(1)
     : [];
-  const targets = new Set<string>(
-    [listing.sellerUserId, sale[0]?.buyerUserId].filter(
-      (userId): userId is string => Boolean(userId)
-    )
-  );
-  targets.delete(input.actorUserId);
+  const { sellerUserId } = listing;
+  const buyerUserId = sale[0]?.buyerUserId ?? null;
+
+  // Affected parties are explicit targets regardless of who performed the
+  // action: a completed purchase notifies buyer AND seller, and system-driven
+  // expiry (actor null) still reaches the seller. Only the actor's own
+  // self-initiated transition stays silent.
+  const messages: {
+    description: string;
+    targetUserId: string;
+    title: string;
+  }[] = [];
+  const isSelfAction = (userId: string | null) =>
+    Boolean(userId) && userId === input.actorUserId && input.state !== "sold";
+
+  switch (input.state) {
+    case "sold": {
+      if (buyerUserId) {
+        messages.push({
+          description:
+            "Tu compra del Mercado Negro se completó y los coleccionables ya son tuyos.",
+          targetUserId: buyerUserId,
+          title: "Compra del Mercado Negro completada",
+        });
+      }
+      if (sellerUserId && !isSelfAction(sellerUserId)) {
+        messages.push({
+          description:
+            "Una publicación del Mercado Negro se vendió y la operación quedó liquidada.",
+          targetUserId: sellerUserId,
+          title: "Venta del Mercado Negro completada",
+        });
+      }
+      break;
+    }
+    case "expired": {
+      if (sellerUserId && !isSelfAction(sellerUserId)) {
+        messages.push({
+          description:
+            "Una publicación del Mercado Negro expiró y tus coleccionables fueron liberados.",
+          targetUserId: sellerUserId,
+          title: "Publicación del Mercado Negro expirada",
+        });
+      }
+      break;
+    }
+    case "administratively-cancelled": {
+      if (sellerUserId && !isSelfAction(sellerUserId)) {
+        messages.push({
+          description:
+            "El equipo de moderación canceló una publicación tuya del Mercado Negro.",
+          targetUserId: sellerUserId,
+          title: "Actualización del Mercado Negro",
+        });
+      }
+      break;
+    }
+    default: {
+      if (sellerUserId && !isSelfAction(sellerUserId)) {
+        messages.push({
+          description: "Una publicación del Mercado Negro cambió de estado.",
+          targetUserId: sellerUserId,
+          title: "Actualización del Mercado Negro",
+        });
+      }
+    }
+  }
+
   await Promise.all(
-    [...targets].map((targetUserId) =>
+    messages.map((message) =>
       createUserNotification(db, {
-        dedupeKey: `black-market:${input.listingId}:${input.state}:${targetUserId}`,
-        description:
-          input.state === "sold"
-            ? "Una publicación del Mercado Negro se vendió y la operación quedó liquidada."
-            : input.state === "expired"
-              ? "Una publicación del Mercado Negro expiró y tus coleccionables fueron liberados."
-              : "Una publicación del Mercado Negro cambió de estado.",
+        dedupeKey: `black-market:${input.listingId}:${input.state}:${message.targetUserId}`,
+        description: message.description,
         metadata: {
           category: "black_market",
           linkPath: `/cards/black-market/${input.listingId}`,
           listingId: input.listingId,
           state: input.state,
         },
-        sourceUserId: input.actorUserId,
-        targetUserId,
-        title:
-          input.state === "sold"
-            ? "Venta del Mercado Negro completada"
-            : "Actualización del Mercado Negro",
+        sourceUserId: input.actorUserId ?? undefined,
+        targetUserId: message.targetUserId,
+        title: message.title,
       })
     )
   );
-  return [...targets];
+  return messages.map(({ targetUserId }) => targetUserId);
+}
+
+/**
+ * Retryable post-commit delivery boundary. Dedupe keys keep redeliveries
+ * single, so this is safe to call repeatedly after a swallowed failure.
+ */
+export async function retryBlackMarketListingNotification(
+  db: Database,
+  requesterUserId: string,
+  listingId: string
+) {
+  const [listing] = await db
+    .select({
+      id: blackMarketListing.id,
+      sellerUserId: blackMarketListing.sellerUserId,
+      state: blackMarketListing.state,
+    })
+    .from(blackMarketListing)
+    .where(eq(blackMarketListing.id, listingId))
+    .limit(1);
+  if (!listing) {
+    throw new BlackMarketError(
+      "LISTING_NOT_FOUND",
+      "La publicación no existe."
+    );
+  }
+  const [sale] = await db
+    .select({
+      buyerUserId: blackMarketSale.buyerUserId,
+      id: blackMarketSale.id,
+    })
+    .from(blackMarketSale)
+    .where(eq(blackMarketSale.listingId, listing.id))
+    .limit(1);
+  const participates =
+    listing.sellerUserId === requesterUserId ||
+    (sale?.buyerUserId !== null && sale?.buyerUserId === requesterUserId);
+  if (!participates) {
+    throw new BlackMarketError(
+      "PERMISSION_DENIED",
+      "No participas en esta publicación."
+    );
+  }
+  return notifyBlackMarketParticipants(db, {
+    actorUserId: null,
+    kind: listing.state,
+    listingId: listing.id,
+    saleId: sale?.id,
+    state: listing.state,
+  });
 }

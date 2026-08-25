@@ -673,3 +673,58 @@ test("Gachapon migration keeps weighted machine configuration and activation his
   );
   expect(migrationSql).not.toMatch(/rarity_modifier|direct_card|outcome/);
 });
+
+test("Black Market listing terms are trigger-frozen and settlement history is append-only", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0099_careless_sharon_ventura.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(
+    'ALTER TYPE "public"."collectible_admin_target_kind" ADD VALUE \'card-character\''
+  );
+  expect(migrationSql).toContain(
+    'ALTER TYPE "public"."collectible_admin_target_kind" ADD VALUE \'card-series\''
+  );
+  for (const column of ['"card_character_id"', '"card_series_id"']) {
+    expect(migrationSql).toContain(`ADD COLUMN ${column}`);
+  }
+  expect(migrationSql).toContain(
+    'CREATE FUNCTION "prevent_black_market_listing_terms_mutation"()'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "black_market_listing_terms_immutable"'
+  );
+  // The exact published-terms surface the spec freezes.
+  for (const term of [
+    'NEW."asking_price" IS DISTINCT FROM OLD."asking_price"',
+    'NEW."listing_fee" IS DISTINCT FROM OLD."listing_fee"',
+    'NEW."fingerprint" IS DISTINCT FROM OLD."fingerprint"',
+    'NEW."terms_hash" IS DISTINCT FROM OLD."terms_hash"',
+    'NEW."published_at" IS DISTINCT FROM OLD."published_at"',
+    'NEW."expires_at" IS DISTINCT FROM OLD."expires_at"',
+  ]) {
+    expect(migrationSql).toContain(term);
+  }
+  expect(migrationSql).toContain(
+    "Published Black Market listing terms are immutable"
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "black_market_listing_audit_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'BEFORE UPDATE OR DELETE ON "black_market_listing_audit"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "black_market_sale_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'BEFORE UPDATE OR DELETE ON "black_market_sale"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "official_card_shop_purchase_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'BEFORE UPDATE OR DELETE ON "official_card_shop_purchase"'
+  );
+});

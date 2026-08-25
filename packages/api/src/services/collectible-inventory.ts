@@ -41,6 +41,33 @@ import { getResolvedProfileVisibility } from "./profile";
 type Database = typeof database;
 type ReadDatabase = Pick<Database, "select">;
 
+/**
+ * Correlated rank (1 = in an active market sale) used for the `for-sale`
+ * filter, sort, and cursor so filtering, ordering, and pagination all agree
+ * on one SQL predicate. `statement_timestamp()` keeps every evaluation inside
+ * a single statement consistent.
+ */
+function activeSaleRank(assetKind: "card" | "pack") {
+  const assetId = assetKind === "card" ? cardInstance.id : packInstance.id;
+  const custodyAssetId =
+    assetKind === "card"
+      ? collectibleCustody.cardInstanceId
+      : collectibleCustody.packInstanceId;
+  return sql<number>`CASE WHEN EXISTS (
+    SELECT 1
+    FROM ${collectibleCustody}
+    INNER JOIN ${blackMarketListing}
+      ON ${blackMarketListing.id} = ${collectibleCustody.blackMarketListingId}
+    WHERE ${custodyAssetId} = ${assetId}
+      AND ${collectibleCustody.releasedAt} IS NULL
+      AND ${blackMarketListing.state} = 'active'
+      AND ${blackMarketListing.expiresAt} > statement_timestamp()
+  ) THEN 1 ELSE 0 END`;
+}
+
+const cardSaleRank = activeSaleRank("card");
+const packSaleRank = activeSaleRank("pack");
+
 function activeInventorySaleCondition(
   assetKind: "card" | "pack",
   forSale: boolean | undefined,
@@ -278,6 +305,16 @@ export function cardCursorCondition(cursor: Cursor | null, sort: string) {
       )
     );
   }
+  if (sort === "for-sale") {
+    const rank = Number(cursor.value) === 1 ? 1 : 0;
+    return or(
+      sql`${cardSaleRank} < ${rank}`,
+      and(
+        sql`${cardSaleRank} = ${rank}`,
+        sql`${cardInstance.id} > ${cursor.id}`
+      )
+    );
+  }
   const sortColumn =
     sort === "game"
       ? cardCharacter.normalizedGameName
@@ -302,6 +339,7 @@ export function cardCursorCondition(cursor: Cursor | null, sort: string) {
 export function cardCursorValue(
   row: {
     issuedAt: Date;
+    isForSale?: number | null;
     mintNumber: number;
     rarity: string;
     normalizedGameName: string;
@@ -328,6 +366,9 @@ export function cardCursorValue(
   }
   if (sort === "limited") {
     return row.lifetimeSupplyCeiling === null ? "0" : "1";
+  }
+  if (sort === "for-sale") {
+    return Number(row.isForSale) === 1 ? "1" : "0";
   }
   if (sort === "game") {
     return row.normalizedGameName;
@@ -362,6 +403,16 @@ export function packCursorCondition(cursor: Cursor | null, sort: string) {
       )
     );
   }
+  if (sort === "for-sale") {
+    const rank = Number(cursor.value) === 1 ? 1 : 0;
+    return or(
+      sql`${packSaleRank} < ${rank}`,
+      and(
+        sql`${packSaleRank} = ${rank}`,
+        sql`${packInstance.id} > ${cursor.id}`
+      )
+    );
+  }
   if (sort === "template") {
     return or(
       sql`${packTemplate.name} > ${cursor.value}`,
@@ -384,12 +435,21 @@ export function packCursorCondition(cursor: Cursor | null, sort: string) {
 }
 
 export function packCursorValue(
-  row: { id: string; issuedAt: Date; templateName: string; binding: string },
+  row: {
+    id: string;
+    isForSale?: number | null;
+    issuedAt: Date;
+    templateName: string;
+    binding: string;
+  },
   sort: string
 ) {
   sort = normalizeSort(sort);
   if (sort === "newest") {
     return row.issuedAt.toISOString();
+  }
+  if (sort === "for-sale") {
+    return Number(row.isForSale) === 1 ? "1" : "0";
   }
   if (sort === "template") {
     return row.templateName;
@@ -535,7 +595,9 @@ export async function listPrivateCardInventory(
                     ? [asc(cardEditionSort), asc(cardInstance.id)]
                     : sort === "transferability"
                       ? [asc(cardInstance.binding), asc(cardInstance.id)]
-                      : [asc(cardInstance.id)];
+                      : sort === "for-sale"
+                        ? [desc(cardSaleRank), asc(cardInstance.id)]
+                        : [asc(cardInstance.id)];
 
   const rows = await db
     .select({
@@ -546,6 +608,7 @@ export async function listPrivateCardInventory(
       edition: cardTemplate.edition,
       gameName: cardCharacter.gameName,
       id: cardInstance.id,
+      isForSale: cardSaleRank,
       issuedAt: cardInstance.issuedAt,
       lifetimeSupplyCeiling: cardTemplate.lifetimeSupplyCeiling,
       mintNumber: cardInstance.mintNumber,
@@ -563,19 +626,16 @@ export async function listPrivateCardInventory(
     .orderBy(...order)
     .limit(parsed.limit + 1);
 
+  // Filtering and pagination are fully SQL-side, so a sale-resolver failure
+  // can only degrade the listing-link enrichment, never collapse or skew a
+  // page.
   const sales = await resolveInventorySales(db, {
-    assetIds: rows.map(({ id }) => id),
+    assetIds: rows.slice(0, parsed.limit).map(({ id }) => id),
     assetKind: "card",
     profileUserId: userId,
   });
-  const visibleRows = rows.filter((row) => {
-    const forSale = sales.has(row.id);
-    return parsed.forSale === undefined || parsed.forSale === forSale;
-  });
-  const hasMore = visibleRows.length > parsed.limit;
-  const items = (
-    hasMore ? visibleRows.slice(0, parsed.limit) : visibleRows
-  ).map((row) => {
+  const hasMore = rows.length > parsed.limit;
+  const items = (hasMore ? rows.slice(0, parsed.limit) : rows).map((row) => {
     const sale = sales.get(row.id);
     return {
       availability: row.availability,
@@ -607,7 +667,7 @@ export async function listPrivateCardInventory(
       templateId: row.templateId,
     };
   });
-  const last = visibleRows[parsed.limit - 1];
+  const last = rows[parsed.limit - 1];
   return {
     items,
     nextCursor:
@@ -650,16 +710,19 @@ export async function listPrivatePackInventory(
   const order =
     sort === "newest"
       ? [desc(packInstance.issuedAt), desc(packInstance.id)]
-      : sort === "template"
-        ? [asc(packTemplate.name), asc(packInstance.id)]
-        : sort === "transferability"
-          ? [asc(packInstance.binding), asc(packInstance.id)]
-          : [asc(packInstance.id)];
+      : sort === "for-sale"
+        ? [desc(packSaleRank), asc(packInstance.id)]
+        : sort === "template"
+          ? [asc(packTemplate.name), asc(packInstance.id)]
+          : sort === "transferability"
+            ? [asc(packInstance.binding), asc(packInstance.id)]
+            : [asc(packInstance.id)];
   const rows = await db
     .select({
       availability: packInstance.availability,
       binding: packInstance.binding,
       id: packInstance.id,
+      isForSale: packSaleRank,
       issuedAt: packInstance.issuedAt,
       issueSource: packInstance.issueSource,
       revision: packRevision.revision,
@@ -676,22 +739,20 @@ export async function listPrivatePackInventory(
     .where(and(...conditions))
     .orderBy(...order)
     .limit(parsed.limit + 1);
+  // Filtering and pagination are fully SQL-side, so a sale-resolver failure
+  // can only degrade the listing-link enrichment, never collapse or skew a
+  // page.
   const sales = await resolveInventorySales(db, {
-    assetIds: rows.map(({ id }) => id),
+    assetIds: rows.slice(0, parsed.limit).map(({ id }) => id),
     assetKind: "pack",
     profileUserId: userId,
   });
-  const visibleRows = rows.filter((row) => {
-    const forSale = sales.has(row.id);
-    return parsed.forSale === undefined || parsed.forSale === forSale;
-  });
-  const hasMore = visibleRows.length > parsed.limit;
-  const items = (
-    hasMore ? visibleRows.slice(0, parsed.limit) : visibleRows
-  ).map((row) => {
+  const hasMore = rows.length > parsed.limit;
+  const items = (hasMore ? rows.slice(0, parsed.limit) : rows).map((row) => {
+    const { isForSale: _isForSale, ...rest } = row;
     const sale = sales.get(row.id);
     return {
-      ...row,
+      ...rest,
       ...(sale
         ? {
             forSale: true,
@@ -702,7 +763,7 @@ export async function listPrivatePackInventory(
         : { forSale: false }),
     };
   });
-  const last = visibleRows[parsed.limit - 1];
+  const last = rows[parsed.limit - 1];
   return {
     items,
     nextCursor:
@@ -1047,6 +1108,7 @@ export async function listPublicCardCollection(
     parsed.transferability
       ? eq(cardInstance.binding, parsed.transferability)
       : undefined,
+    activeInventorySaleCondition("card", parsed.forSale, new Date()),
     cardCursorCondition(cursor, sort),
   ].filter((condition) => condition !== undefined);
   const order =
@@ -1068,7 +1130,9 @@ export async function listPublicCardCollection(
                     ? [asc(cardEditionSort), asc(cardInstance.id)]
                     : sort === "transferability"
                       ? [asc(cardInstance.binding), asc(cardInstance.id)]
-                      : [asc(cardInstance.id)];
+                      : sort === "for-sale"
+                        ? [desc(cardSaleRank), asc(cardInstance.id)]
+                        : [asc(cardInstance.id)];
   const rows = await db
     .select({
       availability: cardTemplate.availability,
@@ -1079,6 +1143,7 @@ export async function listPublicCardCollection(
       edition: cardTemplate.edition,
       gameName: cardCharacter.gameName,
       id: cardInstance.id,
+      isForSale: cardSaleRank,
       issuedAt: cardInstance.issuedAt,
       lifetimeSupplyCeiling: cardTemplate.lifetimeSupplyCeiling,
       mintNumber: cardInstance.mintNumber,
@@ -1099,24 +1164,18 @@ export async function listPublicCardCollection(
   const sales = new Map(
     await (options.resolveActiveSales
       ? options.resolveActiveSales({
-          assetIds: rows.map(({ id }) => id),
+          assetIds: rows.slice(0, parsed.limit).map(({ id }) => id),
           assetKind: "card",
           profileUserId: parsed.userId,
         })
       : resolveInventorySales(db, {
-          assetIds: rows.map(({ id }) => id),
+          assetIds: rows.slice(0, parsed.limit).map(({ id }) => id),
           assetKind: "card",
           profileUserId: parsed.userId,
         }))
   );
-  const visibleRows = rows.filter((row) => {
-    const forSale = sales.has(row.id);
-    return parsed.forSale === undefined || parsed.forSale === forSale;
-  });
-  const hasMore = visibleRows.length > parsed.limit;
-  const items = (
-    hasMore ? visibleRows.slice(0, parsed.limit) : visibleRows
-  ).map((row) => {
+  const hasMore = rows.length > parsed.limit;
+  const items = (hasMore ? rows.slice(0, parsed.limit) : rows).map((row) => {
     const template = shapePublicCardTemplate({
       ...row,
       availability: row.availability,
@@ -1151,7 +1210,7 @@ export async function listPublicCardCollection(
       templateId: row.templateId,
     });
   });
-  const last = visibleRows[parsed.limit - 1];
+  const last = rows[parsed.limit - 1];
   return {
     items,
     nextCursor:
@@ -1201,21 +1260,25 @@ export async function listPublicPackCollection(
       ? eq(packInstance.binding, parsed.transferability)
       : undefined,
     parsed.search ? ilike(packTemplate.name, `%${parsed.search}%`) : undefined,
+    activeInventorySaleCondition("pack", parsed.forSale, new Date()),
     packCursorCondition(cursor, sort),
   ].filter((condition) => condition !== undefined);
   const order =
     sort === "newest"
       ? [desc(packInstance.issuedAt), desc(packInstance.id)]
-      : sort === "template"
-        ? [asc(packTemplate.name), asc(packInstance.id)]
-        : sort === "transferability"
-          ? [asc(packInstance.binding), asc(packInstance.id)]
-          : [asc(packInstance.id)];
+      : sort === "for-sale"
+        ? [desc(packSaleRank), asc(packInstance.id)]
+        : sort === "template"
+          ? [asc(packTemplate.name), asc(packInstance.id)]
+          : sort === "transferability"
+            ? [asc(packInstance.binding), asc(packInstance.id)]
+            : [asc(packInstance.id)];
   const rows = await db
     .select({
       availability: packInstance.availability,
       binding: packInstance.binding,
       id: packInstance.id,
+      isForSale: packSaleRank,
       issuedAt: packInstance.issuedAt,
       revision: packRevision.revision,
       templateAssetObjectKey: media.objectKey,
@@ -1232,38 +1295,34 @@ export async function listPublicPackCollection(
   const sales = new Map(
     await (options.resolveActiveSales
       ? options.resolveActiveSales({
-          assetIds: rows.map(({ id }) => id),
+          assetIds: rows.slice(0, parsed.limit).map(({ id }) => id),
           assetKind: "pack",
           profileUserId: parsed.userId,
         })
       : resolveInventorySales(db, {
-          assetIds: rows.map(({ id }) => id),
+          assetIds: rows.slice(0, parsed.limit).map(({ id }) => id),
           assetKind: "pack",
           profileUserId: parsed.userId,
         }))
   );
-  const visibleRows = rows.filter((row) => {
-    const forSale = sales.has(row.id);
-    return parsed.forSale === undefined || parsed.forSale === forSale;
-  });
-  const hasMore = visibleRows.length > parsed.limit;
-  const items = (
-    hasMore ? visibleRows.slice(0, parsed.limit) : visibleRows
-  ).map(({ id, ...row }) => {
-    const sale = sales.get(id);
-    return publicPackInstanceSchema.parse({
-      ...row,
-      ...(sale
-        ? {
-            forSale: true,
-            listingIsBundle: sale.isBundle,
-            listingId: sale.listingId,
-            listingUrl: sale.listingUrl,
-          }
-        : { forSale: false }),
-    });
-  });
-  const last = visibleRows[parsed.limit - 1];
+  const hasMore = rows.length > parsed.limit;
+  const items = (hasMore ? rows.slice(0, parsed.limit) : rows).map(
+    ({ id, isForSale: _isForSale, ...row }) => {
+      const sale = sales.get(id);
+      return publicPackInstanceSchema.parse({
+        ...row,
+        ...(sale
+          ? {
+              forSale: true,
+              listingIsBundle: sale.isBundle,
+              listingId: sale.listingId,
+              listingUrl: sale.listingUrl,
+            }
+          : { forSale: false }),
+      });
+    }
+  );
+  const last = rows[parsed.limit - 1];
   return {
     items,
     nextCursor:

@@ -21,6 +21,7 @@ import {
   getGiftOffer,
   listGiftOffers,
   rejectGiftOffer as rejectGiftOfferCommand,
+  retryGiftOfferNotification,
   sendGiftOffer as sendGiftOfferCommand,
   updateInboundGiftPreference,
   GIFT_OFFER_EXPIRY_MS,
@@ -1514,5 +1515,49 @@ describe("gift offer authoritative state machine", () => {
       database.state.custody.every((row) => row.releasedAt instanceof Date)
     ).toBe(true);
     expect(GIFT_OFFER_EXPIRY_MS).toBe(7 * 24 * 60 * 60 * 1000);
+  });
+});
+
+describe("retryGiftOfferNotification", () => {
+  function giftDb(queuedRows: unknown[][]) {
+    const make = () => {
+      const chain: Record<string, unknown> = {};
+      const resolveNext = () => Promise.resolve(queuedRows.shift() ?? []);
+      for (const step of ["from", "where"]) {
+        chain[step] = vi.fn(() => chain);
+      }
+      chain.limit = vi.fn(resolveNext);
+      return chain;
+    };
+    return { select: vi.fn(() => make()) };
+  }
+
+  beforeEach(() => {
+    notifications.calls.length = 0;
+  });
+
+  it("redelivers terminal-state notifications to both participants without an actor", async () => {
+    const db = giftDb([
+      [{ state: "expired" }],
+      [{ recipientUserId: "recipient-1", senderUserId: "sender-1" }],
+    ]);
+    await retryGiftOfferNotification(db as never, "sender-1", "gift-1");
+    expect(notifications.calls).toHaveLength(2);
+    const targets = notifications.calls
+      .map(({ targetUserId }) => targetUserId)
+      .toSorted();
+    expect(targets).toEqual(["recipient-1", "sender-1"]);
+    for (const call of notifications.calls) {
+      // System-driven redelivery keeps the sender included.
+      expect(call.sourceUserId).toBeUndefined();
+    }
+  });
+
+  it("rejects non-participants with OFFER_NOT_FOUND", async () => {
+    const db = giftDb([[]]);
+    await expect(
+      retryGiftOfferNotification(db as never, "outsider-1", "gift-1")
+    ).rejects.toMatchObject({ code: "OFFER_NOT_FOUND" });
+    expect(notifications.calls).toHaveLength(0);
   });
 });

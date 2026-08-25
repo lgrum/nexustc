@@ -18,6 +18,7 @@ function mutationOptions(
 vi.mock("@/lib/orpc", () => ({
   orpc: {
     trades: {
+      key: () => ["trades"],
       accept: {
         mutationOptions: (options: Record<string, unknown>) =>
           mutationOptions(state.accept, options),

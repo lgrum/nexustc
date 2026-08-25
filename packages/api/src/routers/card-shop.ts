@@ -38,7 +38,7 @@ function translatePurchaseError(
 ): never {
   if (error instanceof EterisError) {
     if (error.code === "IDEMPOTENCY_CONFLICT") {
-      throw errors.PROFILE_CUSTOMIZATION_CONFLICT({
+      throw errors.CONFLICT({
         message: "La clave de compra ya fue usada para otra operación.",
       });
     }
