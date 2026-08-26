@@ -1,4 +1,35 @@
 export const cacheTagsByMutation = new Map<string, readonly string[]>([
+  ["collectiblesAdmin/characters/create", ["cards"]],
+  ["collectiblesAdmin/characters/update", ["cards"]],
+  ["collectiblesAdmin/characters/retire", ["cards"]],
+  ["collectiblesAdmin/series/create", ["cards"]],
+  ["collectiblesAdmin/series/update", ["cards"]],
+  ["collectiblesAdmin/series/retire", ["cards"]],
+  ["collectiblesAdmin/templates/saveDraft", ["cards"]],
+  ["collectiblesAdmin/templates/publish", ["cards"]],
+  ["collectiblesAdmin/templates/retire", ["cards"]],
+  ["collectiblesAdmin/templates/disable", ["cards"]],
+  ["collectiblesAdmin/templates/restore", ["cards"]],
+  ["collectiblesAdmin/templates/correct", ["cards"]],
+  ["collectiblesAdmin/packs/templates/create", ["packs"]],
+  ["collectiblesAdmin/packs/templates/saveDraft", ["packs"]],
+  ["collectiblesAdmin/packs/templates/retire", ["packs"]],
+  ["collectiblesAdmin/packs/revisions/saveDraft", ["packs"]],
+  [
+    "collectiblesAdmin/packs/revisions/publish",
+    ["packs", "card-shop", "gachapon"],
+  ],
+  ["collectiblesAdmin/shop/create", ["card-shop", "packs"]],
+  ["collectiblesAdmin/shop/update", ["card-shop", "packs"]],
+  ["collectiblesAdmin/shop/enable", ["card-shop", "packs"]],
+  ["collectiblesAdmin/shop/disable", ["card-shop", "packs"]],
+  ["collectiblesAdmin/shop/restock", ["card-shop", "packs"]],
+  ["collectiblesAdmin/shop/reduceQuota", ["card-shop", "packs"]],
+  ["collectiblesAdmin/gacha/create", ["gachapon", "packs"]],
+  ["collectiblesAdmin/gacha/update", ["gachapon", "packs"]],
+  ["collectiblesAdmin/gacha/transition", ["gachapon", "packs"]],
+  ["gacha/activate", ["gachapon", "packs"]],
+  ["cardShop/purchase", ["card-shop"]],
   ["comic/admin/create", ["catalog:comics", "content", "home", "vip-feed"]],
   [
     "comic/admin/delete",
@@ -82,10 +113,59 @@ export const cacheTagsByMutation = new Map<string, readonly string[]>([
   ["user/toggleBookmark", ["profiles"]],
 ]);
 
+function unwrapJsonEnvelope(responseBody: unknown): unknown {
+  return responseBody &&
+    typeof responseBody === "object" &&
+    "json" in responseBody
+    ? responseBody.json
+    : responseBody;
+}
+
 export function getCacheTagsForProcedure(
   procedurePath: string,
   options?: { responseBody?: unknown; userId?: string }
 ) {
+  if (procedurePath.startsWith("collectiblesAdmin/")) {
+    if (procedurePath.includes("/shop/")) {
+      return ["card-shop", "packs"];
+    }
+    if (procedurePath.includes("/gacha/")) {
+      const output = unwrapJsonEnvelope(options?.responseBody);
+      const machineId =
+        output &&
+        typeof output === "object" &&
+        "id" in output &&
+        typeof output.id === "string"
+          ? output.id
+          : undefined;
+      return machineId
+        ? ["gachapon", `gachapon:${machineId}`, "packs"]
+        : ["gachapon", "packs"];
+    }
+    const output = unwrapJsonEnvelope(options?.responseBody);
+    if (output && typeof output === "object") {
+      const templateId =
+        "templateId" in output && typeof output.templateId === "string"
+          ? output.templateId
+          : "id" in output && typeof output.id === "string"
+            ? output.id
+            : undefined;
+      const isPack = procedurePath.includes("/packs/");
+      const scope = isPack ? "packs" : "cards";
+      const tags = templateId
+        ? [scope, `${isPack ? "pack" : "card"}:${templateId}`]
+        : [scope];
+      if (procedurePath === "collectiblesAdmin/packs/revisions/publish") {
+        tags.push("card-shop");
+        tags.push("gachapon");
+      }
+      return tags;
+    }
+    return (
+      cacheTagsByMutation.get(procedurePath) ??
+      (procedurePath.includes("/packs/") ? ["packs"] : ["cards"])
+    );
+  }
   if (
     procedurePath === "comicProgress/update" ||
     procedurePath === "eteris/getMine" ||
@@ -94,19 +174,13 @@ export function getCacheTagsForProcedure(
     procedurePath === "progression/getMine" ||
     procedurePath === "rating/toggleReviewLike"
   ) {
-    if (!(options?.responseBody && typeof options.responseBody === "object")) {
-      return [];
-    }
-    const output =
-      "json" in options.responseBody
-        ? options.responseBody.json
-        : options.responseBody;
+    const output = unwrapJsonEnvelope(options?.responseBody);
     if (!(output && typeof output === "object")) {
       return [];
     }
     const profileUserId =
       procedurePath === "comicProgress/update"
-        ? options.userId
+        ? options?.userId
         : "profileUserId" in output && typeof output.profileUserId === "string"
           ? output.profileUserId
           : undefined;
@@ -121,6 +195,9 @@ export function getCacheTagsForProcedure(
 }
 
 export function getCacheRevalidationProfile(procedurePath: string) {
+  if (procedurePath.startsWith("collectiblesAdmin/")) {
+    return { expire: 0 } as const;
+  }
   return procedurePath === "patreon/admin/reconcileMemberships" ||
     procedurePath === "patreon/syncMembership" ||
     procedurePath === "profileCatalogAdmin/decorations/publish" ||

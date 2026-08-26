@@ -1,8 +1,135 @@
 import type { db as database } from "@repo/db";
 
-import { getDailyEconomyReport } from "./economy-report";
+import {
+  getDailyEconomyReport,
+  getGachaponEconomyProjection,
+  getCollectibleOperationalMetrics,
+  getOfficialCardShopEconomyProjection,
+} from "./economy-report";
 
 type Database = typeof database;
+
+test("operational metrics expose launch risks without private collectible data", async () => {
+  const executor = {
+    execute: vi.fn().mockResolvedValue({
+      rows: [
+        {
+          correction_count: 1,
+          custody_age_seconds: 42,
+          exceptional_grant_count: 2,
+          exceptional_transfer_count: 3,
+          expiry_backlog_count: 4,
+          failed_settlement_count: 5,
+          fee_reversal_count: 6,
+          freeze_count: 7,
+          issuance_latency_seconds: 8,
+          listing_fee_issuance_count: 9,
+          listing_fee_reversal_count: 10,
+          notification_backlog_count: 11,
+          quota_drift_count: 12,
+          render_failure_count: 13,
+          restore_count: 14,
+          revision_exhaustion_count: 15,
+          sales_count: 16,
+          supply_exhaustion_count: 17,
+          wallet_failure_count: 18,
+        },
+      ],
+    }),
+  };
+
+  await expect(
+    getCollectibleOperationalMetrics(
+      executor,
+      new Date("2026-08-07T12:00:00.000Z")
+    )
+  ).resolves.toMatchObject({
+    custodyAgeSeconds: 42,
+    issuanceLatencySeconds: 8,
+    listingFeeIssuanceCount: 9,
+    listingFeeReversalCount: 10,
+    notificationBacklogCount: 11,
+    salesCount: 16,
+    supplyExhaustionCount: 17,
+    walletFailureCount: 18,
+  });
+  const query = JSON.stringify(executor.execute.mock.calls[0]?.[0]);
+  expect(query).toContain("not exists");
+  expect(query).toContain("gachapon_activation");
+  expect(query).toContain("eteris_wallet_reconciliation");
+  expect(query).toContain("black_market_sale");
+  expect(query).not.toMatch(
+    /(?:pack_instance_id|card_instance_ids|result_asset_ids|outcome)/
+  );
+});
+
+test("the gachapon projection reports aggregate machine and activation volume", async () => {
+  const executor = {
+    execute: vi.fn().mockResolvedValue({
+      rows: [
+        {
+          active_machine_count: 2,
+          activation_count: 4,
+          configured_machine_count: 5,
+          eteris_burned: "320",
+          issued_pack_count: 4,
+          remaining_global_quota: 16,
+        },
+      ],
+    }),
+  };
+
+  await expect(
+    getGachaponEconomyProjection(executor, new Date("2026-08-07T12:00:00.000Z"))
+  ).resolves.toEqual({
+    activeMachineCount: 2,
+    activationCount: 4,
+    configuredMachineCount: 5,
+    eterisBurned: "320",
+    issuedPackCount: 4,
+    remainingGlobalQuota: 16,
+  });
+  const query = JSON.stringify(executor.execute.mock.calls[0]?.[0]);
+  expect(query).toContain("gachapon_machine");
+  expect(query).toContain("gachapon_activation");
+  expect(query).not.toMatch(/idempotency_key|pack_instance_id|fingerprint/);
+});
+
+test("the shop projection exposes configured quotas and authoritative card sink totals before activation", async () => {
+  const executor = {
+    execute: vi.fn().mockResolvedValue({
+      rows: [
+        {
+          active_offer_count: 1,
+          configured_offer_count: 3,
+          eteris_burned: "250",
+          purchase_count: 2,
+          remaining_limited_quota: 40,
+          sold_pack_count: 10,
+        },
+      ],
+    }),
+  };
+
+  await expect(
+    getOfficialCardShopEconomyProjection(
+      executor,
+      new Date("2026-08-07T12:00:00.000Z")
+    )
+  ).resolves.toEqual({
+    activeOfferCount: 1,
+    configuredOfferCount: 3,
+    eterisBurned: "250",
+    purchaseCount: 2,
+    remainingLimitedQuota: 40,
+    soldPackCount: 10,
+  });
+  const query = JSON.stringify(executor.execute.mock.calls[0]?.[0]);
+  expect(query).toContain("official_card_shop_offer");
+  expect(query).toContain("official_card_shop_purchase");
+  expect(query).toContain("total_price");
+  expect(query).toContain("remaining_sales");
+});
 
 test("the current UTC report refreshes under the database lock and exposes only aggregate data", async () => {
   let snapshot: Record<string, unknown> | undefined;

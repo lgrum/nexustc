@@ -4,13 +4,16 @@ import { getLogger } from "@orpc/experimental-pino";
 import { and, asc, eq, gt, inArray, isNull, sql } from "@repo/db";
 import type * as RepoDb from "@repo/db";
 import {
+  cardTemplate,
   comicUploadSession,
   emoji,
   featuredPost,
   media,
   mediaFolder,
+  packTemplate,
   post,
   postMedia,
+  profileCatalogDecorationRevision,
   profileCatalogSkinRevision,
   sticker,
 } from "@repo/db/schema/app";
@@ -73,6 +76,17 @@ type Database = typeof RepoDb.db;
 type MediaFolderLookupDb = Pick<Database, "query">;
 
 function buildMediaUsageAggs(db: Database) {
+  const cardTemplateUsageAgg = db
+    .select({
+      cardTemplateUsageCount: sql<number>`COUNT(*)::integer`.as(
+        "card_template_usage_count"
+      ),
+      mediaId: cardTemplate.portraitMediaId,
+    })
+    .from(cardTemplate)
+    .groupBy(cardTemplate.portraitMediaId)
+    .as("card_template_media_usage");
+
   const coverUsageAgg = db
     .select({
       coverUsageCount: sql<number>`COUNT(*)::integer`.as("cover_usage_count"),
@@ -138,10 +152,36 @@ function buildMediaUsageAggs(db: Database) {
     .groupBy(profileCatalogSkinRevision.backgroundAssetId)
     .as("profile_skin_media_usage");
 
+  const packTemplateUsageAgg = db
+    .select({
+      mediaId: packTemplate.assetMediaId,
+      packTemplateUsageCount: sql<number>`COUNT(*)::integer`.as(
+        "pack_template_usage_count"
+      ),
+    })
+    .from(packTemplate)
+    .groupBy(packTemplate.assetMediaId)
+    .as("pack_template_media_usage");
+
+  const profileDecorationUsageAgg = db
+    .select({
+      mediaId: profileCatalogDecorationRevision.mediaAssetId,
+      profileDecorationUsageCount: sql<number>`COUNT(*)::integer`.as(
+        "profile_decoration_usage_count"
+      ),
+    })
+    .from(profileCatalogDecorationRevision)
+    .where(sql`${profileCatalogDecorationRevision.mediaAssetId} IS NOT NULL`)
+    .groupBy(profileCatalogDecorationRevision.mediaAssetId)
+    .as("profile_decoration_media_usage");
+
   return {
+    cardTemplateUsageAgg,
     coverUsageAgg,
     emojiUsageAgg,
     featuredUsageAgg,
+    packTemplateUsageAgg,
+    profileDecorationUsageAgg,
     profileSkinUsageAgg,
     postUsageAgg,
     stickerUsageAgg,
@@ -337,9 +377,12 @@ export default {
           .as("media_folder_media_count");
 
         const {
+          cardTemplateUsageAgg,
           coverUsageAgg,
           emojiUsageAgg,
           featuredUsageAgg,
+          packTemplateUsageAgg,
+          profileDecorationUsageAgg,
           profileSkinUsageAgg,
           postUsageAgg,
           stickerUsageAgg,
@@ -372,18 +415,33 @@ export default {
             objectKey: media.objectKey,
             usageCount: sql<number>`
               COALESCE(${postUsageAgg.postUsageCount}, 0)
+              + COALESCE(${cardTemplateUsageAgg.cardTemplateUsageCount}, 0)
               + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
               + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
               + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
+              + COALESCE(${packTemplateUsageAgg.packTemplateUsageCount}, 0)
+              + COALESCE(${profileDecorationUsageAgg.profileDecorationUsageCount}, 0)
               + COALESCE(${profileSkinUsageAgg.profileSkinUsageCount}, 0)
               + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
             `,
           })
           .from(media)
+          .leftJoin(
+            cardTemplateUsageAgg,
+            eq(cardTemplateUsageAgg.mediaId, media.id)
+          )
           .leftJoin(coverUsageAgg, eq(coverUsageAgg.mediaId, media.id))
           .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
           .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
           .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
+          .leftJoin(
+            packTemplateUsageAgg,
+            eq(packTemplateUsageAgg.mediaId, media.id)
+          )
+          .leftJoin(
+            profileDecorationUsageAgg,
+            eq(profileDecorationUsageAgg.mediaId, media.id)
+          )
           .leftJoin(
             profileSkinUsageAgg,
             eq(profileSkinUsageAgg.mediaId, media.id)
@@ -444,9 +502,12 @@ export default {
       logger?.info("Fetching admin media library");
 
       const {
+        cardTemplateUsageAgg,
         coverUsageAgg,
         emojiUsageAgg,
         featuredUsageAgg,
+        packTemplateUsageAgg,
+        profileDecorationUsageAgg,
         profileSkinUsageAgg,
         postUsageAgg,
         stickerUsageAgg,
@@ -460,18 +521,33 @@ export default {
           objectKey: media.objectKey,
           usageCount: sql<number>`
             COALESCE(${postUsageAgg.postUsageCount}, 0)
+            + COALESCE(${cardTemplateUsageAgg.cardTemplateUsageCount}, 0)
             + COALESCE(${coverUsageAgg.coverUsageCount}, 0)
             + COALESCE(${emojiUsageAgg.emojiUsageCount}, 0)
             + COALESCE(${featuredUsageAgg.featuredUsageCount}, 0)
+            + COALESCE(${packTemplateUsageAgg.packTemplateUsageCount}, 0)
+            + COALESCE(${profileDecorationUsageAgg.profileDecorationUsageCount}, 0)
             + COALESCE(${profileSkinUsageAgg.profileSkinUsageCount}, 0)
             + COALESCE(${stickerUsageAgg.stickerUsageCount}, 0)
           `,
         })
         .from(media)
+        .leftJoin(
+          cardTemplateUsageAgg,
+          eq(cardTemplateUsageAgg.mediaId, media.id)
+        )
         .leftJoin(coverUsageAgg, eq(coverUsageAgg.mediaId, media.id))
         .leftJoin(postUsageAgg, eq(postUsageAgg.mediaId, media.id))
         .leftJoin(emojiUsageAgg, eq(emojiUsageAgg.mediaId, media.id))
         .leftJoin(featuredUsageAgg, eq(featuredUsageAgg.mediaId, media.id))
+        .leftJoin(
+          packTemplateUsageAgg,
+          eq(packTemplateUsageAgg.mediaId, media.id)
+        )
+        .leftJoin(
+          profileDecorationUsageAgg,
+          eq(profileDecorationUsageAgg.mediaId, media.id)
+        )
         .leftJoin(
           profileSkinUsageAgg,
           eq(profileSkinUsageAgg.mediaId, media.id)

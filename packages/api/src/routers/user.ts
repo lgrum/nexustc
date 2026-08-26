@@ -1,6 +1,16 @@
 import { getLogger } from "@orpc/experimental-pino";
 import { auth } from "@repo/auth";
-import { and, eq, isNull as isNullColumn, lt, or, sql } from "@repo/db";
+import {
+  and,
+  asc,
+  eq,
+  ilike,
+  isNull as isNullColumn,
+  lt,
+  ne,
+  or,
+  sql,
+} from "@repo/db";
 import {
   patron,
   post,
@@ -72,6 +82,28 @@ function getRecentUserRoleRank(role: string) {
 }
 
 export default {
+  searchCollectibleParticipants: protectedProcedure
+    .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
+    .input(z.object({ search: z.string().trim().min(2).max(32) }).strict())
+    .handler(({ context: { db, session }, input }) =>
+      db
+        .select({
+          avatarFallbackColor: user.avatarFallbackColor,
+          id: user.id,
+          image: user.image,
+          name: user.name,
+        })
+        .from(user)
+        .where(
+          and(
+            ne(user.id, session.user.id),
+            ilike(user.name, `%${input.search}%`),
+            userIsNotActivelyBanned()
+          )
+        )
+        .orderBy(asc(user.name), asc(user.id))
+        .limit(12)
+    ),
   getBookmarks: protectedProcedure.handler(
     ({ context: { db, session, ...ctx } }) => {
       const logger = getLogger(ctx);

@@ -187,6 +187,76 @@ it("offers only variants supported by each showcase type", async () => {
   expect(screen.queryByRole("option", { name: "Destacada" })).toBeNull();
 });
 
+it("configures exact Card selections and Pack Template filters in Spanish", () => {
+  const collectibleConfiguration = {
+    ...configuration,
+    showcases: [
+      ...configuration.showcases,
+      {
+        enabled: true,
+        instanceId: "card-1",
+        order: 2,
+        payload: {
+          cardInstanceIds: ["card-instance-1"],
+          filters: {
+            edition: null,
+            game: null,
+            seriesId: null,
+          },
+        },
+        payloadSchemaVersion: 1,
+        type: "card" as const,
+        variant: "standard" as const,
+      },
+      {
+        enabled: true,
+        instanceId: "pack-1",
+        order: 3,
+        payload: { packTemplateId: null },
+        payloadSchemaVersion: 1,
+        type: "unopened-pack" as const,
+        variant: "compact" as const,
+      },
+    ],
+  };
+
+  render(
+    <ProfileCustomizer
+      collectibleInventory={{
+        cards: [
+          {
+            characterName: "Samus",
+            edition: "Primera",
+            gameName: "Metroid",
+            id: "card-instance-1",
+            mintNumber: 7,
+            rarity: "rare",
+            seriesId: "series-1",
+            seriesName: "Cazarrecompensas",
+          } as never,
+        ],
+        packs: [
+          {
+            id: "pack-1",
+            templateId: "pack-template-1",
+            templateName: "Pack Galáctico",
+          } as never,
+        ],
+      }}
+      initialState={{
+        ...initialState,
+        configuration: collectibleConfiguration,
+        defaultConfiguration: collectibleConfiguration,
+      }}
+      profile={{ id: "user-1", name: "Ana" } as never}
+    />
+  );
+
+  expect(screen.getByRole("button", { name: /Samus/ })).toBeTruthy();
+  expect(screen.getByRole("option", { name: "Pack Galáctico" })).toBeTruthy();
+  expect(screen.getByText(/propiedad actual al renderizar/i)).toBeTruthy();
+});
+
 it("previews scalar source data before the newly enabled Showcase is saved", () => {
   const scalarConfiguration = {
     ...configuration,

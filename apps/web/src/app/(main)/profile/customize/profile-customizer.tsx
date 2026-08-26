@@ -38,6 +38,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AssetPicker } from "@/components/collectibles/asset-picker";
+import type { CollectibleAssetOption } from "@/components/collectibles/asset-picker";
 import { ProfileDecorationSurface } from "@/components/profile/profile-decoration-surface";
 import { ProfileSkinSurface } from "@/components/profile/profile-skin-surface";
 import { Button } from "@/components/ui/button";
@@ -105,6 +107,20 @@ const SHOWCASE_COPY = {
     description:
       "Solo tu saldo actual no negativo; el historial sigue privado.",
     label: "Eteris",
+  },
+  card: {
+    description:
+      "Card Instances que eliges conservar en tu presentación pública.",
+    label: "Cartas destacadas",
+  },
+  "rare-card": {
+    description:
+      "Cartas actuales ordenadas automáticamente por rareza y Mint Number.",
+    label: "Cartas raras",
+  },
+  "unopened-pack": {
+    description: "Packs sin abrir actuales ordenados por fecha de emisión.",
+    label: "Packs sin abrir",
   },
 } as const;
 
@@ -434,6 +450,186 @@ function FavoriteGamesControl({
   );
 }
 
+function CollectibleShowcaseControl({
+  cards,
+  kind,
+  onChange,
+  packs,
+  payload,
+}: {
+  cards: Awaited<ReturnType<typeof orpcClient.cards.inventory>>["items"];
+  kind: "card" | "rare-card" | "unopened-pack";
+  onChange: (payload: Record<string, unknown>) => void;
+  packs: Awaited<ReturnType<typeof orpcClient.packs.inventory>>["items"];
+  payload: Record<string, unknown>;
+}) {
+  const cardOptions: CollectibleAssetOption[] = cards.map((card) => ({
+    assetId: card.id,
+    characterName: card.characterName,
+    edition: card.edition,
+    gameName: card.gameName,
+    kind: "card",
+    mintNumber: card.mintNumber,
+    rarity: card.rarity,
+    seriesName: card.seriesName,
+  }));
+  const packTemplates = [
+    ...new Map(
+      packs.map((pack) => [
+        pack.templateId,
+        { id: pack.templateId, name: pack.templateName },
+      ])
+    ).values(),
+  ];
+  const series = [
+    ...new Map(
+      cards.map((card) => [
+        card.seriesId,
+        { id: card.seriesId, name: card.seriesName },
+      ])
+    ).values(),
+  ];
+  const rawFilters =
+    payload.filters &&
+    typeof payload.filters === "object" &&
+    !Array.isArray(payload.filters)
+      ? (payload.filters as Record<string, unknown>)
+      : {};
+  const filters = {
+    edition: typeof rawFilters.edition === "string" ? rawFilters.edition : "",
+    game: typeof rawFilters.game === "string" ? rawFilters.game : "",
+    seriesId:
+      typeof rawFilters.seriesId === "string" ? rawFilters.seriesId : "",
+  };
+  const updateFilters = (key: keyof typeof filters, value: string) => {
+    onChange({
+      ...payload,
+      filters: {
+        ...filters,
+        [key]: value.trim() || null,
+      },
+    });
+  };
+
+  if (kind === "unopened-pack") {
+    const packTemplateId =
+      typeof payload.packTemplateId === "string" ? payload.packTemplateId : "";
+    return (
+      <fieldset className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
+        <legend className="px-1 font-semibold text-sm">
+          Filtro de Pack Template
+        </legend>
+        <label
+          className="mt-2 grid gap-1.5 text-sm"
+          htmlFor="profile-unopened-pack-template"
+        >
+          <span className="font-medium">Tipo de pack (opcional)</span>
+          <select
+            className="h-10 rounded-lg border border-input bg-background px-3"
+            id="profile-unopened-pack-template"
+            onChange={(event) =>
+              onChange({
+                ...payload,
+                packTemplateId: event.target.value.trim() || null,
+              })
+            }
+            value={packTemplateId}
+          >
+            <option value="">Todos los packs sin abrir</option>
+            {packTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="mt-2 text-muted-foreground text-xs leading-5">
+          Se comprueba la propiedad actual al renderizar; abrir o transferir un
+          pack lo retira sin borrar este filtro.
+        </p>
+      </fieldset>
+    );
+  }
+
+  return (
+    <fieldset className="mt-3 rounded-xl border border-primary/15 bg-primary/5 p-3">
+      <legend className="px-1 font-semibold text-sm">
+        Filtros de colección
+      </legend>
+      {kind === "card" ? (
+        <div className="mt-2">
+          <AssetPicker
+            label="Cartas destacadas"
+            max={12}
+            onChange={(selected) =>
+              onChange({
+                ...payload,
+                cardInstanceIds: selected.map(({ assetId }) => assetId),
+              })
+            }
+            options={cardOptions}
+            selected={cardOptions.filter((card) =>
+              Array.isArray(payload.cardInstanceIds)
+                ? payload.cardInstanceIds.includes(card.assetId)
+                : false
+            )}
+          />
+        </div>
+      ) : null}
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
+        <label
+          className="grid gap-1.5 text-sm"
+          htmlFor={`profile-${kind}-game`}
+        >
+          <span className="font-medium">Juego</span>
+          <Input
+            id={`profile-${kind}-game`}
+            onChange={(event) => updateFilters("game", event.target.value)}
+            placeholder="Nombre del juego"
+            value={filters.game}
+          />
+        </label>
+        <label
+          className="grid gap-1.5 text-sm"
+          htmlFor={`profile-${kind}-series`}
+        >
+          <span className="font-medium">Serie</span>
+          <select
+            className="h-10 rounded-lg border border-input bg-background px-3"
+            id={`profile-${kind}-series`}
+            onChange={(event) => updateFilters("seriesId", event.target.value)}
+            value={filters.seriesId}
+          >
+            <option value="">Todas las series</option>
+            {series.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label
+          className="grid gap-1.5 text-sm"
+          htmlFor={`profile-${kind}-edition`}
+        >
+          <span className="font-medium">Edición</span>
+          <Input
+            id={`profile-${kind}-edition`}
+            onChange={(event) => updateFilters("edition", event.target.value)}
+            placeholder="Primera"
+            value={filters.edition}
+          />
+        </label>
+      </div>
+      {kind === "rare-card" ? (
+        <p className="mt-2 text-muted-foreground text-xs leading-5">
+          El orden se recalcula en cada visita con la propiedad actual.
+        </p>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function serializeDraft(draft: ProfileCustomizationDraft) {
   return JSON.stringify(draft);
 }
@@ -511,11 +707,16 @@ function createShowcaseDragImage(source: HTMLElement, label: string) {
 }
 
 export function ProfileCustomizer({
+  collectibleInventory = { cards: [], packs: [] },
   favoriteGames,
   initialState,
   profile,
   scalarShowcases = [],
 }: {
+  collectibleInventory?: {
+    cards: Awaited<ReturnType<typeof orpcClient.cards.inventory>>["items"];
+    packs: Awaited<ReturnType<typeof orpcClient.packs.inventory>>["items"];
+  };
   favoriteGames?: FavoriteGamesEditorState;
   initialState: EditorState;
   profile: PublicProfile;
@@ -737,8 +938,44 @@ export function ProfileCustomizer({
           : [];
       }
       if (type !== "favorite-games") {
+        if (type === "card" || type === "rare-card") {
+          return [
+            {
+              cards: [],
+              order:
+                draft.showcases.find(
+                  ({ type: currentType }) => currentType === type
+                )?.order ?? 0,
+              rendererKey: type,
+              type,
+              variant,
+            } as EffectiveProfileShowcase,
+          ];
+        }
+        if (type === "unopened-pack") {
+          return [
+            {
+              order:
+                draft.showcases.find(
+                  ({ type: currentType }) => currentType === type
+                )?.order ?? 0,
+              packs: [],
+              rendererKey: type,
+              type,
+              variant,
+            } as EffectiveProfileShowcase,
+          ];
+        }
         return [
-          { rendererKey: type, type, variant } as EffectiveProfileShowcase,
+          {
+            order:
+              draft.showcases.find(
+                ({ type: currentType }) => currentType === type
+              )?.order ?? 0,
+            rendererKey: type,
+            type,
+            variant,
+          } as EffectiveProfileShowcase,
         ];
       }
       const ids = Array.isArray(payload.gameIds)
@@ -1287,6 +1524,22 @@ export function ProfileCustomizer({
                               }
                             />
                           </>
+                        ) : null}
+                        {showcase.type === "card" ||
+                        showcase.type === "rare-card" ||
+                        showcase.type === "unopened-pack" ? (
+                          <CollectibleShowcaseControl
+                            cards={collectibleInventory.cards}
+                            kind={showcase.type}
+                            onChange={(payload) =>
+                              updateShowcase(index, (current) => ({
+                                ...current,
+                                payload,
+                              }))
+                            }
+                            packs={collectibleInventory.packs}
+                            payload={showcase.payload}
+                          />
                         ) : null}
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <Select

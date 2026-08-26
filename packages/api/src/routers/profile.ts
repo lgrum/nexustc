@@ -7,11 +7,17 @@ import { profileCustomizationDraftSchema } from "@repo/shared/profile-customizat
 import z from "zod";
 
 import {
+  collectiblesMutationMiddleware,
   protectedProcedure,
   publicProcedure,
   slidingWindowRatelimitMiddleware,
 } from "../index";
+import {
+  assertCollectiblesMutationAllowed,
+  CollectibleKernelError,
+} from "../services/collectibles";
 import { EterisError } from "../services/eteris";
+import { updateInboundGiftPreference } from "../services/gift-offer";
 import {
   buildProfileSummaries,
   getOrCreateProfileSettings,
@@ -19,6 +25,7 @@ import {
   getProfileEntitlements,
   getPublicScalarProfileShowcases,
   getPublicCurrentStreakForUser,
+  getPublicCollectibleProfileShowcases,
   getPublicProfile,
   resolveProfileVisibility,
 } from "../services/profile";
@@ -44,6 +51,7 @@ import {
   removeUserProfileMedia,
 } from "../services/profile-media";
 import { r2ProfileMediaStorage } from "../services/profile-media-storage";
+import { updateInboundTradePreference } from "../services/trade-offer";
 
 const colorSchema = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/);
 const uploadContentTypeSchema = z.enum([
@@ -56,12 +64,14 @@ const uploadContentTypeSchema = z.enum([
 const visibilityUpdateSchema = z
   .object({
     favorites: z.boolean().optional(),
+    publicCollection: z.boolean().optional(),
     reviews: z.boolean().optional(),
     streak: z.boolean().optional(),
   })
   .refine(
     (visibility) =>
       visibility.favorites !== undefined ||
+      visibility.publicCollection !== undefined ||
       visibility.reviews !== undefined ||
       visibility.streak !== undefined,
     { message: "Debes actualizar al menos una preferencia de privacidad." }
@@ -261,6 +271,8 @@ export default {
             : null,
           bannerColor: settings.bannerColor,
           bannerMode: settings.bannerMode,
+          inboundGiftsEnabled: settings.inboundGiftsEnabled,
+          inboundTradesEnabled: settings.inboundTradesEnabled,
           notifications: {
             commentReplies: settings.replyNotificationsEnabled,
           },
@@ -303,6 +315,13 @@ export default {
       env.PROFILE_CUSTOMIZATION_ENABLED
         ? getPublicScalarProfileShowcases(db, input.userId)
         : []
+    ),
+
+  getPublicCollectibleShowcases: publicProcedure
+    .use(slidingWindowRatelimitMiddleware(30, 60))
+    .input(z.object({ userId: z.string().min(1) }))
+    .handler(({ context: { db }, input }) =>
+      getPublicCollectibleProfileShowcases(db, input.userId)
     ),
 
   getPublicFavoriteGamesShowcase: publicProcedure
@@ -358,6 +377,7 @@ export default {
     }),
 
   saveCustomization: protectedProcedure
+    .use(collectiblesMutationMiddleware)
     .use(slidingWindowRatelimitMiddleware(10, 60))
     .input(
       z.object({
@@ -448,6 +468,30 @@ export default {
       return { commentReplies: settings.replyNotificationsEnabled };
     }),
 
+  updateInboundTradePreference: protectedProcedure
+    .use(collectiblesMutationMiddleware)
+    .use(slidingWindowRatelimitMiddleware(10, 60))
+    .input(z.object({ inboundTradesEnabled: z.boolean() }).strict())
+    .handler(({ context: { db, session }, input }) =>
+      updateInboundTradePreference(
+        db,
+        session.user.id,
+        input.inboundTradesEnabled
+      )
+    ),
+
+  updateInboundGiftPreference: protectedProcedure
+    .use(collectiblesMutationMiddleware)
+    .use(slidingWindowRatelimitMiddleware(10, 60))
+    .input(z.object({ inboundGiftsEnabled: z.boolean() }).strict())
+    .handler(({ context: { db, session }, input }) =>
+      updateInboundGiftPreference(
+        db,
+        session.user.id,
+        input.inboundGiftsEnabled
+      )
+    ),
+
   updateVisibility: protectedProcedure
     .input(visibilityUpdateSchema)
     .handler(async ({ context: { db, session, ...ctx }, input, errors }) => {
@@ -457,8 +501,26 @@ export default {
             "No puedes cambiar la visibilidad mientras est\u00E1s suplantando una cuenta.",
         });
       }
-      if (env.PROFILE_CUSTOMIZATION_ENABLED) {
+      if (
+        env.PROFILE_CUSTOMIZATION_ENABLED &&
+        (input.publicCollection === undefined ||
+          input.favorites !== undefined ||
+          input.reviews !== undefined ||
+          input.streak !== undefined)
+      ) {
         throw errors.NOT_FOUND();
+      }
+      if (input.publicCollection !== undefined) {
+        try {
+          assertCollectiblesMutationAllowed({
+            impersonated: Boolean(session.session?.impersonatedBy),
+          });
+        } catch (error) {
+          if (error instanceof CollectibleKernelError) {
+            throw errors.FORBIDDEN({ message: error.message });
+          }
+          throw error;
+        }
       }
       const logger = getLogger(ctx);
       logger?.info(`Updating visibility settings for user ${session.user.id}`);
@@ -470,6 +532,9 @@ export default {
       }
       if (input.reviews !== undefined) {
         visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{reviews}', ${JSON.stringify(input.reviews)}::jsonb, true)`;
+      }
+      if (input.publicCollection !== undefined) {
+        visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{publicCollection}', ${JSON.stringify(input.publicCollection)}::jsonb, true)`;
       }
       if (input.streak !== undefined) {
         visibilityConfig = sql`jsonb_set(${visibilityConfig}, '{streak}', ${JSON.stringify(input.streak)}::jsonb, true)`;

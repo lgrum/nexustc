@@ -1,0 +1,2 @@
+CREATE TYPE "public"."pack_binding_policy" AS ENUM('transferable', 'account-bound', 'either');--> statement-breakpoint
+ALTER TABLE "pack_revision" ADD COLUMN "binding_policy" "pack_binding_policy" DEFAULT 'either' NOT NULL;

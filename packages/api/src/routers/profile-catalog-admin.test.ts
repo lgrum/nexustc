@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => {
     correctPurchase: vi.fn(),
     grant: vi.fn(),
     revoke: vi.fn(),
+    saveDecoration: vi.fn(),
+    saveSkin: vi.fn(),
   };
 });
 
@@ -32,14 +34,12 @@ const decorationDraft = {
   fontKey: null,
   isFree: true,
   itemId: "item-1",
-  mediaAssetId: null,
   name: "Decoration",
   reducedMotion: null,
   requiredTier: null,
   slot: "avatar-frame" as const,
 };
 const skinDraft = {
-  backgroundAssetId: null,
   catalogOrder: 0,
   description: "",
   eterisPrice: null,
@@ -65,6 +65,11 @@ vi.mock("../services/profile-catalog-grant", () => ({
   grantProfileCatalogItem: mocks.grant,
   ProfileCatalogGrantError: mocks.CatalogError,
   revokeProfileCatalogGrant: mocks.revoke,
+}));
+
+vi.mock("../services/profile-catalog-media", () => ({
+  saveProfileDecorationDraftWithMedia: mocks.saveDecoration,
+  saveProfileSkinDraftWithBackground: mocks.saveSkin,
 }));
 
 function createContext(role: string, impersonatedBy?: string) {
@@ -187,7 +192,7 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.decorations.saveDraft,
-        { draft: decorationDraft },
+        { draft: decorationDraft, mediaSelection: [] },
         { context }
       ),
     () =>
@@ -199,13 +204,51 @@ it("rejects impersonation across every privileged catalog mutation family", asyn
     () =>
       call(
         profileCatalogAdminRouter.skins.saveDraft,
-        { draft: skinDraft },
+        { backgroundSelection: [], draft: skinDraft },
         { context }
       ),
   ];
   for (const attempt of attempts) {
     await expect(attempt()).rejects.toMatchObject({ code: "FORBIDDEN" });
   }
+});
+
+it("passes deferred media selections to profile catalog saves", async () => {
+  mocks.saveDecoration.mockResolvedValueOnce({ itemId: "decoration-1" });
+  mocks.saveSkin.mockResolvedValueOnce({ itemId: "skin-1" });
+  const context = createContext("owner");
+
+  await call(
+    profileCatalogAdminRouter.decorations.saveDraft,
+    {
+      draft: decorationDraft,
+      mediaSelection: [{ kind: "existing", mediaId: "media-decoration" }],
+    },
+    { context }
+  );
+  expect(mocks.saveDecoration).toHaveBeenCalledWith(
+    expect.anything(),
+    "owner-1",
+    decorationDraft,
+    [{ kind: "existing", mediaId: "media-decoration" }],
+    undefined
+  );
+
+  await call(
+    profileCatalogAdminRouter.skins.saveDraft,
+    {
+      backgroundSelection: [{ kind: "existing", mediaId: "media-skin" }],
+      draft: skinDraft,
+    },
+    { context }
+  );
+  expect(mocks.saveSkin).toHaveBeenCalledWith(
+    expect.anything(),
+    "owner-1",
+    skinDraft,
+    [{ kind: "existing", mediaId: "media-skin" }],
+    undefined
+  );
 });
 
 it("allows only a non-impersonated owner to grant permanent access", async () => {

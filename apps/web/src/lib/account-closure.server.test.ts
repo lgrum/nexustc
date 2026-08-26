@@ -3,11 +3,13 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  configureCollectibles: vi.fn(),
   configureComment: vi.fn(),
   configureCompleted: vi.fn(),
   configureLike: vi.fn(),
   notifySettlements: vi.fn(),
   reconcileClosedLikes: vi.fn(),
+  reconcileCollectibles: vi.fn(),
   revalidateTag: vi.fn(),
 }));
 
@@ -17,7 +19,12 @@ vi.mock("@repo/api/services/contribution-rewards", () => ({
   notifyBannedLikerRewardSettlementsInTransaction: mocks.notifySettlements,
   reconcileClosedLikerRewardsInTransaction: mocks.reconcileClosedLikes,
 }));
+vi.mock("@repo/api/services/collectible-account-closure", () => ({
+  reconcileCollectiblesForAccountClosureInTransaction:
+    mocks.reconcileCollectibles,
+}));
 vi.mock("@repo/auth/account-closure", () => ({
+  configureAccountClosureCollectibleReconciler: mocks.configureCollectibles,
   configureAccountClosureCommentReconciler: mocks.configureComment,
   configureAccountClosureCompletionHandler: mocks.configureCompleted,
   configureAccountClosureLikeReconciler: mocks.configureLike,
@@ -38,6 +45,9 @@ test("account closure invalidates the deleted public profile", async () => {
 
   expect(mocks.revalidateTag).toHaveBeenCalledWith("profile:user-1", "max");
   expect(mocks.revalidateTag).toHaveBeenCalledWith("profiles", "max");
+  expect(mocks.configureCollectibles).toHaveBeenCalledWith(
+    mocks.reconcileCollectibles
+  );
 });
 
 test("account closure notifies authors before its transaction completes", async () => {

@@ -351,4 +351,78 @@ describe(UserClient, () => {
     expect(card).not.toBeNull();
     expect(card?.className).not.toContain("h-full");
   });
+
+  it("renders collectible showcase states and complete sale links", () => {
+    renderClient({ favorites: true, reviews: true }, [
+      {
+        cards: [
+          {
+            availability: "active",
+            binding: "transferable",
+            characterName: "Samus Aran",
+            edition: "Primera",
+            forSale: true,
+            gameName: "Metroid Prime",
+            id: "card-1",
+            limited: true,
+            lifetimeSupplyCeiling: 100,
+            listingIsBundle: true,
+            listingUrl: "/black-market/listing-1",
+            mintDisplay: "#7/100",
+            mintNumber: 7,
+            rarity: "rare",
+            seriesName: "Clásicos",
+            template: {
+              characterName: "Samus Aran",
+              description: "Cazadora espacial",
+              disabled: false,
+              edition: "Primera",
+              gameName: "Metroid Prime",
+              id: "template-1",
+              lifetimeSupplyCeiling: 100,
+              placeholder: false,
+              presentation: {
+                accentColor: "#7c3aed",
+                frameKey: "default",
+                watermarkText: "NeXusTC",
+              },
+              rarity: "rare",
+              renderedVariants: [],
+              seriesName: "Clásicos",
+            },
+            templateId: "template-1",
+          },
+        ],
+        order: 0,
+        rendererKey: "card",
+        type: "card",
+        variant: "standard",
+      },
+      {
+        order: 1,
+        packs: [
+          {
+            availability: "active",
+            binding: "account-bound",
+            forSale: false,
+            issuedAt: new Date("2026-08-16T12:00:00.000Z"),
+            revision: 2,
+            templateAssetObjectKey: "packs/rendered/pack-1.webp",
+            templateId: "pack-template-1",
+            templateName: "Pack Inicial",
+          },
+        ],
+        rendererKey: "unopened-pack",
+        type: "unopened-pack",
+        variant: "compact",
+      },
+    ]);
+
+    expect(screen.getByText("Samus Aran")).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "En venta · Lote" }).getAttribute("href")
+    ).toBe("/black-market/listing-1");
+    expect(screen.getByText("Pack Inicial")).toBeTruthy();
+    expect(screen.queryByText(/rareza del pack/i)).toBeNull();
+  });
 });

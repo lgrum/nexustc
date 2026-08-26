@@ -22,7 +22,23 @@ const state = vi.hoisted(() => ({
     frozenWalletCount: 2,
     issued: "100",
     issuedByReason: { vip_stipend: "100" },
+    gachapon: {
+      activeMachineCount: 2,
+      activationCount: 4,
+      configuredMachineCount: 5,
+      eterisBurned: "30",
+      issuedPackCount: 4,
+      remainingGlobalQuota: 16,
+    },
     negativeWalletCount: 1,
+    officialCardShop: {
+      activeOfferCount: 1,
+      configuredOfferCount: 2,
+      eterisBurned: "50",
+      purchaseCount: 3,
+      remainingLimitedQuota: 40,
+      soldPackCount: 12,
+    },
     sourceSinkRatio: "4.00",
     totalUserSupply: "75",
   },
@@ -99,21 +115,36 @@ it("shows authorized staff the complete daily economy report", () => {
   expect(screen.getByText("4.00")).toBeTruthy();
   expect(screen.getByText("1 negativa")).toBeTruthy();
   expect(screen.getByText("2 congeladas")).toBeTruthy();
+  expect(screen.getByText(/ofertas configuradas.*2/i)).toBeTruthy();
+  expect(screen.getByText("Ofertas activas: 1")).toBeTruthy();
+  expect(screen.getByText("Cuota limitada restante: 40")).toBeTruthy();
+  expect(screen.getByText("Paquetes vendidos: 12")).toBeTruthy();
+  expect(screen.getByText("Compras de hoy: 3")).toBeTruthy();
+  expect(screen.getByText("Eteris quemados por compras: 50")).toBeTruthy();
+  expect(screen.getByText("Máquinas configuradas: 5")).toBeTruthy();
+  expect(screen.getByText("Máquinas activas: 2")).toBeTruthy();
+  expect(screen.getByText("Activaciones de hoy: 4")).toBeTruthy();
+  expect(screen.getByText("Eteris quemados por Gachapon: 30")).toBeTruthy();
   expect(screen.getByText("vip stipend")).toBeTruthy();
   expect(screen.getByText("account closure")).toBeTruthy();
   expect(screen.getByText(/P50: 10.*P90: 75.*P99: 250/)).toBeTruthy();
   expect(screen.getByText("user-fast")).toBeTruthy();
   expect(screen.getByText("900 Eteris")).toBeTruthy();
-  expect(screen.queryByLabelText(/ID de usuario a reconciliar/)).toBeNull();
+  expect(
+    screen.queryByLabelText(/Identificador técnico de la cuenta a reconciliar/)
+  ).toBeNull();
 });
 
 it("lets only an owner request wallet reconciliation", async () => {
   state.role = "owner";
   render(<EconomyClient initialReport={state.report} />);
 
-  fireEvent.change(screen.getByLabelText(/ID de usuario a reconciliar/), {
-    target: { value: "user-123" },
-  });
+  fireEvent.change(
+    screen.getByLabelText(/Identificador técnico de la cuenta a reconciliar/),
+    {
+      target: { value: "user-123" },
+    }
+  );
   const submit = screen.getByRole("button", {
     name: "Reconciliar billetera",
   });
@@ -143,7 +174,9 @@ it("refreshes audited data after an owner adjustment", async () => {
   const xpCard = screen
     .getByRole("heading", { name: "Ajustar Account XP" })
     .closest('[data-slot="card"]')!;
-  const xpUserInput = within(xpCard).getByLabelText(/ID de usuario/i);
+  const xpUserInput = within(xpCard).getByLabelText(
+    /Identificador técnico de la cuenta/i
+  );
   fireEvent.change(xpUserInput, { target: { value: "user-adjusted" } });
   fireEvent.change(within(xpCard).getByLabelText(/Cantidad firmada/i), {
     target: { value: "25" },
@@ -173,7 +206,9 @@ it("treats a committed Eteris projection freeze as a failed adjustment", async (
   const eterisCard = screen
     .getByRole("heading", { name: "Ajustar Eteris" })
     .closest('[data-slot="card"]')!;
-  const userInput = within(eterisCard).getByLabelText(/ID de usuario/i);
+  const userInput = within(eterisCard).getByLabelText(
+    /Identificador técnico de la cuenta/i
+  );
   fireEvent.change(userInput, { target: { value: "user-frozen" } });
   fireEvent.change(within(eterisCard).getByLabelText(/Cantidad firmada/i), {
     target: { value: "25" },

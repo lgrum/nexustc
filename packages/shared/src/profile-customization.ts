@@ -1,5 +1,6 @@
 import z from "zod";
 
+import type { PublicCardInstance, PublicPackInstance } from "./collectibles";
 import type { PatronTier } from "./constants";
 
 export const PROFILE_LAYOUT_KEYS = ["stack", "grid", "spotlight"] as const;
@@ -15,6 +16,9 @@ export const PROFILE_SHOWCASE_TYPE_KEYS = [
   "xp",
   "streak",
   "eteris",
+  "card",
+  "rare-card",
+  "unopened-pack",
 ] as const;
 export const PROFILE_DECORATION_SLOTS = [
   "avatar-frame",
@@ -184,17 +188,30 @@ export const PROFILE_SHOWCASE_PAGE_SIZES = {
   library: { compact: 6, featured: 18, standard: 12 },
   reviews: { compact: 3, featured: 15, standard: 10 },
 } as const;
+export const PROFILE_COLLECTIBLE_SHOWCASE_CAPACITIES = {
+  card: 12,
+  "rare-card": 12,
+  "unopened-pack": 12,
+} as const;
+export const PROFILE_COLLECTIBLE_SHOWCASE_PAGE_SIZES = {
+  card: { compact: 4, featured: 12, standard: 8 },
+  "rare-card": { compact: 4, featured: 12, standard: 8 },
+  "unopened-pack": { compact: 4, featured: 12, standard: 8 },
+} as const;
 
 export type ProfileLayoutKey = (typeof PROFILE_LAYOUT_KEYS)[number];
 export type ProfileShowcaseVariant = (typeof PROFILE_SHOWCASE_VARIANTS)[number];
 export type ProfileShowcaseTypeKey =
   (typeof PROFILE_SHOWCASE_TYPE_KEYS)[number];
 export const PROFILE_SHOWCASE_VARIANTS_BY_TYPE = {
+  card: PROFILE_SHOWCASE_VARIANTS,
   eteris: ["compact", "standard"],
   "favorite-games": PROFILE_SHOWCASE_VARIANTS,
   library: PROFILE_SHOWCASE_VARIANTS,
+  "rare-card": PROFILE_SHOWCASE_VARIANTS,
   reviews: PROFILE_SHOWCASE_VARIANTS,
   streak: ["compact", "standard"],
+  "unopened-pack": PROFILE_SHOWCASE_VARIANTS,
   xp: ["compact", "standard"],
 } as const satisfies Record<
   ProfileShowcaseTypeKey,
@@ -414,6 +431,69 @@ export type FavoriteGamesEditorState = {
   suggestions: FavoriteGameProjection[];
 };
 
+const collectibleShowcaseTextFilterSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .nullable();
+
+export const profileCollectibleShowcaseFiltersSchema = z
+  .object({
+    edition: collectibleShowcaseTextFilterSchema,
+    game: collectibleShowcaseTextFilterSchema,
+    seriesId: collectibleShowcaseTextFilterSchema,
+  })
+  .strict();
+
+export type ProfileCollectibleShowcaseFilters = z.infer<
+  typeof profileCollectibleShowcaseFiltersSchema
+>;
+
+export const EMPTY_PROFILE_COLLECTIBLE_SHOWCASE_FILTERS = {
+  edition: null,
+  game: null,
+  seriesId: null,
+} as const satisfies ProfileCollectibleShowcaseFilters;
+
+const collectibleInstanceIdSchema = z.string().trim().min(1).max(200);
+
+export const cardShowcasePayloadSchema = z
+  .object({
+    cardInstanceIds: z
+      .array(collectibleInstanceIdSchema)
+      .max(PROFILE_COLLECTIBLE_SHOWCASE_CAPACITIES.card),
+    filters: profileCollectibleShowcaseFiltersSchema,
+  })
+  .strict()
+  .superRefine(({ cardInstanceIds }, context) => {
+    if (new Set(cardInstanceIds).size !== cardInstanceIds.length) {
+      context.addIssue({
+        code: "custom",
+        message: "Cada Card Instance puede aparecer una sola vez.",
+        path: ["cardInstanceIds"],
+      });
+    }
+  });
+
+export type CardShowcasePayload = z.infer<typeof cardShowcasePayloadSchema>;
+
+export const rareCardShowcasePayloadSchema = z
+  .object({ filters: profileCollectibleShowcaseFiltersSchema })
+  .strict();
+export type RareCardShowcasePayload = z.infer<
+  typeof rareCardShowcasePayloadSchema
+>;
+
+export const unopenedPackShowcasePayloadSchema = z
+  .object({
+    packTemplateId: collectibleInstanceIdSchema.nullable(),
+  })
+  .strict();
+export type UnopenedPackShowcasePayload = z.infer<
+  typeof unopenedPackShowcasePayloadSchema
+>;
+
 export type EffectiveProfileShowcase =
   | {
       order: number;
@@ -453,6 +533,27 @@ export type EffectiveProfileShowcase =
       rendererKey: "eteris";
       type: "eteris";
       variant: "compact" | "standard";
+    }
+  | {
+      cards: PublicCardInstance[];
+      order: number;
+      rendererKey: "card";
+      type: "card";
+      variant: ProfileShowcaseVariant;
+    }
+  | {
+      cards: PublicCardInstance[];
+      order: number;
+      rendererKey: "rare-card";
+      type: "rare-card";
+      variant: ProfileShowcaseVariant;
+    }
+  | {
+      order: number;
+      packs: PublicPackInstance[];
+      rendererKey: "unopened-pack";
+      type: "unopened-pack";
+      variant: ProfileShowcaseVariant;
     };
 
 export type EffectiveProfileManifest = {

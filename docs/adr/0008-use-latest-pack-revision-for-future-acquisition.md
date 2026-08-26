@@ -1,0 +1,3 @@
+# Use the latest pack revision for every future acquisition
+
+Every shop sale, gachapon activation, promotion, or administrative grant resolves a Pack Template to its latest published Pack Revision when the Pack Instance is issued, while existing Pack Instances remain permanently bound to the revision under which their hidden outcomes were committed. This deliberately allows publishing a revision to change future outcomes across every active acquisition channel, with explicit administrative impact warnings, rather than requiring each channel to be repointed or allowing already-owned packs to drift.

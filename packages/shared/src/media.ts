@@ -6,6 +6,10 @@ export const MEDIA_IMAGE_MIME_TYPES = [
   "image/webp",
 ] as const;
 
+export const STATIC_MEDIA_IMAGE_MIME_TYPES = MEDIA_IMAGE_MIME_TYPES.filter(
+  (mimeType) => mimeType !== "image/gif"
+);
+
 export const ADMIN_IMAGE_MAX_FILES = 12;
 export const ADMIN_IMAGE_MAX_FILE_BYTES = 10 * 1024 * 1024;
 export const ADMIN_IMAGE_MAX_SELECTION_BYTES = 40 * 1024 * 1024;
@@ -27,6 +31,9 @@ export const MEDIA_OWNER_KINDS = [
   "Emblema",
   "Anuncio",
   "Articulo",
+  "Carta",
+  "Pack",
+  "Perfil",
 ] as const;
 
 export type MediaOwnerKind = (typeof MEDIA_OWNER_KINDS)[number];

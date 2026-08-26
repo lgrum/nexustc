@@ -4,12 +4,11 @@ import {
   profileCatalogDecorationRevision,
   profileCatalogItem,
   profileCatalogItemRevision,
-  profileMediaAsset,
+  media,
 } from "@repo/db/schema/app";
 import { generateId } from "@repo/db/utils";
 import { PATRON_TIER_KEYS } from "@repo/shared/constants";
 import { ETERIS_MAX_AMOUNT } from "@repo/shared/eteris";
-import { MANAGED_PROFILE_MEDIA_SLOTS } from "@repo/shared/profile";
 import {
   PROFILE_DECORATION_EFFECT_KEYS,
   PROFILE_DECORATION_FONT_KEYS,
@@ -23,9 +22,13 @@ import type {
 } from "@repo/shared/profile-customization";
 import z from "zod";
 
+import { getManagedMediaAssetFromRecord } from "../utils/managed-media";
 import { publishProfileCatalogRevision } from "./profile-catalog-publication";
 
 type Database = typeof database;
+type ProfileDecorationTransaction = Parameters<
+  Parameters<Database["transaction"]>[0]
+>[0];
 
 const animatedEffects = new Set(["soft-pulse", "orbit-sparkles"]);
 
@@ -92,6 +95,9 @@ export const profileDecorationDraftSchema = z
       });
     }
   });
+
+export const profileDecorationDeferredDraftSchema =
+  profileDecorationDraftSchema.omit({ mediaAssetId: true });
 
 export class ProfileDecorationCatalogError extends Error {
   readonly code: "CONFLICT" | "INVALID_DRAFT" | "NOT_FOUND";
@@ -179,37 +185,45 @@ export function validatePublishedDecorationSlot(
 async function validateManagedMedia(
   db: Pick<Database, "query">,
   mediaAssetId: string | null,
-  reducedMotion: z.infer<typeof profileDecorationReducedMotionSchema> | null,
-  ownerUserId?: string
+  reducedMotion: z.infer<typeof profileDecorationReducedMotionSchema> | null
 ) {
   if (!mediaAssetId) {
     return;
   }
-  const asset = await db.query.profileMediaAsset.findFirst({
+  const asset = await db.query.media.findFirst({
     columns: {
       isAnimated: true,
-      mimeType: true,
-      ownerUserId: true,
-      slot: true,
-      validationStatus: true,
+      objectKey: true,
     },
-    where: eq(profileMediaAsset.id, mediaAssetId),
+    where: eq(media.id, mediaAssetId),
   });
+  let isManagedImage = false;
+  if (asset) {
+    try {
+      const managed = getManagedMediaAssetFromRecord({
+        id: mediaAssetId,
+        objectKey: asset.objectKey,
+      });
+      isManagedImage =
+        (managed.assetKey.startsWith("media/") ||
+          managed.assetKey.startsWith("profiles/media/")) &&
+        ["avif", "gif", "jpeg", "jpg", "png", "webp"].includes(
+          managed.assetFormat
+        );
+    } catch {
+      isManagedImage = false;
+    }
+  }
   if (
     !asset ||
-    (ownerUserId !== undefined && asset.ownerUserId !== ownerUserId) ||
-    asset.validationStatus !== "ready" ||
-    !asset.mimeType.startsWith("image/") ||
-    !MANAGED_PROFILE_MEDIA_SLOTS.includes(
-      asset.slot as (typeof MANAGED_PROFILE_MEDIA_SLOTS)[number]
-    ) ||
+    !isManagedImage ||
     (asset.isAnimated && reducedMotion?.behavior !== "omit")
   ) {
     throw new ProfileDecorationCatalogError(
       "INVALID_DRAFT",
       "El recurso debe ser una imagen administrada y validada.",
       {
-        mediaAssetId:
+        mediaSelection:
           "No se aceptan archivos de usuario, recursos externos ni animación sin omisión reducida.",
       }
     );
@@ -229,7 +243,7 @@ export async function listPublishedProfileDecorations(
       itemId: profileCatalogItem.id,
       key: profileCatalogItem.stableKey,
       lifecycle: profileCatalogItem.lifecycle,
-      mediaAssetKey: profileMediaAsset.objectKey,
+      mediaAssetKey: media.objectKey,
       name: profileCatalogItemRevision.name,
       revision: profileCatalogItemRevision.revision,
       reducedMotion: profileCatalogDecorationRevision.reducedMotion,
@@ -252,8 +266,8 @@ export async function listPublishedProfileDecorations(
       )
     )
     .leftJoin(
-      profileMediaAsset,
-      eq(profileMediaAsset.id, profileCatalogDecorationRevision.mediaAssetId)
+      media,
+      eq(media.id, profileCatalogDecorationRevision.mediaAssetId)
     )
     .where(
       and(
@@ -298,7 +312,7 @@ export function listOwnerProfileDecorations(db: Database) {
       isProtectedDefault: profileCatalogItem.isProtectedDefault,
       lifecycle: profileCatalogItem.lifecycle,
       mediaAssetId: profileCatalogDecorationRevision.mediaAssetId,
-      mediaAssetKey: profileMediaAsset.objectKey,
+      mediaAssetKey: media.objectKey,
       name: profileCatalogItemRevision.name,
       reducedMotion: profileCatalogDecorationRevision.reducedMotion,
       requiredTier: profileCatalogItemRevision.requiredTier,
@@ -322,8 +336,8 @@ export function listOwnerProfileDecorations(db: Database) {
       )
     )
     .leftJoin(
-      profileMediaAsset,
-      eq(profileMediaAsset.id, profileCatalogDecorationRevision.mediaAssetId)
+      media,
+      eq(media.id, profileCatalogDecorationRevision.mediaAssetId)
     )
     .where(eq(profileCatalogItem.kind, "decoration"))
     .orderBy(
@@ -333,18 +347,13 @@ export function listOwnerProfileDecorations(db: Database) {
 }
 
 export async function saveProfileDecorationDraft(
-  db: Database,
+  db: Database | ProfileDecorationTransaction,
   actorUserId: string,
   input: unknown,
   expectedUpdatedAt?: Date
 ) {
   const draft = parseDraft(input);
-  await validateManagedMedia(
-    db,
-    draft.mediaAssetId,
-    draft.reducedMotion,
-    actorUserId
-  );
+  await validateManagedMedia(db, draft.mediaAssetId, draft.reducedMotion);
   return db.transaction(async (tx) => {
     const [item] = draft.itemId
       ? await tx

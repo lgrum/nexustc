@@ -1,0 +1,1 @@
+ALTER TABLE "collectible_admin_action" ADD CONSTRAINT "collectible_admin_action_linked_action_id_collectible_admin_action_id_fk" FOREIGN KEY ("linked_action_id") REFERENCES "public"."collectible_admin_action"("id") ON DELETE restrict ON UPDATE no action;

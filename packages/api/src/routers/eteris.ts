@@ -9,7 +9,11 @@ import {
   protectedProcedure,
   publicProcedure,
 } from "../index";
-import { getDailyEconomyReport } from "../services/economy-report";
+import {
+  getDailyEconomyReport,
+  getGachaponEconomyProjection,
+  getOfficialCardShopEconomyProjection,
+} from "../services/economy-report";
 import {
   adjustEteris,
   EterisError,
@@ -173,7 +177,15 @@ export default {
   admin: {
     report: permissionProcedure({ economy: ["view"] })
       .use(fixedWindowRatelimitMiddleware({ limit: 30, windowSeconds: 60 }))
-      .handler(({ context: { db } }) => getDailyEconomyReport(db)),
+      .handler(async ({ context: { db } }) => {
+        const reportDate = new Date();
+        const [report, gachapon, officialCardShop] = await Promise.all([
+          getDailyEconomyReport(db, reportDate),
+          getGachaponEconomyProjection(db, reportDate),
+          getOfficialCardShopEconomyProjection(db, reportDate),
+        ]);
+        return { ...report, gachapon, officialCardShop };
+      }),
 
     inspectWallet: permissionProcedure({ economy: ["view"] })
       .use(fixedWindowRatelimitMiddleware({ limit: 60, windowSeconds: 60 }))

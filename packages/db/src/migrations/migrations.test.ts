@@ -30,6 +30,115 @@ test("every migration journal tag has exactly one SQL file", async () => {
   expect(sqlFiles).toEqual(journalFiles);
 });
 
+test("collection visibility migration defaults to private and indexes owner reads", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0085_past_next_avengers.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(`"publicCollection": false`);
+  expect(migrationSql).toContain(
+    'CREATE INDEX "card_instance_owner_issued_idx"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "card_instance_owner_binding_idx"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "pack_instance_owner_template_issued_idx"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "pack_instance_owner_binding_idx"'
+  );
+});
+
+test("collectible admin actions are append-only with restrictive history links", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0093_smiling_squadron_supreme.sql"),
+    "utf-8"
+  );
+  const followUpSql = await readFile(
+    path.join(migrationsDirectory, "0094_tan_praxagora.sql"),
+    "utf-8"
+  );
+  const linkageSql = await readFile(
+    path.join(migrationsDirectory, "0095_eminent_doctor_octopus.sql"),
+    "utf-8"
+  );
+  const shapeSql = await readFile(
+    path.join(migrationsDirectory, "0096_loving_norrin_radd.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain('CREATE TABLE "collectible_admin_action"');
+  expect(migrationSql).toContain("ON DELETE restrict ON UPDATE no action");
+  expect(followUpSql).toContain(
+    'CREATE TRIGGER "collectible_admin_action_append_only"'
+  );
+  expect(followUpSql).toContain(
+    'CREATE FUNCTION "prevent_collectible_admin_action_mutation"'
+  );
+  expect(linkageSql).toContain(
+    'FOREIGN KEY ("linked_action_id") REFERENCES "public"."collectible_admin_action"("id") ON DELETE restrict'
+  );
+  expect(shapeSql).toContain("collectible_admin_action_target_reference_check");
+});
+
+test("collectible account closure uses restrictive wallet pseudonyms and narrow immutable-history exceptions", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0097_polite_iceman.sql"),
+    "utf-8"
+  );
+
+  for (const walletColumn of [
+    "closed_owner_wallet_id",
+    "actor_wallet_id",
+    "recipient_wallet_id",
+    "seller_wallet_id",
+    "buyer_wallet_id",
+    "owner_wallet_id",
+    "user_wallet_id",
+  ]) {
+    expect(migrationSql).toContain(`ADD COLUMN "${walletColumn}"`);
+  }
+  expect(migrationSql).toContain(
+    'REFERENCES "public"."eteris_wallet"("id") ON DELETE restrict'
+  );
+  expect(migrationSql).toContain("pack_instance_owner_identity_check");
+  expect(migrationSql).toContain("card_instance_exclusive_location_check");
+  expect(migrationSql).toContain(
+    'CREATE OR REPLACE FUNCTION "prevent_collectible_ownership_event_mutation"'
+  );
+  expect(migrationSql).toContain(
+    "to_jsonb(NEW) - ARRAY['actor_user_id', 'actor_wallet_id'"
+  );
+  expect(migrationSql).toContain("OLD.state <> 'sent'");
+  expect(migrationSql).not.toMatch(/DROP TABLE|DELETE FROM card_instance/);
+});
+
+test("collectible Profile Showcase migration extends the enum and seeds the registry", async () => {
+  const enumMigrationSql = await readFile(
+    path.join(migrationsDirectory, "0086_clumsy_surge.sql"),
+    "utf-8"
+  );
+  const seedMigrationSql = await readFile(
+    path.join(migrationsDirectory, "0087_profile-showcase-catalog-seed.sql"),
+    "utf-8"
+  );
+
+  expect(enumMigrationSql).toContain(
+    `ALTER TYPE "public"."profile_showcase_type_key" ADD VALUE 'card'`
+  );
+  expect(enumMigrationSql).toContain(
+    `ALTER TYPE "public"."profile_showcase_type_key" ADD VALUE 'rare-card'`
+  );
+  expect(enumMigrationSql).toContain(
+    `ALTER TYPE "public"."profile_showcase_type_key" ADD VALUE 'unopened-pack'`
+  );
+  expect(seedMigrationSql).toContain(
+    `INSERT INTO "profile_showcase_type" ("key", "is_active", "published_config_revision", "required_tier", "created_at", "updated_at")`
+  );
+  expect(seedMigrationSql).toContain('ON CONFLICT ("key") DO NOTHING');
+});
+
 test("review likes migrate to stable review identities", async () => {
   const migrationSql = await readFile(
     path.join(migrationsDirectory, "0056_cute_the_anarchist.sql"),
@@ -305,4 +414,361 @@ test("profile layouts have stable published catalog identities", async () => {
   );
   expect(migrationSql).toContain("'profile-layout-grid-r1', 'grid'");
   expect(migrationSql).toContain("'profile-layout-spotlight-r1', 'spotlight'");
+});
+
+test("card template audit history is protected by an append-only trigger", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0076_mute_edwin_jarvis.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain('CREATE TABLE "card_template_audit_event"');
+  expect(migrationSql).toContain(
+    'CREATE FUNCTION "prevent_card_template_audit_event_mutation"()'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "card_template_audit_event_append_only"'
+  );
+  expect(migrationSql).toContain("BEFORE UPDATE OR DELETE");
+});
+
+test("Pack revisions and normalized draw groups are immutable after publication", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0077_wise_garia.sql"),
+    "utf-8"
+  );
+
+  for (const table of [
+    '"pack_revision"',
+    '"pack_draw_group"',
+    '"pack_draw_group_rarity_weight"',
+    '"pack_draw_group_card_weight"',
+  ]) {
+    expect(migrationSql).toContain(
+      table === '"pack_revision"'
+        ? `BEFORE UPDATE OR DELETE ON ${table}`
+        : `BEFORE INSERT OR UPDATE OR DELETE ON ${table}`
+    );
+  }
+  expect(migrationSql).toContain(
+    'CREATE OR REPLACE FUNCTION "prevent_pack_revision_mutation"()'
+  );
+  expect(migrationSql).toContain(
+    'ALTER TABLE "pack_template" ADD CONSTRAINT "pack_template_latest_revision_fk"'
+  );
+  expect(migrationSql).toContain("Published Pack Revisions are immutable");
+  expect(migrationSql).toContain(
+    'CONSTRAINT "pack_draw_group_card_weight_bounds_check"'
+  );
+});
+
+test("Pack revision binding policy remains an explicit integer-domain contract", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0078_silly_thena.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain('CREATE TYPE "public"."pack_binding_policy"');
+  expect(migrationSql).toContain('ADD COLUMN "binding_policy"');
+  expect(migrationSql).toContain("'transferable', 'account-bound', 'either'");
+});
+
+test("collectible issuance keeps hidden outcomes and history append-only", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0079_sour_toro.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain('CREATE TABLE "pack_instance"');
+  expect(migrationSql).toContain('CREATE TABLE "collectible_ownership_event"');
+  expect(migrationSql).toContain(
+    'FOREIGN KEY ("card_instance_id") REFERENCES "public"."card_instance"("id") ON DELETE restrict'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "collectible_ownership_event_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "collectible_grant_execution_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "card_instance_issuance_immutable"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "pack_instance_provenance_immutable"'
+  );
+  expect(migrationSql).toContain("OLD.\"outcome_digest\" <> 'pending'");
+});
+
+test("card template supply remains monotonic and ceilings freeze after first mint", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0080_cloudy_owl.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain(
+    'CONSTRAINT "card_template_first_minted_at_consistency_check"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE FUNCTION "prevent_card_template_supply_mutation"()'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "card_template_supply_immutable"'
+  );
+  expect(migrationSql).toContain('NEW."minted_supply" < OLD."minted_supply"');
+  expect(migrationSql).toContain('OLD."minted_supply" > 0');
+});
+
+test("trade custody and offer history keep active uniqueness and immutable terms", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0088_free_switch.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain(
+    'CREATE UNIQUE INDEX "collectible_custody_active_card_unique"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE UNIQUE INDEX "collectible_custody_active_pack_unique"'
+  );
+  expect(migrationSql).toContain("ON DELETE restrict");
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "trade_offer_history_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "trade_offer_terms_immutable"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "collectible_custody_identity_immutable"'
+  );
+});
+
+test("trade bundle hardening permits many assets per side and keeps retained lookups indexed", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0089_trade_bundle_hardening.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain(
+    'DROP INDEX IF EXISTS "collectible_custody_active_trade_side_unique"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "collectible_custody_trade_side_idx"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "collectible_custody_card_lookup_idx"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "collectible_custody_pack_lookup_idx"'
+  );
+});
+
+test("gift offers keep free-transfer custody, immutable terms, and append-only history", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0090_ambiguous_loki.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain('CREATE TYPE "public"."gift_offer_state"');
+  expect(migrationSql).toContain('CREATE TABLE "gift_offer"');
+  expect(migrationSql).toContain('CREATE TABLE "gift_offer_history"');
+  expect(migrationSql).toContain(
+    'ADD CONSTRAINT "collectible_custody_one_parent_check"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "gift_offer_history_append_only"'
+  );
+  expect(migrationSql).toContain('CREATE TRIGGER "gift_offer_terms_immutable"');
+  expect(migrationSql).toContain(
+    'ADD COLUMN "inbound_gifts_enabled" boolean DEFAULT true NOT NULL'
+  );
+  expect(migrationSql).toContain("ADD VALUE 'gift'");
+});
+
+test("published pack configuration stays immutable while availability can exhaust", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0081_medical_tyrannus.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain(
+    'CREATE INDEX "pack_revision_template_availability_idx"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE OR REPLACE FUNCTION "prevent_pack_revision_mutation"()'
+  );
+  expect(migrationSql).toContain(
+    "NEW.configuration_hash IS DISTINCT FROM OLD.configuration_hash"
+  );
+  expect(migrationSql).toContain("-- projection that issuance may move");
+});
+
+test("pack openings retain committed results and a unique replay key", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0082_spotty_bloodstorm.sql"),
+    "utf-8"
+  );
+  expect(migrationSql).toContain('CREATE TABLE "pack_opening"');
+  expect(migrationSql).toContain('"cards" jsonb NOT NULL');
+  expect(migrationSql).toContain('"fingerprint" text NOT NULL');
+  expect(migrationSql).toContain(
+    'CREATE UNIQUE INDEX "pack_opening_idempotency_key_unique"'
+  );
+  expect(migrationSql).toContain(
+    'FOREIGN KEY ("pack_instance_id") REFERENCES "public"."pack_instance"("id") ON DELETE restrict'
+  );
+});
+
+test("Official Shop migration preserves audit history and authoritative links", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0083_fuzzy_scream.sql"),
+    "utf-8"
+  );
+  for (const table of [
+    '"official_card_shop_offer"',
+    '"official_card_shop_offer_audit_event"',
+    '"official_card_shop_offer_usage"',
+    '"official_card_shop_purchase"',
+    '"official_card_shop_purchase_item"',
+  ]) {
+    expect(migrationSql).toContain(`CREATE TABLE ${table}`);
+  }
+  expect(migrationSql).toContain(
+    'CONSTRAINT "official_card_shop_purchase_idempotency_key_unique" UNIQUE("idempotency_key")'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "official_card_shop_offer_audit_event_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'FOREIGN KEY ("eteris_transaction_id") REFERENCES "public"."eteris_transaction"("id") ON DELETE restrict'
+  );
+  expect(migrationSql).toContain(
+    'FOREIGN KEY ("pack_instance_id") REFERENCES "public"."pack_instance"("id") ON DELETE restrict'
+  );
+});
+
+test("Gachapon migration keeps weighted machine configuration and activation history immutable", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0084_cynical_joshua_kane.sql"),
+    "utf-8"
+  );
+  for (const table of [
+    '"gachapon_machine"',
+    '"gachapon_machine_pack_entry"',
+    '"gachapon_machine_usage"',
+    '"gachapon_activation"',
+    '"gachapon_machine_audit_event"',
+  ]) {
+    expect(migrationSql).toContain(`CREATE TABLE ${table}`);
+  }
+  expect(migrationSql).toContain(
+    'CONSTRAINT "gachapon_machine_pack_entry_weight_check" CHECK'
+  );
+  expect(migrationSql).toContain(
+    'CONSTRAINT "gachapon_activation_idempotency_key_unique" UNIQUE("idempotency_key")'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "gachapon_machine_pack_entry_immutable_after_activation"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "gachapon_activation_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "gachapon_machine_audit_event_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'FOREIGN KEY ("eteris_transaction_id") REFERENCES "public"."eteris_transaction"("id") ON DELETE restrict'
+  );
+  expect(migrationSql).not.toMatch(/rarity_modifier|direct_card|outcome/);
+});
+
+test("Black Market listing terms are trigger-frozen and settlement history is append-only", async () => {
+  const migrationSql = await readFile(
+    path.join(migrationsDirectory, "0099_careless_sharon_ventura.sql"),
+    "utf-8"
+  );
+
+  expect(migrationSql).toContain(
+    'ALTER TYPE "public"."collectible_admin_target_kind" ADD VALUE \'card-character\''
+  );
+  expect(migrationSql).toContain(
+    'ALTER TYPE "public"."collectible_admin_target_kind" ADD VALUE \'card-series\''
+  );
+  for (const column of ['"card_character_id"', '"card_series_id"']) {
+    expect(migrationSql).toContain(`ADD COLUMN ${column}`);
+  }
+  expect(migrationSql).toContain(
+    'CREATE FUNCTION "prevent_black_market_listing_terms_mutation"()'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "black_market_listing_terms_immutable"'
+  );
+  // The exact published-terms surface the spec freezes.
+  for (const term of [
+    'NEW."asking_price" IS DISTINCT FROM OLD."asking_price"',
+    'NEW."listing_fee" IS DISTINCT FROM OLD."listing_fee"',
+    'NEW."fingerprint" IS DISTINCT FROM OLD."fingerprint"',
+    'NEW."terms_hash" IS DISTINCT FROM OLD."terms_hash"',
+    'NEW."published_at" IS DISTINCT FROM OLD."published_at"',
+    'NEW."expires_at" IS DISTINCT FROM OLD."expires_at"',
+  ]) {
+    expect(migrationSql).toContain(term);
+  }
+  expect(migrationSql).toContain(
+    "Published Black Market listing terms are immutable"
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "black_market_listing_audit_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'BEFORE UPDATE OR DELETE ON "black_market_listing_audit"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "black_market_sale_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'BEFORE UPDATE OR DELETE ON "black_market_sale"'
+  );
+  expect(migrationSql).toContain(
+    'CREATE TRIGGER "official_card_shop_purchase_append_only"'
+  );
+  expect(migrationSql).toContain(
+    'BEFORE UPDATE OR DELETE ON "official_card_shop_purchase"'
+  );
+});
+
+test("closure rewrites stay permitted on settlement history and published revision availability stays operational", async () => {
+  const followUpSql = await readFile(
+    path.join(migrationsDirectory, "0101_history_triggers_closure_rewrite.sql"),
+    "utf-8"
+  );
+
+  // The three 0099 append-only triggers must allow the exact closure
+  // pseudonymization (user id -> wallet id) like every other history trigger.
+  for (const functionName of [
+    '"prevent_black_market_listing_audit_mutation"',
+    '"prevent_black_market_sale_mutation"',
+    '"prevent_official_card_shop_purchase_mutation"',
+  ]) {
+    expect(followUpSql).toContain(`CREATE OR REPLACE FUNCTION ${functionName}`);
+  }
+  expect(followUpSql).toContain(
+    "OLD.actor_user_id IS NOT NULL AND NEW.actor_user_id IS NULL"
+  );
+  expect(followUpSql).toContain(
+    "OLD.buyer_user_id IS NOT NULL AND NEW.buyer_user_id IS NULL"
+  );
+  expect(followUpSql).toContain(
+    "OLD.seller_user_id IS NOT NULL AND NEW.seller_user_id IS NULL"
+  );
+  expect(followUpSql).toContain(
+    "RAISE EXCEPTION 'Black Market sales are append-only'"
+  );
+  expect(followUpSql).toContain(
+    "RAISE EXCEPTION 'Official Card Shop purchases are append-only'"
+  );
+
+  // Published pack revisions must keep allowing the operational
+  // availability/updated_at/version moves while configuration stays frozen.
+  expect(followUpSql).toContain(
+    'CREATE OR REPLACE FUNCTION "prevent_pack_revision_mutation"'
+  );
+  expect(followUpSql).toContain(
+    "NEW.configuration_hash IS DISTINCT FROM OLD.configuration_hash"
+  );
+  expect(followUpSql).toContain(
+    "RAISE EXCEPTION 'Published Pack Revision configuration is immutable'"
+  );
 });

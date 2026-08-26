@@ -3,7 +3,13 @@ import { call } from "@orpc/server";
 import type { Context } from "../context";
 import profileRouter from "./profile";
 
-const env = vi.hoisted(() => ({ PROFILE_CUSTOMIZATION_ENABLED: true }));
+const env = vi.hoisted(() => ({
+  COLLECTIBLES_ENABLED: true,
+  PROFILE_CUSTOMIZATION_ENABLED: true,
+}));
+const tradeMocks = vi.hoisted(() => ({
+  updateInboundTradePreference: vi.fn(),
+}));
 const mocks = vi.hoisted(() => ({
   ProfileMediaError: class ProfileMediaError extends Error {
     readonly code: string;
@@ -18,13 +24,18 @@ const mocks = vi.hoisted(() => ({
   },
   cache: {
     del: vi.fn(),
+    expire: vi.fn(),
     getDel: vi.fn(),
     set: vi.fn(),
     ttl: vi.fn(),
+    zAdd: vi.fn(),
+    zCard: vi.fn(),
+    zRemRangeByScore: vi.fn(),
   },
   buildProfileSummaries: vi.fn(),
   getOrCreateProfileSettings: vi.fn(),
   getProfileEntitlements: vi.fn(),
+  getPublicCollectibleProfileShowcases: vi.fn(),
   finalizeProfileMediaUpload: vi.fn(),
   issueProfileMediaUpload: vi.fn(),
   removeUserProfileMedia: vi.fn(),
@@ -32,6 +43,7 @@ const mocks = vi.hoisted(() => ({
   loadProfileCustomizationEditorState: vi.fn(),
   purchaseProfileCatalogItem: vi.fn(),
   saveProfileCustomization: vi.fn(),
+  updateInboundTradePreference: vi.fn(),
 }));
 
 vi.mock("@orpc/experimental-pino", () => ({ getLogger: () => {} }));
@@ -56,12 +68,16 @@ vi.mock("@repo/db/schema/app", () => ({
   },
   user: { id: {} },
 }));
+vi.mock("../services/trade-offer", () => tradeMocks);
 vi.mock("../services/profile", () => ({
   buildProfileSummaries: mocks.buildProfileSummaries,
   getOrCreateProfileSettings: mocks.getOrCreateProfileSettings,
   getProfileEntitlements: mocks.getProfileEntitlements,
+  getPublicCollectibleProfileShowcases:
+    mocks.getPublicCollectibleProfileShowcases,
   getPublicProfile: vi.fn(),
   resolveProfileVisibility: mocks.resolveProfileVisibility,
+  updateInboundTradePreference: mocks.updateInboundTradePreference,
 }));
 vi.mock("../services/profile-media", () => ({
   PROFILE_MEDIA_OWNER_SOURCE_MAX_BYTES: 40 * 1024 * 1024,
@@ -137,6 +153,10 @@ function createSettingsContext(visibilityConfig?: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.cache.set.mockResolvedValue("OK");
+  mocks.cache.expire.mockResolvedValue(true);
+  mocks.cache.zAdd.mockResolvedValue(1);
+  mocks.cache.zCard.mockResolvedValue(0);
+  mocks.cache.zRemRangeByScore.mockResolvedValue(0);
   mocks.buildProfileSummaries.mockResolvedValue([]);
   mocks.getOrCreateProfileSettings.mockResolvedValue({
     bannerAssetId: null,
@@ -159,6 +179,10 @@ beforeEach(() => {
     return {
       favorites:
         typeof config.favorites === "boolean" ? config.favorites : true,
+      publicCollection:
+        typeof config.publicCollection === "boolean"
+          ? config.publicCollection
+          : false,
       reserved:
         typeof config.reserved === "object" && config.reserved !== null
           ? config.reserved
@@ -271,11 +295,44 @@ describe("profile customization contracts", () => {
         { context }
       )
     ).rejects.toThrow();
-    expect(mocks.saveProfileCustomization).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ impersonated: true, userId: "user-1" })
-    );
+    expect(mocks.saveProfileCustomization).not.toHaveBeenCalled();
     vi.unstubAllEnvs();
+  });
+
+  it("rejects profile Showcase writes while the single collectibles gate is off", async () => {
+    env.COLLECTIBLES_ENABLED = false;
+    await expect(
+      call(
+        profileRouter.saveCustomization,
+        {
+          draft: { layoutKey: "stack", showcases: [], skinKey: "default" },
+          expectedRevision: 0,
+        },
+        { context: createContext() }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(mocks.saveProfileCustomization).not.toHaveBeenCalled();
+    env.COLLECTIBLES_ENABLED = true;
+  });
+});
+
+describe("request-bound collectible Profile Showcases", () => {
+  it("does not consult full-collection preference for configured showcases", async () => {
+    mocks.getPublicCollectibleProfileShowcases.mockResolvedValueOnce([
+      { order: 6, rendererKey: "card", type: "card", variant: "standard" },
+    ]);
+
+    await expect(
+      call(
+        profileRouter.getPublicCollectibleShowcases,
+        { userId: "user-1" },
+        { context: createContext() }
+      )
+    ).resolves.toMatchObject([{ type: "card" }]);
+    expect(mocks.getPublicCollectibleProfileShowcases).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1"
+    );
   });
 });
 
@@ -297,6 +354,7 @@ describe("profile visibility settings", () => {
       settings: {
         visibility: {
           favorites: true,
+          publicCollection: false,
           reserved: {},
           reviews: true,
           streak: false,
@@ -309,6 +367,7 @@ describe("profile visibility settings", () => {
     mocks.getOrCreateProfileSettings.mockResolvedValueOnce({
       visibilityConfig: {
         favorites: false,
+        publicCollection: false,
         reserved: { futureFlag: true },
       },
     });
@@ -319,6 +378,7 @@ describe("profile visibility settings", () => {
     ).resolves.toEqual({
       visibility: {
         favorites: false,
+        publicCollection: false,
         reserved: { futureFlag: true },
         reviews: false,
         streak: false,
@@ -341,6 +401,47 @@ describe("profile visibility settings", () => {
     await expect(
       call(profileRouter.updateVisibility, { streak: true }, { context })
     ).resolves.toMatchObject({ visibility: { streak: true } });
+  });
+
+  it("allows the owner to opt into the private-by-default collection", async () => {
+    env.PROFILE_CUSTOMIZATION_ENABLED = true;
+    const { context } = createSettingsContext({
+      favorites: true,
+      publicCollection: true,
+      reserved: {},
+      reviews: true,
+      streak: false,
+    });
+
+    await expect(
+      call(
+        profileRouter.updateVisibility,
+        { publicCollection: true },
+        { context }
+      )
+    ).resolves.toMatchObject({
+      visibility: { publicCollection: true },
+    });
+  });
+
+  it("rejects public collection visibility while the gate is off", async () => {
+    env.COLLECTIBLES_ENABLED = false;
+    const { context, set } = createSettingsContext({
+      favorites: true,
+      publicCollection: false,
+      reserved: {},
+      reviews: true,
+      streak: false,
+    });
+    await expect(
+      call(
+        profileRouter.updateVisibility,
+        { publicCollection: true },
+        { context }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(set).not.toHaveBeenCalled();
+    env.COLLECTIBLES_ENABLED = true;
   });
 
   it("repairs a malformed root visibility value before updating it", async () => {
@@ -436,6 +537,41 @@ describe("profile notification settings", () => {
       )
     ).resolves.toEqual({ commentReplies: false });
     expect(set).toHaveBeenCalledWith({ replyNotificationsEnabled: false });
+  });
+
+  it("delegates the authoritative inbound-trade preference to the service", async () => {
+    tradeMocks.updateInboundTradePreference.mockResolvedValue({
+      closedOfferIds: ["offer-1"],
+      inboundTradesEnabled: false,
+    });
+    await expect(
+      call(
+        profileRouter.updateInboundTradePreference,
+        { inboundTradesEnabled: false },
+        { context: createContext() }
+      )
+    ).resolves.toEqual({
+      closedOfferIds: ["offer-1"],
+      inboundTradesEnabled: false,
+    });
+    expect(tradeMocks.updateInboundTradePreference).toHaveBeenCalledWith(
+      expect.anything(),
+      "user-1",
+      false
+    );
+  });
+
+  it("rejects inbound collectible preferences while the gate is off", async () => {
+    env.COLLECTIBLES_ENABLED = false;
+    await expect(
+      call(
+        profileRouter.updateInboundTradePreference,
+        { inboundTradesEnabled: false },
+        { context: createContext() }
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(tradeMocks.updateInboundTradePreference).not.toHaveBeenCalled();
+    env.COLLECTIBLES_ENABLED = true;
   });
 });
 

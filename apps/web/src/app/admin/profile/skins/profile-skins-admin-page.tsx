@@ -7,7 +7,7 @@ import {
   PROFILE_DEFAULT_SKIN_TOKENS,
   profileSkinTokensSchema,
 } from "@repo/shared/profile-customization";
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -15,6 +15,11 @@ import { z } from "zod";
 import { ProfileSkinSurface } from "@/components/profile/profile-skin-surface";
 import { Button } from "@/components/ui/button";
 import { useAppForm } from "@/hooks/use-app-form";
+import {
+  createDeferredMediaSelectionFromExistingId,
+  createEmptyDeferredMediaSelection,
+  optionalSingleDeferredMediaSelectionSchema,
+} from "@/lib/deferred-media";
 import { orpc, orpcClient } from "@/lib/orpc";
 
 import { CatalogLifecycleActions } from "../catalog-lifecycle-actions";
@@ -28,7 +33,7 @@ const accessOptions = [
 ];
 
 const skinFormSchema = z.object({
-  backgroundAssetId: z.string(),
+  backgroundSelection: optionalSingleDeferredMediaSelectionSchema,
   catalogOrder: z.string().regex(/^\d+$/, "Usa un número entero no negativo."),
   description: z.string().max(500),
   eterisPrice: z
@@ -54,7 +59,7 @@ const skinFormSchema = z.object({
 type SkinFormValues = z.input<typeof skinFormSchema>;
 
 const emptyValues: SkinFormValues = {
-  backgroundAssetId: "",
+  backgroundSelection: createEmptyDeferredMediaSelection(),
   catalogOrder: "0",
   description: "",
   eterisPrice: "",
@@ -67,6 +72,7 @@ const emptyValues: SkinFormValues = {
 };
 
 export function ProfileSkinsAdminPage() {
+  const queryClient = useQueryClient();
   const { data, refetch } = useSuspenseQuery(
     orpc.profileCatalogAdmin.skins.list.queryOptions()
   );
@@ -82,8 +88,8 @@ export function ProfileSkinsAdminPage() {
     onSubmit: async ({ value }) => {
       try {
         const result = await orpcClient.profileCatalogAdmin.skins.saveDraft({
+          backgroundSelection: value.backgroundSelection,
           draft: {
-            backgroundAssetId: value.backgroundAssetId.trim() || null,
             catalogOrder: Number(value.catalogOrder),
             description: value.description.trim(),
             eterisPrice: value.eterisPrice ? BigInt(value.eterisPrice) : null,
@@ -104,6 +110,14 @@ export function ProfileSkinsAdminPage() {
         setLoadedRevision({ id: result.revisionId, state: "draft" });
         setDraftUpdatedAt(result.updatedAt ?? null);
         await refetch();
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: orpc.media.admin.browse.queryKey(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: orpc.media.admin.list.queryKey(),
+          }),
+        ]);
         toast.success("Borrador de Skin guardado");
       } catch (error) {
         toast.error(
@@ -118,7 +132,9 @@ export function ProfileSkinsAdminPage() {
 
   const loadRevision = (skin: (typeof data)[number]) => {
     form.reset({
-      backgroundAssetId: skin.backgroundAssetId ?? "",
+      backgroundSelection: createDeferredMediaSelectionFromExistingId(
+        skin.backgroundAssetId
+      ),
       catalogOrder: String(skin.catalogOrder),
       description: skin.description,
       eterisPrice: skin.eterisPrice?.toString() ?? "",
@@ -244,14 +260,14 @@ export function ProfileSkinsAdminPage() {
                   )}
                 </form.AppField>
               </div>
-              <form.AppField name="backgroundAssetId">
+              <form.AppField name="backgroundSelection">
                 {(field) => (
-                  <field.TextField
-                    label="ID de fondo administrado (opcional)"
-                    onChange={(event) => {
-                      setPreviewAssetKey(null);
-                      field.handleChange(event.target.value);
-                    }}
+                  <field.MediaField
+                    allowAnimated={false}
+                    description="Selecciona o prepara el fondo. Los archivos nuevos se suben únicamente al guardar el borrador."
+                    label="Imagen de fondo (opcional)"
+                    maxItems={1}
+                    ownerKind="Perfil"
                   />
                 )}
               </form.AppField>

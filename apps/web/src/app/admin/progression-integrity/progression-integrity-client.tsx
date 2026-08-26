@@ -228,7 +228,7 @@ export function ProgressionIntegrityClient({
               </form.AppField>
               <form.AppField name="likerUserIds">
                 {(field) => (
-                  <field.TextField label="IDs coordinados, separados por coma" />
+                  <field.TextField label="Identificadores técnicos coordinados, separados por coma" />
                 )}
               </form.AppField>
               <Button

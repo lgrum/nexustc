@@ -1,0 +1,1 @@
+CREATE INDEX "black_market_listing_active_published_idx" ON "black_market_listing" USING btree ("state","published_at","id");

@@ -50,20 +50,33 @@ export default async function Page({ params }: PageProps) {
   const { id } = await params;
   const sessionPromise = (async () =>
     auth.api.getSession({ headers: await headers() }))();
-  const [profile, favoriteGames, scalarShowcases, currentStreak, session] =
-    await Promise.all([
-      getProfile(id),
-      orpcClient.profile
-        .getPublicFavoriteGamesShowcase({ userId: id })
-        .catch(() => []),
-      orpcClient.profile
-        .getPublicScalarShowcases({ userId: id })
-        .catch(() => []),
-      orpcClient.profile
-        .getPublicCurrentStreak({ userId: id })
-        .catch(() => null),
-      sessionPromise,
-    ]);
+  const [
+    profile,
+    favoriteGames,
+    scalarShowcases,
+    collectibleShowcases,
+    currentStreak,
+    publicCards,
+    publicPacks,
+    session,
+  ] = await Promise.all([
+    getProfile(id),
+    orpcClient.profile
+      .getPublicFavoriteGamesShowcase({ userId: id })
+      .catch(() => []),
+    orpcClient.profile.getPublicScalarShowcases({ userId: id }).catch(() => []),
+    orpcClient.profile
+      .getPublicCollectibleShowcases({ userId: id })
+      .catch(() => []),
+    orpcClient.profile.getPublicCurrentStreak({ userId: id }).catch(() => null),
+    orpcClient.cards
+      .publicCollection({ limit: 24, sort: "newest", userId: id })
+      .catch(() => null),
+    orpcClient.packs
+      .publicCollection({ limit: 24, sort: "newest", userId: id })
+      .catch(() => null),
+    sessionPromise,
+  ]);
   const manifest = profile.manifest
     ? {
         ...profile.manifest,
@@ -78,10 +91,16 @@ export default async function Page({ params }: PageProps) {
     ...(manifest ? { manifest } : {}),
   };
   const showcases = manifest
-    ? [...manifest.showcases, ...scalarShowcases].toSorted(
-        (left, right) => left.order - right.order
-      )
-    : undefined;
+    ? [
+        ...manifest.showcases,
+        ...scalarShowcases,
+        ...collectibleShowcases,
+      ].toSorted((left, right) => left.order - right.order)
+    : scalarShowcases.length > 0 || collectibleShowcases.length > 0
+      ? [...scalarShowcases, ...collectibleShowcases].toSorted(
+          (left, right) => left.order - right.order
+        )
+      : undefined;
 
   const contents = (
     <>
@@ -96,6 +115,8 @@ export default async function Page({ params }: PageProps) {
         <ProfileShowcaseLayout rendererKey={manifest.layout.rendererKey}>
           <UserClient
             showcases={showcases}
+            publicCards={publicCards}
+            publicPacks={publicPacks}
             userId={profile.id}
             userName={profile.name}
             visibility={profile.visibility}
@@ -103,6 +124,8 @@ export default async function Page({ params }: PageProps) {
         </ProfileShowcaseLayout>
       ) : (
         <UserClient
+          publicCards={publicCards}
+          publicPacks={publicPacks}
           userId={profile.id}
           userName={profile.name}
           visibility={profile.visibility}

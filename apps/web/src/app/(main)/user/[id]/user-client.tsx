@@ -6,10 +6,13 @@ import {
   FavouriteIcon,
   Fire03Icon,
   GameIcon,
+  PackageIcon,
   StarIcon,
+  SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
+import { collectibleRarityLabel } from "@repo/shared/collectibles";
 import type { ProfileActivityVisibility } from "@repo/shared/profile";
 import { PROFILE_SHOWCASE_PAGE_SIZES } from "@repo/shared/profile-customization";
 import type { EffectiveProfileShowcase } from "@repo/shared/profile-customization";
@@ -31,8 +34,11 @@ import {
   ProgressLabel,
   ProgressValue,
 } from "@/components/ui/progress";
+import { formatCollectibleDate } from "@/lib/format-date";
 import { orpcClient } from "@/lib/orpc";
 import { cn, getBucketUrl } from "@/lib/utils";
+
+import { PublicCollectionSection } from "./public-collection-section";
 
 type PublicBookmarksPage = Awaited<
   ReturnType<(typeof orpcClient.user)["getUserBookmarks"]>
@@ -45,6 +51,8 @@ type PublicReviewsCursor = NonNullable<PublicReviewsPage["nextCursor"]>;
 
 export function UserClient({
   preview = false,
+  publicCards,
+  publicPacks,
   showEmptyShowcases = false,
   showcases,
   userId,
@@ -52,6 +60,12 @@ export function UserClient({
   visibility,
 }: {
   preview?: boolean;
+  publicCards?: Awaited<
+    ReturnType<(typeof orpcClient.cards)["publicCollection"]>
+  > | null;
+  publicPacks?: Awaited<
+    ReturnType<(typeof orpcClient.packs)["publicCollection"]>
+  > | null;
   userId: string;
   userName: string;
   visibility: ProfileActivityVisibility;
@@ -82,6 +96,33 @@ export function UserClient({
           if (showcase.type === "eteris") {
             return <EterisShowcase key={showcase.type} showcase={showcase} />;
           }
+          if (showcase.type === "card") {
+            return (
+              <CardShowcase
+                key={showcase.type}
+                showcase={showcase}
+                showEmpty={showEmptyShowcases}
+              />
+            );
+          }
+          if (showcase.type === "rare-card") {
+            return (
+              <CardShowcase
+                key={showcase.type}
+                showcase={showcase}
+                showEmpty={showEmptyShowcases}
+              />
+            );
+          }
+          if (showcase.type === "unopened-pack") {
+            return (
+              <PackShowcase
+                key={showcase.type}
+                showcase={showcase}
+                showEmpty={showEmptyShowcases}
+              />
+            );
+          }
           return showcase.rendererKey === "library" ? (
             <PublicBookmarksSection
               isPublic
@@ -104,6 +145,13 @@ export function UserClient({
             />
           );
         })}
+        {publicCards !== undefined && publicPacks !== undefined ? (
+          <PublicCollectionSection
+            initialCards={publicCards}
+            initialPacks={publicPacks}
+            userId={userId}
+          />
+        ) : null}
       </div>
     );
   }
@@ -120,7 +168,181 @@ export function UserClient({
         userId={userId}
         userName={userName}
       />
+      {publicCards !== undefined && publicPacks !== undefined ? (
+        <PublicCollectionSection
+          initialCards={publicCards}
+          initialPacks={publicPacks}
+          userId={userId}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function CardShowcase({
+  showcase,
+  showEmpty,
+}: {
+  showcase: Extract<EffectiveProfileShowcase, { type: "card" | "rare-card" }>;
+  showEmpty: boolean;
+}) {
+  if (showcase.cards.length === 0 && !showEmpty) {
+    return null;
+  }
+  const title = showcase.type === "card" ? "Cartas destacadas" : "Cartas raras";
+  return (
+    <section
+      aria-labelledby={`${showcase.type}-showcase-title`}
+      data-showcase-variant={showcase.variant}
+    >
+      <ProfileSectionHeader
+        description={
+          showcase.type === "card"
+            ? "Una selección manual de Card Instances que conservas actualmente."
+            : "Una selección automática ordenada por rareza, edición y Mint Number."
+        }
+        icon={SparklesIcon}
+        title={title}
+        titleId={`${showcase.type}-showcase-title`}
+      />
+      <div className="mt-5" data-profile-collectible-cards>
+        {showcase.cards.length === 0 ? (
+          <ProfileCollectionState
+            description="Las cartas seleccionadas ya no están disponibles o todavía no hay cartas para mostrar."
+            kind="empty"
+            title="Aún no hay cartas"
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 @md:grid-cols-2 @4xl:grid-cols-3">
+            {showcase.cards.map((card) => (
+              <article
+                className="flex min-w-0 gap-3 rounded-2xl border border-border/70 bg-background/35 p-3"
+                key={card.id}
+              >
+                {(() => {
+                  const thumbnail = card.template.renderedVariants.find(
+                    (variant) => variant.variant === "thumbnail"
+                  );
+                  return thumbnail ? (
+                    <Image
+                      alt={
+                        card.template.disabled
+                          ? "Carta no disponible"
+                          : `Arte de ${card.characterName}`
+                      }
+                      className="size-20 shrink-0 rounded-xl object-cover"
+                      height={80}
+                      src={getBucketUrl(thumbnail.objectKey)}
+                      width={56}
+                    />
+                  ) : (
+                    <div
+                      aria-hidden
+                      className="size-20 shrink-0 rounded-xl bg-primary/10"
+                    />
+                  );
+                })()}
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold">
+                    {card.template.disabled
+                      ? "Contenido no disponible"
+                      : card.characterName}
+                  </h3>
+                  <p className="truncate text-muted-foreground text-sm">
+                    {card.gameName} · {card.seriesName}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    {collectibleRarityLabel(card.rarity)} · {card.mintDisplay}
+                  </p>
+                  {card.listingUrl ? (
+                    <Link
+                      className="mt-1 inline-block font-medium text-emerald-500 text-xs underline-offset-2 hover:underline"
+                      href={card.listingUrl}
+                    >
+                      En venta{card.listingIsBundle ? " · Lote" : ""}
+                    </Link>
+                  ) : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PackShowcase({
+  showcase,
+  showEmpty,
+}: {
+  showcase: Extract<EffectiveProfileShowcase, { type: "unopened-pack" }>;
+  showEmpty: boolean;
+}) {
+  if (showcase.packs.length === 0 && !showEmpty) {
+    return null;
+  }
+  return (
+    <section
+      aria-labelledby="unopened-pack-showcase-title"
+      data-showcase-variant={showcase.variant}
+    >
+      <ProfileSectionHeader
+        description="Packs sin abrir que conservas ahora, del más nuevo al más antiguo."
+        icon={PackageIcon}
+        title="Packs sin abrir"
+        titleId="unopened-pack-showcase-title"
+      />
+      <div className="mt-5" data-profile-collectible-packs>
+        {showcase.packs.length === 0 ? (
+          <ProfileCollectionState
+            description="Los packs transferidos o abiertos dejan de aparecer automáticamente."
+            kind="empty"
+            title="Aún no hay packs sin abrir"
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-3 @md:grid-cols-2 @4xl:grid-cols-3">
+            {showcase.packs.map((pack, index) => (
+              <article
+                className="rounded-2xl border border-border/70 bg-background/35 p-4"
+                key={`${pack.templateId}:${pack.issuedAt.toISOString()}:${index}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">
+                      {pack.disabled
+                        ? "Contenido no disponible"
+                        : pack.templateName}
+                    </h3>
+                    <p className="mt-1 text-muted-foreground text-sm">
+                      {pack.disabled
+                        ? "Este pack está temporalmente deshabilitado."
+                        : `Revisión ${pack.revision}`}
+                    </p>
+                  </div>
+                  <HugeiconsIcon
+                    aria-hidden
+                    className="size-5 text-primary"
+                    icon={PackageIcon}
+                  />
+                </div>
+                <p className="mt-3 text-muted-foreground text-xs">
+                  Emitido el {formatCollectibleDate(pack.issuedAt)}
+                </p>
+                {pack.listingUrl ? (
+                  <Link
+                    className="mt-2 inline-block font-medium text-emerald-500 text-xs underline-offset-2 hover:underline"
+                    href={pack.listingUrl}
+                  >
+                    En venta{pack.listingIsBundle ? " · Lote" : ""}
+                  </Link>
+                ) : null}
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

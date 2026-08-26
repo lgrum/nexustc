@@ -18,7 +18,14 @@ export default async function Page() {
   if (!env.PROFILE_CUSTOMIZATION_ENABLED) {
     notFound();
   }
-  const [state, favoriteGames, profile, scalarShowcases] = await Promise.all([
+  const [
+    state,
+    favoriteGames,
+    profile,
+    scalarShowcases,
+    cardInventory,
+    packInventory,
+  ] = await Promise.all([
     orpcClient.profile.getCustomizationEditorState(),
     orpcClient.profile.getFavoriteGamesEditorState(),
     orpcClient.profile.getPublic({
@@ -26,6 +33,8 @@ export default async function Page() {
       userId: session.user.id,
     }),
     orpcClient.profile.getCustomizationScalarPreview(),
+    orpcClient.cards.inventory({ limit: 50 }),
+    orpcClient.packs.inventory({ limit: 50 }),
   ]);
 
   if (!profile) {
@@ -34,6 +43,10 @@ export default async function Page() {
 
   return (
     <ProfileCustomizer
+      collectibleInventory={{
+        cards: cardInventory.items,
+        packs: packInventory.items,
+      }}
       favoriteGames={favoriteGames}
       initialState={state}
       profile={profile}

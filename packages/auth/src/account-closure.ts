@@ -56,7 +56,14 @@ export type AccountClosureCommentReconciler = (
 export type AccountClosureCompletionHandler = (
   userId: string
 ) => Promise<void> | void;
+export type AccountClosureCollectibleReconciler = (
+  tx: Transaction,
+  input: { now: Date; userId: string; walletId: string }
+) => Promise<unknown>;
 
+let configuredCollectibleReconciler:
+  | AccountClosureCollectibleReconciler
+  | undefined;
 let configuredCommentReconciler: AccountClosureCommentReconciler | undefined;
 let configuredCompletionHandler: AccountClosureCompletionHandler | undefined;
 let configuredLikeReconciler: AccountClosureLikeReconciler | undefined;
@@ -65,6 +72,12 @@ export function configureAccountClosureCommentReconciler(
   reconciler: AccountClosureCommentReconciler
 ) {
   configuredCommentReconciler = reconciler;
+}
+
+export function configureAccountClosureCollectibleReconciler(
+  reconciler: AccountClosureCollectibleReconciler
+) {
+  configuredCollectibleReconciler = reconciler;
 }
 
 export function configureAccountClosureLikeReconciler(
@@ -95,6 +108,13 @@ function requireCommentReconciler() {
     throw new Error("ACCOUNT_CLOSURE_RECONCILER_NOT_CONFIGURED");
   }
   return configuredCommentReconciler;
+}
+
+function requireCollectibleReconciler() {
+  if (!configuredCollectibleReconciler) {
+    throw new Error("ACCOUNT_CLOSURE_RECONCILER_NOT_CONFIGURED");
+  }
+  return configuredCollectibleReconciler;
 }
 
 function assertSignedBigint(value: bigint) {
@@ -159,7 +179,8 @@ export function closeAccountAndDeleteUser(
   db: Database,
   userId: string,
   reconcileOutgoingLikes = requireLikeReconciler(),
-  reconcileAuthoredCommentRewards = requireCommentReconciler()
+  reconcileAuthoredCommentRewards = requireCommentReconciler(),
+  reconcileCollectibles = requireCollectibleReconciler()
 ) {
   return runAccountClosureTransaction(db, async (tx) => {
     const now = new Date();
@@ -176,7 +197,12 @@ export function closeAccountAndDeleteUser(
     if (!account) {
       throw new Error("ACCOUNT_CLOSURE_USER_NOT_FOUND");
     }
-    const result = await closeAccountInTransaction(tx, userId, now);
+    const result = await closeAccountInTransaction(
+      tx,
+      userId,
+      now,
+      reconcileCollectibles
+    );
     await reconcileOutgoingLikes(tx, {
       actorUserId: userId,
       likerUserId: userId,
@@ -337,7 +363,8 @@ export function closeAccountAndDeleteUser(
 async function closeAccountInTransaction(
   tx: Transaction,
   userId: string,
-  now: Date
+  now: Date,
+  reconcileCollectibles?: AccountClosureCollectibleReconciler
 ) {
   await tx
     .select({ userId: userStreak.userId })
@@ -383,6 +410,12 @@ async function closeAccountInTransaction(
     .insert(eterisWalletBalance)
     .values({ updatedAt: now, walletId: wallet.id })
     .onConflictDoNothing({ target: eterisWalletBalance.walletId });
+
+  await reconcileCollectibles?.(tx, {
+    now,
+    userId,
+    walletId: wallet.id,
+  });
 
   const balanceSnapshot = await tx.query.eterisWalletBalance.findFirst({
     columns: { balance: true },
