@@ -10,19 +10,27 @@ import { orpc } from "@/lib/orpc";
 const PAGE_SIZE = 30;
 
 export default function GiftListClient({ mode }: { mode: "inbox" | "sent" }) {
-  const listOptions =
+  const listInput = { limit: PAGE_SIZE, state: "sent" as const };
+  const query = useInfiniteQuery(
     mode === "inbox"
-      ? orpc.gifts.inbox.queryOptions({
-          input: { limit: PAGE_SIZE, state: "sent" },
+      ? orpc.gifts.inbox.infiniteOptions({
+          // pageParam threads the server cursor back into the RPC input.
+          input: (pageParam: string | undefined) => ({
+            ...listInput,
+            ...(pageParam ? { cursor: pageParam } : {}),
+          }),
+          getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+          initialPageParam: undefined as string | undefined,
         })
-      : orpc.gifts.sent.queryOptions({
-          input: { limit: PAGE_SIZE, state: "sent" },
-        });
-  const query = useInfiniteQuery({
-    ...listOptions,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    initialPageParam: undefined as string | undefined,
-  });
+      : orpc.gifts.sent.infiniteOptions({
+          input: (pageParam: string | undefined) => ({
+            ...listInput,
+            ...(pageParam ? { cursor: pageParam } : {}),
+          }),
+          getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+          initialPageParam: undefined as string | undefined,
+        })
+  );
   const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   const title = mode === "inbox" ? "Regalos recibidos" : "Regalos enviados";
   return (

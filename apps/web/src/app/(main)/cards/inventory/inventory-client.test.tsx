@@ -13,17 +13,31 @@ vi.mock("@/lib/orpc", () => ({
   orpc: {
     cards: {
       inventory: {
-        queryOptions: () => ({
+        // Mirrors the real infiniteOptions contract: input is a pageParam
+        // function and the remaining TanStack options pass through untouched.
+        infiniteOptions: ({
+          input,
+          ...rest
+        }: {
+          input: (pageParam?: unknown) => unknown;
+        }) => ({
+          ...rest,
           queryFn: () => Promise.resolve(state.cards),
-          queryKey: ["cards", "inventory"],
+          queryKey: ["cards", "inventory", input()],
         }),
       },
     },
     packs: {
       inventory: {
-        queryOptions: () => ({
+        infiniteOptions: ({
+          input,
+          ...rest
+        }: {
+          input: (pageParam?: unknown) => unknown;
+        }) => ({
+          ...rest,
           queryFn: () => Promise.resolve(state.packs),
-          queryKey: ["packs", "inventory"],
+          queryKey: ["packs", "inventory", input()],
         }),
       },
     },

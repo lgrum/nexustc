@@ -10,6 +10,8 @@ const state = vi.hoisted(() => ({
   purchase: vi.fn(),
   publish: vi.fn(),
   searchCalls: 0,
+  searchInputs: [] as unknown[],
+  searchPages: [] as { items: unknown[]; nextCursor: string | null }[],
 }));
 
 const listing = {
@@ -50,6 +52,7 @@ vi.mock("@/lib/orpc", () => ({
         }),
       },
       eligible: {
+        key: () => ["black-market", "eligible"],
         queryOptions: () => ({
           queryFn: () =>
             Promise.resolve({
@@ -72,12 +75,27 @@ vi.mock("@/lib/orpc", () => ({
         }),
       },
       search: {
-        queryOptions: (input: unknown) => ({
-          queryFn: () => {
+        key: () => ["black-market", "search"],
+        // Mirrors the real infiniteOptions contract: the RPC input is rebuilt
+        // from pageParam, so page 2 requests carry the server cursor.
+        infiniteOptions: ({
+          input,
+          ...rest
+        }: {
+          input: (pageParam?: unknown) => unknown;
+        }) => ({
+          ...rest,
+          queryFn: ({ pageParam }: { pageParam?: unknown }) => {
             state.searchCalls += 1;
-            return Promise.resolve({ items: [listing], nextCursor: null });
+            state.searchInputs.push(input(pageParam));
+            return Promise.resolve(
+              state.searchPages.shift() ?? {
+                items: [listing],
+                nextCursor: null,
+              }
+            );
           },
-          queryKey: ["black-market", "search", input],
+          queryKey: ["black-market", "search", input()],
         }),
       },
     },
@@ -96,11 +114,25 @@ function renderWithClient(element: React.ReactElement) {
 beforeEach(() => {
   state.detailCalls = 0;
   state.searchCalls = 0;
+  state.searchInputs = [];
+  state.searchPages = [];
   state.purchase.mockReset();
   state.publish.mockReset();
 });
 
 describe("Mercado Negro retry commands", () => {
+  it("sends the returned cursor when loading more market listings", async () => {
+    state.searchPages = [
+      { items: [listing], nextCursor: "cursor-1" },
+      { items: [], nextCursor: null },
+    ];
+    renderWithClient(<BlackMarketClient />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ver más" }));
+    await waitFor(() => expect(state.searchCalls).toBe(2));
+    expect(state.searchInputs[1]).toMatchObject({ cursor: "cursor-1" });
+  });
+
   it("reuses one publish key after a network error and rotates it when terms change", async () => {
     state.publish
       .mockRejectedValueOnce(new Error("Red interrumpida"))

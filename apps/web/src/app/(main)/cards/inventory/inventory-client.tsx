@@ -47,16 +47,28 @@ export default function InventoryClient() {
     }),
     [transferability, trimmedSearch]
   );
-  const cards = useInfiniteQuery({
-    ...orpc.cards.inventory.queryOptions(cardInput),
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    initialPageParam: undefined as string | undefined,
-  });
-  const packs = useInfiniteQuery({
-    ...orpc.packs.inventory.queryOptions(packInput),
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    initialPageParam: undefined as string | undefined,
-  });
+  const cards = useInfiniteQuery(
+    orpc.cards.inventory.infiniteOptions({
+      // Wrapped input + pageParam threading: an unwrapped input would drop the
+      // filters from the RPC call and a fixed input would never advance.
+      input: (pageParam: string | undefined) => ({
+        ...cardInput,
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      initialPageParam: undefined as string | undefined,
+    })
+  );
+  const packs = useInfiniteQuery(
+    orpc.packs.inventory.infiniteOptions({
+      input: (pageParam: string | undefined) => ({
+        ...packInput,
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      initialPageParam: undefined as string | undefined,
+    })
+  );
   const cardItems = cards.data?.pages.flatMap((page) => page.items) ?? [];
   const packItems = packs.data?.pages.flatMap((page) => page.items) ?? [];
 

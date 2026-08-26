@@ -90,11 +90,18 @@ export default function BlackMarketClient() {
     }),
     [appliedPrices, assetKind, bundleStatus, search, sort]
   );
-  const listings = useInfiniteQuery({
-    ...orpc.blackMarket.search.queryOptions({ input: listingInput }),
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-    initialPageParam: undefined as string | undefined,
-  });
+  const listings = useInfiniteQuery(
+    orpc.blackMarket.search.infiniteOptions({
+      // oRPC's infinite options rebuild the RPC input from pageParam; a fixed
+      // queryOptions input would refetch page 1 on every "Ver más".
+      input: (pageParam: string | undefined) => ({
+        ...listingInput,
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      initialPageParam: undefined as string | undefined,
+    })
+  );
   const listingItems = listings.data?.pages.flatMap((page) => page.items) ?? [];
   const eligible = useQuery(orpc.blackMarket.eligible.queryOptions());
   const publish = useMutation(
@@ -109,12 +116,10 @@ export default function BlackMarketClient() {
         setAskingPrice("");
         await Promise.all([
           queryClient.invalidateQueries({
-            queryKey: orpc.blackMarket.search.queryOptions({
-              input: listingInput,
-            }).queryKey,
+            queryKey: orpc.blackMarket.search.key(),
           }),
           queryClient.invalidateQueries({
-            queryKey: orpc.blackMarket.eligible.queryOptions().queryKey,
+            queryKey: orpc.blackMarket.eligible.key(),
           }),
         ]);
       },
@@ -127,9 +132,7 @@ export default function BlackMarketClient() {
           purchaseAttempt.current = null;
           setSelectedListing(null);
           void queryClient.invalidateQueries({
-            queryKey: orpc.blackMarket.search.queryOptions({
-              input: listingInput,
-            }).queryKey,
+            queryKey: orpc.blackMarket.search.key(),
           });
           setMessage(
             "La publicación cambió. Actualizamos el mercado; revisa el precio y confirma una nueva compra."
@@ -150,12 +153,10 @@ export default function BlackMarketClient() {
         setSelectedListing(null);
         await Promise.all([
           queryClient.invalidateQueries({
-            queryKey: orpc.blackMarket.search.queryOptions({
-              input: listingInput,
-            }).queryKey,
+            queryKey: orpc.blackMarket.search.key(),
           }),
           queryClient.invalidateQueries({
-            queryKey: orpc.blackMarket.eligible.queryOptions().queryKey,
+            queryKey: orpc.blackMarket.eligible.key(),
           }),
         ]);
       },
