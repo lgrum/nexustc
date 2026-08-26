@@ -1,4 +1,7 @@
+import { auth } from "@repo/auth";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import OpeningClient from "./opening-client";
 
@@ -13,6 +16,11 @@ export default async function PackOpeningPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect("/auth");
+  }
+
   const { id } = await params;
   return <OpeningClient packInstanceId={id} />;
 }

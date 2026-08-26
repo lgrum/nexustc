@@ -1,4 +1,7 @@
+import { auth } from "@repo/auth";
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import GiftDetailClient from "../gift-detail-client";
 
@@ -12,6 +15,11 @@ export default async function GiftDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) {
+    redirect("/auth");
+  }
+
   const { id } = await params;
   return <GiftDetailClient giftId={id} />;
 }
