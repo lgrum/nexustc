@@ -1,5 +1,6 @@
 "use client";
 
+import { collectibleRarityLabel } from "@repo/shared/collectibles";
 import type { PackOpeningCard } from "@repo/shared/collectibles";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Image from "next/image";
@@ -472,7 +473,7 @@ function OpeningCard({
           {card.template.gameName} · {card.template.seriesName}
         </p>
         <p className="text-muted-foreground text-xs">
-          {card.mintDisplay} · {card.template.rarity}
+          {card.mintDisplay} · {collectibleRarityLabel(card.template.rarity)}
         </p>
       </div>
     </li>

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 import type { orpcClient } from "@/lib/orpc";
 
@@ -164,7 +165,7 @@ export function CollectibleAuditClient({
             {data.items.map((item) => (
               <tr className="border-b last:border-0" key={item.actionId}>
                 <td className="p-3">
-                  {new Date(item.createdAt).toLocaleString("es-AR")}
+                  {formatCollectibleDateTime(item.createdAt)}
                 </td>
                 <td className="p-3">{item.action}</td>
                 <td className="p-3">{item.targetKind}</td>

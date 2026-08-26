@@ -1,16 +1,29 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
+const PAGE_SIZE = 30;
+
 export default function TradeListClient({ mode }: { mode: "inbox" | "sent" }) {
-  const query = useQuery(
+  const listOptions =
     mode === "inbox"
-      ? orpc.trades.inbox.queryOptions({ input: { limit: 30, state: "sent" } })
-      : orpc.trades.sent.queryOptions({ input: { limit: 30, state: "sent" } })
-  );
+      ? orpc.trades.inbox.queryOptions({
+          input: { limit: PAGE_SIZE, state: "sent" },
+        })
+      : orpc.trades.sent.queryOptions({
+          input: { limit: PAGE_SIZE, state: "sent" },
+        });
+  const query = useInfiniteQuery({
+    ...listOptions,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
+  });
+  const items = query.data?.pages.flatMap((page) => page.items) ?? [];
   const title = mode === "inbox" ? "Ofertas recibidas" : "Ofertas enviadas";
   return (
     <main className="container space-y-6 py-10">
@@ -28,13 +41,13 @@ export default function TradeListClient({ mode }: { mode: "inbox" | "sent" }) {
       {query.error ? (
         <p className="text-destructive">No pudimos cargar esta bandeja.</p>
       ) : null}
-      {query.data?.items.length === 0 ? (
+      {items.length === 0 && !query.isLoading ? (
         <p className="rounded-2xl border border-dashed p-8 text-muted-foreground">
           No hay ofertas pendientes.
         </p>
       ) : null}
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {query.data?.items.map((item) => (
+        {items.map((item) => (
           <li className="rounded-3xl border bg-card/70 p-5" key={item.id}>
             <Link
               className="block space-y-2 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -42,7 +55,7 @@ export default function TradeListClient({ mode }: { mode: "inbox" | "sent" }) {
             >
               <h2 className="font-bold">Intercambio pendiente</h2>
               <p className="text-muted-foreground text-sm">
-                Vence {new Date(item.expiresAt).toLocaleDateString("es-AR")}
+                Vence {formatCollectibleDateTime(item.expiresAt)}
               </p>
               <span className="font-semibold text-primary text-sm">
                 Ver detalle
@@ -51,6 +64,15 @@ export default function TradeListClient({ mode }: { mode: "inbox" | "sent" }) {
           </li>
         ))}
       </ul>
+      {query.hasNextPage ? (
+        <Button
+          disabled={query.isFetchingNextPage}
+          onClick={() => query.fetchNextPage()}
+          variant="outline"
+        >
+          {query.isFetchingNextPage ? "Cargando…" : "Ver más"}
+        </Button>
+      ) : null}
     </main>
   );
 }

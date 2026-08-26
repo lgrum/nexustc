@@ -1,10 +1,12 @@
 "use client";
 
+import { GIFT_OFFER_STATE_LABELS } from "@repo/shared/collectibles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 function createGiftActionKey(action: string, giftId: string) {
@@ -97,7 +99,7 @@ export default function GiftDetailClient({ giftId }: { giftId: string }) {
             <div className="flex flex-wrap justify-between gap-2">
               <h2 className="font-bold text-2xl">Activos exactos</h2>
               <span className="rounded-full border px-3 py-1 font-semibold text-sm">
-                {data.state}
+                {GIFT_OFFER_STATE_LABELS[data.state] ?? data.state}
               </span>
             </div>
             <ul className="grid gap-3 sm:grid-cols-2">
@@ -119,7 +121,7 @@ export default function GiftDetailClient({ giftId }: { giftId: string }) {
             <dl className="grid gap-2 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-muted-foreground">Vence</dt>
-                <dd>{new Date(data.expiresAt).toLocaleString("es-AR")}</dd>
+                <dd>{formatCollectibleDateTime(data.expiresAt)}</dd>
               </div>
               <div>
                 <dt className="text-muted-foreground">Versión</dt>

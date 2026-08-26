@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpcClient } from "@/lib/orpc";
 
 import { OperationalActionDialog } from "../operational-action-dialog";
@@ -308,7 +309,7 @@ export function CardShopAdminPage({
                         : `${offer.remainingSales} restantes`}{" "}
                       ·{" "}
                       {offer.startsAt
-                        ? new Date(offer.startsAt).toLocaleString("es-AR")
+                        ? formatCollectibleDateTime(offer.startsAt)
                         : "sin inicio"}
                     </p>
                   </div>

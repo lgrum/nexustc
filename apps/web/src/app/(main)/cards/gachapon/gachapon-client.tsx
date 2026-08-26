@@ -4,10 +4,12 @@ import type {
   GachaponActivationResult,
   GachaponPublicMachine,
 } from "@repo/shared/collectibles";
+import { collectibleBindingLabel } from "@repo/shared/collectibles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 export function GachaponClient({
@@ -265,7 +267,7 @@ function Info({ label, value }: { label: string; value: string }) {
 }
 
 function bindingLabel(binding: GachaponPublicMachine["binding"]) {
-  return binding === "account-bound" ? "Vinculado a tu cuenta" : "Transferible";
+  return collectibleBindingLabel(binding);
 }
 
 function availabilityLabel(machine: GachaponPublicMachine) {
@@ -274,7 +276,7 @@ function availabilityLabel(machine: GachaponPublicMachine) {
   }
   if (machine.availability === "scheduled") {
     return machine.startsAt
-      ? `Comienza ${new Date(machine.startsAt).toLocaleString("es-AR")}`
+      ? `Comienza ${formatCollectibleDateTime(machine.startsAt)}`
       : "Programada";
   }
   if (machine.availability === "exhausted") {

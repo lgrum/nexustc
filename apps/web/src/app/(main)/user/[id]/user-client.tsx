@@ -12,6 +12,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import type { IconSvgElement } from "@hugeicons/react";
+import { collectibleRarityLabel } from "@repo/shared/collectibles";
 import type { ProfileActivityVisibility } from "@repo/shared/profile";
 import { PROFILE_SHOWCASE_PAGE_SIZES } from "@repo/shared/profile-customization";
 import type { EffectiveProfileShowcase } from "@repo/shared/profile-customization";
@@ -251,7 +252,7 @@ function CardShowcase({
                     {card.gameName} · {card.seriesName}
                   </p>
                   <p className="mt-1 text-sm">
-                    {card.rarity} · {card.mintDisplay}
+                    {collectibleRarityLabel(card.rarity)} · {card.mintDisplay}
                   </p>
                   {card.listingUrl ? (
                     <Link

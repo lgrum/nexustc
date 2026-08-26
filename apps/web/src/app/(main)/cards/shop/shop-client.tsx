@@ -1,10 +1,12 @@
 "use client";
 
 import type { OfficialCardShopPublicOffer } from "@repo/shared/collectibles";
+import { collectibleBindingLabel } from "@repo/shared/collectibles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 type Offer = OfficialCardShopPublicOffer;
@@ -341,15 +343,15 @@ function totalPrice(offer: Offer, quantity: number) {
 }
 
 function bindingLabel(binding: Offer["binding"]) {
-  return binding === "account-bound" ? "Vinculado a tu cuenta" : "Transferible";
+  return collectibleBindingLabel(binding);
 }
 
 function availabilityLabel(offer: Offer) {
   const starts = offer.startsAt
-    ? new Date(offer.startsAt).toLocaleString("es-AR")
+    ? formatCollectibleDateTime(offer.startsAt)
     : "Ahora";
   const ends = offer.endsAt
-    ? new Date(offer.endsAt).toLocaleString("es-AR")
+    ? formatCollectibleDateTime(offer.endsAt)
     : "Sin fecha final";
   return `${starts} · ${ends}`;
 }

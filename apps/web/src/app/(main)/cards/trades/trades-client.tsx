@@ -10,6 +10,7 @@ import type { CollectibleAssetOption } from "@/components/collectibles/asset-pic
 import { ParticipantPicker } from "@/components/collectibles/participant-picker";
 import type { CollectibleParticipant } from "@/components/collectibles/participant-picker";
 import { Button } from "@/components/ui/button";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 function references(assets: CollectibleAssetOption[]) {
@@ -243,7 +244,7 @@ function OfferList({
                   coleccionables
                 </span>
                 <span className="block text-muted-foreground text-sm">
-                  Vence {new Date(item.expiresAt).toLocaleDateString("es-AR")}
+                  Vence {formatCollectibleDateTime(item.expiresAt)}
                 </span>
               </Link>
             </li>

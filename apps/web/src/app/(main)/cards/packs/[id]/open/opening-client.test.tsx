@@ -84,7 +84,9 @@ const state = vi.hoisted(() => ({
 
 vi.mock("next/image", () => ({
   default: ({ priority: _priority, ...props }: Record<string, unknown>) => (
-    <img {...props} />
+    // Renders next/image's real props contract; there is no optimizer under test.
+    // oxlint-disable-next-line next/no-img-element
+    <img alt="" {...props} />
   ),
 }));
 

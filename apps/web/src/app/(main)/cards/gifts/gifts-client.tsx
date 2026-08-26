@@ -9,6 +9,7 @@ import type { CollectibleAssetOption } from "@/components/collectibles/asset-pic
 import { ParticipantPicker } from "@/components/collectibles/participant-picker";
 import type { CollectibleParticipant } from "@/components/collectibles/participant-picker";
 import { Button } from "@/components/ui/button";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 export default function GiftsClient() {
@@ -190,7 +191,7 @@ function GiftSummaryList({
                 <span className="block text-muted-foreground text-sm">
                   {item.assetCount} coleccionable
                   {item.assetCount === 1 ? "" : "s"} · vence{" "}
-                  {new Date(item.expiresAt).toLocaleDateString("es-AR")}
+                  {formatCollectibleDateTime(item.expiresAt)}
                 </span>
               </Link>
             </li>

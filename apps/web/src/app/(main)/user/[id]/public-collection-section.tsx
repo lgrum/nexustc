@@ -10,6 +10,10 @@ import type {
   PublicCardInstance,
   PublicPackInstance,
 } from "@repo/shared/collectibles";
+import {
+  collectibleBindingLabel,
+  collectibleRarityLabel,
+} from "@repo/shared/collectibles";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import Image from "next/image";
 import { useMemo, useState } from "react";
@@ -42,13 +46,6 @@ type CardItem = PublicCardInstance;
 type PackItem = PublicPackInstance;
 
 const PAGE_SIZE = 24;
-const rarityLabels: Record<string, string> = {
-  common: "Común",
-  epic: "Épica",
-  legendary: "Legendaria",
-  rare: "Rara",
-  uncommon: "Poco común",
-};
 
 export function PublicCollectionSection({
   initialCards,
@@ -315,14 +312,11 @@ function VisibleCollection({
                       {item.gameName} · {item.seriesName}
                     </p>
                     <p className="mt-1 text-sm">
-                      {rarityLabels[item.template.rarity] ??
-                        item.template.rarity}{" "}
-                      · {item.mintDisplay}
+                      {collectibleRarityLabel(item.template.rarity)} ·{" "}
+                      {item.mintDisplay}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      {item.binding === "transferable"
-                        ? "Transferible"
-                        : "Ligada a cuenta"}
+                      {collectibleBindingLabel(item.binding)}
                     </p>
                     {item.forSale ? (
                       item.listingUrl ? (

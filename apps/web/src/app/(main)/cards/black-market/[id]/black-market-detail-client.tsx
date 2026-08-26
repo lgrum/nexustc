@@ -1,11 +1,13 @@
 "use client";
 
+import { collectibleRarityLabel } from "@repo/shared/collectibles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 import { isStaleListingError, stableAttemptKey } from "../black-market-client";
@@ -101,7 +103,7 @@ export default function BlackMarketDetailClient({
         </h1>
         <p className="text-muted-foreground">
           {listing.assetCount} activo{listing.assetCount === 1 ? "" : "s"} ·
-          vence {listing.expiresAt.toLocaleDateString("es-AR")}. Comprar libera
+          vence {formatCollectibleDateTime(listing.expiresAt)}. Comprar libera
           la custodia y transfiere todo en una sola operación.
         </p>
       </header>
@@ -124,7 +126,9 @@ export default function BlackMarketDetailClient({
               >
                 <strong>{asset.kind === "card" ? "Carta" : "Pack"}</strong>
                 {asset.characterName ? ` · ${asset.characterName}` : ""}
-                {asset.rarity ? ` · ${asset.rarity}` : ""}
+                {asset.rarity
+                  ? ` · ${collectibleRarityLabel(asset.rarity)}`
+                  : ""}
                 {asset.mintNumber ? ` · Mint #${asset.mintNumber}` : ""}
               </li>
             ))}

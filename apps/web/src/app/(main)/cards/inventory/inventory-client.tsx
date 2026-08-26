@@ -1,6 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import {
+  collectibleBindingLabel,
+  collectibleRarityLabel,
+} from "@repo/shared/collectibles";
+import type { CollectibleRarity } from "@repo/shared/collectibles";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -8,46 +13,52 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { orpc } from "@/lib/orpc";
 
-const rarityLabels: Record<string, string> = {
-  common: "Común",
-  uncommon: "Poco común",
-  rare: "Raro",
-  epic: "Épico",
-  legendary: "Legendario",
-};
+const PAGE_SIZE = 20;
+
+type InventorySort = "newest" | "rarity" | "game" | "mint";
+type TransferabilityFilter = "transferable" | "account-bound" | "";
 
 export default function InventoryClient() {
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"newest" | "rarity" | "game" | "mint">(
-    "newest"
-  );
-  const [cardCursor, setCardCursor] = useState<string | undefined>();
-  const [packCursor, setPackCursor] = useState<string | undefined>();
+  const [sort, setSort] = useState<InventorySort>("newest");
+  const [rarity, setRarity] = useState<CollectibleRarity | "">("");
+  const [transferability, setTransferability] =
+    useState<TransferabilityFilter>("");
+  const [limited, setLimited] = useState(false);
+
+  const trimmedSearch = search.trim();
   const cardInput = useMemo(
     () => ({
-      limit: 20,
-      ...(cardCursor ? { cursor: cardCursor } : {}),
-      ...(search.trim() ? { search: search.trim() } : {}),
+      limit: PAGE_SIZE,
+      ...(trimmedSearch ? { search: trimmedSearch } : {}),
+      ...(rarity ? { rarity } : {}),
+      ...(transferability ? { transferability } : {}),
+      ...(limited ? { limited: true } : {}),
       sort,
     }),
-    [cardCursor, search, sort]
+    [limited, rarity, sort, transferability, trimmedSearch]
   );
   const packInput = useMemo(
     () => ({
-      limit: 20,
-      ...(packCursor ? { cursor: packCursor } : {}),
-      ...(search.trim() ? { search: search.trim() } : {}),
+      limit: PAGE_SIZE,
+      ...(trimmedSearch ? { search: trimmedSearch } : {}),
+      ...(transferability ? { transferability } : {}),
       sort: "newest" as const,
     }),
-    [packCursor, search]
+    [transferability, trimmedSearch]
   );
-  const cards = useQuery(orpc.cards.inventory.queryOptions(cardInput));
-  const packs = useQuery(orpc.packs.inventory.queryOptions(packInput));
-
-  const resetCursors = () => {
-    setCardCursor(undefined);
-    setPackCursor(undefined);
-  };
+  const cards = useInfiniteQuery({
+    ...orpc.cards.inventory.queryOptions(cardInput),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
+  });
+  const packs = useInfiniteQuery({
+    ...orpc.packs.inventory.queryOptions(packInput),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
+  });
+  const cardItems = cards.data?.pages.flatMap((page) => page.items) ?? [];
+  const packItems = packs.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
     <main className="container space-y-10 py-10">
@@ -64,7 +75,7 @@ export default function InventoryClient() {
 
       <section
         aria-label="Filtros del inventario"
-        className="flex flex-col gap-3 rounded-2xl border bg-card/60 p-4 sm:flex-row sm:items-end"
+        className="grid gap-3 rounded-2xl border bg-card/60 p-4 sm:grid-cols-2 lg:grid-cols-5"
       >
         <label
           className="flex-1 space-y-1 font-medium text-sm"
@@ -75,19 +86,64 @@ export default function InventoryClient() {
             id="inventory-search"
             onChange={(event) => {
               setSearch(event.target.value);
-              resetCursors();
             }}
             placeholder="Personaje, juego, Serie o edición"
             value={search}
           />
         </label>
         <label className="space-y-1 font-medium text-sm">
+          Rareza
+          <select
+            aria-label="Filtrar por rareza"
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            onChange={(event) => {
+              setRarity(event.target.value as CollectibleRarity | "");
+            }}
+            value={rarity}
+          >
+            <option value="">Todas</option>
+            <option value="common">Común</option>
+            <option value="uncommon">Poco común</option>
+            <option value="rare">Raro</option>
+            <option value="epic">Épico</option>
+            <option value="legendary">Legendario</option>
+          </select>
+        </label>
+        <label className="space-y-1 font-medium text-sm">
+          Transferencia
+          <select
+            aria-label="Filtrar por transferencia"
+            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            onChange={(event) => {
+              setTransferability(event.target.value as TransferabilityFilter);
+            }}
+            value={transferability}
+          >
+            <option value="">Todas</option>
+            <option value="transferable">Transferibles</option>
+            <option value="account-bound">Vinculadas a la cuenta</option>
+          </select>
+        </label>
+        <label className="space-y-3 font-medium text-sm">
+          Edición limitada
+          <span className="flex h-10 items-center gap-2">
+            <input
+              checked={limited}
+              id="inventory-limited"
+              onChange={(event) => {
+                setLimited(event.target.checked);
+              }}
+              type="checkbox"
+            />
+            <span className="text-muted-foreground">Solo limitadas</span>
+          </span>
+        </label>
+        <label className="space-y-1 font-medium text-sm">
           Ordenar cartas
           <select
             className="h-10 rounded-md border bg-background px-3 text-sm"
             onChange={(event) => {
-              setSort(event.target.value as typeof sort);
-              resetCursors();
+              setSort(event.target.value as InventorySort);
             }}
             value={sort}
           >
@@ -104,10 +160,10 @@ export default function InventoryClient() {
         isLoading={cards.isLoading}
         title="Cartas"
       >
-        {cards.data?.items.length ? (
+        {cardItems.length ? (
           <>
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {cards.data.items.map((card) => (
+              {cardItems.map((card) => (
                 <li
                   className="space-y-3 rounded-3xl border bg-card/70 p-4"
                   key={card.id}
@@ -124,21 +180,20 @@ export default function InventoryClient() {
                       {card.gameName} · {card.seriesName}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      {rarityLabels[card.rarity] ?? card.rarity}
+                      {collectibleRarityLabel(card.rarity)}
                       {card.edition ? ` · ${card.edition}` : ""}
                     </p>
                   </div>
                 </li>
               ))}
             </ul>
-            {cards.data.nextCursor ? (
+            {cards.hasNextPage ? (
               <Button
-                onClick={() =>
-                  setCardCursor(cards.data.nextCursor ?? undefined)
-                }
+                disabled={cards.isFetchingNextPage}
+                onClick={() => cards.fetchNextPage()}
                 variant="outline"
               >
-                Ver más cartas
+                {cards.isFetchingNextPage ? "Cargando…" : "Ver más cartas"}
               </Button>
             ) : null}
           </>
@@ -150,10 +205,10 @@ export default function InventoryClient() {
         isLoading={packs.isLoading}
         title="Packs sin abrir"
       >
-        {packs.data?.items.length ? (
+        {packItems.length ? (
           <>
             <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {packs.data.items.map((pack) => (
+              {packItems.map((pack) => (
                 <li
                   className="rounded-3xl border bg-card/70 transition-colors hover:border-primary/60 focus-within:border-primary/60"
                   key={pack.id}
@@ -168,7 +223,8 @@ export default function InventoryClient() {
                     <div>
                       <h2 className="font-bold">{pack.templateName}</h2>
                       <p className="text-muted-foreground text-sm">
-                        Revisión {pack.revision ?? "histórica"} · {pack.binding}
+                        Revisión {pack.revision ?? "histórica"} ·{" "}
+                        {collectibleBindingLabel(pack.binding)}
                       </p>
                       <p className="text-muted-foreground text-xs">
                         Resultado reservado hasta abrir el Pack.
@@ -178,14 +234,13 @@ export default function InventoryClient() {
                 </li>
               ))}
             </ul>
-            {packs.data.nextCursor ? (
+            {packs.hasNextPage ? (
               <Button
-                onClick={() =>
-                  setPackCursor(packs.data.nextCursor ?? undefined)
-                }
+                disabled={packs.isFetchingNextPage}
+                onClick={() => packs.fetchNextPage()}
                 variant="outline"
               >
-                Ver más Packs
+                {packs.isFetchingNextPage ? "Cargando…" : "Ver más Packs"}
               </Button>
             ) : null}
           </>

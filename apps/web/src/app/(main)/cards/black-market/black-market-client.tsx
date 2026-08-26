@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 
@@ -9,6 +14,7 @@ import type { CollectibleAssetOption } from "@/components/collectibles/asset-pic
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { formatCollectibleDateTime } from "@/lib/format-date";
 import { orpc } from "@/lib/orpc";
 
 type ListingSort = "newest" | "price" | "rarity" | "mint";
@@ -54,6 +60,12 @@ export default function BlackMarketClient() {
   const [bundleStatus, setBundleStatus] = useState<"single" | "bundle" | "">(
     ""
   );
+  const [minPriceInput, setMinPriceInput] = useState("");
+  const [maxPriceInput, setMaxPriceInput] = useState("");
+  const [appliedPrices, setAppliedPrices] = useState<{
+    maxPrice?: string;
+    minPrice?: string;
+  }>({});
   const [sort, setSort] = useState<ListingSort>("newest");
   const [message, setMessage] = useState<string | null>(null);
   const [askingPrice, setAskingPrice] = useState("");
@@ -71,14 +83,19 @@ export default function BlackMarketClient() {
       ...(assetKind ? { assetKind } : {}),
       ...(bundleStatus ? { bundleStatus } : {}),
       ...(search.trim() ? { search: search.trim() } : {}),
+      ...(appliedPrices.minPrice ? { minPrice: appliedPrices.minPrice } : {}),
+      ...(appliedPrices.maxPrice ? { maxPrice: appliedPrices.maxPrice } : {}),
       limit: 24,
       sort,
     }),
-    [assetKind, bundleStatus, search, sort]
+    [appliedPrices, assetKind, bundleStatus, search, sort]
   );
-  const listings = useQuery(
-    orpc.blackMarket.search.queryOptions({ input: listingInput })
-  );
+  const listings = useInfiniteQuery({
+    ...orpc.blackMarket.search.queryOptions({ input: listingInput }),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
+  });
+  const listingItems = listings.data?.pages.flatMap((page) => page.items) ?? [];
   const eligible = useQuery(orpc.blackMarket.eligible.queryOptions());
   const publish = useMutation(
     orpc.blackMarket.publish.mutationOptions({
@@ -268,6 +285,50 @@ export default function BlackMarketClient() {
             </select>
           </label>
         </div>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+          <label className="space-y-1 text-sm" htmlFor="black-market-min-price">
+            Precio mínimo (Eteris)
+            <Input
+              id="black-market-min-price"
+              inputMode="numeric"
+              min="1"
+              onChange={(event) => setMinPriceInput(event.target.value)}
+              placeholder="Sin mínimo"
+              type="number"
+              value={minPriceInput}
+            />
+          </label>
+          <label className="space-y-1 text-sm" htmlFor="black-market-max-price">
+            Precio máximo (Eteris)
+            <Input
+              id="black-market-max-price"
+              inputMode="numeric"
+              min="1"
+              onChange={(event) => setMaxPriceInput(event.target.value)}
+              placeholder="Sin máximo"
+              type="number"
+              value={maxPriceInput}
+            />
+          </label>
+          <Button
+            onClick={() => {
+              const min = /^\d+$/.test(minPriceInput.trim())
+                ? BigInt(minPriceInput.trim()).toString()
+                : "";
+              const max = /^\d+$/.test(maxPriceInput.trim())
+                ? BigInt(maxPriceInput.trim()).toString()
+                : "";
+              setAppliedPrices({
+                ...(min && min !== "0" ? { minPrice: min } : {}),
+                ...(max && max !== "0" ? { maxPrice: max } : {}),
+              });
+            }}
+            type="button"
+            variant="outline"
+          >
+            Aplicar precios
+          </Button>
+        </div>
       </section>
 
       <section aria-labelledby="market-listings" className="space-y-4">
@@ -286,9 +347,9 @@ export default function BlackMarketClient() {
           >
             No pudimos cargar las publicaciones. Intenta nuevamente.
           </p>
-        ) : listings.data?.items.length ? (
+        ) : listingItems.length ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.data.items.map((listing) => (
+            {listingItems.map((listing) => (
               <Card key={listing.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between gap-2">
@@ -302,7 +363,7 @@ export default function BlackMarketClient() {
                   <p className="text-muted-foreground text-sm">
                     {listing.assetCount} activo
                     {listing.assetCount === 1 ? "" : "s"} · vence{" "}
-                    {listing.expiresAt.toLocaleDateString("es-AR")}
+                    {formatCollectibleDateTime(listing.expiresAt)}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Link
@@ -329,11 +390,22 @@ export default function BlackMarketClient() {
               </Card>
             ))}
           </div>
-        ) : (
+        ) : listings.isPending ? null : (
           <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
             No hay publicaciones que coincidan con estos filtros.
           </p>
         )}
+        {listings.hasNextPage ? (
+          <div className="flex justify-center">
+            <Button
+              disabled={listings.isFetchingNextPage}
+              onClick={() => listings.fetchNextPage()}
+              variant="outline"
+            >
+              {listings.isFetchingNextPage ? "Cargando…" : "Ver más"}
+            </Button>
+          </div>
+        ) : null}
       </section>
 
       {selectedListing ? (
