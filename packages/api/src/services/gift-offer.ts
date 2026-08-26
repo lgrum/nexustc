@@ -53,6 +53,7 @@ import {
   findActiveCollectibleCustody,
   listGiftOfferCustody,
   lockActiveCollectibleCustody,
+  lockCollectibleAssets,
   releaseGiftCollectibleCustody,
   transferCollectibleAssetOwner,
 } from "./collectible-custody";
@@ -358,36 +359,6 @@ async function assertEligibleAccounts(
   }
 }
 
-async function lockAssets(
-  tx: Transaction,
-  assets: readonly CollectibleAssetReference[]
-) {
-  const packIds = assets
-    .filter(({ kind }) => kind === "pack")
-    .map(({ assetId }) => assetId)
-    .toSorted();
-  const cardIds = assets
-    .filter(({ kind }) => kind === "card")
-    .map(({ assetId }) => assetId)
-    .toSorted();
-  if (packIds.length > 0) {
-    await tx
-      .select({ id: packInstance.id })
-      .from(packInstance)
-      .where(inArray(packInstance.id, packIds))
-      .orderBy(asc(packInstance.id))
-      .for("update");
-  }
-  if (cardIds.length > 0) {
-    await tx
-      .select({ id: cardInstance.id })
-      .from(cardInstance)
-      .where(inArray(cardInstance.id, cardIds))
-      .orderBy(asc(cardInstance.id))
-      .for("update");
-  }
-}
-
 async function assertTransferableAsset(
   tx: Transaction,
   asset: GiftOfferAsset,
@@ -649,7 +620,7 @@ async function sendGiftInTransaction(
     sentAt,
     { checkInboundPreference: true }
   );
-  await lockAssets(tx, input.assets);
+  await lockCollectibleAssets(tx, input.assets);
   for (const asset of input.assets) {
     await assertTransferableAsset(tx, asset, senderUserId);
   }
@@ -984,7 +955,7 @@ async function transitionGiftOfferInTransaction(
       checkInboundPreference: false,
     });
   }
-  await lockAssets(tx, assets);
+  await lockCollectibleAssets(tx, assets);
   if (initialOffer.state !== "sent") {
     throw new GiftOfferError(
       "OFFER_TERMINAL",
@@ -1365,7 +1336,7 @@ export async function closeSentGiftOfferInTransaction(
   const custody = await listGiftOfferCustody(tx, offer.id);
   const assets = custody.map(custodyAsset);
   if (assets.length > 0) {
-    await lockAssets(tx, assets);
+    await lockCollectibleAssets(tx, assets);
     await lockActiveCollectibleCustody(tx, assets);
   }
   return finalizeGiftOffer(

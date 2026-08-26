@@ -52,6 +52,7 @@ import {
   createCollectibleCustody,
   findActiveCollectibleCustody,
   lockActiveCollectibleCustody,
+  lockCollectibleAssets,
   listTradeOfferCustody,
   releaseCollectibleCustody,
   transferCollectibleAssetOwner,
@@ -454,36 +455,6 @@ async function assertEligibleAccounts(
   }
 }
 
-async function lockAssets(
-  tx: Transaction,
-  assets: readonly CollectibleAssetReference[]
-) {
-  const cardIds = assets
-    .filter(({ kind }) => kind === "card")
-    .map(({ assetId }) => assetId)
-    .toSorted();
-  const packIds = assets
-    .filter(({ kind }) => kind === "pack")
-    .map(({ assetId }) => assetId)
-    .toSorted();
-  if (packIds.length > 0) {
-    await tx
-      .select({ id: packInstance.id })
-      .from(packInstance)
-      .where(inArray(packInstance.id, packIds))
-      .orderBy(asc(packInstance.id))
-      .for("update");
-  }
-  if (cardIds.length > 0) {
-    await tx
-      .select({ id: cardInstance.id })
-      .from(cardInstance)
-      .where(inArray(cardInstance.id, cardIds))
-      .orderBy(asc(cardInstance.id))
-      .for("update");
-  }
-}
-
 async function assertTransferableAsset(
   tx: Transaction,
   asset: TradeOfferAsset,
@@ -752,7 +723,7 @@ async function sendTradeOfferInTransaction(
       checkInboundPreference: true,
     }
   );
-  await lockAssets(tx, assets);
+  await lockCollectibleAssets(tx, assets);
   for (const asset of proposerAssets) {
     await assertTransferableAsset(tx, asset, proposerUserId);
   }
@@ -1187,7 +1158,7 @@ async function transitionTradeOfferInTransaction(
       checkInboundPreference: false,
     });
   }
-  await lockAssets(tx, assets);
+  await lockCollectibleAssets(tx, assets);
   const offer = initialOffer;
   if (offer.state !== "sent") {
     throw new TradeOfferError(
@@ -1386,7 +1357,7 @@ export async function closeSentTradeOfferInTransaction(
       : { assetId: row.packInstanceId!, kind: "pack" as const }
   );
   if (assets.length > 0) {
-    await lockAssets(tx, assets);
+    await lockCollectibleAssets(tx, assets);
     await lockActiveCollectibleCustody(tx, assets);
   }
   return finalizeTradeOffer(
@@ -1867,7 +1838,7 @@ async function counterOfferInTransaction(
   });
   const { proposerAssets, recipientAssets } = getTradeSideAssets(input);
   assertTradeBundleShape(proposerAssets, recipientAssets);
-  await lockAssets(tx, [
+  await lockCollectibleAssets(tx, [
     ...previousAssets,
     ...proposerAssets,
     ...recipientAssets,

@@ -796,7 +796,3 @@ export async function issuePack(
   }
   return result!;
 }
-
-export const issuePackInstance = issuePack;
-export const issuePackInstanceInTransaction = issuePackInTransaction;
-export const mintCardAtIssuance = issueCardInTransaction;

@@ -1,5 +1,6 @@
 import {
   and,
+  asc,
   cardInstance,
   collectibleCustody,
   eq,
@@ -8,13 +9,11 @@ import {
   or,
   packInstance,
 } from "@repo/db";
-import type { db as database } from "@repo/db";
 import { generateId } from "@repo/db/utils";
 import type { CollectibleAssetReference } from "@repo/shared/collectibles";
 
 import type { CollectibleTransaction } from "./collectible-issuance";
-
-type Database = typeof database;
+import { orderCollectibleLocks } from "./collectibles";
 
 export type CollectibleCustodyAsset = CollectibleAssetReference;
 export type CollectibleCustodySide = "proposer" | "recipient";
@@ -118,6 +117,47 @@ export async function assertNoActiveCollectibleCustody(
     );
   }
   return true;
+}
+
+/**
+ * Locks Pack then Card instance rows in the one documented collectible lock
+ * order (`orderCollectibleLocks`). Trade, gift, and market custody transfers
+ * must share this single helper so competing operations cannot deadlock.
+ */
+export async function lockCollectibleAssets(
+  tx: Pick<CollectibleTransaction, "select">,
+  assets: readonly CollectibleAssetReference[]
+) {
+  const orderedLocks = orderCollectibleLocks({
+    cardInstanceIds: assets
+      .filter(({ kind }) => kind === "card")
+      .map(({ assetId }) => assetId),
+    packInstanceIds: assets
+      .filter(({ kind }) => kind === "pack")
+      .map(({ assetId }) => assetId),
+  });
+  const packIds = orderedLocks
+    .filter(({ kind }) => kind === "pack-instance")
+    .map(({ id }) => id);
+  const cardIds = orderedLocks
+    .filter(({ kind }) => kind === "card-instance")
+    .map(({ id }) => id);
+  if (packIds.length > 0) {
+    await tx
+      .select({ id: packInstance.id })
+      .from(packInstance)
+      .where(inArray(packInstance.id, packIds))
+      .orderBy(asc(packInstance.id))
+      .for("update");
+  }
+  if (cardIds.length > 0) {
+    await tx
+      .select({ id: cardInstance.id })
+      .from(cardInstance)
+      .where(inArray(cardInstance.id, cardIds))
+      .orderBy(asc(cardInstance.id))
+      .for("update");
+  }
 }
 
 /** Locks existing reservation rows after the parent/asset lock order is held. */
@@ -350,10 +390,3 @@ export async function transferCollectibleAssetOwner(
   }
   return rows[0]!.id;
 }
-
-export type CustodyDatabase = Database;
-export const createCustody = createCollectibleCustody;
-export const releaseCustody = releaseCollectibleCustody;
-export const assertNoActiveCustody = assertNoActiveCollectibleCustody;
-export const releaseBlackMarketCustody = releaseBlackMarketCollectibleCustody;
-export const listBlackMarketCustody = listBlackMarketListingCustody;

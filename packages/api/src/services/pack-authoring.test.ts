@@ -202,4 +202,20 @@ describe("Retired Pack Template lifecycle guards", () => {
     ).rejects.not.toMatchObject({ code: "INVALID_TRANSITION" });
     expect(active.tx.select).toHaveBeenCalled();
   });
+
+  it("refuses to publish without an explicit confirmation before any storage access", async () => {
+    const { db, tx } = queuedLockDb([]);
+    await expect(
+      publishPackRevision(db as never, "admin-1", "pack-1", {
+        confirm: false,
+        expectedVersion: 3,
+        revisionId: "rev-1",
+      })
+    ).rejects.toMatchObject({
+      code: "INVALID_TRANSITION",
+      message: expect.stringContaining("Confirma explícitamente"),
+    });
+    expect(tx.select).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+  });
 });

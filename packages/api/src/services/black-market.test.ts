@@ -103,6 +103,47 @@ vi.mock("./collectible-custody", () => ({
       }
     }
   ),
+  // Mirror the shared helper's canonical pack→card FOR UPDATE order so the
+  // fake adapter keeps recording the deterministic lock sequence.
+  lockCollectibleAssets: vi.fn(
+    async (
+      tx: {
+        select: () => {
+          from: (table: unknown) => {
+            where: (condition: unknown) => {
+              orderBy: () => {
+                for: () => Promise<unknown>;
+              };
+            };
+          };
+        };
+      },
+      assets: readonly { assetId: string; kind: "card" | "pack" }[]
+    ) => {
+      const packIds = assets
+        .filter(({ kind }) => kind === "pack")
+        .map(({ assetId }) => assetId);
+      const cardIds = assets
+        .filter(({ kind }) => kind === "card")
+        .map(({ assetId }) => assetId);
+      if (packIds.length > 0) {
+        await tx
+          .select()
+          .from(packInstance)
+          .where({ idIn: packIds })
+          .orderBy()
+          .for();
+      }
+      if (cardIds.length > 0) {
+        await tx
+          .select()
+          .from(cardInstance)
+          .where({ idIn: cardIds })
+          .orderBy()
+          .for();
+      }
+    }
+  ),
   createCollectibleCustody: vi.fn(
     async (
       tx: unknown,

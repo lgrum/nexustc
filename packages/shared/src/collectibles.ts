@@ -41,8 +41,25 @@ export const COLLECTIBLE_RARITY_LABELS = {
 } as const satisfies Record<CollectibleRarity, string>;
 export const RARITY_ORDER = COLLECTIBLE_RARITY_KEYS;
 
+/** Spanish label for any externally supplied rarity string; falls back to the
+ * raw code only when it is outside the code-owned catalog. */
+export function collectibleRarityLabel(rarity: string): string {
+  return COLLECTIBLE_RARITY_LABELS[rarity as CollectibleRarity] ?? rarity;
+}
+
+/** Spanish label for any externally supplied binding string. */
+export function collectibleBindingLabel(binding: string): string {
+  return COLLECTIBLE_BINDING_LABELS[binding as CollectibleBinding] ?? binding;
+}
+
 export const COLLECTIBLE_BINDINGS = ["transferable", "account-bound"] as const;
 export type CollectibleBinding = (typeof COLLECTIBLE_BINDINGS)[number];
+
+/** Spanish presentation labels for closed enums; UI must not render raw codes. */
+export const COLLECTIBLE_BINDING_LABELS = {
+  transferable: "Transferible",
+  "account-bound": "Vinculado a la cuenta",
+} as const satisfies Record<CollectibleBinding, string>;
 
 export const COLLECTIBLE_ASSET_KINDS = ["card", "pack"] as const;
 export type CollectibleAssetKind = (typeof COLLECTIBLE_ASSET_KINDS)[number];
@@ -280,7 +297,8 @@ export type CardPresentationMetadata = z.infer<
 
 export const cardRenderedVariantSchema = z
   .object({
-    contentHash: z.string().regex(/^[a-f0-9]{16,128}$/),
+    // 8 hex chars = the honest 32-bit FNV change-detection digest length.
+    contentHash: z.string().regex(/^[a-f0-9]{8,128}$/),
     height: z.number().int().positive().max(10_000),
     objectKey: z
       .string()
@@ -423,6 +441,11 @@ export function getCardCharacterIdentity(input: {
   return { characterName, gameName };
 }
 
+/**
+ * Non-cryptographic 32-bit FNV-1a change-detection digest, reported honestly
+ * as 8 hex characters. It only detects accidental content drift (render-plan
+ * keys); immutability guarantees live in database constraints, never here.
+ */
 function stableCardHash(input: unknown) {
   const text = JSON.stringify(input);
   let hash = 2_166_136_261;
@@ -432,7 +455,7 @@ function stableCardHash(input: unknown) {
     hash = Math.imul(hash, 16_777_619);
   }
   // oxlint-disable-next-line eslint/no-bitwise, unicorn/prefer-math-trunc -- Unsigned FNV normalization.
-  return (hash >>> 0).toString(16).padStart(8, "0").repeat(4);
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 /**
@@ -773,6 +796,15 @@ export const tradeOfferStateSchema = z.enum([
 ]);
 export type TradeOfferState = z.infer<typeof tradeOfferStateSchema>;
 
+export const TRADE_OFFER_STATE_LABELS = {
+  sent: "Pendiente",
+  accepted: "Aceptada",
+  rejected: "Rechazada",
+  cancelled: "Cancelada",
+  expired: "Expirada",
+  "administratively-cancelled": "Cancelada por moderación",
+} as const satisfies Record<TradeOfferState, string>;
+
 /** A gift is a one-way, compensation-free transfer of exact assets. */
 export const giftOfferAssetSchema = collectibleAssetReferenceSchema;
 export type GiftOfferAsset = z.infer<typeof giftOfferAssetSchema>;
@@ -839,6 +871,15 @@ export const giftOfferStateSchema = z.enum([
   "administratively-cancelled",
 ]);
 export type GiftOfferState = z.infer<typeof giftOfferStateSchema>;
+
+export const GIFT_OFFER_STATE_LABELS = {
+  sent: "Pendiente",
+  accepted: "Aceptado",
+  rejected: "Rechazado",
+  cancelled: "Cancelado",
+  expired: "Expirado",
+  "administratively-cancelled": "Cancelado por moderación",
+} as const satisfies Record<GiftOfferState, string>;
 
 /** Fixed-price Black Market contracts. Listings never carry seller-authored
  * copy: the public summary is derived entirely from these exact assets. */
@@ -1685,8 +1726,15 @@ export function normalizePackRevisionDraft(
 function nextPackSelectionRandom(
   source: PackSelectionRandomSource | undefined
 ) {
-  const value =
-    typeof source === "function" ? source() : (source?.next() ?? Math.random());
+  const next = typeof source === "function" ? source : source?.next;
+  // Issuance randomness is always caller-injected. A silent Math.random()
+  // fallback would make outcomes unreproducible and unauditable.
+  if (!next) {
+    throw new Error(
+      "La selección de Pack requiere una fuente de aleatoriedad inyectada."
+    );
+  }
+  const value = next();
   if (!Number.isFinite(value)) {
     return 0;
   }
@@ -2230,9 +2278,11 @@ export function assertValidPackRevision(
   return result.normalized;
 }
 
-export const validatePackConfiguration = validatePackRevision;
-export const assertPackRevisionValid = assertValidPackRevision;
-
+/**
+ * Non-cryptographic 32-bit FNV-1a change-detection digest, reported honestly
+ * as 8 hex characters. Configuration immutability rests on database rows and
+ * audit fingerprints; this hash only detects accidental draft edits.
+ */
 function stablePackConfigurationHash(value: unknown) {
   const text = JSON.stringify(value);
   let hash = 2_166_136_261;
@@ -2242,7 +2292,7 @@ function stablePackConfigurationHash(value: unknown) {
     hash = Math.imul(hash, 16_777_619);
   }
   // oxlint-disable-next-line eslint/no-bitwise, unicorn/prefer-math-trunc -- Unsigned FNV normalization.
-  return (hash >>> 0).toString(16).padStart(8, "0").repeat(8);
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 /** Hashes only normalized configuration, never draft IDs or audit metadata. */
@@ -2257,7 +2307,6 @@ export function hashPackConfiguration(input: unknown) {
 }
 
 export const computePackConfigurationHash = hashPackConfiguration;
-export const packConfigurationHash = hashPackConfiguration;
 
 /**
  * Small deterministic PRNG (mulberry32) for administrative simulations. It is
@@ -2331,8 +2380,15 @@ export type PackSimulationResult = {
 type PackRandomSource = (() => number) | { next: () => number };
 
 function nextPackRandom(source: PackRandomSource | undefined) {
-  const value =
-    typeof source === "function" ? source() : (source?.next() ?? Math.random());
+  const next = typeof source === "function" ? source : source?.next;
+  // Simulation randomness is always caller-injected; see
+  // createDeterministicCollectibleRandom for the deterministic source.
+  if (!next) {
+    throw new Error(
+      "La simulación de Pack requiere una fuente de aleatoriedad inyectada."
+    );
+  }
+  const value = next();
   if (!Number.isFinite(value)) {
     return 0;
   }

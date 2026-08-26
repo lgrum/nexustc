@@ -5,7 +5,6 @@ import {
   cardInstance,
   cardSeries,
   cardTemplate,
-  desc,
   eq,
   eterisWallet,
   media,
@@ -679,69 +678,3 @@ export async function getPrivatePackOpening(
     templateName: row.templateName,
   };
 }
-
-/** Private history read; opened results are never included for other users. */
-export async function listPrivatePackOpenings(
-  db: Database,
-  userId: string,
-  limit = 20
-) {
-  const rows = await db
-    .select({
-      assetObjectKey: media.objectKey,
-      cardCount: packRevision.cardCount,
-      id: packInstance.id,
-      openedAt: packInstance.openedAt,
-      revision: packRevision.revision,
-      revisionId: packInstance.revisionId,
-      source: packInstance.issueSource,
-      state: packInstance.state,
-      templateId: packInstance.templateId,
-      templateName: packTemplate.name,
-    })
-    .from(packInstance)
-    .innerJoin(packRevision, eq(packRevision.id, packInstance.revisionId))
-    .innerJoin(packTemplate, eq(packTemplate.id, packInstance.templateId))
-    .innerJoin(media, eq(media.id, packTemplate.assetMediaId))
-    .where(
-      and(
-        eq(packInstance.ownerUserId, userId),
-        eq(packInstance.state, "opened")
-      )
-    )
-    .orderBy(
-      // Nulls are impossible for Opened rows due the schema check.
-      desc(packInstance.openedAt),
-      desc(packInstance.id)
-    )
-    .limit(Math.max(1, Math.min(50, limit)));
-  const result: PrivatePackOpeningView[] = [];
-  for (const row of rows) {
-    const [opening] = await db
-      .select()
-      .from(packOpening)
-      .where(eq(packOpening.packInstanceId, row.id))
-      .limit(1);
-    if (!opening || row.revision === null) {
-      continue;
-    }
-    result.push({
-      assetObjectKey: row.assetObjectKey,
-      cardCount: row.cardCount,
-      id: row.id,
-      openedAt: row.openedAt,
-      openingId: opening.id,
-      revision: row.revision,
-      revisionId: row.revisionId,
-      result: parseStoredCards(opening.cards),
-      source: row.source,
-      state: "opened",
-      templateId: opening.templateId,
-      templateName: row.templateName,
-    });
-  }
-  return { items: result, nextCursor: null };
-}
-
-export const openPackInstance = openPack;
-export const getPackOpening = getPrivatePackOpening;

@@ -149,8 +149,6 @@ export function orderCollectibleLocks(
   );
 }
 
-export const getCollectibleLockOrder = orderCollectibleLocks;
-
 export type CollectibleIdempotencyRecord<
   T extends object = Record<string, unknown>,
 > = {

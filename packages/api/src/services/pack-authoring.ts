@@ -1300,10 +1300,3 @@ export async function listPackRevisions(
     .where(eq(packRevision.templateId, templateId))
     .orderBy(desc(packRevision.createdAt));
 }
-
-export const createPack = createPackTemplate;
-export const savePackDraft = savePackTemplateDraft;
-export const savePackRevision = savePackRevisionDraft;
-export const publishPack = publishPackRevision;
-export const previewPackImpact = previewPackRevisionPublicationImpact;
-export const inspectPackProbabilitiesDraft = inspectPackRevisionProbabilities;

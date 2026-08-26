@@ -50,7 +50,6 @@ import type {
   BlackMarketListingState,
   BlackMarketPurchaseInput,
   BlackMarketSaleHistoryInput,
-  CollectibleAssetReference,
   CollectibleMetricSink,
   PublicCollectibleSale,
 } from "@repo/shared/collectibles";
@@ -65,6 +64,7 @@ import {
   findActiveCollectibleCustody,
   listBlackMarketListingCustody,
   lockActiveCollectibleCustody,
+  lockCollectibleAssets,
   releaseBlackMarketCollectibleCustody,
   transferCollectibleAssetOwner,
 } from "./collectible-custody";
@@ -72,7 +72,6 @@ import type { CollectibleTransaction } from "./collectible-issuance";
 import { appendCollectibleOwnershipEvent } from "./collectible-ownership";
 import {
   assertCollectiblesMutationAllowed,
-  orderCollectibleLocks,
   withCollectibleDeadlockRetry,
 } from "./collectibles";
 import {
@@ -416,42 +415,6 @@ function activeListingSeller(userId: string | null) {
   return userId;
 }
 
-async function lockAssets(
-  tx: Transaction,
-  assets: readonly CollectibleAssetReference[]
-) {
-  const orderedLocks = orderCollectibleLocks({
-    cardInstanceIds: assets
-      .filter(({ kind }) => kind === "card")
-      .map(({ assetId }) => assetId),
-    packInstanceIds: assets
-      .filter(({ kind }) => kind === "pack")
-      .map(({ assetId }) => assetId),
-  });
-  const packIds = orderedLocks
-    .filter(({ kind }) => kind === "pack-instance")
-    .map(({ id }) => id);
-  const cardIds = orderedLocks
-    .filter(({ kind }) => kind === "card-instance")
-    .map(({ id }) => id);
-  if (packIds.length > 0) {
-    await tx
-      .select({ id: packInstance.id })
-      .from(packInstance)
-      .where(inArray(packInstance.id, packIds))
-      .orderBy(asc(packInstance.id))
-      .for("update");
-  }
-  if (cardIds.length > 0) {
-    await tx
-      .select({ id: cardInstance.id })
-      .from(cardInstance)
-      .where(inArray(cardInstance.id, cardIds))
-      .orderBy(asc(cardInstance.id))
-      .for("update");
-  }
-}
-
 async function assertEligibleSeller(
   tx: Transaction,
   sellerUserId: string,
@@ -764,7 +727,7 @@ async function publishInTransaction(
       "No tienes Eteris suficientes para pagar la tarifa de publicación."
     );
   }
-  await lockAssets(tx, assets);
+  await lockCollectibleAssets(tx, assets);
   for (const asset of assets) {
     await assertTransferableAsset(tx, asset, sellerUserId);
   }
@@ -916,7 +879,7 @@ async function finalizeListing(
       ? { assetId: row.cardInstanceId, kind: "card" as const }
       : { assetId: row.packInstanceId!, kind: "pack" as const }
   );
-  await lockAssets(tx, assets);
+  await lockCollectibleAssets(tx, assets);
   await lockActiveCollectibleCustody(tx, assets);
   await releaseBlackMarketCollectibleCustody(tx, listing.id, state, now);
   let { feeReversalTransactionId } = listing;
@@ -1491,7 +1454,7 @@ async function purchaseInTransaction(
       "La composición de la publicación ya no es válida."
     );
   }
-  await lockAssets(tx, assets);
+  await lockCollectibleAssets(tx, assets);
   const activeCustody = await findActiveCollectibleCustody(tx, assets);
   if (activeCustody.length !== assets.length) {
     metric(options.metrics, "custody_conflict", "black-market.purchase");

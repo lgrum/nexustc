@@ -537,6 +537,9 @@ describe("collectiblesAdmin card boundaries", () => {
         { context: createContext() }
       )
     ).resolves.toMatchObject({ revisionId: "revision-1" });
+    // The router delegates confirmation to the service (asserted unmocked in
+    // pack-authoring.test.ts), so an unconfirmed call still reaches it here
+    // and the service owns the INVALID_TRANSITION refusal.
     await expect(
       call(
         collectiblesAdminRouter.packs.revisions.publish,
@@ -550,6 +553,12 @@ describe("collectiblesAdmin card boundaries", () => {
         { context: createContext() }
       )
     ).resolves.toMatchObject({ revisionId: "revision-1" });
+    expect(services.publishPackRevision).toHaveBeenCalledWith(
+      expect.anything(),
+      "owner-1",
+      "pack-1",
+      expect.objectContaining({ confirm: false, revisionId: "revision-1" })
+    );
     await expect(
       call(
         collectiblesAdminRouter.packs.templates.create,

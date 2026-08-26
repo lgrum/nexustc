@@ -513,8 +513,3 @@ export async function retryCollectibleGrantNotification(
     recipientUserId: execution.recipientUserId,
   });
 }
-
-export const createGrantCampaign = createCollectibleGrantCampaign;
-export const executeGrantCampaign = executeCollectibleGrantCampaign;
-export const runCollectibleGrantCampaign = executeCollectibleGrantCampaign;
-export const retryGrantNotification = retryCollectibleGrantNotification;

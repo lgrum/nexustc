@@ -2287,10 +2287,13 @@ export const collectibleGrantExecution = pgTable(
       "collectible_grant_execution_recipient_identity_check",
       sql`num_nonnulls(${table.recipientUserId}, ${table.recipientWalletId}) = 1`
     ),
-    uniqueIndex("collectible_grant_execution_campaign_recipient_idx").on(
+    // Non-unique by design: a recipient may accumulate several executions per
+    // campaign up to perAccountQuantity (enforced by count under the campaign
+    // row lock). This index exists to serve that per-recipient accumulation
+    // count; including row id would have made uniqueness vacuous anyway.
+    index("collectible_grant_execution_campaign_recipient_idx").on(
       table.campaignId,
-      table.recipientUserId,
-      table.id
+      table.recipientUserId
     ),
     index("collectible_grant_execution_campaign_created_idx").on(
       table.campaignId,

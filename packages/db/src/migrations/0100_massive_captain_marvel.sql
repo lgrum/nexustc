@@ -1,0 +1,2 @@
+DROP INDEX "collectible_grant_execution_campaign_recipient_idx";--> statement-breakpoint
+CREATE INDEX "collectible_grant_execution_campaign_recipient_idx" ON "collectible_grant_execution" USING btree ("campaign_id","recipient_user_id");

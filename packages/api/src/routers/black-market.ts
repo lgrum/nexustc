@@ -40,9 +40,13 @@ const mutation = protectedProcedure
 const moderation = permissionProcedure({ marketplace: ["moderate"] })
   .use(collectiblesMutationMiddleware)
   .use(slidingWindowRatelimitMiddleware(20, 60));
-const adminCancellationInput = blackMarketAdminCancellationInputSchema.and(
-  z.object({ expectedVersion: z.number().int().positive() }).strict()
-);
+// expectedVersion is already declared optional by the shared schema; extend
+// (never intersect with a second strict object) to make it mandatory here
+// without rejecting the rest of the documented payload.
+const adminCancellationInput =
+  blackMarketAdminCancellationInputSchema.safeExtend({
+    expectedVersion: z.number().int().positive(),
+  });
 
 function translateBlackMarketError(
   error: unknown,

@@ -156,6 +156,48 @@ describe("pack issuance selection and mint presentation", () => {
     expect(() => formatCardMintNumber(0, null)).toThrow();
   });
 
+  it("requires an injected random source instead of degrading to Math.random", () => {
+    const configuration = normalizePackRevisionDraft({
+      cardCount: 1,
+      duplicatePolicy: "allow",
+      drawGroups: [
+        {
+          order: 1,
+          drawCount: 1,
+          rarityWeights: [{ rarity: "rare", weight: 1 }],
+          cardWeights: [
+            { cardTemplateId: "card-1", rarity: "rare", weight: 1 },
+          ],
+          guarantees: [],
+        },
+      ],
+    });
+    const candidates = [{ cardTemplateId: "card-1", rarity: "rare" as const }];
+    expect(() => selectPackOutcome(configuration, candidates)).toThrow(
+      "fuente de aleatoriedad"
+    );
+    expect(() =>
+      simulatePackRevision(
+        {
+          cardCount: 1,
+          duplicatePolicy: "allow",
+          drawGroups: [
+            {
+              order: 1,
+              drawCount: 1,
+              rarityWeights: [{ rarity: "rare", weight: 1 }],
+              cardWeights: [
+                { cardTemplateId: "card-1", rarity: "rare", weight: 1 },
+              ],
+              guarantees: [],
+            },
+          ],
+        },
+        { iterations: 3 }
+      )
+    ).toThrow("fuente de aleatoriedad");
+  });
+
   it("removes unavailable cards before weighted selection and renormalizes", () => {
     const configuration = normalizePackRevisionDraft({
       cardCount: 1,
@@ -815,7 +857,7 @@ describe("pack revision contracts", () => {
     const normalized = normalizePackRevisionDraft(draft);
     expect(normalized.drawGroups.map(({ order }) => order)).toEqual([1, 2]);
     expect(validatePackRevision(normalized)).toMatchObject({ valid: true });
-    expect(computePackConfigurationHash(draft)).toHaveLength(64);
+    expect(computePackConfigurationHash(draft)).toMatch(/^[a-f0-9]{8}$/);
     expect(computePackConfigurationHash(draft)).toBe(
       computePackConfigurationHash(normalized)
     );

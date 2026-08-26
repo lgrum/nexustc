@@ -154,6 +154,7 @@ vi.mock("./collectible-custody", () => ({
       (row) => row.giftOfferId === giftOfferId
     ),
   lockActiveCollectibleCustody: () => [],
+  lockCollectibleAssets: () => {},
   releaseGiftCollectibleCustody: (
     transaction: unknown,
     giftOfferId: string,
