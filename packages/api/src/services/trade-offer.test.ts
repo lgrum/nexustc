@@ -127,7 +127,7 @@ type FakeState = {
   offers: Record<string, unknown>[];
   packs: Record<string, unknown>[];
   profileSettings: Record<string, unknown>[];
-  revisionAvailability: "active" | "disabled";
+  revisionAvailability: "active" | "disabled" | "exhausted";
 };
 
 function tableName(table: unknown) {
@@ -1066,6 +1066,23 @@ describe("single-asset trade offer service", () => {
     ).rejects.toMatchObject({ code: "ASSET_UNAVAILABLE" });
     expect(database.state.offers).toHaveLength(0);
     expect(database.state.custody).toHaveLength(0);
+  });
+
+  it("keeps packs from an exhausted revision tradeable", async () => {
+    const database = new TradeDatabaseHarness();
+    database.state.revisionAvailability = "exhausted";
+
+    // Send revalidates every asset through the historical-revision gate.
+    await expect(
+      sendTradeOffer(database, "proposer", {
+        ...tradeInput(
+          "trade-exhausted-revision",
+          { assetId: "card-proposer", kind: "card" },
+          { assetId: "pack-recipient", kind: "pack" }
+        ),
+      })
+    ).resolves.toMatchObject({ state: "sent" });
+    expect(database.state.offers).toHaveLength(1);
   });
 
   it("sends a mixed card/pack offer with seven-day immutable terms and private notification", async () => {

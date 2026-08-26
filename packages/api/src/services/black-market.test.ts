@@ -975,7 +975,9 @@ function createQueryDatabase(market: FakeMarket) {
             row?.binding === "transferable" &&
             template?.lifecycle === "active" &&
             revision?.lifecycle === "published" &&
-            revision?.availability === "active"
+            // Exhausted revisions keep their issued packs listable.
+            (revision?.availability === "active" ||
+              revision?.availability === "exhausted")
           );
         });
       }
@@ -1481,6 +1483,31 @@ describe("Black Market publication authority", () => {
     ).rejects.toMatchObject({ code: "ASSET_UNAVAILABLE" });
     expect(market.state.listings).toHaveLength(0);
     expect(market.state.custody).toHaveLength(0);
+  });
+
+  it("keeps listing an unopened Pack whose historical revision became exhausted", async () => {
+    const market = new FakeMarket();
+    market.state.wallets.get("seller-1")!.balance = 100n;
+    const packId = market.addPack("exhausted-revision-pack");
+    const pack = market.state.packs.get(packId);
+    if (!pack) {
+      throw new Error("pack seed missing");
+    }
+    const revision = market.state.revisions.get(String(pack.revisionId));
+    if (!revision) {
+      throw new Error("revision seed missing");
+    }
+    revision.availability = "exhausted";
+
+    await expect(
+      publishBlackMarketListing(
+        market.db as never,
+        "seller-1",
+        publishInput([{ assetId: packId, kind: "pack" }])
+      )
+    ).resolves.toMatchObject({ replayed: false });
+    expect(market.state.listings.size).toBe(1);
+    expect(market.state.custody.size).toBe(1);
   });
 
   it("publishes one asset with the exact ceil-five-percent fee and retained custody", async () => {

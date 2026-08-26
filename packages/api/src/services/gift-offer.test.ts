@@ -41,7 +41,7 @@ type GiftState = {
   offers: Row[];
   packs: Row[];
   profileSettings: Row[];
-  revisionAvailability: "active" | "disabled";
+  revisionAvailability: "active" | "disabled" | "exhausted";
 };
 
 function stateFor(transaction: unknown) {
@@ -1019,6 +1019,22 @@ describe("gift offer authoritative state machine", () => {
     ).rejects.toMatchObject({ code: "ASSET_UNAVAILABLE" });
     expect(database.state.offers).toHaveLength(0);
     expect(database.state.custody).toHaveLength(0);
+  });
+
+  it("keeps packs from an exhausted revision giftable", async () => {
+    const database = new GiftDatabaseHarness();
+    database.state.revisionAvailability = "exhausted";
+
+    await expect(
+      sendGift(
+        database,
+        "sender",
+        baseInput("gift-exhausted-revision", [
+          { assetId: "pack-sender", kind: "pack" },
+        ])
+      )
+    ).resolves.toMatchObject({ state: "sent" });
+    expect(database.state.custody).toHaveLength(1);
   });
 
   it("sends an exact single-asset gift and a 50-item mixed bundle without a ledger posting", async () => {

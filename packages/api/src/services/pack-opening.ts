@@ -340,7 +340,11 @@ export async function openPackInTransaction(
   if (
     !revision ||
     revision.lifecycle !== "published" ||
-    revision.availability !== "active"
+    // Exhaustion only ends new issuance; packs already sold from this
+    // revision stay openable. Disabling or freezing blocks them (spec:
+    // "Disabling a Pack Revision stops ... opening and transfer").
+    (revision.availability !== "active" &&
+      revision.availability !== "exhausted")
   ) {
     throw new PackOpeningError(
       "UNAVAILABLE",

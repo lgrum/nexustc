@@ -575,7 +575,10 @@ async function assertTransferableAsset(
   if (
     !revision ||
     revision.lifecycle !== "published" ||
-    revision.availability !== "active"
+    // Exhaustion only ends new issuance; packs already sold from this
+    // revision stay listable. Disabling or freezing blocks them.
+    (revision.availability !== "active" &&
+      revision.availability !== "exhausted")
   ) {
     throw new BlackMarketError(
       "ASSET_UNAVAILABLE",
@@ -2437,7 +2440,8 @@ export async function listEligibleBlackMarketAssets(
           eq(packInstance.binding, "transferable"),
           eq(packTemplate.lifecycle, "active"),
           eq(packRevision.lifecycle, "published"),
-          eq(packRevision.availability, "active")
+          // Exhausted revisions keep their issued packs listable.
+          inArray(packRevision.availability, ["active", "exhausted"])
         )
       ),
   ]);

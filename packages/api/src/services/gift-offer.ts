@@ -468,7 +468,10 @@ async function assertTransferableAsset(
   if (
     !revision ||
     revision.lifecycle !== "published" ||
-    revision.availability !== "active"
+    // Exhaustion only ends new issuance; packs already sold from this
+    // revision stay giftable. Disabling or freezing blocks them.
+    (revision.availability !== "active" &&
+      revision.availability !== "exhausted")
   ) {
     throw new GiftOfferError(
       "ASSET_UNAVAILABLE",
@@ -1730,7 +1733,8 @@ export async function listEligibleGiftAssets(db: Database, userId: string) {
           eq(packInstance.availability, "active"),
           eq(packInstance.binding, "transferable"),
           eq(packRevision.lifecycle, "published"),
-          eq(packRevision.availability, "active")
+          // Exhausted revisions keep their issued packs giftable.
+          inArray(packRevision.availability, ["active", "exhausted"])
         )
       )
       .orderBy(asc(packInstance.id)),

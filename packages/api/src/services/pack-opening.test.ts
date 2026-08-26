@@ -404,6 +404,22 @@ describe("pack opening application-service seam", () => {
     expect(unavailableRevision.pack.state).toBe("unopened");
   });
 
+  it("still opens packs issued from a revision that later became exhausted", async () => {
+    const state = createState();
+    state.revision.availability = "exhausted";
+    const result = await openPackInTransaction(
+      createTransaction(state),
+      "user-1",
+      openInput(),
+      { now }
+    );
+    expect(result.replayed).toBe(false);
+    expect(state.pack.state).toBe("opened");
+    expect(state.cards.every((card) => card.ownerUserId === "user-1")).toBe(
+      true
+    );
+  });
+
   it("leaves no partial transfer when the opening transaction cannot commit", async () => {
     const state = createState();
     await expect(
