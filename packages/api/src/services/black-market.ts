@@ -983,7 +983,11 @@ async function transitionListing(
   const fingerprint = actionFingerprint(actorUserId, action, listingId, {
     compliant: rawInput.compliant,
     policyViolation: rawInput.policyViolation,
-    reason,
+    // The auto-expiry settlement below stores its audit under the shared
+    // black-market-expiry key with this exact short reason; computing the
+    // replay-check fingerprint with the display reason instead would turn
+    // every retry of the same expiry into IDEMPOTENCY_CONFLICT.
+    reason: action === "expire" ? "expired" : reason,
   });
   const existingAudit = await findAuditByKey(tx, rawInput.idempotencyKey);
   if (existingAudit) {
@@ -1039,9 +1043,7 @@ async function transitionListing(
       "expire",
       "expired",
       "La publicación expiró después de treinta días.",
-      actionFingerprint(actorUserId, "expire", listing.id, {
-        reason: "expired",
-      }),
+      fingerprint,
       `black-market-expiry:${listing.id}:${listing.expiresAt.toISOString()}`,
       now,
       options
@@ -2083,7 +2085,10 @@ function listingSearchConditions(
     if (cardMatch) {
       conditions.push(cardMatch);
     }
-  } else if (cardMatch && packMatch) {
+  } else if (cardMatch && packMatch && !cardMetadataRequested) {
+    // Card-only metadata filters (rarity, mint, series...) cannot be satisfied
+    // by a Pack's name; letting packNameMatch into the OR would return packs
+    // that ignore those filters.
     conditions.push(or(cardMatch, packMatch)!);
   } else if (cardMatch) {
     conditions.push(cardMatch);
