@@ -708,6 +708,13 @@
       "when": 1787641013833,
       "tag": "0100_massive_captain_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1790000000000,
+      "tag": "0101_history_triggers_closure_rewrite",
+      "breakpoints": true
     }
   ]
 }

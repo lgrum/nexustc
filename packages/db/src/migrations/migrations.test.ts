@@ -728,3 +728,47 @@ test("Black Market listing terms are trigger-frozen and settlement history is ap
     'BEFORE UPDATE OR DELETE ON "official_card_shop_purchase"'
   );
 });
+
+test("closure rewrites stay permitted on settlement history and published revision availability stays operational", async () => {
+  const followUpSql = await readFile(
+    path.join(migrationsDirectory, "0101_history_triggers_closure_rewrite.sql"),
+    "utf-8"
+  );
+
+  // The three 0099 append-only triggers must allow the exact closure
+  // pseudonymization (user id -> wallet id) like every other history trigger.
+  for (const functionName of [
+    '"prevent_black_market_listing_audit_mutation"',
+    '"prevent_black_market_sale_mutation"',
+    '"prevent_official_card_shop_purchase_mutation"',
+  ]) {
+    expect(followUpSql).toContain(`CREATE OR REPLACE FUNCTION ${functionName}`);
+  }
+  expect(followUpSql).toContain(
+    "OLD.actor_user_id IS NOT NULL AND NEW.actor_user_id IS NULL"
+  );
+  expect(followUpSql).toContain(
+    "OLD.buyer_user_id IS NOT NULL AND NEW.buyer_user_id IS NULL"
+  );
+  expect(followUpSql).toContain(
+    "OLD.seller_user_id IS NOT NULL AND NEW.seller_user_id IS NULL"
+  );
+  expect(followUpSql).toContain(
+    "RAISE EXCEPTION 'Black Market sales are append-only'"
+  );
+  expect(followUpSql).toContain(
+    "RAISE EXCEPTION 'Official Card Shop purchases are append-only'"
+  );
+
+  // Published pack revisions must keep allowing the operational
+  // availability/updated_at/version moves while configuration stays frozen.
+  expect(followUpSql).toContain(
+    'CREATE OR REPLACE FUNCTION "prevent_pack_revision_mutation"'
+  );
+  expect(followUpSql).toContain(
+    "NEW.configuration_hash IS DISTINCT FROM OLD.configuration_hash"
+  );
+  expect(followUpSql).toContain(
+    "RAISE EXCEPTION 'Published Pack Revision configuration is immutable'"
+  );
+});
