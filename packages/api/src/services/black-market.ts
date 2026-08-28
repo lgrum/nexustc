@@ -28,7 +28,7 @@ import {
   sql,
   user,
 } from "@repo/db";
-import type { db as database } from "@repo/db";
+import type { db as database, SQL, SQLWrapper } from "@repo/db";
 import { generateId } from "@repo/db/utils";
 import { env } from "@repo/env";
 import {
@@ -53,7 +53,6 @@ import type {
   CollectibleMetricSink,
   PublicCollectibleSale,
 } from "@repo/shared/collectibles";
-import type { SQL, SQLWrapper } from "drizzle-orm";
 
 import { isUserBanActive } from "../utils/user-ban";
 import { appendCollectibleAdminAction } from "./collectible-admin-action";

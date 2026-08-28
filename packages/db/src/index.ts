@@ -108,6 +108,9 @@ export {
   sql,
 } from "drizzle-orm";
 
+// Re-export SQL types from the same instance so type identity matches the operators above
+export type { SQL, SQLWrapper } from "drizzle-orm";
+
 // Re-export schema
 // oxlint-disable-next-line oxc/no-barrel-file
 export * from "./schema/app";
