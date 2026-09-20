@@ -8,7 +8,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useStore } from "@tanstack/react-form";
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { z } from "zod";
 
 import {
@@ -41,7 +41,7 @@ import type {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAppForm } from "@/hooks/use-app-form";
-import { useDebounceEffect } from "@/hooks/use-debounce-effect";
+import { useCatalogSearchSync } from "@/hooks/use-catalog-search-sync";
 import { useTerms } from "@/hooks/use-terms";
 
 type GameSearchParams = z.infer<typeof gameSearchParamsSchema>;
@@ -190,7 +190,6 @@ function GamesLibraryToolbar({
   onRandom: () => void;
 }) {
   const termsQuery = useTerms();
-  const hasInitializedSearchSync = useRef(false);
 
   const form = useAppForm({
     defaultValues: {
@@ -206,27 +205,20 @@ function GamesLibraryToolbar({
   });
 
   const formValues = useStore(form.store, (state) => state.values);
+  const isFormDirty = useStore(form.store, (state) => state.isDirty);
 
-  useDebounceEffect(
-    () => {
-      if (!hasInitializedSearchSync.current) {
-        hasInitializedSearchSync.current = true;
-        return;
-      }
-
-      onSearchChange({
-        engine: formValues.engine,
-        graphics: formValues.graphics,
-        orderBy: formValues.orderBy,
-        page: 1,
-        platform: formValues.platform,
-        query: formValues.query || undefined,
-        status: formValues.status,
-        tag: formValues.tag,
-      });
-    },
-    300,
-    [
+  useCatalogSearchSync({
+    buildSearchParams: () => ({
+      engine: formValues.engine,
+      graphics: formValues.graphics,
+      orderBy: formValues.orderBy,
+      page: 1,
+      platform: formValues.platform,
+      query: formValues.query || undefined,
+      status: formValues.status,
+      tag: formValues.tag,
+    }),
+    deps: [
       formValues.query,
       formValues.engine,
       formValues.graphics,
@@ -234,8 +226,10 @@ function GamesLibraryToolbar({
       formValues.platform,
       formValues.tag,
       formValues.orderBy,
-    ]
-  );
+    ],
+    isDirty: isFormDirty,
+    onSearchChange,
+  });
 
   const optionsByGroup = useMemo(() => {
     const data = termsQuery.data ?? [];

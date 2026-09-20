@@ -18,7 +18,7 @@ import { useStore } from "@tanstack/react-form";
 import Autoplay from "embla-carousel-autoplay";
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 
 import {
@@ -60,7 +60,7 @@ import type { CarouselApi } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { useAppForm } from "@/hooks/use-app-form";
-import { useDebounceEffect } from "@/hooks/use-debounce-effect";
+import { useCatalogSearchSync } from "@/hooks/use-catalog-search-sync";
 import { useTerms } from "@/hooks/use-terms";
 import { orpcClient } from "@/lib/orpc";
 import { getThumbnailImageObjectKeys } from "@/lib/post-images";
@@ -915,7 +915,6 @@ function ComicsLibraryToolbar({
   onRandom: () => void;
 }) {
   const termsQuery = useTerms();
-  const hasInitializedSearchSync = useRef(false);
 
   const form = useAppForm({
     defaultValues: {
@@ -929,32 +928,27 @@ function ComicsLibraryToolbar({
   });
 
   const formValues = useStore(form.store, (state) => state.values);
+  const isFormDirty = useStore(form.store, (state) => state.isDirty);
 
-  useDebounceEffect(
-    () => {
-      if (!hasInitializedSearchSync.current) {
-        hasInitializedSearchSync.current = true;
-        return;
-      }
-
-      onSearchChange({
-        maxPages: formValues.maxPages,
-        minPages: formValues.minPages,
-        orderBy: formValues.orderBy,
-        page: 1,
-        query: formValues.query || undefined,
-        tag: formValues.tag,
-      });
-    },
-    300,
-    [
+  useCatalogSearchSync({
+    buildSearchParams: () => ({
+      maxPages: formValues.maxPages,
+      minPages: formValues.minPages,
+      orderBy: formValues.orderBy,
+      page: 1,
+      query: formValues.query || undefined,
+      tag: formValues.tag,
+    }),
+    deps: [
       formValues.query,
       formValues.tag,
       formValues.orderBy,
       formValues.minPages,
       formValues.maxPages,
-    ]
-  );
+    ],
+    isDirty: isFormDirty,
+    onSearchChange,
+  });
 
   const tagOptions = useMemo(() => {
     const data = termsQuery.data ?? [];
