@@ -36,6 +36,11 @@ function toSearchParams(params: GameSearchParams) {
   return searchParams;
 }
 
+function toPageHref(params: GameSearchParams, page: number) {
+  const query = toSearchParams({ ...params, page }).toString();
+  return query ? `/juegos?${query}` : "/juegos";
+}
+
 function scrollToSearchToolbar() {
   window.setTimeout(() => {
     document
@@ -72,8 +77,7 @@ export function GamesClient({
 
   const handlePageChange = useCallback(
     (page: number) => {
-      const query = toSearchParams({ ...params, page }).toString();
-      router.push(query ? `/juegos?${query}` : "/juegos", { scroll: false });
+      router.push(toPageHref(params, page), { scroll: false });
       scrollToSearchToolbar();
     },
     [params, router]
@@ -82,6 +86,7 @@ export function GamesClient({
   return (
     <GamesPage
       filteredPosts={filteredPosts}
+      getPageHref={(page) => toPageHref(params, page)}
       onPageChange={handlePageChange}
       onRandom={handleRandom}
       onSearchChange={handleSearchChange}

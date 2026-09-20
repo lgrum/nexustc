@@ -48,6 +48,7 @@ type GameSearchParams = z.infer<typeof gameSearchParamsSchema>;
 
 type GamesPageProps = {
   filteredPosts: PostProps[];
+  getPageHref: (page: number) => string;
   onRandom: () => void;
   onPageChange: (page: number) => void;
   onSearchChange: (params: GameSearchParams) => void;
@@ -107,6 +108,7 @@ const FILTER_GROUPS: {
 
 export function GamesPage({
   filteredPosts,
+  getPageHref,
   onRandom,
   onPageChange,
   onSearchChange,
@@ -168,6 +170,7 @@ export function GamesPage({
             ))}
           </div>
           <LibraryPagination
+            getPageHref={getPageHref}
             onPageChange={onPageChange}
             pagination={pagination}
           />

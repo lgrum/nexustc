@@ -74,6 +74,7 @@ const GENRE_STRIP_LIMIT = 14;
 type ComicSearchParams = z.infer<typeof comicSearchParamsSchema>;
 
 type ComicsPageProps = {
+  getPageHref: (page: number) => string;
   params: ComicSearchParams;
   filteredPosts: PostProps[];
   pagination: SearchPaginationState;
@@ -85,6 +86,7 @@ type ComicsPageProps = {
 };
 
 export function ComicsPage({
+  getPageHref,
   params,
   filteredPosts,
   pagination,
@@ -123,6 +125,7 @@ export function ComicsPage({
 
       <div className="mt-12 mb-12 px-1 md:px-3">
         <ComicsLibrary
+          getPageHref={getPageHref}
           params={params}
           posts={filteredPosts}
           pagination={pagination}
@@ -805,6 +808,7 @@ function ComicsGenreStrip() {
 /* -------------------------------------------------------------------------- */
 
 function ComicsLibrary({
+  getPageHref,
   params,
   posts,
   pagination,
@@ -812,6 +816,7 @@ function ComicsLibrary({
   onSearchChange,
   onRandom,
 }: {
+  getPageHref: (page: number) => string;
   params: ComicSearchParams;
   posts: PostProps[];
   pagination: SearchPaginationState;
@@ -874,6 +879,7 @@ function ComicsLibrary({
             ))}
           </div>
           <LibraryPagination
+            getPageHref={getPageHref}
             onPageChange={onPageChange}
             pagination={pagination}
           />

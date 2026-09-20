@@ -33,6 +33,11 @@ function toSearchParams(params: ComicSearchParams) {
   return searchParams;
 }
 
+function toPageHref(params: ComicSearchParams, page: number) {
+  const query = toSearchParams({ ...params, page }).toString();
+  return query ? `/comics?${query}` : "/comics";
+}
+
 function scrollToSearchToolbar() {
   window.setTimeout(() => {
     document
@@ -73,8 +78,7 @@ export function ComicsClient({
 
   const handlePageChange = useCallback(
     (page: number) => {
-      const query = toSearchParams({ ...params, page }).toString();
-      router.push(query ? `/comics?${query}` : "/comics", { scroll: false });
+      router.push(toPageHref(params, page), { scroll: false });
       scrollToSearchToolbar();
     },
     [params, router]
@@ -83,6 +87,7 @@ export function ComicsClient({
   return (
     <ComicsPage
       filteredPosts={filteredPosts}
+      getPageHref={(page) => toPageHref(params, page)}
       onPageChange={handlePageChange}
       onRandomSelect={handleRandomSelect}
       onSearchChange={handleSearchChange}

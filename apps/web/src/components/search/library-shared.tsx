@@ -488,9 +488,11 @@ export type SearchPaginationState = {
 };
 
 export function LibraryPagination({
+  getPageHref,
   onPageChange,
   pagination,
 }: {
+  getPageHref: (page: number) => string;
   onPageChange: (page: number) => void;
   pagination: SearchPaginationState;
 }) {
@@ -513,7 +515,7 @@ export function LibraryPagination({
             <PaginationPrevious
               aria-disabled={!hasPrevious}
               className={cn(!hasPrevious && "pointer-events-none opacity-50")}
-              href="#"
+              href={hasPrevious ? getPageHref(pagination.page - 1) : undefined}
               onClick={(event) => {
                 event.preventDefault();
                 if (hasPrevious) {
@@ -531,7 +533,7 @@ export function LibraryPagination({
             ) : (
               <PaginationItem key={item}>
                 <PaginationLink
-                  href="#"
+                  href={getPageHref(item)}
                   isActive={item === pagination.page}
                   onClick={(event) => {
                     event.preventDefault();
@@ -547,7 +549,7 @@ export function LibraryPagination({
             <PaginationNext
               aria-disabled={!hasNext}
               className={cn(!hasNext && "pointer-events-none opacity-50")}
-              href="#"
+              href={hasNext ? getPageHref(pagination.page + 1) : undefined}
               onClick={(event) => {
                 event.preventDefault();
                 if (hasNext) {

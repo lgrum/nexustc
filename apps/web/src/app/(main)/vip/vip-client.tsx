@@ -25,6 +25,18 @@ import { cn, getBucketUrl } from "@/lib/utils";
 
 export type VipContentType = "comic" | "post";
 
+function toPageHref(contentType: VipContentType, page: number) {
+  const params = new URLSearchParams();
+  if (contentType === "comic") {
+    params.set("type", "comic");
+  }
+  if (page > 1) {
+    params.set("page", String(page));
+  }
+  const query = params.toString();
+  return query ? `/vip?${query}` : "/vip";
+}
+
 export function VipClient({
   contentType,
   feed,
@@ -37,15 +49,7 @@ export function VipClient({
 
   const handlePageChange = useCallback(
     (page: number) => {
-      const params = new URLSearchParams();
-      if (contentType === "comic") {
-        params.set("type", "comic");
-      }
-      if (page > 1) {
-        params.set("page", String(page));
-      }
-      const query = params.toString();
-      router.push(query ? `/vip?${query}` : "/vip", { scroll: false });
+      router.push(toPageHref(contentType, page), { scroll: false });
     },
     [contentType, router]
   );
@@ -94,6 +98,7 @@ export function VipClient({
               ))}
             </div>
             <LibraryPagination
+              getPageHref={(page) => toPageHref(contentType, page)}
               onPageChange={handlePageChange}
               pagination={pagination}
             />
